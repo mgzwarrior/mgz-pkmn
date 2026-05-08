@@ -13,12 +13,17 @@ From the **repository root** (recommended — shares the existing `uv` virtual
 environment with the CLI and the rest of the project):
 
 ```bash
-uv sync                                              # install deps
+uv sync --extra api                                  # install CLI + API deps
 uv run uvicorn api.main:app --reload --port 8000     # start server
 ```
 
+`--extra api` pulls in `fastapi` + `uvicorn[standard]`. They're an opt-in
+extra (not in the default CLI dependencies) so `pip install mgz-pkmn` stays
+lightweight for users who only want the CLI.
+
 Or, from inside `api/` (uses the package's own `pyproject.toml`, which
-editable-installs `mgz_pkmn` from the parent directory):
+editable-installs `mgz_pkmn` from the parent directory and depends on
+fastapi/uvicorn directly):
 
 ```bash
 uv sync

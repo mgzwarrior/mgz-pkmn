@@ -7,6 +7,7 @@
  * lookup.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 import { Play, Square, RotateCcw } from 'lucide-react'
 import { parseLine } from '../api/client'
 import { useAppStore } from '../store'
@@ -52,7 +53,7 @@ export function InputEditor({ onRun, onStop }: Props) {
   const parsedPreview = useLineParse(activeLine)
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: KeyboardEvent<HTMLTextAreaElement>) => {
       // Ctrl/Cmd + Enter → run
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault()

@@ -4,6 +4,7 @@
  * Disabled until at least one matched row is available.
  */
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { FileSpreadsheet, BookOpen, Loader2 } from 'lucide-react'
 import { exportFile } from '../api/client'
 import { useAppStore } from '../store'
@@ -68,7 +69,7 @@ function ExportButton({
   onClick,
 }: {
   label: string
-  icon: React.ReactNode
+  icon: ReactNode
   loading: boolean
   disabled: boolean
   onClick: () => void

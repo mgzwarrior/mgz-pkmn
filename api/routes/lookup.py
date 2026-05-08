@@ -78,7 +78,7 @@ def _pricing_to_dict(p: Pricing) -> dict[str, Any]:
     }
 
 
-def _row_to_dict(row: Row, reason: str = "matched") -> dict[str, Any]:
+def _row_to_dict(row: Row, reason: str) -> dict[str, Any]:
     card = row.card or {}
     return {
         "query": _query_to_dict(row.query),
@@ -96,20 +96,28 @@ def _do_lookup(
     pc: PriceChartingClient,
     q: CardQuery,
     settings: Settings,
-) -> list[Row]:
-    """Run a blocking card lookup and return one or more Row objects."""
-    rows: list[Row] = []
+) -> list[tuple[Row, str]]:
+    """Run a blocking card lookup and return (Row, reason) pairs.
+
+    `reason` mirrors `MatchResult.reason` for single lookups
+    ("matched" | "no_candidates" | "set_mismatch") and uses synthetic values
+    for bulk / error paths ("matched" | "no_results" | "error").
+    """
+    out: list[tuple[Row, str]] = []
 
     if q.bulk_top:
         try:
             top = find_top_cards(pkmn, q, limit=q.bulk_top, max_price=settings.max_price)
+            err = False
         except req_lib.RequestException:
             top = []
+            err = True
         for card in top:
             pricing = extract_pricing(card, q.variant_hint)
-            rows.append(Row(query=q, card=card, pricing=pricing, tag=settings.tag))
+            out.append((Row(query=q, card=card, pricing=pricing, tag=settings.tag), "matched"))
         if not top:
-            rows.append(Row(query=q, card=None, pricing=Pricing(), tag=settings.tag))
+            reason = "error" if err else "no_results"
+            out.append((Row(query=q, card=None, pricing=Pricing(), tag=settings.tag), reason))
     else:
         try:
             result = find_card(pkmn, tcgdex, pc, q)
@@ -119,13 +127,21 @@ def _do_lookup(
             result = MatchResult(None, "error")
         if result.card:
             pricing = extract_pricing(result.card, q.variant_hint)
-            rows.append(
-                Row(query=q, card=result.card, pricing=pricing, tag=settings.tag)
+            out.append(
+                (
+                    Row(query=q, card=result.card, pricing=pricing, tag=settings.tag),
+                    "matched",
+                )
             )
         else:
-            rows.append(Row(query=q, card=None, pricing=Pricing(), tag=settings.tag))
+            out.append(
+                (
+                    Row(query=q, card=None, pricing=Pricing(), tag=settings.tag),
+                    result.reason,
+                )
+            )
 
-    return rows
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -133,20 +149,37 @@ def _do_lookup(
 # ---------------------------------------------------------------------------
 
 
+def _is_skippable(line: str) -> bool:
+    """Blank or `#`-comment lines are intentionally ignored (matches CLI)."""
+    s = line.strip()
+    return not s or s.startswith("#")
+
+
+def _unparseable_row(line: str, tag: str) -> Row:
+    """Synthesize a Row for a non-blank line that the parser couldn't decode."""
+    placeholder = CardQuery(raw=line, name=line.strip())
+    return Row(query=placeholder, card=None, pricing=Pricing(), tag=tag)
+
+
 @router.post("/lookup")
 async def lookup(req: LookupRequest) -> dict:
     """Look up a single card line and return resolved rows.
 
     A bulk query (top-N) expands into multiple rows. A regular query returns
-    exactly one row (matched or unmatched).
+    exactly one row (matched or unmatched). Blank / comment lines return
+    no rows.
     """
-    q = parse_line(req.line)
-    if q is None:
+    if _is_skippable(req.line):
         return {"rows": []}
 
+    q = parse_line(req.line)
+    if q is None:
+        row = _unparseable_row(req.line, req.settings.tag)
+        return {"rows": [_row_to_dict(row, "unparseable")]}
+
     pkmn, tcgdex, pc = _make_clients(req.settings)
-    rows = await run_in_threadpool(_do_lookup, pkmn, tcgdex, pc, q, req.settings)
-    return {"rows": [_row_to_dict(r) for r in rows]}
+    pairs = await run_in_threadpool(_do_lookup, pkmn, tcgdex, pc, q, req.settings)
+    return {"rows": [_row_to_dict(r, reason) for r, reason in pairs]}
 
 
 @router.post("/bulk")
@@ -156,22 +189,42 @@ async def bulk(req: BulkRequest) -> StreamingResponse:
     Each SSE event is a JSON object:
       `{ index, total, query, card, pricing, tag, matched, reason }`
 
+    Blank / `#`-comment lines are silently skipped (matching CLI behavior),
+    so they don't appear in the stream and don't count toward `total`. Lines
+    that fail to parse are emitted as a single unmatched event with
+    `reason: "unparseable"`, so the client never silently loses input.
+
     A final `{ done: true, total }` event is emitted when all lines are done.
     """
-    queries: list[CardQuery] = []
-    for line in req.lines:
-        q = parse_line(line)
-        if q is not None:
-            queries.append(q)
+    # Filter out skippable lines, but keep originals (parseable or not) in
+    # order so client progress matches user-submitted intent.
+    indexed: list[tuple[int, str]] = [
+        (i, line) for i, line in enumerate(req.lines) if not _is_skippable(line)
+    ]
+    total = len(indexed)
 
     pkmn, tcgdex, pc = _make_clients(req.settings)
-    total = len(queries)
 
     async def event_stream():
-        for idx, q in enumerate(queries):
-            rows = await run_in_threadpool(_do_lookup, pkmn, tcgdex, pc, q, req.settings)
-            for row in rows:
-                payload = {"index": idx, "total": total, **_row_to_dict(row)}
+        for stream_idx, (_orig_idx, line) in enumerate(indexed):
+            q = parse_line(line)
+            if q is None:
+                row = _unparseable_row(line, req.settings.tag)
+                payload = {
+                    "index": stream_idx,
+                    "total": total,
+                    **_row_to_dict(row, "unparseable"),
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+                continue
+
+            pairs = await run_in_threadpool(_do_lookup, pkmn, tcgdex, pc, q, req.settings)
+            for row, reason in pairs:
+                payload = {
+                    "index": stream_idx,
+                    "total": total,
+                    **_row_to_dict(row, reason),
+                }
                 yield f"data: {json.dumps(payload)}\n\n"
         yield f"data: {json.dumps({'done': True, 'total': total})}\n\n"
 

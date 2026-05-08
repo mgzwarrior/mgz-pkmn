@@ -30,5 +30,4 @@ def create_override(req: OverrideRequest) -> dict:
 @router.get("/overrides")
 def list_overrides() -> dict:
     """Return all recorded URL overrides."""
-    overrides = disk_cache._load_overrides()
-    return {"overrides": overrides}
+    return {"overrides": disk_cache.list_url_overrides()}

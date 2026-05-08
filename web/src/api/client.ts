@@ -148,7 +148,9 @@ export async function exportFile(
   a.href = url
   a.download = format === 'xlsx' ? 'cards.xlsx' : 'binder.pdf'
   a.click()
-  URL.revokeObjectURL(url)
+  // Defer revocation: revoking synchronously can cancel the download in some
+  // browsers because the click hasn't started navigation yet.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 // ---------------------------------------------------------------------------

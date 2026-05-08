@@ -3,6 +3,7 @@
  * Uses the Radix Dialog primitive styled with Tailwind.
  */
 import * as Dialog from '@radix-ui/react-dialog'
+import type { ReactNode } from 'react'
 import { Settings as SettingsIcon, X } from 'lucide-react'
 import { useAppStore } from '../store'
 
@@ -119,7 +120,7 @@ function Field({
 }: {
   label: string
   htmlFor: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <div>

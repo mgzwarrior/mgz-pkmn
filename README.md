@@ -143,7 +143,7 @@ Run both processes (two terminals):
 
 ```bash
 # Terminal 1 — API (from repo root)
-uv sync
+uv sync --extra api
 uv run uvicorn api.main:app --reload --port 8000
 
 # Terminal 2 — frontend
@@ -151,6 +151,10 @@ cd web
 npm install
 npm run dev
 ```
+
+`--extra api` pulls in `fastapi` + `uvicorn`, which aren't part of the
+default CLI install — they're an opt-in extra so plain `pip install mgz-pkmn`
+stays lightweight.
 
 Then open <http://localhost:5173>. The Vite dev server proxies `/api/*` to
 the FastAPI server on `:8000`. Swagger UI is at <http://localhost:8000/docs>.
