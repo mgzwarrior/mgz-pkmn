@@ -307,9 +307,8 @@ def _extract_price_conds(body: str) -> tuple[str, float | None, float | None]:
     cleaned = " ".join(cleaned.split())
     # Trim trailing connectors / separators left over after the substitution
     # (e.g. "X cards >= $20" → "X cards", or "X | >= $20" → "X").
-    # After the split/join above, whitespace is a single space, so we use a
-    # literal space instead of \s to avoid any potential backtracking.
-    cleaned = re.sub(r"[,;|\-— ]+$", "", cleaned)
+    # str.rstrip() is O(n) with no backtracking.
+    cleaned = cleaned.rstrip(" ,;|-—")
     return cleaned, price_min, price_max
 
 
