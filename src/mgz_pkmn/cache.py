@@ -163,3 +163,13 @@ def find_url_override(name: str, set_hint: str | None) -> str | None:
     if _disabled():
         return None
     return _load_overrides().get(_override_key(name, set_hint))
+
+
+def list_url_overrides() -> dict[str, str]:
+    """Return a copy of every recorded `(name|set) → URL` override.
+
+    Public counterpart to `_load_overrides`, intended for callers (e.g. the
+    HTTP API) that want to enumerate the override map without reaching into
+    private helpers. Returns an empty dict if the cache is disabled or empty.
+    """
+    return dict(_load_overrides())

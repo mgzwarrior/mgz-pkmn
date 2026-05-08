@@ -11,11 +11,20 @@ dependencies = [
     "requests>=2.31",
 ]
 
+[project.optional-dependencies]
+# Install with: `uv sync --extra api` (or `pip install mgz-pkmn[api]`).
+# Pulls in the FastAPI server stack used by `api/`. CLI users don't need this.
+api = [
+    "fastapi>=0.136.1",
+    "uvicorn[standard]>=0.46.0",
+]
+
 [project.scripts]
 pkmn = "mgz_pkmn.cli:cli"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "ruff>=0.6",
 ]
 

@@ -3,10 +3,17 @@
 [![CI](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml/badge.svg)](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
-A small CLI for prepping Pokemon card binders for a card show: take a list of
+A toolkit for prepping Pokemon card binders for a card show: take a list of
 cards, look each one up across **three open data sources**, download images,
 and write an `.xlsx` with embedded thumbnails, current market price, and
 80 / 85 / 90 / 95 % negotiation comps.
+
+Two ways to drive it:
+
+- **CLI** — `./pkmn cards.txt` produces xlsx + (optional) PDF binder + JSON report.
+- **Web UI** — FastAPI backend in [api/](api/) and a React + Vite frontend in [web/](web/)
+  put the same pipeline behind a live in-browser interface with streaming results
+  and one-click export. See [Web UI](#web-ui) below.
 
 The tool tries sources in this order:
 
@@ -116,6 +123,44 @@ The wishlists I actually used at the show, plus a sample full-pipeline run:
 `input/` and `output/` in this repo are the **real files** from that run — input
 lists per source (`151-cards.txt`, `surging-sparks-cards.txt`, etc.) and the
 generated spreadsheet, binder PDF, JSON summary, and downloaded card art.
+
+## Web UI
+
+A browser interface lives alongside the CLI: a FastAPI backend in [api/](api/)
+and a React + Vite SPA in [web/](web/). Both share the parser, lookup, and
+export pipeline used by the CLI — no logic is duplicated.
+
+What you get over the CLI:
+
+- live results table — rows stream in via SSE as each lookup resolves
+- inline parse-preview as you type a card line
+- one-click `.xlsx` / PDF download
+- persisted settings (API key, max-price cap, dedupe, source tag) in `localStorage`
+- inline "Add PriceCharting URL" action for unmatched rows that records a
+  sticky override and re-runs that line
+
+Run both processes (two terminals):
+
+```bash
+# Terminal 1 — API (from repo root)
+uv sync --extra api
+uv run uvicorn api.main:app --reload --port 8000
+
+# Terminal 2 — frontend
+cd web
+npm install
+npm run dev
+```
+
+`--extra api` pulls in `fastapi` + `uvicorn`, which aren't part of the
+default CLI install — they're an opt-in extra so plain `pip install mgz-pkmn`
+stays lightweight.
+
+Then open <http://localhost:5173>. The Vite dev server proxies `/api/*` to
+the FastAPI server on `:8000`. Swagger UI is at <http://localhost:8000/docs>.
+
+For deeper docs (endpoint reference, troubleshooting, architecture), see
+[api/README.md](api/README.md) and [web/README.md](web/README.md).
 
 ## Input format
 
