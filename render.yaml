@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: mgz-pkmn
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    autoDeploy: false
+    healthCheckPath: /health
+    envVars:
+      - key: POKEMONTCG_IO_API_KEY
+        sync: false

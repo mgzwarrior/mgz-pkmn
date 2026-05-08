@@ -349,7 +349,7 @@ def _try_bulk(body: str) -> tuple[int, str, str | None] | None:
     # --- "top:N <subject>" / "top N <subject>" ---
     m = _TOP_PREFIX_RE.match(head)
     if m:
-        subject = _strip_bulk_suffix(head[m.end():].strip())
+        subject = _strip_bulk_suffix(head[m.end() :].strip())
         if subject:
             return int(m.group(1)), subject, set_hint
         return None
@@ -357,7 +357,7 @@ def _try_bulk(body: str) -> tuple[int, str, str | None] | None:
     # --- "All <subject> cards|prints|versions" ---
     m = _ALL_PREFIX_RE.match(head)
     if m:
-        rest = head[m.end():].strip()
+        rest = head[m.end() :].strip()
         # The suffix is REQUIRED for "All …" so "All Energy Removal" is not
         # accidentally treated as a bulk query.
         parts = rest.rsplit(None, 1)

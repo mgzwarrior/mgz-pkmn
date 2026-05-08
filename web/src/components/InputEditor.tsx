@@ -20,30 +20,29 @@ interface Props {
 
 // Very simple parse-preview: call /api/v1/parse for the currently focused line.
 function useLineParse(line: string) {
-  const [query, setQuery] = useState<CardQuery | null | undefined>(undefined)
+  const trimmed = line.trim()
+  const skip = !trimmed || trimmed.startsWith('#')
+  const [query, setQuery] = useState<CardQuery | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) {
-      setQuery(null)
-      return
-    }
+    if (skip) return
+    let cancelled = false
     timerRef.current = setTimeout(async () => {
       try {
         const q = await parseLine(trimmed)
-        setQuery(q)
+        if (!cancelled) setQuery(q)
       } catch {
-        setQuery(null)
+        if (!cancelled) setQuery(null)
       }
     }, 350)
     return () => {
+      cancelled = true
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [line])
+  }, [trimmed, skip])
 
-  return query
+  return skip ? null : query
 }
 
 export function InputEditor({ onRun, onStop }: Props) {

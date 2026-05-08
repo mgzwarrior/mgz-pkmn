@@ -1,0 +1,40 @@
+# VCS / Claude / editor
+.git
+.github
+.claude
+.idea
+.vscode
+.DS_Store
+
+# Python build / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+
+# Node build outputs (we rebuild inside the image)
+web/node_modules
+web/dist
+web/dist-ssr
+
+# Sample / runtime artifacts
+input/
+output/
+sample.xlsx
+sample_cards.txt
+
+# Tests are not needed in the image
+tests/
+
+# Local docs
+*.md
+!README.md
+
+# Misc
+.env
+.env.*

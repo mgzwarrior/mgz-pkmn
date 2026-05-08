@@ -9,8 +9,11 @@ Or from inside the api/ directory:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .routes import export, lookup, overrides, parse, sets
 
@@ -45,3 +48,10 @@ app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+# Serve the built SPA when present (single-unit production deploy). The mount
+# lives below the API routes so /api/* and /health continue to win.
+_web_dist = Path(__file__).resolve().parent.parent / "web" / "dist"
+if _web_dist.is_dir():
+    app.mount("/", StaticFiles(directory=_web_dist, html=True), name="web")

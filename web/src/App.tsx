@@ -71,7 +71,7 @@ function App() {
       setProgress({ done: event.index + 1, total: event.total })
     }
 
-    function onDone(_aborted: boolean) {
+    function onDone() {
       setIsRunning(false)
     }
 

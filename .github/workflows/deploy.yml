@@ -1,0 +1,40 @@
+name: Deploy
+
+# Manual-only. Trigger from the Actions tab → "Run workflow".
+# Requires repo secret RENDER_DEPLOY_HOOK (Render dashboard → Service → Settings → Deploy Hook).
+on:
+  workflow_dispatch:
+    inputs:
+      clear_cache:
+        description: "Clear build cache before deploying"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          CLEAR: ${{ inputs.clear_cache }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK secret is not set"
+            exit 1
+          fi
+          if [ "$CLEAR" = "true" ]; then
+            url="${HOOK}&clearCache=clear"
+          else
+            url="$HOOK"
+          fi
+          curl --fail-with-body -sS -X POST "$url"
+          echo "Deploy triggered. Watch progress at https://dashboard.render.com"
