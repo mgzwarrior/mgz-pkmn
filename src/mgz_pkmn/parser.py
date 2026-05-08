@@ -18,15 +18,19 @@ URL_RE = re.compile(r"https?://\S+")
 #                                         real card names that start with "All"
 #                                         (e.g. "All Energy Removal").
 #   2. "top:<N> <subject>" / "top <N> <subject>" — explicit, suffix optional.
-# Use [ \t] instead of \s to avoid ReDoS from the wide \s character class
-# combining with quantifiers across multiple alternatives.
+# Split into a two-step parse (prefix match + suffix strip) so that each
+# individual regex is simple and non-backtracking.  The original single-regex
+# form combined lazy `.+?` with surrounding `[ \t]*` quantifiers in a way
+# that caused polynomial (O(n²)) backtracking on adversarial whitespace-heavy
+# inputs — a ReDoS risk once user input flows through the API.
 DEFAULT_BULK_TOP = 5
-ALL_PHRASE_RE = re.compile(
-    r"^all[ \t]+(.+?)[ \t]+(?:cards?|prints?|versions?)[ \t]*$", re.IGNORECASE
-)
-TOP_PHRASE_RE = re.compile(
-    r"^top[: \t]+(\d+)[ \t]+(.+?)[ \t]*(?:cards?|prints?|versions?)?[ \t]*$", re.IGNORECASE
-)
+# Matches only the "top:N " prefix of a bulk line.
+_TOP_PREFIX_RE = re.compile(r"^top[: \t]+(\d+)[ \t]+", re.IGNORECASE)
+# Matches only the "all " prefix of an "all <subject> cards" line.
+_ALL_PREFIX_RE = re.compile(r"^all[ \t]+", re.IGNORECASE)
+# Strips a trailing "cards", "prints", or "versions" suffix (with leading
+# whitespace).  Anchored at end-of-string; no interaction with a subject body.
+_BULK_SUFFIX_RE = re.compile(r"[ \t]+(?:cards?|prints?|versions?)[ \t]*$", re.IGNORECASE)
 
 # In-line per-card price conditions on bulk lookups. Match a comparator
 # (`>=`, `<=`, `>`, `<`) followed by an optional currency symbol and a
@@ -299,7 +303,8 @@ def _extract_price_conds(body: str) -> tuple[str, float | None, float | None]:
         return ""
 
     cleaned = PRICE_COND_RE.sub(_capture, body)
-    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+    # Collapse runs of spaces/tabs without using a backtracking regex.
+    cleaned = " ".join(cleaned.split())
     # Trim trailing connectors / separators left over after the substitution
     # (e.g. "X cards >= $20" → "X cards", or "X | >= $20" → "X").
     cleaned = re.sub(r"[,;|\-—\s]+$", "", cleaned).strip()
@@ -322,15 +327,34 @@ def _try_bulk(body: str) -> tuple[int, str, str | None] | None:
     a 'cards|prints|versions' suffix so real card names like 'All Energy
     Removal' aren't accidentally treated as bulk. If the line doesn't start
     with one of those forms, returns None and parsing falls through to the
-    single-card path."""
+    single-card path.
+
+    Uses a two-step parse (prefix match → suffix strip) instead of a single
+    full-line regex so that no combination of quantifiers can cause polynomial
+    backtracking on adversarial whitespace-heavy inputs."""
     head, set_hint = _split_set_hint(body)
 
-    m = TOP_PHRASE_RE.match(head)
+    # --- "top:N <subject>" / "top N <subject>" ---
+    m = _TOP_PREFIX_RE.match(head)
     if m:
-        return int(m.group(1)), m.group(2).strip(), set_hint
-    m = ALL_PHRASE_RE.match(head)
+        subject = head[m.end():].strip()
+        # Strip optional trailing "cards / prints / versions" suffix.
+        subject = _BULK_SUFFIX_RE.sub("", subject).strip()
+        if subject:
+            return int(m.group(1)), subject, set_hint
+        return None
+
+    # --- "All <subject> cards|prints|versions" ---
+    m = _ALL_PREFIX_RE.match(head)
     if m:
-        return DEFAULT_BULK_TOP, m.group(1).strip(), set_hint
+        rest = head[m.end():]
+        # The suffix is REQUIRED for "All …" so "All Energy Removal" is not
+        # accidentally treated as a bulk query.
+        suffix = _BULK_SUFFIX_RE.search(rest)
+        if suffix:
+            subject = rest[: suffix.start()].strip()
+            if subject:
+                return DEFAULT_BULK_TOP, subject, set_hint
     return None
 
 
