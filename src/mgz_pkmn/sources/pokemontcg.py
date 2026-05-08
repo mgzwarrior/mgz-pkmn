@@ -10,7 +10,7 @@ from urllib.parse import quote
 import requests
 
 from .. import cache as disk_cache
-from ..parser import CardQuery, strip_noise
+from ..parser import CardQuery, detect_card_language, strip_noise
 from ._common import USER_AGENT
 from .base import MatchResult, name_clause, score_card, set_overlap
 
@@ -145,6 +145,10 @@ def search_pokemontcg(client: TCGClient, q: CardQuery) -> MatchResult:
 
     for c in all_candidates:
         c.setdefault("_database", "pokemontcg.io")
+        c.setdefault(
+            "language",
+            detect_card_language(c.get("name"), (c.get("set") or {}).get("name")),
+        )
 
     if q.set_hint:
         in_set = [c for c in all_candidates if set_overlap(c, q.set_hint)]

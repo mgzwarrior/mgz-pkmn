@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from mgz_pkmn.parser import DEFAULT_BULK_TOP, parse_line
+from mgz_pkmn.parser import DEFAULT_BULK_TOP, detect_card_language, parse_line
 
 
 class ParseLineTests(unittest.TestCase):
@@ -145,6 +145,58 @@ class BulkDetectionTests(unittest.TestCase):
         assert q is not None
         self.assertEqual(q.bulk_top, 10)
         self.assertLess(elapsed, 0.5, f"parse_line was too slow: {elapsed:.3f}s")
+
+
+class DetectCardLanguageTests(unittest.TestCase):
+    def test_japanese_katakana_in_name(self) -> None:
+        # The real motivating case: pokemontcg.io card xy12-109 returns
+        # 'ナッシー[Exeggutor]' (Japanese name + bracketed English gloss).
+        self.assertEqual(detect_card_language("ナッシー[Exeggutor]"), "ja")
+
+    def test_japanese_hiragana_in_name(self) -> None:
+        self.assertEqual(detect_card_language("ぴかちゅう"), "ja")
+
+    def test_korean_hangul_in_name(self) -> None:
+        self.assertEqual(detect_card_language("피카츄"), "ko")
+
+    def test_kanji_only_name_treated_as_chinese(self) -> None:
+        # No kana → most likely Chinese in this database (Japanese cards
+        # almost always carry kana somewhere in the name).
+        self.assertEqual(detect_card_language("喷火龙"), "zh-cn")
+
+    def test_pricecharting_url_chinese_slug(self) -> None:
+        # The motivating PriceCharting case: Calvin's Cubone Chinese SIR.
+        url = "https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407"
+        self.assertEqual(detect_card_language("Cubone", url=url), "zh-cn")
+
+    def test_set_name_keyword_japanese(self) -> None:
+        self.assertEqual(
+            detect_card_language("Charizard", set_name="Japanese Promo Set"),
+            "ja",
+        )
+
+    def test_plain_english_card_defaults_to_en(self) -> None:
+        self.assertEqual(detect_card_language("Charizard"), "en")
+        self.assertEqual(
+            detect_card_language(
+                "Charizard",
+                set_name="Base Set",
+                url="https://pricecharting.com/game/pokemon-base-set/charizard-4",
+            ),
+            "en",
+        )
+
+    def test_url_keyword_loses_to_script_evidence(self) -> None:
+        # A katakana name plus a URL slug saying "chinese" should still come
+        # back as ja — the script of the actual card name is stronger evidence
+        # than a URL token.
+        self.assertEqual(
+            detect_card_language(
+                "ナッシー",
+                url="https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/x",
+            ),
+            "ja",
+        )
 
 
 if __name__ == "__main__":

@@ -13,13 +13,19 @@ From the **repository root** (recommended — shares the existing `uv` virtual
 environment with the CLI and the rest of the project):
 
 ```bash
-uv sync --extra api                                  # install CLI + API deps
-uv run uvicorn api.main:app --reload --port 8000     # start server
+make install-api          # uv sync --extra api
+make dev-api              # uv run uvicorn api.main:app --reload --port 8000
 ```
 
-`--extra api` pulls in `fastapi` + `uvicorn[standard]`. They're an opt-in
+`make install-api` pulls in `fastapi` + `uvicorn[standard]` as an opt-in
 extra (not in the default CLI dependencies) so `pip install mgz-pkmn` stays
 lightweight for users who only want the CLI.
+
+Override the port with `PORT_API=`:
+
+```bash
+PORT_API=8001 make dev-api
+```
 
 Or, from inside `api/` (uses the package's own `pyproject.toml`, which
 editable-installs `mgz_pkmn` from the parent directory and depends on
@@ -43,9 +49,8 @@ schema is at <http://localhost:8000/openapi.json>.
 In a second terminal, start the Vite dev server:
 
 ```bash
-cd web
-npm install
-npm run dev
+make install-web          # one-time
+make dev-web
 ```
 
 Open <http://localhost:5173>. Vite proxies `/api/*` → `http://localhost:8000`

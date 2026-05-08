@@ -402,6 +402,58 @@ def detect_languages(name: str) -> list[str]:
     return list(dict.fromkeys(out))
 
 
+# Unicode script ranges we use to fingerprint a card's language from its name.
+# Hiragana / katakana are unique to Japanese; hangul to Korean. CJK ideographs
+# are shared across Chinese and Japanese kanji, so we only treat them as a
+# Chinese signal when there's no kana present (i.e. kanji-only).
+_HIRAGANA_KATAKANA_RE = re.compile("[\u3040-\u309f\u30a0-\u30ff]")
+_HANGUL_RE = re.compile("[\uac00-\ud7af]")
+_CJK_IDEOGRAPH_RE = re.compile("[\u3400-\u9fff]")
+
+
+def detect_card_language(
+    name: str | None,
+    set_name: str | None = None,
+    url: str | None = None,
+) -> str:
+    """Best-effort language code for a card returned by any source.
+
+    Order of evidence:
+      1. Script of the card name — kana → ja, hangul → ko, kanji-only → zh-cn.
+      2. Keyword anywhere in the set name or URL slug — "japanese" / "chinese"
+         / "korean" / "french" / "german" / "spanish" / "italian" /
+         "portuguese". Used by sources whose payload doesn't include the
+         localized name (e.g. PriceCharting product pages).
+
+    Defaults to ``"en"`` when no evidence points elsewhere — the bulk of
+    pokemontcg.io's catalog is English."""
+    n = name or ""
+    if _HIRAGANA_KATAKANA_RE.search(n):
+        return "ja"
+    if _HANGUL_RE.search(n):
+        return "ko"
+    if _CJK_IDEOGRAPH_RE.search(n):
+        # Kanji-only — most likely Chinese (no kana means Japanese is unlikely).
+        return "zh-cn"
+
+    haystack = f"{set_name or ''} {url or ''}".lower()
+    keyword_to_lang = {
+        "japanese": "ja",
+        "chinese": "zh-cn",
+        "korean": "ko",
+        "french": "fr",
+        "german": "de",
+        "spanish": "es",
+        "italian": "it",
+        "portuguese": "pt",
+        "thai": "th",
+    }
+    for keyword, lang in keyword_to_lang.items():
+        if keyword in haystack:
+            return lang
+    return "en"
+
+
 def read_input(path) -> list[CardQuery]:
     """Read a card-list file and return the parsed queries."""
     queries: list[CardQuery] = []

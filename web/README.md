@@ -11,8 +11,8 @@ the FastAPI backend in [`../api/`](../api/).
 
   ```bash
   # from the repo root
-  uv sync
-  uv run uvicorn api.main:app --reload --port 8000
+  make install-api
+  make dev-api
   ```
 
   Full instructions in [../api/README.md](../api/README.md).
@@ -20,7 +20,15 @@ the FastAPI backend in [`../api/`](../api/).
 ## Quick start
 
 ```bash
-# from web/
+# from the repo root
+make install-web          # one-time — runs `npm install` in web/
+make dev-web              # starts the Vite dev server
+```
+
+Or, if you'd rather run npm directly from `web/`:
+
+```bash
+cd web
 npm install
 npm run dev
 ```
@@ -31,12 +39,14 @@ hits the backend without any CORS / origin gymnastics.
 
 ## Scripts
 
-| Command | What it does |
-|---|---|
-| `npm run dev` | Vite dev server with HMR on `:5173`. |
-| `npm run build` | Type-check (`tsc -b`) then produce a production bundle in `dist/`. |
-| `npm run preview` | Serve the built `dist/` locally on `:4173` (also CORS-allowed by the API). |
-| `npm run lint` | Run ESLint over `src/`. |
+Run from the repo root via Make, or directly with `npm` from inside `web/`:
+
+| Make (repo root) | npm (in `web/`) | What it does |
+|---|---|---|
+| `make dev-web` | `npm run dev` | Vite dev server with HMR on `:5173`. |
+| `make build-web` | `npm run build` | Type-check (`tsc -b`) then produce a production bundle in `dist/`. |
+| `make lint-web` | `npm run lint` | Run ESLint over `src/`. |
+| — | `npm run preview` | Serve the built `dist/` locally on `:4173` (also CORS-allowed by the API). |
 
 ## Tech stack
 

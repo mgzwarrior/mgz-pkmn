@@ -29,6 +29,21 @@ returns the normalized card shape, then adding it to `lookup.find_card`.
 
 ## Development
 
+The Makefile at the repo root wraps the common dev commands. Run
+`make help` to see every target.
+
+```bash
+make install            # one-shot: deps + pre-commit hook
+make test               # python tests
+make lint               # ruff + eslint
+make format             # ruff format in-place
+make fix                # ruff --fix + ruff format
+make check              # CI-equivalent: lint + format-check + tests + web lint
+make precommit          # run all pre-commit hooks against every file
+```
+
+Direct invocations still work if you'd rather skip Make:
+
 ```bash
 uv sync                                       # create .venv and install deps
 uv run ruff check src/                        # lint
@@ -41,8 +56,14 @@ Ruff config lives in [pyproject.toml](pyproject.toml) under `[tool.ruff]`.
 
 ## Pre-commit hooks
 
-Install [pre-commit](https://pre-commit.com) once as a uv tool, then register
-the hook so lint and format checks run automatically before every commit:
+`make install-hooks` (or the full `make install`) does this for you:
+
+```bash
+make install-hooks
+```
+
+That runs `uv tool install pre-commit` and registers the git hook so lint and
+format checks fire automatically before every commit. Equivalent manual flow:
 
 ```bash
 uv tool install pre-commit

@@ -29,6 +29,7 @@ class Settings(BaseModel):
     max_price: float | None = None
     no_images: bool = True
     tag: str = ""
+    lang: str | None = None  # default TCGdex language code (e.g. "ja", "fr")
 
 
 class LookupRequest(BaseModel):
@@ -120,7 +121,7 @@ def _do_lookup(
             out.append((Row(query=q, card=None, pricing=Pricing(), tag=settings.tag), reason))
     else:
         try:
-            result = find_card(pkmn, tcgdex, pc, q)
+            result = find_card(pkmn, tcgdex, pc, q, default_lang=settings.lang)
         except req_lib.RequestException:
             from mgz_pkmn.sources.base import MatchResult
 

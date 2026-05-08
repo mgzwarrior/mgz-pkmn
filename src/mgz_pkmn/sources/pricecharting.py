@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from ..parser import detect_card_language
 from ._common import USER_AGENT
 
 # Anchor on the <td id="..."> wrapper so the prices come from the right row.
@@ -96,6 +97,10 @@ def _scrape_pricecharting(html: str, url: str) -> dict[str, Any]:
         title = re.sub(r"<[^>]+>", " ", title)
         title = re.sub(r"\s+", " ", title).strip()
         title = re.sub(r"\s+Prices$", "", title).strip()
+        # PriceCharting titles are formatted "<Name> #<Number> <Set>". Strip
+        # the number + set suffix so callers (PDF/spreadsheet) get just the
+        # card name; the number and set come from the URL path below.
+        title = re.sub(r"\s+#\S.*$", "", title).strip()
 
     image = _find_pc_image(html)
 
@@ -138,6 +143,7 @@ def _scrape_pricecharting(html: str, url: str) -> dict[str, Any]:
         "rarity": None,
         "set": {"id": set_slug, "name": set_name, "series": None},
         "images": {"large": image, "small": image} if image else {},
+        "language": detect_card_language(card_name, set_name=set_name, url=url),
         "_database": "pricecharting",
         "_pc_prices": {"used": used_p, "new": new_p, "graded": graded_p},
         "_pc_url": url,

@@ -12,6 +12,11 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
+from .parser import (
+    _CJK_IDEOGRAPH_RE,
+    _HANGUL_RE,
+    _HIRAGANA_KATAKANA_RE,
+)
 from .pricing import COMP_PERCENTS
 from .spreadsheet import Row
 
@@ -49,6 +54,93 @@ IMAGE_SCALE = 0.71
 CAPTION_LINES = 8
 CAPTION_LEADING = 11.5  # pt — extra breathing room between caption lines
 
+# Per-cell language banner. Drawn ABOVE the card image (full image width) for
+# non-English cards so vendors spot them at a glance. Reserved space is
+# applied to every cell — English cards just leave the area blank — so the
+# 3x3 grid stays aligned regardless of which cells carry a banner.
+LANG_BANNER_H = 14
+LANG_BANNER_GAP = 4
+
+# Map TCGdex language codes to the user-facing label printed on the banner.
+# Falls back to the code itself uppercased ("PT-BR") when not listed here.
+LANG_LABELS: dict[str, str] = {
+    "ja": "Japanese",
+    "ko": "Korean",
+    "zh-cn": "Chinese",
+    "zh-tw": "Chinese",
+    "fr": "French",
+    "de": "German",
+    "es": "Spanish",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "pt-br": "Portuguese",
+    "th": "Thai",
+    "id": "Indonesian",
+    "pl": "Polish",
+    "nl": "Dutch",
+}
+
+# CJK fonts are registered lazily the first time we render a binder PDF —
+# ReportLab ships them as built-in metadata (no font file shipped) and the
+# PDF reader handles glyph substitution. Without this, names like
+# `ナッシー[Exeggutor]` render as tofu blocks under Helvetica.
+_CJK_FONTS: dict[str, str] = {}
+
+
+def _ensure_cjk_fonts() -> dict[str, str]:
+    """Register ReportLab's built-in CID Asian fonts on first use.
+
+    Returns a `script → font name` map. Best-effort: if registration fails
+    (older ReportLab, missing optional pieces), we silently fall back to
+    Helvetica for that script — broken glyphs are no worse than the
+    pre-CJK status quo, and the rest of the PDF still renders."""
+    if _CJK_FONTS:
+        return _CJK_FONTS
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+        for face, slot in (
+            ("HeiseiKakuGo-W5", "ja"),  # Japanese gothic — pairs with Helvetica
+            ("STSong-Light", "zh"),  # Chinese simplified
+            ("HYSMyeongJo-Medium", "ko"),  # Korean serif
+        ):
+            try:
+                pdfmetrics.registerFont(UnicodeCIDFont(face))
+                _CJK_FONTS[slot] = face
+            except Exception:
+                continue
+    except ImportError:
+        pass
+    return _CJK_FONTS
+
+
+def _font_for_name(name: str | None, language: str | None, *, bold: bool) -> str:
+    """Pick a font that can render `name`. Falls back to Helvetica.
+
+    The script of the actual name is the strongest signal — the language tag
+    can be wrong (e.g. an EN-tagged card carrying a Japanese name) but the
+    glyphs don't lie. If no CJK script appears in the name we use Helvetica
+    (bold or regular per the caller). CID Asian fonts ship in a single
+    weight; bold falls back to regular for those — readable but unstyled."""
+    bold_helv = "Helvetica-Bold" if bold else "Helvetica"
+    if not name:
+        return bold_helv
+    if _HIRAGANA_KATAKANA_RE.search(name):
+        return _CJK_FONTS.get("ja", bold_helv)
+    if _HANGUL_RE.search(name):
+        return _CJK_FONTS.get("ko", bold_helv)
+    if _CJK_IDEOGRAPH_RE.search(name):
+        return _CJK_FONTS.get("zh", bold_helv)
+    lang = (language or "").lower()
+    if lang.startswith("ja"):
+        return _CJK_FONTS.get("ja", bold_helv)
+    if lang.startswith("ko"):
+        return _CJK_FONTS.get("ko", bold_helv)
+    if lang.startswith("zh"):
+        return _CJK_FONTS.get("zh", bold_helv)
+    return bold_helv
+
 
 def write_binder_pdf(
     rows: list[Row],
@@ -64,6 +156,7 @@ def write_binder_pdf(
     name, market price (labelled "MP"), and one comp tier per line at
     80/85/90/95%."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_cjk_fonts()
     c = canvas.Canvas(str(out_path), pagesize=letter)
     c.setTitle(title or out_path.stem)
 
@@ -90,9 +183,13 @@ def _layout() -> dict:
     usable_h = grid_top_y - MARGIN
     cell_w = (usable_w - GUTTER * (COLS - 1)) / COLS
     cell_h = (usable_h - GUTTER * (ROWS_PER_PAGE - 1)) / ROWS_PER_PAGE
-    # Reserve ~58 pt for the caption block (5 lines @ 10pt leading + padding).
+    # Reserve ~58 pt for the caption block (5 lines @ 10pt leading + padding)
+    # plus the language banner area (banner + gap) above each image. Banner
+    # space is reserved for every cell — English cells leave it blank — so
+    # the 3x3 grid stays aligned regardless of which cards are non-English.
     caption_h = CAPTION_LEADING * CAPTION_LINES + 8
-    image_h = cell_h - caption_h
+    banner_reserve = LANG_BANNER_H + LANG_BANNER_GAP
+    image_h = cell_h - caption_h - banner_reserve
     image_w = image_h * CARD_ASPECT
     if image_w > cell_w * 0.92:
         image_w = cell_w * 0.92
@@ -170,20 +267,28 @@ def _draw_cell(
     max_price: float | None = None,
 ) -> None:
     """Render one card cell. (x, y) is the bottom-left of the cell."""
-    # Vertically center the (image + caption) block in the cell. The caption
-    # block height matches the reservation in `_layout()` so the math stays
-    # consistent across cells regardless of which captions are populated.
+    # Vertically center the (banner + image + caption) block in the cell. The
+    # banner reserve mirrors `_layout()` so cells stay aligned regardless of
+    # which ones carry a non-English banner.
     caption_h = CAPTION_LEADING * CAPTION_LINES + 8
-    content_h = image_h + caption_h
+    banner_reserve = LANG_BANNER_H + LANG_BANNER_GAP
+    content_h = banner_reserve + image_h + caption_h
     top_padding = max(0, (cell_h - content_h) / 2)
     image_x = x + (cell_w - image_w) / 2
-    image_top_y = y + cell_h - top_padding
+    banner_top_y = y + cell_h - top_padding
+    image_top_y = banner_top_y - banner_reserve
     image_y = image_top_y - image_h  # bottom of image
 
     # Light cell border for visual separation (similar to a binder pocket).
     c.setStrokeColorRGB(0.85, 0.85, 0.85)
     c.setLineWidth(0.5)
     c.rect(x, y, cell_w, cell_h, stroke=1, fill=0)
+
+    # Language banner — drawn above the card image, full-image-width, with
+    # the human-readable language name. Non-English cards only.
+    language = (row.card or {}).get("language") or "en"
+    if language and language.lower() != "en":
+        _draw_lang_banner(c, image_x, banner_top_y, image_w, language)
 
     if row.image_path and row.image_path.exists():
         try:
@@ -223,9 +328,11 @@ def _draw_cell(
     cx = x + cell_w / 2
     max_w = cell_w - 8
 
-    # 1. Name (bold)
+    # 1. Name (bold). Pick a CJK-capable font when the name has Japanese /
+    # Korean / Chinese characters — otherwise Helvetica-Bold renders them as
+    # tofu blocks (■■■■).
     c.setFillColorRGB(0.1, 0.1, 0.1)
-    c.setFont("Helvetica-Bold", 10.5)
+    c.setFont(_font_for_name(name, language, bold=True), 10.5)
     line_y -= 2
     _draw_truncated(c, cx, line_y, name, max_w)
 
@@ -284,6 +391,31 @@ def _shrink_for_pdf(src: Path) -> io.BytesIO:
     img.save(buf, format="JPEG", quality=PDF_IMAGE_QUALITY, optimize=True)
     buf.seek(0)
     return buf
+
+
+def _draw_lang_banner(
+    c: canvas.Canvas,
+    image_x: float,
+    banner_top_y: float,
+    image_w: float,
+    language: str,
+) -> None:
+    """Draw a full-image-width banner above the card image, labelled with
+    the human-readable language name (e.g. 'JAPANESE'). Non-English cards
+    only — English is the default and doesn't need calling out."""
+    label = LANG_LABELS.get(language.lower(), language.upper().replace("-", " "))
+    banner_x = image_x
+    banner_w = image_w
+    banner_y = banner_top_y - LANG_BANNER_H
+    c.saveState()
+    c.setFillColorRGB(0.65, 0.10, 0.10)
+    c.setStrokeColorRGB(0.65, 0.10, 0.10)
+    c.setLineWidth(0.5)
+    c.rect(banner_x, banner_y, banner_w, LANG_BANNER_H, fill=1, stroke=1)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 8.5)
+    c.drawCentredString(banner_x + banner_w / 2, banner_y + 4, label.upper())
+    c.restoreState()
 
 
 def _draw_placeholder(c: canvas.Canvas, x: float, y: float, w: float, h: float, label: str) -> None:

@@ -44,6 +44,40 @@ class PriceChartingScrapeTests(unittest.TestCase):
         )
         self.assertIn("/1600.jpg", result["images"]["large"])
 
+    def test_name_strips_number_and_set_from_title(self) -> None:
+        # PriceCharting og:title is formatted "<Name> #<Num> <Set>". The
+        # scraped name must be just "<Name>" so the PDF caption doesn't
+        # double up on info that already lives on the number/set lines.
+        result = _scrape_pricecharting(
+            _HTML_TEMPLATE.format(title="Penny #239 Paldean Fates"),
+            "https://www.pricecharting.com/game/pokemon-paldean-fates/penny-239",
+        )
+        self.assertEqual(result["name"], "Penny")
+
+    def test_name_strips_alphanumeric_set_codes(self) -> None:
+        # Promo / trainer-gallery numbers can be alphanumeric (SV20, TG01).
+        result = _scrape_pricecharting(
+            _HTML_TEMPLATE.format(title="Iono #SV20 Scarlet & Violet Promo"),
+            "https://www.pricecharting.com/game/pokemon-promo/iono-sv20",
+        )
+        self.assertEqual(result["name"], "Iono")
+
+    def test_pricecharting_card_marked_english(self) -> None:
+        result = _scrape_pricecharting(
+            _HTML_TEMPLATE.format(title="Charizard #4 Base Set"),
+            "https://www.pricecharting.com/game/pokemon-base-set/charizard-4",
+        )
+        self.assertEqual(result["language"], "en")
+
+    def test_pricecharting_chinese_url_slug_tags_language(self) -> None:
+        # Calvin's Cubone Chinese SIR — the URL slug is the only evidence of
+        # the card's language; the product page is still English text.
+        result = _scrape_pricecharting(
+            _HTML_TEMPLATE.format(title="Cubone #407 Gem Pack Vol 3"),
+            "https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407",
+        )
+        self.assertEqual(result["language"], "zh-cn")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,11 +42,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh   # any platform
 ## Setup
 
 ```bash
-uv sync
+make install-cli          # CLI only — fastest
+# or
+make install              # CLI + API + web + pre-commit hook (full dev setup)
 ```
 
-`uv` reads [pyproject.toml](pyproject.toml), creates `.venv/`, installs
-runtime + dev dependencies, and registers a `pkmn` console script.
+`make install-cli` runs `uv sync`, which reads [pyproject.toml](pyproject.toml),
+creates `.venv/`, installs runtime + dev dependencies, and registers a `pkmn`
+console script. Run `make help` for the full target list.
 
 ### API key (optional but recommended)
 
@@ -93,7 +96,9 @@ banner showing the tag + card count) at each file boundary.
 | `--dedupe` | off | Remove duplicate matched cards across all queries (keyed by card id), keeping the first occurrence in xlsx / PDF / JSON. |
 | `--report-json PATH` | (none) | Also dump a structured JSON report. |
 | `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF for vendor scanning. |
-| `--no-cache` | off | Skip the disk cache; force every lookup to hit the network. |
+| `--no-cache` | off | Skip the disk cache; force every lookup to hit the network and don't write back. |
+| `--clear-cache` | off | Wipe the API response cache before the run, then continue normally so fresh data is re-cached. URL overrides preserved. |
+| `--lang CODE` | (none) | Default TCGdex language for lines that don't name one. Per-line keywords (`japanese`, `chinese`, …) still take priority. Common codes: `en`, `ja`, `fr`, `de`, `es`, `it`, `ko`, `zh-tw`, `zh-cn`, `pt`, `pt-br`. |
 | `-v, --verbose` | off | Echo each API request URL (cached entries are flagged). |
 | `-h, --help` | | Show usage. |
 
@@ -142,19 +147,19 @@ What you get over the CLI:
 Run both processes (two terminals):
 
 ```bash
-# Terminal 1 — API (from repo root)
-uv sync --extra api
-uv run uvicorn api.main:app --reload --port 8000
+# One-time setup — installs API extras and web dependencies
+make install
 
-# Terminal 2 — frontend
-cd web
-npm install
-npm run dev
+# Terminal 1 — API (from repo root)
+make dev-api
+
+# Terminal 2 — frontend (from repo root, also)
+make dev-web
 ```
 
-`--extra api` pulls in `fastapi` + `uvicorn`, which aren't part of the
-default CLI install — they're an opt-in extra so plain `pip install mgz-pkmn`
-stays lightweight.
+Behind the scenes `make install` runs `uv sync --extra api` (pulls in
+`fastapi` + `uvicorn`, an opt-in extra so plain `pip install mgz-pkmn`
+stays lightweight) plus `npm install` in `web/` plus the pre-commit hook.
 
 Then open <http://localhost:5173>. The Vite dev server proxies `/api/*` to
 the FastAPI server on `:8000`. Swagger UI is at <http://localhost:8000/docs>.
@@ -279,6 +284,46 @@ The row is still written so you can fill it in manually.
 Region / rarity descriptors (`Chinese`, `Japanese`, `SIR`, `SAR`, `FA`, …)
 are stripped from the database query but kept in the **Input** column
 verbatim.
+
+## Languages
+
+Every matched card is tagged with a language code (e.g. `en`, `ja`,
+`zh-cn`, `ko`, `fr`). The code is detected three ways, in order:
+
+1. **From the card payload** — pokemontcg.io occasionally returns localized
+   names (the Japanese Exeggutor `ナッシー[Exeggutor]`, etc.); the tool
+   reads the script of the name (kana → `ja`, hangul → `ko`, kanji-only →
+   `zh-cn`).
+2. **From a PriceCharting URL slug** — `pokemon-chinese-gem-pack-3/...`
+   tags the card as `zh-cn`; same for `japanese`, `korean`, etc.
+3. **From the TCGdex locale that returned the card** — `tcgdex (ja)`
+   matches always come back as `ja`, etc.
+
+How to influence detection:
+
+- **Per line** — write a language adjective in the input: `Cubone Chinese
+  SIR — <PriceCharting URL>` or `Charizard japanese | VSTAR Universe`.
+  Recognised: `chinese`, `japanese`, `korean`, `german`, `french`,
+  `spanish`, `italian`, `portuguese`, `thai`, `indonesian`, `polish`,
+  `dutch`. The keyword is stripped from the database query but routes
+  TCGdex fallback to that locale.
+- **Globally** — pass `--lang ja` (CLI) or `settings.lang = "ja"` (API).
+  Applied as a fallback only — per-line keywords still win.
+
+Where the language shows up:
+
+- **Spreadsheet** — the **Database** column carries the locale (e.g.
+  `tcgdex (ja)`).
+- **PDF binder** — non-English cards get a full-width **dark-red banner
+  above the card image** with the human-readable language name
+  (`JAPANESE`, `CHINESE`, `KOREAN`, `FRENCH`, …) so vendors spot them at
+  a glance. Names that include CJK characters (Japanese, Chinese, Korean)
+  render with ReportLab's built-in CID fonts, so cards like
+  `ナッシー[Exeggutor]` display correctly instead of as tofu blocks.
+- **JSON report** — every row has a `"language"` field, and the summary
+  block contains a `by_language` tally.
+- **CLI summary line** — `⚑ N non-English` shown alongside matched/missed
+  counts when any non-English cards are in the run.
 
 ## Bulk "top-N" lookups
 
@@ -418,11 +463,18 @@ Behavior:
   pokemontcg.io path so a saved override behaves exactly like a re-pasted
   URL would.
 - **`--no-cache`** disables both stores for the run (sets
-  `MGZ_PKMN_NO_CACHE=1` internally). Use it when you suspect a stale entry
-  is masking a fix or when checking for cards added since the cache was
-  warmed.
-- **Clearing the cache** is a manual `rm -rf ~/.cache/mgz-pkmn` — there's
-  no LRU eviction. The cache is small (a few MB after a typical run).
+  `MGZ_PKMN_NO_CACHE=1` internally). Reads miss, writes are no-ops; the
+  on-disk cache is unchanged. Use it for an ephemeral clean run that
+  shouldn't pollute or refresh the cache.
+- **`--clear-cache`** wipes the API response cache *before* the run, then
+  proceeds normally so fresh data is fetched and re-cached. URL overrides
+  are preserved (they take real effort to set; API responses are
+  regenerable). Use this after a normalizer/schema change in the code (a
+  new card field, an updated language detector) when stale cached payloads
+  no longer reflect what the code expects.
+- **Manual nuke** — `rm -rf ~/.cache/mgz-pkmn` removes everything
+  including URL overrides. There's no LRU eviction; the cache stays small
+  (a few MB after a typical run).
 
 ## Known limitations / TODO
 
@@ -452,9 +504,7 @@ runs Python 3.11+ and Node.js 20+. Below is a minimal production recipe.
 ### 1 — Build the frontend
 
 ```bash
-cd web
-npm ci
-npm run build         # produces web/dist/
+make build-web        # produces web/dist/ (runs `tsc -b && vite build`)
 ```
 
 The compiled static files in `web/dist/` can be served by any static host
@@ -463,10 +513,12 @@ The compiled static files in `web/dist/` can be served by any static host
 ### 2 — Start the API
 
 ```bash
-# from repo root
-uv sync --extra api
+make install-api
 uv run uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
+
+(`make dev-api` is the local-development variant — it adds `--reload` and
+binds to localhost only.)
 
 For production, swap `--reload` for a proper process manager (e.g. systemd,
 Docker, or Gunicorn in front of uvicorn):
@@ -512,8 +564,8 @@ backend, everything else from the built `web/dist/`. CORS is unused in this
 mode (same origin).
 
 ```bash
-docker build -t mgz-pkmn .
-docker run -e POKEMONTCG_IO_API_KEY=your-key -p 8000:8000 mgz-pkmn
+make docker-build
+POKEMONTCG_IO_API_KEY=your-key make docker-run
 # open http://localhost:8000
 ```
 

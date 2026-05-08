@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from . import cache as disk_cache
-from .parser import CardQuery, detect_languages, strip_noise
+from .parser import CardQuery, detect_card_language, detect_languages, strip_noise
 from .pricing import extract_pricing
 from .sources import (
     PriceChartingClient,
@@ -110,6 +110,7 @@ def find_card(
     tcgdex: TCGDexClient,
     pc: PriceChartingClient,
     q: CardQuery,
+    default_lang: str | None = None,
 ) -> MatchResult:
     """Coordinate lookups across pokemontcg.io, TCGdex (multilingual), and an
     optional explicit URL hint (currently PriceCharting). The first source
@@ -117,7 +118,12 @@ def find_card(
 
     PriceCharting URLs (explicit on the line, or auto-applied from a previous
     run via the URL-override store) take precedence over the public databases
-    because the user has already disambiguated the card by hand."""
+    because the user has already disambiguated the card by hand.
+
+    `default_lang` is consulted only as a fallback when the line itself didn't
+    name a language. It's used by the CLI/API global ``--lang`` knob — set it
+    to ``"ja"`` to make every untagged line fall through to TCGdex Japanese
+    after pokemontcg.io misses."""
     # 1. Explicit URL hint takes precedence — the user already found the card.
     #    Record it so future runs auto-pick it up without the user re-pasting.
     if q.url_hint and "pricecharting.com" in q.url_hint:
@@ -144,6 +150,11 @@ def find_card(
 
     # 3. TCGdex — fall back through any languages hinted in the input, then EN.
     langs = detect_languages(q.name) or []
+    # Apply the global default *only* when the line itself didn't already name
+    # a language. A per-line keyword like "Charizard japanese" should always
+    # win over `--lang ja` (and over `--lang fr` — explicit beats default).
+    if not langs and default_lang:
+        langs.append(default_lang)
     if "en" not in langs:
         langs.append("en")
 
@@ -322,6 +333,10 @@ def find_top_cards(
                     continue
                 seen_ids.add(cid)
                 card.setdefault("_database", "pokemontcg.io")
+                card.setdefault(
+                    "language",
+                    detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
+                )
                 pool.append(card)
             if q.set_hint and pool:
                 break
@@ -358,6 +373,10 @@ def find_top_cards(
                     continue
                 seen_ids.add(cid)
                 card.setdefault("_database", "pokemontcg.io")
+                card.setdefault(
+                    "language",
+                    detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
+                )
                 pool.append(card)
             # If the user gave a set hint, a single matching query is enough —
             # we don't want unfiltered shapes to dilute the pool.
@@ -383,6 +402,10 @@ def find_top_cards(
                     continue
                 seen_ids.add(cid)
                 card.setdefault("_database", "pokemontcg.io")
+                card.setdefault(
+                    "language",
+                    detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
+                )
                 pool.append(card)
             if pool:
                 break
@@ -409,6 +432,10 @@ def find_top_cards(
                     continue
                 seen_ids.add(cid)
                 card.setdefault("_database", "pokemontcg.io")
+                card.setdefault(
+                    "language",
+                    detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
+                )
                 pool.append(card)
 
     # Set filter post-hoc for safety (the API filter is mostly precise but

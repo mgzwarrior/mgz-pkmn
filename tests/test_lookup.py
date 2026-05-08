@@ -174,6 +174,24 @@ class FindTopCardsTests(unittest.TestCase):
         self.assertFalse(any("set.name:" in q for q in client.queries))
         self.assertFalse(any("flavorText:" in q for q in client.queries))
 
+    def test_japanese_card_in_pool_gets_tagged(self) -> None:
+        # Real-world case: pokemontcg.io card xy12-109 returns the localized
+        # name 'ナッシー[Exeggutor]'. The bulk path must stamp `language: ja`
+        # on it so the PDF binder shows the badge.
+        ja_card = _card("xy12-109", "ナッシー[Exeggutor]", 100.0)
+        en_card = _card("sv8-3", "Exeggutor", 50.0)
+        client = _StubTCGClient(
+            {
+                "name:Exeggutor": [en_card, ja_card],
+                "name:Exeggutor*": [en_card, ja_card],
+            }
+        )
+        q = CardQuery(raw="x", name="Exeggutor", bulk_top=2)
+        results = find_top_cards(client, q, limit=2)
+        by_id = {c["id"]: c for c in results}
+        self.assertEqual(by_id["xy12-109"]["language"], "ja")
+        self.assertEqual(by_id["sv8-3"]["language"], "en")
+
 
 class ExpandConceptTests(unittest.TestCase):
     def test_known_concept_returns_slash_string(self) -> None:

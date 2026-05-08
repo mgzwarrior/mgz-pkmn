@@ -15,6 +15,7 @@ import click
 import requests
 
 from . import __version__
+from . import cache as disk_cache
 from .binder import write_binder_pdf
 from .images import download_image
 from .lookup import find_card, find_top_cards
@@ -218,6 +219,7 @@ def _build_json_report(
         "by_database": _count_by(matched_rows, lambda r: (r.card or {}).get("_database")),
         "by_price_source": _count_by(matched_rows, lambda r: r.pricing.source),
         "by_rarity": _count_by(matched_rows, lambda r: (r.card or {}).get("rarity")),
+        "by_language": _count_by(matched_rows, lambda r: (r.card or {}).get("language")),
     }
 
     def _over_cap(r: Row) -> bool:
@@ -248,6 +250,7 @@ def _build_json_report(
             "set": ((r.card or {}).get("set") or {}).get("name"),
             "number": (r.card or {}).get("number"),
             "rarity": (r.card or {}).get("rarity"),
+            "language": (r.card or {}).get("language"),
             "database": (r.card or {}).get("_database"),
             "image_path": str(r.image_path) if r.image_path else None,
             "market": r.pricing.market,
@@ -354,6 +357,29 @@ def _build_json_report(
         "cards or when a cached entry seems stale."
     ),
 )
+@click.option(
+    "--clear-cache",
+    is_flag=True,
+    help=(
+        "Wipe cached API responses before running, then proceed normally so "
+        "fresh data is fetched and re-cached. URL overrides are preserved. "
+        "Use after a normalizer schema change (e.g. a new card field) when "
+        "stale cached payloads no longer reflect current code."
+    ),
+)
+@click.option(
+    "--lang",
+    "default_lang",
+    type=str,
+    default=None,
+    help=(
+        "Default TCGdex language code applied to lines that don't name one "
+        "themselves (e.g. `--lang ja`). Per-line keywords like 'japanese' or "
+        "'chinese' still take priority. Useful for input lists that are "
+        "predominantly non-English. Common codes: en, ja, fr, de, es, it, "
+        "ko, zh-tw, zh-cn, pt, pt-br."
+    ),
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def cli(
     input_paths: tuple[Path, ...],
@@ -366,6 +392,8 @@ def cli(
     report_json: Path | None,
     pdf: Path | None,
     no_cache: bool,
+    clear_cache: bool,
+    default_lang: str | None,
     verbose: bool,
 ) -> None:
     """Look up Pokemon cards, fetch images and prices, and emit an .xlsx for card-show prep.
@@ -382,6 +410,17 @@ def cli(
         # but the cache module checks it) inherit the setting.
         os.environ["MGZ_PKMN_NO_CACHE"] = "1"
     _print_banner(__version__)
+
+    if clear_cache:
+        cleared = disk_cache.clear_api_cache()
+        click.secho("▸ ", fg="bright_blue", nl=False)
+        click.echo(
+            click.style(
+                f"Cleared {cleared} cached API response{'s' if cleared != 1 else ''}",
+                bold=True,
+            )
+            + click.style("  (URL overrides preserved)", fg="bright_black")
+        )
 
     files = _expand_inputs(input_paths)
     if not files:
@@ -488,7 +527,7 @@ def cli(
 
         # Single-card path.
         try:
-            result = find_card(pkmn_client, tcgdex_client, pc_client, q)
+            result = find_card(pkmn_client, tcgdex_client, pc_client, q, default_lang=default_lang)
         except requests.RequestException as exc:
             click.secho(f"      ! API error: {exc}", fg="red", err=True)
             result = MatchResult(None, "no_candidates")
@@ -591,6 +630,11 @@ def cli(
                 fg="yellow" if over_cap else "bright_black",
             )
         )
+    non_en = sum(
+        1 for r in rows if r.card is not None and ((r.card or {}).get("language") or "en") != "en"
+    )
+    if non_en:
+        summary_parts.append(click.style(f"⚑ {non_en} non-English", fg="bright_red"))
     summary_parts.append(click.style(f"{overall_elapsed:.1f}s total", fg="bright_black"))
     click.echo("  " + "  ·  ".join(summary_parts))
 

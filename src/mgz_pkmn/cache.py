@@ -81,6 +81,31 @@ def read_api(key: str, ttl_seconds: float = DEFAULT_API_TTL_SECONDS) -> Any | No
         return None
 
 
+def clear_api_cache() -> int:
+    """Remove every cached API response. Returns the number of files deleted.
+
+    URL overrides are intentionally preserved — they're user-supplied
+    PriceCharting URLs that take the user real effort to find, while API
+    responses are regenerable on the next run. Use this when a normalizer
+    schema changes (a new field on cards, a tweak to the language detector,
+    etc.) and the cached payloads no longer reflect the current code.
+
+    Honoured even when `MGZ_PKMN_NO_CACHE=1` is set: the user explicitly
+    asked for a wipe, and a no-op surprise would defeat the purpose."""
+    api_dir = cache_root() / "api"
+    if not api_dir.exists():
+        return 0
+    count = 0
+    for entry in api_dir.iterdir():
+        if entry.is_file() and entry.suffix == ".json":
+            try:
+                entry.unlink()
+                count += 1
+            except OSError:
+                continue
+    return count
+
+
 def write_api(key: str, data: Any) -> None:
     """Persist `data` (any JSON-serialisable value) to the cache under `key`.
 

@@ -60,6 +60,38 @@ class ApiCacheTests(_IsolatedCacheDirMixin):
         os.utime(path, (time.time() - 5, time.time() - 5))
         self.assertIsNone(cache.read_api(key, ttl_seconds=1))
 
+    def test_clear_api_cache_wipes_files_and_returns_count(self) -> None:
+        cache.write_api("k1", {"a": 1})
+        cache.write_api("k2", {"b": 2})
+        cache.write_api("k3", {"c": 3})
+        api_dir = cache.cache_root() / "api"
+        self.assertEqual(len(list(api_dir.glob("*.json"))), 3)
+        cleared = cache.clear_api_cache()
+        self.assertEqual(cleared, 3)
+        self.assertEqual(list(api_dir.glob("*.json")), [])
+        # Subsequent reads miss; cache is fully empty.
+        self.assertIsNone(cache.read_api("k1"))
+
+    def test_clear_api_cache_preserves_url_overrides(self) -> None:
+        cache.record_url_override("Penny", None, "https://pc/penny")
+        cache.write_api("k", {"x": 1})
+        cache.clear_api_cache()
+        # Override survives the api-only wipe.
+        self.assertEqual(cache.find_url_override("Penny", None), "https://pc/penny")
+        # API cache is gone.
+        self.assertIsNone(cache.read_api("k"))
+
+    def test_clear_api_cache_runs_even_when_no_cache_env_set(self) -> None:
+        # Wiping is an explicit user action — shouldn't be silently skipped
+        # just because reads/writes are disabled this run.
+        cache.write_api("k", {"x": 1})
+        os.environ[cache._NO_CACHE_ENV] = "1"
+        cleared = cache.clear_api_cache()
+        self.assertEqual(cleared, 1)
+
+    def test_clear_api_cache_on_empty_cache_returns_zero(self) -> None:
+        self.assertEqual(cache.clear_api_cache(), 0)
+
     def test_no_cache_env_disables_reads_and_writes(self) -> None:
         cache.write_api("k", {"x": 1})
         os.environ[cache._NO_CACHE_ENV] = "1"

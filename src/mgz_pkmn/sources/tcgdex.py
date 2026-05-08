@@ -96,6 +96,7 @@ def _normalize_tcgdex(card: dict[str, Any], lang: str) -> dict[str, Any]:
             "printedTotal": card_count.get("official"),
         },
         "images": images,
+        "language": lang,
         "_database": f"tcgdex ({lang})",
     }
 
