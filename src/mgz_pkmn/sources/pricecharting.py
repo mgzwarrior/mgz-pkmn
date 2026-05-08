@@ -125,8 +125,14 @@ def _scrape_pricecharting(html: str, url: str) -> dict[str, Any]:
         re.sub(r"-\d+$", "", card_slug).replace("-", " ").title() if card_slug else "card"
     )
 
+    # Include the set slug in the id so different PriceCharting pages with the
+    # same card slug (e.g. pokemon-scarlet-&-violet/penny-239 vs
+    # pokemon-paldean-fates/penny-239) don't collide on the cached image
+    # filename. download_image keys off id, so a collision means the second
+    # card silently reuses the first's image.
+    pc_id = f"{set_slug}/{card_slug}" if set_slug else card_slug
     return {
-        "id": f"pricecharting:{card_slug}",
+        "id": f"pricecharting:{pc_id}",
         "name": card_name,
         "number": card_number,
         "rarity": None,

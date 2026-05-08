@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 import requests
 
+from .. import cache as disk_cache
 from ..parser import CardQuery, strip_noise
 from ._common import USER_AGENT
 from .base import MatchResult, name_clause, score_card, set_overlap
@@ -62,6 +63,16 @@ class TCGClient:
         if cache_key in self._cache:
             return self._cache[cache_key]
         url = f"{API_BASE}/cards?q={quote(query)}&pageSize={page_size}&page={page}"
+        # L2 disk cache (TTL'd by mtime). The in-memory `_cache` above is the
+        # L1, but disk persists across runs so iterating on a card list
+        # doesn't re-spend API quota for queries we already answered. Misses
+        # and disabled-cache states both fall through to the network fetch.
+        cached = disk_cache.read_api(url)
+        if cached is not None:
+            if self.verbose:
+                print(f"  cached {url}", file=sys.stderr)
+            self._cache[cache_key] = cached
+            return cached
         if self.verbose:
             print(f"  GET {url}", file=sys.stderr)
         # Polite throttle: free tier is 30 rpm without a key. The pokemontcg.io
@@ -76,6 +87,7 @@ class TCGClient:
                 resp.raise_for_status()
                 data = resp.json().get("data", [])
                 self._cache[cache_key] = data
+                disk_cache.write_api(url, data)
                 return data
             except (requests.Timeout, requests.ConnectionError):
                 if attempt == 3:

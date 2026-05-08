@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import time
@@ -344,6 +345,15 @@ def _build_json_report(
     default=None,
     help="Also write a 3x3 binder-style PDF for vendor scanning.",
 )
+@click.option(
+    "--no-cache",
+    is_flag=True,
+    help=(
+        "Skip the disk cache (API responses, URL overrides). Forces every "
+        "lookup to hit the network — useful when checking for newly added "
+        "cards or when a cached entry seems stale."
+    ),
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def cli(
     input_paths: tuple[Path, ...],
@@ -355,6 +365,7 @@ def cli(
     dedupe: bool,
     report_json: Path | None,
     pdf: Path | None,
+    no_cache: bool,
     verbose: bool,
 ) -> None:
     """Look up Pokemon cards, fetch images and prices, and emit an .xlsx for card-show prep.
@@ -366,6 +377,10 @@ def cli(
     prefixes are stripped. Append a PriceCharting URL on the line for cards in
     regional sets that the public databases don't index.
     """
+    if no_cache:
+        # Surfaced as an env var so subprocess-spawned helpers (none today,
+        # but the cache module checks it) inherit the setting.
+        os.environ["MGZ_PKMN_NO_CACHE"] = "1"
     _print_banner(__version__)
 
     files = _expand_inputs(input_paths)

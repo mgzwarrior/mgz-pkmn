@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
+from . import cache as disk_cache
 from .parser import CardQuery, detect_languages, strip_noise
 from .pricing import extract_pricing
 from .sources import (
@@ -15,6 +17,93 @@ from .sources import (
 )
 from .sources.base import MatchResult, name_clause
 
+# Bulk subjects that aren't Pokemon names but card subtypes. When the user
+# writes `top 4 tag team` they want cards whose subtype is "TAG TEAM" (cards
+# featuring 2+ Pokemon), not cards literally named "tag team". Keys are
+# matched case-insensitively against the cleaned subject, exact equality only
+# — partial matches would over-trigger (e.g. "ex" appearing inside a name).
+_SUBTYPE_KEYWORDS: dict[str, str] = {
+    "tag team": "TAG TEAM",
+    "v": "V",
+    "vmax": "VMAX",
+    "vstar": "VSTAR",
+    "v-union": "V-UNION",
+    "gx": "GX",
+    "ex": "EX",
+    "mega": "MEGA",
+    "break": "BREAK",
+    "ultra beast": "Ultra Beast",
+    "radiant": "Radiant",
+}
+
+# Subjective concept subjects that don't map to a single Pokemon name, set,
+# or subtype. Each value is a `/`-separated list of Pokemon names — once
+# expanded, the rest of the lookup pipeline treats it identically to a
+# slash-separated evolution line. Curated explicitly (rather than relying on
+# flavorText fuzzy matches) because those produce false positives like
+# "Spell Tag" surfacing for `puppy` because its flavor text mentions a dog.
+#
+# Add new concepts as they come up — anything subjective the user might
+# reasonably type that doesn't have a precise database query equivalent.
+_CONCEPT_KEYWORDS: dict[str, str] = {
+    "puppy": (
+        "Growlithe/Snubbull/Houndour/Poochyena/Electrike/Riolu/Lillipup/"
+        "Furfrou/Rockruff/Yamper/Fidough"
+    ),
+    "dog": (
+        "Growlithe/Arcanine/Snubbull/Granbull/Houndour/Houndoom/Poochyena/"
+        "Mightyena/Electrike/Manectric/Riolu/Lucario/Lillipup/Herdier/"
+        "Stoutland/Furfrou/Rockruff/Lycanroc/Yamper/Boltund/Fidough/Dachsbun"
+    ),
+    "kitty": "Meowth/Skitty/Glameow/Purrloin/Litten/Espurr/Sprigatito",
+    "cat": (
+        "Meowth/Persian/Skitty/Delcatty/Glameow/Purugly/Purrloin/Liepard/"
+        "Litten/Torracat/Incineroar/Espurr/Meowstic/Sprigatito/Floragato/"
+        "Meowscarada"
+    ),
+    "starter": (
+        "Bulbasaur/Charmander/Squirtle/"
+        "Chikorita/Cyndaquil/Totodile/"
+        "Treecko/Torchic/Mudkip/"
+        "Turtwig/Chimchar/Piplup/"
+        "Snivy/Tepig/Oshawott/"
+        "Chespin/Fennekin/Froakie/"
+        "Rowlet/Litten/Popplio/"
+        "Grookey/Scorbunny/Sobble/"
+        "Sprigatito/Fuecoco/Quaxly"
+    ),
+    "starter evolution": (
+        "Bulbasaur/Ivysaur/Venusaur/Charmander/Charmeleon/Charizard/"
+        "Squirtle/Wartortle/Blastoise/"
+        "Chikorita/Bayleef/Meganium/Cyndaquil/Quilava/Typhlosion/"
+        "Totodile/Croconaw/Feraligatr/"
+        "Treecko/Grovyle/Sceptile/Torchic/Combusken/Blaziken/"
+        "Mudkip/Marshtomp/Swampert/"
+        "Turtwig/Grotle/Torterra/Chimchar/Monferno/Infernape/"
+        "Piplup/Prinplup/Empoleon/"
+        "Snivy/Servine/Serperior/Tepig/Pignite/Emboar/"
+        "Oshawott/Dewott/Samurott/"
+        "Chespin/Quilladin/Chesnaught/Fennekin/Braixen/Delphox/"
+        "Froakie/Frogadier/Greninja/"
+        "Rowlet/Dartrix/Decidueye/Litten/Torracat/Incineroar/"
+        "Popplio/Brionne/Primarina/"
+        "Grookey/Thwackey/Rillaboom/Scorbunny/Raboot/Cinderace/"
+        "Sobble/Drizzile/Inteleon/"
+        "Sprigatito/Floragato/Meowscarada/Fuecoco/Crocalor/Skeledirge/"
+        "Quaxly/Quaxwell/Quaquaval"
+    ),
+    "eeveelution": "Eevee/Vaporeon/Jolteon/Flareon/Espeon/Umbreon/Leafeon/Glaceon/Sylveon",
+    "pseudo-legendary": (
+        "Dragonite/Tyranitar/Salamence/Metagross/Garchomp/Hydreigon/"
+        "Goodra/Kommo-o/Dragapult/Baxcalibur"
+    ),
+    "baby": (
+        "Pichu/Cleffa/Igglybuff/Togepi/Tyrogue/Smoochum/Elekid/Magby/"
+        "Azurill/Wynaut/Budew/Chingling/Bonsly/Mime Jr./Happiny/Munchlax/"
+        "Riolu/Mantyke"
+    ),
+}
+
 
 def find_card(
     pkmn: TCGClient,
@@ -24,16 +113,31 @@ def find_card(
 ) -> MatchResult:
     """Coordinate lookups across pokemontcg.io, TCGdex (multilingual), and an
     optional explicit URL hint (currently PriceCharting). The first source
-    that returns a usable match wins; the rest are skipped."""
+    that returns a usable match wins; the rest are skipped.
+
+    PriceCharting URLs (explicit on the line, or auto-applied from a previous
+    run via the URL-override store) take precedence over the public databases
+    because the user has already disambiguated the card by hand."""
     # 1. Explicit URL hint takes precedence — the user already found the card.
+    #    Record it so future runs auto-pick it up without the user re-pasting.
     if q.url_hint and "pricecharting.com" in q.url_hint:
+        disk_cache.record_url_override(q.name, q.set_hint, q.url_hint)
         card = pc.fetch(q.url_hint)
         if card:
             return MatchResult(card, "matched")
         return MatchResult(None, "no_candidates")
     # Other URL hosts: not yet supported; fall through to DB search.
 
-    # 2. pokemontcg.io — best for English / international English releases.
+    # 2. URL override (sticky) — an earlier run recorded a PriceCharting URL
+    #    for this (name, set). Treat it like an explicit hint so the user
+    #    only has to paste a URL once per card across runs.
+    override = disk_cache.find_url_override(q.name, q.set_hint)
+    if override and "pricecharting.com" in override:
+        card = pc.fetch(override)
+        if card:
+            return MatchResult(card, "matched")
+
+    # 3. pokemontcg.io — best for English / international English releases.
     primary = search_pokemontcg(pkmn, q)
     if primary.card:
         return primary
@@ -103,6 +207,57 @@ def _set_fallback_queries(subject: str) -> list[str]:
     return deduped
 
 
+def _subtype_filter(subject: str) -> str | None:
+    """Return a Lucene `subtypes:…` clause if the subject exactly matches a
+    known card subtype keyword, else None.
+
+    Matches the cleaned-and-lowercased subject against `_SUBTYPE_KEYWORDS`.
+    We require exact equality so a query like `top 5 charizard ex` (where
+    "ex" is part of the card name) doesn't get hijacked into a subtype
+    search."""
+    raw = _SUBTYPE_KEYWORDS.get(subject.lower().strip())
+    if not raw:
+        return None
+    return f'subtypes:"{raw}"' if " " in raw else f"subtypes:{raw}"
+
+
+def _split_evolution_line(name: str) -> list[str]:
+    """Split slash-separated evolution lines into individual names.
+
+    `Charmander/Charmeleon/Charizard` → `[Charmander, Charmeleon, Charizard]`.
+    Whitespace around each name is trimmed; empty fragments are dropped."""
+    if "/" not in name:
+        return [name]
+    parts = [p.strip() for p in name.split("/") if p.strip()]
+    return parts or [name]
+
+
+def _expand_concept(subject: str) -> str | None:
+    """Return a `/`-joined Pokemon name list for a known concept keyword.
+
+    Lets `top 9 puppy` resolve through the same code path as
+    `top 9 Growlithe/Snubbull/...`. Returns None for unknown subjects so
+    the caller falls through to the regular name → set → flavorText chain."""
+    return _CONCEPT_KEYWORDS.get(subject.lower().strip())
+
+
+def _name_token_match(card_name: str, query_names: list[str]) -> bool:
+    """True if any query name appears as a complete word in card_name.
+
+    Word-boundary matching: 'Mew' matches 'Mew', 'Mew V', 'Mew-EX' but NOT
+    'Mewtwo'. Used to post-filter prefix/wildcard search results so we don't
+    return Mewtwo when the user asked for Mew."""
+    name_lower = (card_name or "").lower()
+    for q in query_names:
+        token = q.lower().strip()
+        if not token:
+            continue
+        pattern = r"\b" + re.escape(token) + r"\b"
+        if re.search(pattern, name_lower):
+            return True
+    return False
+
+
 def find_top_cards(
     pkmn: TCGClient,
     q: CardQuery,
@@ -117,6 +272,11 @@ def find_top_cards(
     can't be ranked meaningfully. If `q.set_hint` is set, both the API filter
     and a post-hoc set-overlap check restrict results to that set.
 
+    Subjects matching a card subtype (`tag team`, `v`, `vmax`, `gx`, …) are
+    routed to a `subtypes:…` query. Slash-separated subjects
+    (`Charmander/Charmeleon/Charizard`) are treated as an evolution line: each
+    name is searched independently and the pool is unioned before ranking.
+
     `max_price` (currency-agnostic, applied to the raw market figure) filters
     candidates *before* the top-N cut so an affordable cap still returns N
     results when there are enough cheap variants in the pool. The per-query
@@ -129,41 +289,93 @@ def find_top_cards(
 
     set_clause = f' set.name:"{q.set_hint}"' if q.set_hint else ""
     series_clause = f' set.series:"{q.set_hint}"' if q.set_hint else ""
-    head_token = cleaned.split(" ", 1)[0] if cleaned else ""
-    # Wildcards are only safe on plain alphanumeric tokens — anything with
-    # special chars (&, :, parens) breaks Lucene parsing.
-    head_safe = head_token if head_token.isalnum() else ""
 
-    # Try a few query shapes — looser shapes broaden coverage to alt-arts and
-    # regional variants. Set-name and set-series filters are tried in turn so
-    # users can pass either (e.g. "Hidden Fates" set vs "Sword & Shield" series).
-    queries: list[str] = []
-    if q.set_hint:
-        queries.append(name_clause(cleaned) + set_clause)
-        queries.append(name_clause(cleaned) + series_clause)
-        if head_safe:
-            queries.append(f"name:{head_safe}*" + set_clause)
-    queries.append(name_clause(cleaned))
-    if head_safe:
-        queries.append(f"name:{head_safe}*")
+    # Concept expansion — `top 9 puppy` becomes a multi-name search across a
+    # curated dog-Pokemon list. We replace `cleaned` with the expanded
+    # slash-string so the rest of the pipeline treats it identically to a
+    # user-typed evolution line. `is_concept` then suppresses the set/flavor
+    # fallback chain — the curated list is the source of truth, and falling
+    # through would surface noise (e.g. `top 9 starter evolution` previously
+    # matched the "Mega Evolution" set).
+    is_concept = False
+    expanded = _expand_concept(cleaned)
+    if expanded is not None:
+        cleaned = expanded
+        is_concept = True
 
-    for query in dict.fromkeys(queries):
-        for card in pkmn.search_all(query):
-            cid = card.get("id")
-            if not cid or cid in seen_ids:
-                continue
-            seen_ids.add(cid)
-            card.setdefault("_database", "pokemontcg.io")
-            pool.append(card)
-        # If the user gave a set hint, a single matching query is enough — we
-        # don't want unfiltered shapes to dilute the pool.
-        if q.set_hint and pool:
-            break
+    # Subtype shortcut — e.g. `top 4 tag team` → subtypes:"TAG TEAM". When
+    # the subject IS a subtype, skip the name-search path entirely (the
+    # token-boundary post-filter would otherwise drop everything).
+    subtype_clause = _subtype_filter(cleaned)
+    name_search_skipped = subtype_clause is not None
+
+    if subtype_clause:
+        subtype_queries = (
+            [subtype_clause + set_clause, subtype_clause + series_clause]
+            if q.set_hint
+            else [subtype_clause]
+        )
+        for query in dict.fromkeys(subtype_queries):
+            for card in pkmn.search_all(query):
+                cid = card.get("id")
+                if not cid or cid in seen_ids:
+                    continue
+                seen_ids.add(cid)
+                card.setdefault("_database", "pokemontcg.io")
+                pool.append(card)
+            if q.set_hint and pool:
+                break
+
+    # Evolution-line / multi-name support. Each name is searched independently
+    # and unioned. For a single name this is a list of one — same flow.
+    names = _split_evolution_line(cleaned)
+
+    if not name_search_skipped:
+        queries: list[str] = []
+        # Wildcard fallback (`name:Mew*` → catches "Mew V", "Mew VMAX") only
+        # adds value for single-name queries. For multi-name lookups (concept
+        # expansions, evolution lines) the explicit list is comprehensive
+        # enough — wildcards just multiply API calls and dilute the pool.
+        emit_wildcard = len(names) == 1
+        for name in names:
+            head_token = name.split(" ", 1)[0] if name else ""
+            # Wildcards are only safe on plain alphanumeric tokens — anything
+            # with special chars (&, :, parens) breaks Lucene parsing.
+            head_safe = head_token if (emit_wildcard and head_token.isalnum()) else ""
+            if q.set_hint:
+                queries.append(name_clause(name) + set_clause)
+                queries.append(name_clause(name) + series_clause)
+                if head_safe:
+                    queries.append(f"name:{head_safe}*" + set_clause)
+            queries.append(name_clause(name))
+            if head_safe:
+                queries.append(f"name:{head_safe}*")
+
+        for query in dict.fromkeys(queries):
+            for card in pkmn.search_all(query):
+                cid = card.get("id")
+                if not cid or cid in seen_ids:
+                    continue
+                seen_ids.add(cid)
+                card.setdefault("_database", "pokemontcg.io")
+                pool.append(card)
+            # If the user gave a set hint, a single matching query is enough —
+            # we don't want unfiltered shapes to dilute the pool.
+            if q.set_hint and pool:
+                break
+
+        # Word-boundary post-filter so `Mew` doesn't pull in `Mewtwo` from
+        # the wildcard `name:Mew*` fallback. Skipped for set/flavor fallbacks
+        # below because their results aren't keyed by name.
+        pool = [c for c in pool if _name_token_match(c.get("name", ""), names)]
 
     # If a name search didn't find anything and the user didn't already give
     # a set hint, the subject might BE a set name (e.g. "top 10 Surging
     # Sparks cards" / "top 10 S&V 151 cards"). Try a few set-name shapes.
-    if not pool and not q.set_hint:
+    # Skipped for concept queries — the curated name list is the source of
+    # truth, and falling through previously caused `top 9 starter evolution`
+    # to land on the unrelated "Mega Evolution" set.
+    if not pool and not q.set_hint and not name_search_skipped and not is_concept:
         for set_query in _set_fallback_queries(cleaned):
             for card in pkmn.search_all(set_query):
                 cid = card.get("id")
@@ -178,9 +390,16 @@ def find_top_cards(
     # Subjective / non-name queries (e.g. "top:10 cute cards") yield no hits
     # against `name:` or `set:`, so fall back to flavorText search across
     # the database. This catches any card whose flavor text mentions the term.
-    if not pool:
-        flavor_terms = [t for t in cleaned.split() if len(t) >= 3]
-        for term in flavor_terms:
+    # Skipped for subtype subjects — an empty `subtypes:V` pool genuinely
+    # means no V cards matched the constraints, and a flavor fallback on "v"
+    # would just be noise. Also skipped for concept queries: a flavor search
+    # on "Bulbasaur" / "Ivysaur" / etc. (the expanded names) would only add
+    # noise on top of what the explicit name search already returned.
+    if not pool and not name_search_skipped and not is_concept:
+        # Pull tokens from each evolution-line name so `Charmander/.../Charizard`
+        # doesn't get fed in as a single broken `flavorText:"..."` clause.
+        flavor_terms = [t for n in names for t in n.split() if len(t) >= 3]
+        for term in dict.fromkeys(flavor_terms):
             flavor_query = f'flavorText:"{term}"'
             if q.set_hint:
                 flavor_query += set_clause

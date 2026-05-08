@@ -1,0 +1,195 @@
+from __future__ import annotations
+
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from mgz_pkmn.lookup import (
+    _expand_concept,
+    _name_token_match,
+    _split_evolution_line,
+    _subtype_filter,
+    find_top_cards,
+)
+from mgz_pkmn.parser import CardQuery
+
+
+class _StubTCGClient:
+    """Records every query it receives and returns canned cards.
+
+    `cards_by_query` maps a Lucene query string → list of card dicts.
+    Anything not in the map returns []. `queries` is the call log so a
+    test can assert which API queries were issued."""
+
+    def __init__(self, cards_by_query: dict[str, list[dict]] | None = None) -> None:
+        self.cards_by_query = cards_by_query or {}
+        self.queries: list[str] = []
+
+    def search_all(self, query: str, **_: object) -> list[dict]:
+        self.queries.append(query)
+        return list(self.cards_by_query.get(query, []))
+
+    def search(self, query: str, **_: object) -> list[dict]:
+        return self.search_all(query)
+
+
+def _card(card_id: str, name: str, market: float, subtypes: list[str] | None = None) -> dict:
+    return {
+        "id": card_id,
+        "name": name,
+        "number": "1",
+        "set": {"name": "Test Set", "series": "Test Series"},
+        "subtypes": subtypes or [],
+        "tcgplayer": {"prices": {"holofoil": {"market": market}}},
+    }
+
+
+class SubtypeFilterTests(unittest.TestCase):
+    def test_tag_team_maps_to_quoted_subtype(self) -> None:
+        self.assertEqual(_subtype_filter("tag team"), 'subtypes:"TAG TEAM"')
+        self.assertEqual(_subtype_filter("Tag Team"), 'subtypes:"TAG TEAM"')
+
+    def test_single_word_subtype_unquoted(self) -> None:
+        self.assertEqual(_subtype_filter("vmax"), "subtypes:VMAX")
+        self.assertEqual(_subtype_filter("gx"), "subtypes:GX")
+
+    def test_unknown_subject_returns_none(self) -> None:
+        self.assertIsNone(_subtype_filter("Charizard"))
+        # Must be exact equality — `charizard ex` shouldn't trigger the EX subtype.
+        self.assertIsNone(_subtype_filter("charizard ex"))
+
+
+class SplitEvolutionLineTests(unittest.TestCase):
+    def test_three_stage_line(self) -> None:
+        self.assertEqual(
+            _split_evolution_line("Charmander/Charmeleon/Charizard"),
+            ["Charmander", "Charmeleon", "Charizard"],
+        )
+
+    def test_no_slash_returns_single_element_list(self) -> None:
+        self.assertEqual(_split_evolution_line("Pikachu"), ["Pikachu"])
+
+    def test_strips_whitespace(self) -> None:
+        self.assertEqual(
+            _split_evolution_line("Mew / Mewtwo"),
+            ["Mew", "Mewtwo"],
+        )
+
+
+class NameTokenMatchTests(unittest.TestCase):
+    def test_mew_does_not_match_mewtwo(self) -> None:
+        self.assertFalse(_name_token_match("Mewtwo", ["Mew"]))
+        self.assertFalse(_name_token_match("Mewtwo-GX", ["Mew"]))
+
+    def test_mew_matches_mew_variants(self) -> None:
+        self.assertTrue(_name_token_match("Mew", ["Mew"]))
+        self.assertTrue(_name_token_match("Mew V", ["Mew"]))
+        self.assertTrue(_name_token_match("Mew-EX", ["Mew"]))
+        self.assertTrue(_name_token_match("Shining Mew", ["Mew"]))
+
+    def test_evolution_line_matches_any_member(self) -> None:
+        names = ["Charmander", "Charmeleon", "Charizard"]
+        self.assertTrue(_name_token_match("Charmander", names))
+        self.assertTrue(_name_token_match("Charizard ex", names))
+        self.assertFalse(_name_token_match("Charcadet", names))
+
+
+class FindTopCardsTests(unittest.TestCase):
+    def test_evolution_line_unions_all_names(self) -> None:
+        # `name_clause` leaves single-token names unquoted, so the queries hit
+        # `name:Charmander` / `name:Charmeleon` / `name:Charizard`.
+        client = _StubTCGClient(
+            {
+                "name:Charmander": [_card("c1", "Charmander", 5.0)],
+                "name:Charmeleon": [_card("c2", "Charmeleon", 7.0)],
+                "name:Charizard": [_card("c3", "Charizard ex", 50.0)],
+            }
+        )
+        q = CardQuery(raw="x", name="Charmander/Charmeleon/Charizard", bulk_top=4)
+        results = find_top_cards(client, q, limit=4)
+        self.assertEqual([c["id"] for c in results], ["c3", "c2", "c1"])
+
+    def test_mew_search_excludes_mewtwo(self) -> None:
+        # Simulate the real API behaviour: the wildcard fallback returns Mewtwo
+        # alongside Mew variants. The post-filter must drop Mewtwo.
+        client = _StubTCGClient(
+            {
+                "name:Mew": [_card("m1", "Mew", 20.0)],
+                "name:Mew*": [
+                    _card("m1", "Mew", 20.0),
+                    _card("m2", "Mew V", 30.0),
+                    _card("mt1", "Mewtwo", 25.0),
+                    _card("mt2", "Mewtwo-GX", 50.0),
+                ],
+            }
+        )
+        q = CardQuery(raw="x", name="Mew", bulk_top=5)
+        results = find_top_cards(client, q, limit=5)
+        names = sorted(c["name"] for c in results)
+        self.assertEqual(names, ["Mew", "Mew V"])
+
+    def test_tag_team_uses_subtype_query(self) -> None:
+        client = _StubTCGClient(
+            {
+                'subtypes:"TAG TEAM"': [
+                    _card("tt1", "Pikachu & Zekrom-GX", 40.0, subtypes=["TAG TEAM", "GX"]),
+                    _card("tt2", "Reshiram & Charizard-GX", 80.0, subtypes=["TAG TEAM", "GX"]),
+                ],
+            }
+        )
+        q = CardQuery(raw="x", name="tag team", bulk_top=4)
+        results = find_top_cards(client, q, limit=4)
+        self.assertEqual([c["id"] for c in results], ["tt2", "tt1"])
+        # The name-search path must be skipped — only the subtype query should fire.
+        self.assertEqual(client.queries, ['subtypes:"TAG TEAM"'])
+
+    def test_concept_puppy_expands_to_dog_pokemon_list(self) -> None:
+        # The concept expansion should issue a per-name query for each dog
+        # Pokemon and skip the wildcard fallback (multi-name lookup).
+        client = _StubTCGClient(
+            {
+                "name:Growlithe": [_card("g1", "Growlithe", 5.0)],
+                "name:Yamper": [_card("y1", "Yamper", 8.0)],
+                "name:Riolu": [_card("r1", "Riolu", 12.0)],
+            }
+        )
+        q = CardQuery(raw="x", name="puppy", bulk_top=3)
+        results = find_top_cards(client, q, limit=3)
+        self.assertEqual(sorted(c["name"] for c in results), ["Growlithe", "Riolu", "Yamper"])
+        # No wildcard queries (`name:Growlithe*`) should appear — multi-name
+        # lookups skip the wildcard fallback.
+        self.assertFalse(any(q.endswith("*") for q in client.queries))
+
+    def test_concept_skips_set_and_flavor_fallbacks_when_empty(self) -> None:
+        # Even when the concept's name search returns nothing, we must NOT
+        # fall through to set/flavor fallback — that's how `top 9 starter
+        # evolution` previously matched the unrelated "Mega Evolution" set.
+        client = _StubTCGClient({})  # every query returns []
+        q = CardQuery(raw="x", name="starter evolution", bulk_top=9)
+        results = find_top_cards(client, q, limit=9)
+        self.assertEqual(results, [])
+        # No set.name:"…" or flavorText:"…" queries should appear.
+        self.assertFalse(any("set.name:" in q for q in client.queries))
+        self.assertFalse(any("flavorText:" in q for q in client.queries))
+
+
+class ExpandConceptTests(unittest.TestCase):
+    def test_known_concept_returns_slash_string(self) -> None:
+        result = _expand_concept("eeveelution")
+        self.assertIsNotNone(result)
+        self.assertIn("Vaporeon", result)
+        self.assertIn("Sylveon", result)
+        self.assertIn("/", result)
+
+    def test_unknown_concept_returns_none(self) -> None:
+        self.assertIsNone(_expand_concept("Charizard"))
+        self.assertIsNone(_expand_concept(""))
+
+    def test_concept_lookup_is_case_insensitive(self) -> None:
+        self.assertEqual(_expand_concept("PUPPY"), _expand_concept("puppy"))
+
+
+if __name__ == "__main__":
+    unittest.main()

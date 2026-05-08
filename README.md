@@ -86,7 +86,8 @@ banner showing the tag + card count) at each file boundary.
 | `--dedupe` | off | Remove duplicate matched cards across all queries (keyed by card id), keeping the first occurrence in xlsx / PDF / JSON. |
 | `--report-json PATH` | (none) | Also dump a structured JSON report. |
 | `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF for vendor scanning. |
-| `-v, --verbose` | off | Echo each API request URL. |
+| `--no-cache` | off | Skip the disk cache; force every lookup to hit the network. |
+| `-v, --verbose` | off | Echo each API request URL (cached entries are flagged). |
 | `-h, --help` | | Show usage. |
 
 ### Examples
@@ -156,6 +157,14 @@ top 10 Surging Sparks cards        # → top from a SET (subject = set name)
 top 10 S&V 151 cards               # → "S&V" expands to "Scarlet & Violet"
 top 10 Mega Evolutions cards       # → singularised to set "Mega Evolution"
 top 10 cute cards                  # → flavorText fallback (subjective)
+top 4 Charmander/Charmeleon/Charizard cards  # → evolution line (each name searched, results unioned)
+top 4 tag team cards               # → subtype TAG TEAM (cards with 2+ Pokemon)
+top 4 vmax cards                   # → subtype VMAX (also: v, vstar, gx, ex, mega, break, ultra beast)
+top 9 puppy cards                  # → curated dog-Pokemon list (also: dog, kitty, cat, baby)
+top 9 starter cards                # → all first-stage starters across every generation
+top 9 starter evolution cards      # → all stages of every starter line
+top 9 eeveelution cards            # → Eevee + every evolution
+top 9 pseudo-legendary cards       # → Dragonite, Tyranitar, Garchomp, etc.
 
 # Inline price conditions on bulk lookups (combine with --max-price; most restrictive wins)
 top 10 Charizard >= $20            # → exclude cheap fillers (only $20+)
@@ -242,13 +251,33 @@ expensive variants of a subject. The subject can be:
   set matches, the term is searched against `flavorText` (every card whose
   flavor text contains the word). Works well for moods like *cute*,
   *legendary*, *fast*, etc.
+- **A card subtype** (`top 4 tag team cards`, `top 4 vmax cards`) — when the
+  subject exactly matches a known subtype keyword it's routed to a
+  `subtypes:…` filter instead of a name search. Recognised: `tag team`, `v`,
+  `vmax`, `vstar`, `v-union`, `gx`, `ex`, `mega`, `break`, `ultra beast`,
+  `radiant`.
+- **An evolution line** (`top 4 Charmander/Charmeleon/Charizard cards`) —
+  slash-separated names are searched independently and the pools are unioned
+  before ranking, so "top 4" returns the four highest-priced cards across
+  the whole line.
+- **A concept keyword** (`top 9 puppy cards`, `top 9 starter evolution cards`)
+  — subjective subjects that don't map to a single name, set, or subtype.
+  Each is hand-curated to a Pokemon name list, then handled exactly like an
+  evolution line. Recognised: `puppy`, `dog`, `kitty`, `cat`, `starter`,
+  `starter evolution`, `eeveelution`, `pseudo-legendary`, `baby`. Concept
+  queries skip the set/flavorText fallback so a no-hit result returns
+  empty rather than overshooting (e.g. `starter evolution` previously
+  matched the unrelated "Mega Evolution" set).
 
 The flow in all cases:
 
-1. Try name search → set fallback → flavorText fallback (in that order).
-2. Drop candidates without a TCGPlayer / Cardmarket market price (they
+1. Subject is a subtype keyword → `subtypes:…` query (other paths skipped).
+2. Otherwise: name search (per-name for evolution lines) → set fallback →
+   flavorText fallback. Name results are word-boundary filtered, so
+   `top 4 Mew` no longer pulls in Mewtwo from prefix-wildcard matches.
+3. Drop candidates without a TCGPlayer / Cardmarket market price (they
    can't be ranked meaningfully — usually too new or never indexed).
-3. Sort descending by market price, keep the top *N*.
+4. Sort descending by market price, keep the top *N*.
 
 Each surviving card becomes its own row in the spreadsheet and its own
 cell in the PDF binder.
@@ -319,6 +348,36 @@ Mixed USD + EUR runs keep currencies separate in `totals_by_currency` and
 `stats_by_currency`. The headline `highest_value_card` per tag picks by raw
 market figure regardless of currency — fine when a tag is single-currency,
 worth a glance otherwise.
+
+## Cache
+
+The CLI keeps a small disk cache under `$XDG_CACHE_HOME/mgz-pkmn`
+(`~/.cache/mgz-pkmn` by default) so consecutive runs over the same card list
+don't keep re-spending API quota. Two stores live there:
+
+| Path | What it holds | TTL |
+|---|---|---|
+| `api/<sha1>.json` | One file per pokemontcg.io request URL. | 7 days (mtime-based). |
+| `url_overrides.json` | `(name, set_hint)` → PriceCharting URL, recorded whenever you paste a PC URL on a line. | None — sticky until you overwrite or delete. |
+
+Behavior:
+
+- **API responses** are cached after every successful HTTP 200 (including
+  empty result lists) and consulted before each network fetch. A cold run
+  (~30 s for the sample input) becomes ~1 s on a warm cache. With `-v` the
+  log shows `cached <url>` for hits and `GET <url>` for misses.
+- **URL overrides** turn one-shot manual lookups into permanent ones. Paste
+  a PriceCharting URL on a line once; on the next run, drop the URL and
+  the card still resolves via PriceCharting (matched on `(name, set)`,
+  case-insensitive). Lookups happen between the explicit-URL path and the
+  pokemontcg.io path so a saved override behaves exactly like a re-pasted
+  URL would.
+- **`--no-cache`** disables both stores for the run (sets
+  `MGZ_PKMN_NO_CACHE=1` internally). Use it when you suspect a stale entry
+  is masking a fix or when checking for cards added since the cache was
+  warmed.
+- **Clearing the cache** is a manual `rm -rf ~/.cache/mgz-pkmn` — there's
+  no LRU eviction. The cache is small (a few MB after a typical run).
 
 ## Known limitations / TODO
 

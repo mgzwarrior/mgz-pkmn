@@ -35,7 +35,7 @@ CARD_ASPECT = 2.5 / 3.5
 # Uniform shrink applied to the image after geometry is computed. < 1.0 leaves
 # breathing room around each card so the cell looks less cramped and the
 # caption block reads more comfortably.
-IMAGE_SCALE = 0.79
+IMAGE_SCALE = 0.71
 
 # Caption lines (top-down, under each image):
 #   1. Name (bold)
@@ -47,7 +47,7 @@ IMAGE_SCALE = 0.79
 #   7. 90% $C
 #   8. 95% $D
 CAPTION_LINES = 8
-CAPTION_LEADING = 10  # pt
+CAPTION_LEADING = 11.5  # pt — extra breathing room between caption lines
 
 
 def write_binder_pdf(
@@ -217,25 +217,27 @@ def _draw_cell(
     number = card.get("number") or "?"
     total = card_set.get("printedTotal") or card_set.get("total")
 
-    line_y = image_y - 4
+    # One blank line of vertical space between image and the first caption
+    # line, so the name doesn't visually crowd the card art.
+    line_y = image_y - 6 - CAPTION_LEADING
     cx = x + cell_w / 2
     max_w = cell_w - 8
 
     # 1. Name (bold)
     c.setFillColorRGB(0.1, 0.1, 0.1)
-    c.setFont("Helvetica-Bold", 9.5)
+    c.setFont("Helvetica-Bold", 10.5)
     line_y -= 2
     _draw_truncated(c, cx, line_y, name, max_w)
 
     # 2. (#X/Y) or just (#X) when total unknown
     line_y -= CAPTION_LEADING
-    c.setFont("Helvetica", 8)
+    c.setFont("Helvetica", 9)
     parens = f"(#{number}/{total})" if total else f"(#{number})"
     _draw_truncated(c, cx, line_y, parens, max_w)
 
     # 3. Set name
     line_y -= CAPTION_LEADING
-    c.setFont("Helvetica", 8)
+    c.setFont("Helvetica", 9)
     _draw_truncated(c, cx, line_y, set_name, max_w)
 
     # 4. Market price labelled "MP" (slightly emphasized). Over-cap rows get
@@ -244,7 +246,7 @@ def _draw_cell(
     if row.pricing.market is not None:
         sym = "€" if row.pricing.currency == "EUR" else "$"
         is_over_cap = max_price is not None and row.pricing.market > max_price
-        c.setFont("Helvetica-Bold", 9)
+        c.setFont("Helvetica-Bold", 10)
         if is_over_cap:
             c.setFillColorRGB(0.65, 0.10, 0.10)  # dark red for above-cap
             label = f"! MP {sym}{row.pricing.market:,.2f}"
@@ -253,13 +255,13 @@ def _draw_cell(
             label = f"MP {sym}{row.pricing.market:,.2f}"
         _draw_truncated(c, cx, line_y, label, max_w)
     else:
-        c.setFont("Helvetica-Oblique", 8)
+        c.setFont("Helvetica-Oblique", 9)
         c.setFillColorRGB(0.5, 0.5, 0.5)
         _draw_truncated(c, cx, line_y, "no price", max_w)
 
     # 5-8. Comp tiers, one per line for visibility.
     c.setFillColorRGB(0.35, 0.35, 0.35)
-    c.setFont("Helvetica", 7)
+    c.setFont("Helvetica", 8)
     if row.pricing.market is not None:
         sym = "€" if row.pricing.currency == "EUR" else "$"
         for p in COMP_PERCENTS:
