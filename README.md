@@ -1,5 +1,8 @@
 # mgz-pkmn
 
+[![CI](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml/badge.svg)](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+
 A small CLI for prepping Pokemon card binders for a card show: take a list of
 cards, look each one up across **three open data sources**, download images,
 and write an `.xlsx` with embedded thumbnails, current market price, and
@@ -367,9 +370,39 @@ fixing if this turns into something more:
 uv run ruff check src/        # lint
 uv run ruff format src/       # format
 uv run ruff check --fix src/  # autofix
+uv run python -m unittest discover -s tests   # run tests
 ```
 
 Ruff config lives in [pyproject.toml](pyproject.toml) under `[tool.ruff]`.
+
+### Pre-commit hooks
+
+Install [pre-commit](https://pre-commit.com) and set up the hooks so that lint
+and format checks run automatically before every commit:
+
+```bash
+uv run --with pre-commit pre-commit install
+```
+
+The hooks are defined in [.pre-commit-config.yaml](.pre-commit-config.yaml) and
+run `ruff check --fix` and `ruff format` on every staged file.
+
+### CI
+
+GitHub Actions runs lint, format checks, and the full test suite on every pull
+request and push to `main` across Python 3.11, 3.12, and 3.13.
+
+### Releasing
+
+Push a `v*` tag to trigger the release workflow:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The workflow builds the package, runs the test suite, and publishes a GitHub
+Release with the built distribution files attached.
 
 ## Notes
 
