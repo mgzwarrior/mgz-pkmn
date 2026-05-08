@@ -320,30 +320,6 @@ Mixed USD + EUR runs keep currencies separate in `totals_by_currency` and
 market figure regardless of currency — fine when a tag is single-currency,
 worth a glance otherwise.
 
-## Project layout
-
-```
-src/mgz_pkmn/
-├── __init__.py
-├── __main__.py        # python -m mgz_pkmn
-├── cli.py             # Click command, top-level orchestration
-├── parser.py          # parse_line, CardQuery, language + bulk-phrase detection
-├── lookup.py          # find_card + find_top_cards (pokemontcg → URL hint → tcgdex)
-├── pricing.py         # extract_pricing, Pricing, COMP_PERCENTS
-├── images.py          # download + thumbnail
-├── spreadsheet.py     # write_spreadsheet, HEADERS, Row
-├── binder.py          # 3x3 PDF binder layout (reportlab)
-└── sources/
-    ├── __init__.py
-    ├── base.py            # MatchResult, scoring, set-overlap
-    ├── pokemontcg.py      # TCGClient + search_pokemontcg
-    ├── tcgdex.py          # TCGDexClient + search_tcgdex (multilingual)
-    └── pricecharting.py   # URL-based scraper for region-exclusive cards
-```
-
-Adding a new source is a matter of dropping a module under `sources/` that
-returns the normalized card shape, then adding it to `lookup.find_card`.
-
 ## Known limitations / TODO
 
 Things that work well enough for personal use but are rough edges worth
@@ -364,45 +340,10 @@ fixing if this turns into something more:
   Sparks` syntax (or even plain English with a small DSL on top of
   pokemontcg.io's `subtypes:` field) is the next big win.
 
-## Development
+## Contributing
 
-```bash
-uv run ruff check src/        # lint
-uv run ruff format src/       # format
-uv run ruff check --fix src/  # autofix
-uv run python -m unittest discover -s tests   # run tests
-```
-
-Ruff config lives in [pyproject.toml](pyproject.toml) under `[tool.ruff]`.
-
-### Pre-commit hooks
-
-Install [pre-commit](https://pre-commit.com) and set up the hooks so that lint
-and format checks run automatically before every commit:
-
-```bash
-uv run --with pre-commit pre-commit install
-```
-
-The hooks are defined in [.pre-commit-config.yaml](.pre-commit-config.yaml) and
-run `ruff check --fix` and `ruff format` on every staged file.
-
-### CI
-
-GitHub Actions runs lint, format checks, and the full test suite on every pull
-request and push to `main` across Python 3.11, 3.12, and 3.13.
-
-### Releasing
-
-Push a `v*` tag to trigger the release workflow:
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-The workflow builds the package, runs the test suite, and publishes a GitHub
-Release with the built distribution files attached.
+Project layout, dev workflow, pre-commit hooks, CI, and release process live in
+[CONTRIBUTORS.md](CONTRIBUTORS.md).
 
 ## Notes
 
