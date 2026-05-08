@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Convenience wrapper. After `uv sync`, the project ships a `pkmn` script in
+# the venv's bin dir; this just hands off to it.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$HERE"
+exec uv run pkmn "$@"

@@ -1,0 +1,29 @@
+# Pokemon card list — one card per line.
+# Comments (lines starting with #) and blank lines are ignored.
+#
+# Flexible formats accepted. A few examples:
+#
+#   Charizard | Base | 4/102
+#   Charizard - Base Set - 4/102
+#   Charizard 4/102 Base Set
+#   Pikachu V SWSH286
+#   Mewtwo GX 39/214
+#   Lugia V 138/195             [variant: holofoil]
+#
+# Variant in square brackets is optional. Common values:
+#   normal, holofoil, reverseHolofoil, 1stEditionHolofoil, unlimitedHolofoil
+#
+# Examples (uncomment to try):
+Charizard | Base | 4/102
+Pikachu | Base | 58/102
+Mewtwo | Base | 10/102
+Blastoise | Base | 2/102
+Charizard V | Champion's Path | 74/73
+
+# Bulk lookup ("top-N chase cards"):
+#   "All <subject> cards|prints|versions" → 5 highest-priced matches
+#   "top:<N> <subject>" / "top <N> <subject>" → N highest-priced matches
+# Each result becomes its own row in the spreadsheet / cell in the PDF.
+#
+# All Exeggutor cards
+# top:3 Charizard

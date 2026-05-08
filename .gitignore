@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Downloaded card art (copyrighted by TPCi / pokemontcg.io). Local only.
+output/images/
+
+# Empty placeholder kept around from earlier iterations
+images/
