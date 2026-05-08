@@ -14,6 +14,9 @@ venv/
 .idea/
 .vscode/
 
+# Claude Code session/worktree data — never commit
+.claude/
+
 # Downloaded card art (copyrighted by TPCi / pokemontcg.io). Local only.
 output/images/
 
