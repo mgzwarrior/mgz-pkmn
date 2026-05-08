@@ -504,20 +504,38 @@ Then update `allow_origins` in `api/main.py` to include your frontend origin.
 | `POKEMONTCG_IO_API_KEY` | API process env | Raises rate limit to 20k req/day |
 | `VITE_API_BASE` | Frontend build-time | Override API URL (default: empty → same origin) |
 
-### Docker (quick-start)
+### Docker (single-unit)
+
+A multi-stage [`Dockerfile`](Dockerfile) at the repo root builds the SPA and
+the API into one image. FastAPI serves both: `/api/*` and `/health` for the
+backend, everything else from the built `web/dist/`. CORS is unused in this
+mode (same origin).
 
 ```bash
-# API
-docker build -f Dockerfile.api -t mgz-pkmn-api .
-docker run -e POKEMONTCG_IO_API_KEY=your-key -p 8000:8000 mgz-pkmn-api
-
-# Frontend (multi-stage build: node build → nginx serve)
-docker build -f Dockerfile.web -t mgz-pkmn-web .
-docker run -p 80:80 mgz-pkmn-web
+docker build -t mgz-pkmn .
+docker run -e POKEMONTCG_IO_API_KEY=your-key -p 8000:8000 mgz-pkmn
+# open http://localhost:8000
 ```
 
-> **Note:** `Dockerfile.api` and `Dockerfile.web` are not included in this
-> repo — the snippets above are a starting-point recipe.
+### Deploy to Render (free tier)
+
+The repo ships a [`render.yaml`](render.yaml) blueprint and a manual deploy
+workflow. One-time setup:
+
+1. **Create the service** — in the Render dashboard, *New → Blueprint*, point
+   it at this repo. It picks up `render.yaml` and creates a Docker web service
+   on the free plan with `autoDeploy` off.
+2. **Set the API key** — in the service's *Environment* tab, set
+   `POKEMONTCG_IO_API_KEY`.
+3. **Capture the deploy hook** — *Settings → Deploy Hook*, copy the URL, save
+   it as a GitHub repo secret named `RENDER_DEPLOY_HOOK`.
+
+Once set up, deploys are manual: GitHub → *Actions* → *Deploy* → *Run
+workflow*. The job POSTs to the deploy hook and Render rebuilds from `main`.
+
+> **Free-tier caveat:** Render's free web service spins down after ~15 min of
+> idle traffic; the next request takes ~30s to wake it. Fine for hobby use.
+> Upgrade to *Starter* (or move to Fly.io) if cold starts hurt.
 
 ## Contributing
 
