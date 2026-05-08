@@ -19,18 +19,18 @@ URL_RE = re.compile(r"https?://\S+")
 #                                         (e.g. "All Energy Removal").
 #   2. "top:<N> <subject>" / "top <N> <subject>" — explicit, suffix optional.
 # Split into a two-step parse (prefix match + suffix strip) so that each
-# individual regex is simple and non-backtracking.  The original single-regex
-# form combined lazy `.+?` with surrounding `[ \t]*` quantifiers in a way
-# that caused polynomial (O(n²)) backtracking on adversarial whitespace-heavy
-# inputs — a ReDoS risk once user input flows through the API.
+# individual regex is simple and non-backtracking.
 DEFAULT_BULK_TOP = 5
 # Matches only the "top:N " prefix of a bulk line.
 _TOP_PREFIX_RE = re.compile(r"^top[: \t]+(\d+)[ \t]+", re.IGNORECASE)
 # Matches only the "all " prefix of an "all <subject> cards" line.
 _ALL_PREFIX_RE = re.compile(r"^all[ \t]+", re.IGNORECASE)
-# Strips a trailing "cards", "prints", or "versions" suffix (with leading
-# whitespace).  Anchored at end-of-string; no interaction with a subject body.
-_BULK_SUFFIX_RE = re.compile(r"[ \t]+(?:cards?|prints?|versions?)[ \t]*$", re.IGNORECASE)
+# Known trailing suffix words that identify a bulk-lookup line.  Using a
+# frozenset + str.rsplit() avoids any regex on the subject body, which would
+# risk O(n²) backtracking when the tail is full of whitespace.
+_BULK_SUFFIX_WORDS: frozenset[str] = frozenset(
+    ("cards", "card", "prints", "print", "versions", "version")
+)
 
 # In-line per-card price conditions on bulk lookups. Match a comparator
 # (`>=`, `<=`, `>`, `<`) followed by an optional currency symbol and a
@@ -307,13 +307,26 @@ def _extract_price_conds(body: str) -> tuple[str, float | None, float | None]:
     cleaned = " ".join(cleaned.split())
     # Trim trailing connectors / separators left over after the substitution
     # (e.g. "X cards >= $20" → "X cards", or "X | >= $20" → "X").
-    cleaned = re.sub(r"[,;|\-—\s]+$", "", cleaned).strip()
+    # After the split/join above, whitespace is a single space, so we use a
+    # literal space instead of \s to avoid any potential backtracking.
+    cleaned = re.sub(r"[,;|\-— ]+$", "", cleaned)
     return cleaned, price_min, price_max
 
 
 def _normalize_number(raw: str) -> str:
     """Strip whitespace; preserve case (some sets use 'SV20', 'TG01')."""
     return raw.replace(" ", "").strip()
+
+
+def _strip_bulk_suffix(text: str) -> str:
+    """Remove a trailing 'cards|prints|versions' word if present.
+
+    Uses str.rsplit() + a frozenset lookup — O(n) with no regex backtracking.
+    """
+    parts = text.rsplit(None, 1)
+    if len(parts) == 2 and parts[1].lower() in _BULK_SUFFIX_WORDS:
+        return parts[0].rstrip()
+    return text
 
 
 def _try_bulk(body: str) -> tuple[int, str, str | None] | None:
@@ -329,17 +342,15 @@ def _try_bulk(body: str) -> tuple[int, str, str | None] | None:
     with one of those forms, returns None and parsing falls through to the
     single-card path.
 
-    Uses a two-step parse (prefix match → suffix strip) instead of a single
-    full-line regex so that no combination of quantifiers can cause polynomial
-    backtracking on adversarial whitespace-heavy inputs."""
+    Uses prefix-match regexes + str.rsplit() for the suffix so that no
+    combination of quantifiers can cause polynomial backtracking on adversarial
+    whitespace-heavy inputs."""
     head, set_hint = _split_set_hint(body)
 
     # --- "top:N <subject>" / "top N <subject>" ---
     m = _TOP_PREFIX_RE.match(head)
     if m:
-        subject = head[m.end():].strip()
-        # Strip optional trailing "cards / prints / versions" suffix.
-        subject = _BULK_SUFFIX_RE.sub("", subject).strip()
+        subject = _strip_bulk_suffix(head[m.end():].strip())
         if subject:
             return int(m.group(1)), subject, set_hint
         return None
@@ -347,12 +358,12 @@ def _try_bulk(body: str) -> tuple[int, str, str | None] | None:
     # --- "All <subject> cards|prints|versions" ---
     m = _ALL_PREFIX_RE.match(head)
     if m:
-        rest = head[m.end():]
+        rest = head[m.end():].strip()
         # The suffix is REQUIRED for "All …" so "All Energy Removal" is not
         # accidentally treated as a bulk query.
-        suffix = _BULK_SUFFIX_RE.search(rest)
-        if suffix:
-            subject = rest[: suffix.start()].strip()
+        parts = rest.rsplit(None, 1)
+        if len(parts) == 2 and parts[1].lower() in _BULK_SUFFIX_WORDS:
+            subject = parts[0].rstrip()
             if subject:
                 return DEFAULT_BULK_TOP, subject, set_hint
     return None
