@@ -12,7 +12,7 @@ from mgz_pkmn.pricing import Pricing
 from mgz_pkmn.spreadsheet import Row
 
 
-def _row(card_id: str | None, market: float | None = None) -> Row:
+def _make_row(card_id: str | None, market: float | None = None) -> Row:
     card = {"id": card_id, "name": "Card"} if card_id else None
     return Row(
         query=CardQuery(raw="x", name="x"),
@@ -24,7 +24,7 @@ def _row(card_id: str | None, market: float | None = None) -> Row:
 
 class CliHelpersTests(unittest.TestCase):
     def test_dedupe_rows_removes_duplicate_card_ids(self) -> None:
-        rows = [_row("a", 10), _row("a", 12), _row("b", 8), _row(None, None)]
+        rows = [_make_row("a", 10), _make_row("a", 12), _make_row("b", 8), _make_row(None, None)]
         deduped, removed = _dedupe_rows(rows)
         self.assertEqual(removed, 1)
         self.assertEqual(len(deduped), 3)
@@ -33,7 +33,7 @@ class CliHelpersTests(unittest.TestCase):
         self.assertIsNone(deduped[2].card)
 
     def test_json_report_includes_rows_deduped(self) -> None:
-        rows = [_row("a", 10)]
+        rows = [_make_row("a", 10)]
         payload = _build_json_report(
             rows=rows,
             counters={"bulk": 3},
