@@ -549,13 +549,8 @@ def cli(
     )
 
     _print_section("Summary")
-    matched_total = 0
-    missed_total = 0
-    for r in rows:
-        if r.card is None:
-            missed_total += 1
-        else:
-            matched_total += 1
+    matched_total = len([r for r in rows if r.card is not None])
+    missed_total = len(rows) - matched_total
     summary_parts = [
         click.style(f"✓ {matched_total} matched", fg="green"),
         (
