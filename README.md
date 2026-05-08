@@ -80,6 +80,7 @@ banner showing the tag + card count) at each file boundary.
 | `--api-key TEXT` | `$POKEMONTCG_IO_API_KEY` | pokemontcg.io API key (raises rate limits). |
 | `--no-images` | off | Skip image downloads + embedding. |
 | `--max-price FLOAT` | (none) | Per-card budget cap. **Bulk** `top:N` / `All …` lookups respect it strictly — candidates above the cap are excluded *before* the top-N cut, so an "affordable top 10" still returns 10. **Single-card** lookups always appear in every artifact even when above the cap, but get a visual flag (amber-fill on the Market cell in xlsx, red `! MP $X` line in the PDF, `over_max_price: true` in JSON). Applied to the raw market figure regardless of currency — keep your input list single-currency for it to mean what you'd expect. |
+| `--dedupe` | off | Remove duplicate matched cards across all queries (keyed by card id), keeping the first occurrence in xlsx / PDF / JSON. |
 | `--report-json PATH` | (none) | Also dump a structured JSON report. |
 | `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF for vendor scanning. |
 | `-v, --verbose` | off | Echo each API request URL. |
@@ -351,11 +352,6 @@ fixing if this turns into something more:
   on single-card lookups. A line like `Charizard | Base | 4 >= $100` parses
   the bound but doesn't act on it. Acceptable for bulk budgeting; not a
   general-purpose query language.
-- **No de-dupe across queries.** If the same card matches multiple bulk
-  lines (e.g. `top 10 Charizard >= $20` and `top 10 Surging Sparks cards`),
-  it appears twice in the spreadsheet / PDF / JSON. A `--dedupe` flag (or
-  always-on dedupe, keyed by card id) would clean this up. Today you'd
-  spot the duplicate by sorting on the **Name** column.
 - **No structural / vague-term search.** Phrases like `evolution line of
   Eevee`, `SIRs only`, `V, Vmax, EX, or GX cards`, or `modern <subject>`
   fall through the name → set-name → flavorText fallback chain — they
