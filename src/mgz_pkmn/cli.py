@@ -145,12 +145,29 @@ def _comps(market: float | None) -> dict[str, float] | None:
     return {f"{p}%": round(market * p / 100, 2) for p in COMP_PERCENTS}
 
 
+def _dedupe_rows(rows: list[Row]) -> tuple[list[Row], int]:
+    """Drop duplicate matched cards by card id, preserving first occurrence."""
+    out: list[Row] = []
+    seen_ids: set[str] = set()
+    removed = 0
+    for r in rows:
+        cid = (r.card or {}).get("id")
+        if cid and cid in seen_ids:
+            removed += 1
+            continue
+        if cid:
+            seen_ids.add(cid)
+        out.append(r)
+    return out, removed
+
+
 def _build_json_report(
     rows: list[Row],
     counters: dict[str, int],
     input_lines: int,
     elapsed: float,
     max_price: float | None = None,
+    deduped_rows: int = 0,
 ) -> dict:
     matched_rows = [r for r in rows if r.card is not None]
     priced_rows = [r for r in matched_rows if r.pricing.market is not None]
@@ -185,6 +202,7 @@ def _build_json_report(
     summary = {
         "input_lines": input_lines,
         "rows_total": len(rows),
+        "rows_deduped": deduped_rows,
         "rows_matched": len(matched_rows),
         "rows_missed": len(rows) - len(matched_rows),
         "rows_bulk_expanded": counters.get("bulk", 0),
@@ -305,6 +323,14 @@ def _build_json_report(
     ),
 )
 @click.option(
+    "--dedupe",
+    is_flag=True,
+    help=(
+        "Remove duplicate matched cards across all queries, keeping the first "
+        "occurrence by card id."
+    ),
+)
+@click.option(
     "--report-json",
     type=click.Path(dir_okay=False, writable=True, path_type=Path),
     default=None,
@@ -324,6 +350,7 @@ def cli(
     api_key: str | None,
     no_images: bool,
     max_price: float | None,
+    dedupe: bool,
     report_json: Path | None,
     pdf: Path | None,
     verbose: bool,
@@ -488,6 +515,9 @@ def cli(
         rows.append(_row_for(card, q, tag))
 
     overall_elapsed = time.monotonic() - overall_start
+    deduped_rows = 0
+    if dedupe:
+        rows, deduped_rows = _dedupe_rows(rows)
 
     # Per-card price cap: enforced only when *fetching* bulk top-N candidates
     # (so an "affordable top 10" still returns 10). Specific single-card
@@ -519,15 +549,23 @@ def cli(
     )
 
     _print_section("Summary")
-    matched_total = counters["matched"] + counters["bulk"]
+    matched_total = len([r for r in rows if r.card is not None])
+    missed_total = len(rows) - matched_total
     summary_parts = [
         click.style(f"✓ {matched_total} matched", fg="green"),
         (
-            click.style(f"✗ {counters['missed']} missed", fg="yellow")
-            if counters["missed"]
+            click.style(f"✗ {missed_total} missed", fg="yellow")
+            if missed_total
             else click.style("✓ 0 missed", fg="bright_black")
         ),
     ]
+    if dedupe:
+        summary_parts.append(
+            click.style(
+                f"- {deduped_rows} duplicate{'s' if deduped_rows != 1 else ''} removed",
+                fg="cyan" if deduped_rows else "bright_black",
+            )
+        )
     if max_price is not None:
         summary_parts.append(
             click.style(
@@ -566,6 +604,7 @@ def cli(
             input_lines=len(tagged),
             elapsed=overall_elapsed,
             max_price=max_price,
+            deduped_rows=deduped_rows,
         )
         report_json.parent.mkdir(parents=True, exist_ok=True)
         report_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
