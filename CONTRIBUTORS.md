@@ -66,8 +66,14 @@ with a stable Python path.
 
 ## CI
 
-GitHub Actions runs lint, format checks, and the full test suite on every pull
-request and push to `main` across Python 3.11, 3.12, and 3.13.
+GitHub Actions runs three parallel jobs on every pull request and push to
+`main`:
+
+| Job | What it checks |
+|---|---|
+| `lint-and-test` | ruff lint + format check + full test suite, across Python 3.11 / 3.12 / 3.13 |
+| `api-lint` | ruff lint + format check for `api/` (with the `api` extras installed) |
+| `web-lint-and-build` | ESLint + TypeScript build (`tsc -b && vite build`) for `web/` |
 
 ## Releasing
 

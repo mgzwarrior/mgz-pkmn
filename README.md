@@ -444,6 +444,81 @@ fixing if this turns into something more:
   Sparks` syntax (or even plain English with a small DSL on top of
   pokemontcg.io's `subtypes:` field) is the next big win.
 
+## Deployment
+
+The web UI (FastAPI backend + React frontend) can be self-hosted anywhere that
+runs Python 3.11+ and Node.js 20+. Below is a minimal production recipe.
+
+### 1 — Build the frontend
+
+```bash
+cd web
+npm ci
+npm run build         # produces web/dist/
+```
+
+The compiled static files in `web/dist/` can be served by any static host
+(Nginx, Caddy, S3 + CloudFront, Netlify, etc.).
+
+### 2 — Start the API
+
+```bash
+# from repo root
+uv sync --extra api
+uv run uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+For production, swap `--reload` for a proper process manager (e.g. systemd,
+Docker, or Gunicorn in front of uvicorn):
+
+```bash
+uv run gunicorn api.main:app -k uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:8000 --workers 2
+```
+
+### 3 — Wire the frontend to the API
+
+In production the Vite proxy is gone. Two options:
+
+**Option A — Reverse proxy (recommended).** Point your gateway (Nginx, Caddy,
+etc.) at the same domain, routing `/api/*` to `http://localhost:8000` and
+everything else to `web/dist/`. No CORS changes needed.
+
+```nginx
+location /api/ { proxy_pass http://localhost:8000; }
+location /     { root /srv/mgz-pkmn/web/dist; try_files $uri /index.html; }
+```
+
+**Option B — Separate origins.** Build the frontend with the API URL baked in:
+
+```bash
+VITE_API_BASE=https://api.example.com npm run build
+```
+
+Then update `allow_origins` in `api/main.py` to include your frontend origin.
+
+### Environment variables
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `POKEMONTCG_IO_API_KEY` | API process env | Raises rate limit to 20k req/day |
+| `VITE_API_BASE` | Frontend build-time | Override API URL (default: empty → same origin) |
+
+### Docker (quick-start)
+
+```bash
+# API
+docker build -f Dockerfile.api -t mgz-pkmn-api .
+docker run -e POKEMONTCG_IO_API_KEY=your-key -p 8000:8000 mgz-pkmn-api
+
+# Frontend (multi-stage build: node build → nginx serve)
+docker build -f Dockerfile.web -t mgz-pkmn-web .
+docker run -p 80:80 mgz-pkmn-web
+```
+
+> **Note:** `Dockerfile.api` and `Dockerfile.web` are not included in this
+> repo — the snippets above are a starting-point recipe.
+
 ## Contributing
 
 Project layout, dev workflow, pre-commit hooks, CI, and release process live in

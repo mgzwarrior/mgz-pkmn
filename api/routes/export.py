@@ -106,9 +106,7 @@ async def export_file(req: ExportRequest) -> StreamingResponse:
             content = out_path.read_bytes()
             return StreamingResponse(
                 io.BytesIO(content),
-                media_type=(
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                ),
+                media_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
                 headers={"Content-Disposition": "attachment; filename=cards.xlsx"},
             )
         else:
