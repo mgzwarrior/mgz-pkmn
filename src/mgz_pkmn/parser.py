@@ -8,7 +8,9 @@ from urllib.parse import urlparse
 
 # A "number" token: 4/102, SWSH286, SV20/SV94, TG01/TG30, 199a/165, etc.
 NUMBER_RE = re.compile(r"^[A-Za-z]{0,6}\d+[a-z]?(?:/[A-Za-z]{0,6}\d+[a-z]?)?$")
-VARIANT_RE = re.compile(r"\[([^\]]+)\]")
+# Limit variant hint to 100 non-bracket characters to prevent catastrophic
+# backtracking on adversarial inputs sent via the API.
+VARIANT_RE = re.compile(r"\[([^\]\n\r]{1,100})\]")
 URL_RE = re.compile(r"https?://\S+")
 
 # "Top-N chase cards" trigger phrases. Two shapes:
@@ -16,10 +18,14 @@ URL_RE = re.compile(r"https?://\S+")
 #                                         real card names that start with "All"
 #                                         (e.g. "All Energy Removal").
 #   2. "top:<N> <subject>" / "top <N> <subject>" — explicit, suffix optional.
+# Use [ \t] instead of \s to avoid ReDoS from the wide \s character class
+# combining with quantifiers across multiple alternatives.
 DEFAULT_BULK_TOP = 5
-ALL_PHRASE_RE = re.compile(r"^all\s+(.+?)\s+(?:cards?|prints?|versions?)\s*$", re.IGNORECASE)
+ALL_PHRASE_RE = re.compile(
+    r"^all[ \t]+(.+?)[ \t]+(?:cards?|prints?|versions?)[ \t]*$", re.IGNORECASE
+)
 TOP_PHRASE_RE = re.compile(
-    r"^top[:\s]+(\d+)\s+(.+?)\s*(?:cards?|prints?|versions?)?\s*$", re.IGNORECASE
+    r"^top[: \t]+(\d+)[ \t]+(.+?)[ \t]*(?:cards?|prints?|versions?)?[ \t]*$", re.IGNORECASE
 )
 
 # In-line per-card price conditions on bulk lookups. Match a comparator
@@ -293,7 +299,7 @@ def _extract_price_conds(body: str) -> tuple[str, float | None, float | None]:
         return ""
 
     cleaned = PRICE_COND_RE.sub(_capture, body)
-    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned).strip()
     # Trim trailing connectors / separators left over after the substitution
     # (e.g. "X cards >= $20" → "X cards", or "X | >= $20" → "X").
     cleaned = re.sub(r"[,;|\-—\s]+$", "", cleaned).strip()
