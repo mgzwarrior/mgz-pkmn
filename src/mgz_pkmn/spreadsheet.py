@@ -112,9 +112,7 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
         ws.cell(row=i, column=9, value=row.pricing.variant)
         ws.cell(row=i, column=10, value=card.get("_database") or "")
 
-        is_over_cap = (
-            max_price is not None and market is not None and market > max_price
-        )
+        is_over_cap = max_price is not None and market is not None and market > max_price
 
         if market is not None:
             market_cell = ws.cell(row=i, column=11, value=market)

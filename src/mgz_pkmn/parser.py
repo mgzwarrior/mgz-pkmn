@@ -167,8 +167,14 @@ def parse_line(line: str) -> CardQuery | None:
 
     if not body and url_hint:
         return CardQuery(
-            raw, _name_from_url(url_hint), None, None, variant, url_hint,
-            price_min=price_min, price_max=price_max,
+            raw,
+            _name_from_url(url_hint),
+            None,
+            None,
+            variant,
+            url_hint,
+            price_min=price_min,
+            price_max=price_max,
         )
 
     # "Top-N chase cards" patterns trump the regular parsing. The user is
@@ -178,8 +184,15 @@ def parse_line(line: str) -> CardQuery | None:
     if bulk is not None:
         count, name, set_hint = bulk
         return CardQuery(
-            raw, name, set_hint, None, variant, url_hint, count,
-            price_min=price_min, price_max=price_max,
+            raw,
+            name,
+            set_hint,
+            None,
+            variant,
+            url_hint,
+            count,
+            price_min=price_min,
+            price_max=price_max,
         )
 
     # Pipe or dash delimited canonical forms first.
@@ -191,24 +204,46 @@ def parse_line(line: str) -> CardQuery | None:
                     name = parts[0]
                     set_hint = " ".join(parts[1:-1])
                     return CardQuery(
-                        raw, name, set_hint, _normalize_number(parts[-1]),
-                        variant, url_hint,
-                        price_min=price_min, price_max=price_max,
+                        raw,
+                        name,
+                        set_hint,
+                        _normalize_number(parts[-1]),
+                        variant,
+                        url_hint,
+                        price_min=price_min,
+                        price_max=price_max,
                     )
                 return CardQuery(
-                    raw, parts[0], " ".join(parts[1:]), None, variant, url_hint,
-                    price_min=price_min, price_max=price_max,
+                    raw,
+                    parts[0],
+                    " ".join(parts[1:]),
+                    None,
+                    variant,
+                    url_hint,
+                    price_min=price_min,
+                    price_max=price_max,
                 )
             if len(parts) == 2:
                 if NUMBER_RE.match(parts[1].replace(" ", "")):
                     return CardQuery(
-                        raw, parts[0], None, _normalize_number(parts[1]),
-                        variant, url_hint,
-                        price_min=price_min, price_max=price_max,
+                        raw,
+                        parts[0],
+                        None,
+                        _normalize_number(parts[1]),
+                        variant,
+                        url_hint,
+                        price_min=price_min,
+                        price_max=price_max,
                     )
                 return CardQuery(
-                    raw, parts[0], parts[1], None, variant, url_hint,
-                    price_min=price_min, price_max=price_max,
+                    raw,
+                    parts[0],
+                    parts[1],
+                    None,
+                    variant,
+                    url_hint,
+                    price_min=price_min,
+                    price_max=price_max,
                 )
 
     # Positional fallback. Find a number-shaped token; everything else is name+set.
@@ -225,8 +260,14 @@ def parse_line(line: str) -> CardQuery | None:
         return None
     name = " ".join(leftover)
     return CardQuery(
-        raw, name, None, number, variant, url_hint,
-        price_min=price_min, price_max=price_max,
+        raw,
+        name,
+        None,
+        number,
+        variant,
+        url_hint,
+        price_min=price_min,
+        price_max=price_max,
     )
 
 

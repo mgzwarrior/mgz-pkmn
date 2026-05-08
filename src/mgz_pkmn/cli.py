@@ -45,7 +45,11 @@ def _print_banner(version: str) -> None:
     line = f"  mgz-pkmn · {version}  "
     bar = "─" * len(line)
     click.secho(f"\n┌{bar}┐", fg="bright_blue")
-    click.echo(click.style("│", fg="bright_blue") + click.style(line, bold=True) + click.style("│", fg="bright_blue"))
+    click.echo(
+        click.style("│", fg="bright_blue")
+        + click.style(line, bold=True)
+        + click.style("│", fg="bright_blue")
+    )
     click.secho(f"└{bar}┘", fg="bright_blue")
 
 
@@ -217,9 +221,7 @@ def _build_json_report(
 
     def _over_cap(r: Row) -> bool:
         return (
-            max_price is not None
-            and r.pricing.market is not None
-            and r.pricing.market > max_price
+            max_price is not None and r.pricing.market is not None and r.pricing.market > max_price
         )
 
     top5 = sorted(priced_rows, key=lambda r: r.pricing.market or 0.0, reverse=True)[:5]
@@ -382,7 +384,10 @@ def cli(
         tag = f.stem
         click.secho("  ✓ ", fg="green", nl=False)
         click.echo(f"{f}  ", nl=False)
-        click.echo(click.style(f"({len(qs)} line{'s' if len(qs) != 1 else ''})", fg="bright_black") + "  ", nl=False)
+        click.echo(
+            click.style(f"({len(qs)} line{'s' if len(qs) != 1 else ''})", fg="bright_black") + "  ",
+            nl=False,
+        )
         click.echo(_styled_tag(tag))
         for q in qs:
             tagged.append((tag, q))
@@ -527,9 +532,7 @@ def cli(
     over_cap = sum(
         1
         for r in rows
-        if max_price is not None
-        and r.pricing.market is not None
-        and r.pricing.market > max_price
+        if max_price is not None and r.pricing.market is not None and r.pricing.market > max_price
     )
 
     # Sort within each tag group: highest market price first. Tag order is
