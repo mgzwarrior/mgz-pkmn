@@ -141,9 +141,11 @@ export function InputEditor({ onRun, onStop }: Props) {
           {parsedPreview.number && (
             <span className="text-zinc-500"> #{parsedPreview.number}</span>
           )}
-          {parsedPreview.bulk_top && (
+          {parsedPreview.bulk_all ? (
+            <span className="text-blue-400"> (all)</span>
+          ) : parsedPreview.bulk_top ? (
             <span className="text-blue-400"> (top {parsedPreview.bulk_top})</span>
-          )}
+          ) : null}
           {parsedPreview.variant_hint && (
             <span className="text-amber-400"> [{parsedPreview.variant_hint}]</span>
           )}

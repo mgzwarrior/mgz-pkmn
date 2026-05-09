@@ -64,6 +64,7 @@ def _query_to_dict(q: CardQuery) -> dict[str, Any]:
         "variant_hint": q.variant_hint,
         "url_hint": q.url_hint,
         "bulk_top": q.bulk_top,
+        "bulk_all": q.bulk_all,
         "price_min": q.price_min,
         "price_max": q.price_max,
     }
@@ -106,9 +107,10 @@ def _do_lookup(
     """
     out: list[tuple[Row, str]] = []
 
-    if q.bulk_top:
+    if q.bulk_top or q.bulk_all:
         try:
-            top = find_top_cards(pkmn, q, limit=q.bulk_top, max_price=settings.max_price)
+            effective_limit = None if q.bulk_all else q.bulk_top
+            top = find_top_cards(pkmn, q, limit=effective_limit, max_price=settings.max_price)
             err = False
         except req_lib.RequestException:
             top = []

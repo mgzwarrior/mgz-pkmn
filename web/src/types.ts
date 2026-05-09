@@ -8,6 +8,7 @@ export interface CardQuery {
   variant_hint: string | null
   url_hint: string | null
   bulk_top: number | null
+  bulk_all: boolean
   price_min: number | null
   price_max: number | null
 }

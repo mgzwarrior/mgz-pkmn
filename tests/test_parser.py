@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from mgz_pkmn.parser import DEFAULT_BULK_TOP, detect_card_language, parse_line
+from mgz_pkmn.parser import detect_card_language, parse_line
 
 
 class ParseLineTests(unittest.TestCase):
@@ -92,22 +92,27 @@ class BulkDetectionTests(unittest.TestCase):
 
     # --- "All <subject> cards|prints|versions" ---
 
-    def test_all_subject_cards_uses_default_top(self) -> None:
+    def test_all_subject_cards_returns_every_match(self) -> None:
+        # "All …" means *all* known cards, not a top-N cut. Signaled by
+        # bulk_all=True; bulk_top stays None.
         q = parse_line("All Exeggutor cards")
         assert q is not None
-        self.assertEqual(q.bulk_top, DEFAULT_BULK_TOP)
+        self.assertTrue(q.bulk_all)
+        self.assertIsNone(q.bulk_top)
         self.assertEqual(q.name, "Exeggutor")
 
     def test_all_subject_prints(self) -> None:
         q = parse_line("All Exeggutor prints")
         assert q is not None
-        self.assertEqual(q.bulk_top, DEFAULT_BULK_TOP)
+        self.assertTrue(q.bulk_all)
+        self.assertIsNone(q.bulk_top)
         self.assertEqual(q.name, "Exeggutor")
 
     def test_all_with_pipe_set_hint(self) -> None:
         q = parse_line("All Charizard cards | Hidden Fates")
         assert q is not None
-        self.assertEqual(q.bulk_top, DEFAULT_BULK_TOP)
+        self.assertTrue(q.bulk_all)
+        self.assertIsNone(q.bulk_top)
         self.assertEqual(q.name, "Charizard")
         self.assertEqual(q.set_hint, "Hidden Fates")
 
@@ -116,13 +121,15 @@ class BulkDetectionTests(unittest.TestCase):
         # mistaken for a bulk request.
         q = parse_line("All Charizard")
         assert q is not None
+        self.assertFalse(q.bulk_all)
         self.assertIsNone(q.bulk_top)
 
     def test_all_energy_removal_is_a_real_card_not_bulk(self) -> None:
         # The motivating regression: "All Energy Removal" is a real card name
-        # (Base Set #92) and must never be promoted to a bulk top-N query.
+        # (Base Set #92) and must never be promoted to a bulk query.
         q = parse_line("All Energy Removal")
         assert q is not None
+        self.assertFalse(q.bulk_all)
         self.assertIsNone(q.bulk_top)
         self.assertIn("Energy Removal", q.name)
 
@@ -130,7 +137,8 @@ class BulkDetectionTests(unittest.TestCase):
         # frozenset includes both plural and singular forms.
         q = parse_line("All Mew card")
         assert q is not None
-        self.assertEqual(q.bulk_top, DEFAULT_BULK_TOP)
+        self.assertTrue(q.bulk_all)
+        self.assertIsNone(q.bulk_top)
         self.assertEqual(q.name, "Mew")
 
     # --- ReDoS hardening regression ---

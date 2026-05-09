@@ -1,6 +1,5 @@
 - [ ] Meowth ex 121/088 - Perfect Order - https://www.pricecharting.com/game/pokemon-perfect-order/meowth-ex-121
 - [ ] Cubone Chinese SIR - Gem Pack Vol 3 - https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407
 - [ ] top 4 Pikachu cards <= $20
-- [ ] top 4 Charmander/Charmeleon/Charizard cards <= $20
-- [ ] top 4 Mew cards <= $20
-- [ ] top 4 tag team cards <= $20
+- [ ] top 6 Charmander/Charmeleon/Charizard cards <= $20
+- [ ] top 6 Mew cards <= $20

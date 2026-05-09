@@ -1,2 +1,0 @@
-- [ ] top 9 puppy cards
-- [ ] top 9 starter cards

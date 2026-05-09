@@ -40,6 +40,7 @@ class CardQueryIn(BaseModel):
     variant_hint: str | None = None
     url_hint: str | None = None
     bulk_top: int | None = None
+    bulk_all: bool = False
     price_min: float | None = None
     price_max: float | None = None
 
@@ -88,6 +89,7 @@ async def export_file(req: ExportRequest) -> StreamingResponse:
             bulk_top=r.query.bulk_top,
             price_min=r.query.price_min,
             price_max=r.query.price_max,
+            bulk_all=r.query.bulk_all,
         )
         pricing = Pricing(
             market=r.pricing.market,

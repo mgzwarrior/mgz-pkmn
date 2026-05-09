@@ -16,11 +16,11 @@ URL_RE = re.compile(r"https?://\S+")
 # "Top-N chase cards" trigger phrases. Two shapes:
 #   1. "All <subject> cards|prints"     — suffix REQUIRED so we don't grab
 #                                         real card names that start with "All"
-#                                         (e.g. "All Energy Removal").
+#                                         (e.g. "All Energy Removal"). Maps
+#                                         to bulk_all=True (every match).
 #   2. "top:<N> <subject>" / "top <N> <subject>" — explicit, suffix optional.
 # Split into a two-step parse (prefix match + suffix strip) so that each
 # individual regex is simple and non-backtracking.
-DEFAULT_BULK_TOP = 5
 # Matches only the "top:N " prefix of a bulk line.
 _TOP_PREFIX_RE = re.compile(r"^top[: \t]+(\d+)[ \t]+", re.IGNORECASE)
 # Matches only the "all " prefix of an "all <subject> cards" line.
@@ -116,6 +116,9 @@ class CardQuery:
     # top-N cut so an "affordable top 10 ≥ $20" still returns 10.
     price_min: float | None = None
     price_max: float | None = None
+    # Set by "All <subject> cards" lines — return every matching card rather
+    # than capping at top-N. Mutually exclusive with bulk_top in practice.
+    bulk_all: bool = False
 
     def __str__(self) -> str:
         bound_bits: list[str] = []
@@ -124,6 +127,9 @@ class CardQuery:
         if self.price_max is not None:
             bound_bits.append(f"<=${self.price_max:g}")
         bound = f" ({' '.join(bound_bits)})" if bound_bits else ""
+        if self.bulk_all:
+            in_set = f" in {self.set_hint}" if self.set_hint else ""
+            return f"all {self.name}{in_set}{bound}"
         if self.bulk_top:
             in_set = f" in {self.set_hint}" if self.set_hint else ""
             return f"top {self.bulk_top} {self.name}{in_set}{bound}"
@@ -203,6 +209,7 @@ def parse_line(line: str) -> CardQuery | None:
             count,
             price_min=price_min,
             price_max=price_max,
+            bulk_all=count is None,
         )
 
     # Pipe or dash delimited canonical forms first.
@@ -328,8 +335,12 @@ def _strip_bulk_suffix(text: str) -> str:
     return text
 
 
-def _try_bulk(body: str) -> tuple[int, str, str | None] | None:
+def _try_bulk(body: str) -> tuple[int | None, str, str | None] | None:
     """Detect a 'top-N chase cards' line and return (count, name, set_hint).
+
+    `count` is the explicit top-N for "top:N <subject>" forms, or `None` to
+    signal "All …" — i.e. return every matching card rather than a top-N
+    cut. The caller maps `None` to `bulk_all=True` on the CardQuery.
 
     Allows an optional pipe-delimited set hint:
         top:5 Exeggutor | Aquapolis
@@ -364,7 +375,7 @@ def _try_bulk(body: str) -> tuple[int, str, str | None] | None:
         if len(parts) == 2 and parts[1].lower() in _BULK_SUFFIX_WORDS:
             subject = parts[0].rstrip()
             if subject:
-                return DEFAULT_BULK_TOP, subject, set_hint
+                return None, subject, set_hint
     return None
 
 

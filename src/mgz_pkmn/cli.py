@@ -486,9 +486,10 @@ def cli(
         t0 = time.monotonic()
 
         # Bulk "top N" path: pull a ranked list and emit one row per card.
-        if q.bulk_top:
+        if q.bulk_top or q.bulk_all:
             try:
-                top = find_top_cards(pkmn_client, q, limit=q.bulk_top, max_price=max_price)
+                effective_limit = None if q.bulk_all else q.bulk_top
+                top = find_top_cards(pkmn_client, q, limit=effective_limit, max_price=max_price)
             except requests.RequestException as exc:
                 click.secho(f"      ! API error: {exc}", fg="red", err=True)
                 top = []

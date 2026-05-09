@@ -272,10 +272,13 @@ def _name_token_match(card_name: str, query_names: list[str]) -> bool:
 def find_top_cards(
     pkmn: TCGClient,
     q: CardQuery,
-    limit: int = 5,
+    limit: int | None = 5,
     max_price: float | None = None,
 ) -> list[dict[str, Any]]:
     """Return up to `limit` chase cards for a name, ranked by market price.
+
+    `limit=None` returns the full ranked pool — used by "All <Pokemon> cards"
+    queries that want every known card, not a top-N cut.
 
     "Chase" means most valuable — we ask pokemontcg.io for everything matching
     the name, keep only entries with a usable market price, and sort descending.
@@ -465,4 +468,5 @@ def find_top_cards(
         enriched.append((pricing.market, card))
 
     enriched.sort(key=lambda pair: pair[0], reverse=True)
-    return [card for _, card in enriched[:limit]]
+    ranked = enriched if limit is None else enriched[:limit]
+    return [card for _, card in ranked]

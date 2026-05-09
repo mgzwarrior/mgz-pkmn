@@ -22,6 +22,7 @@ class CardQueryOut(BaseModel):
     variant_hint: str | None = None
     url_hint: str | None = None
     bulk_top: int | None = None
+    bulk_all: bool = False
     price_min: float | None = None
     price_max: float | None = None
 
@@ -35,6 +36,7 @@ def _query_to_dict(q: CardQuery) -> dict:
         "variant_hint": q.variant_hint,
         "url_hint": q.url_hint,
         "bulk_top": q.bulk_top,
+        "bulk_all": q.bulk_all,
         "price_min": q.price_min,
         "price_max": q.price_max,
     }
