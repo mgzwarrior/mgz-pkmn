@@ -1,7 +1,7 @@
 # Contributing
 
-Developer-facing setup, workflow, and release notes for `mgz-pkmn`. For end-user
-installation and usage, see the [README](README.md).
+Developer-facing setup, workflow, and release notes for `mgz-pkmn`. For
+end-user installation and usage, see the [README](../README.md).
 
 ## Project layout
 
@@ -15,7 +15,10 @@ src/mgz_pkmn/
 ├── pricing.py         # extract_pricing, Pricing, COMP_PERCENTS
 ├── images.py          # download + thumbnail
 ├── spreadsheet.py     # write_spreadsheet, HEADERS, Row
-├── binder.py          # 3x3 PDF binder layout (reportlab)
+├── binder.py          # PDF binder layouts (standard 3×3 + condensed 6×4)
+├── checklist.py       # printable per-tag checklist PDF
+├── report.py          # JSON report builder (pure)
+├── sorting.py         # row ordering applied before any output is written
 └── sources/
     ├── __init__.py
     ├── base.py            # MatchResult, scoring, set-overlap
@@ -24,8 +27,9 @@ src/mgz_pkmn/
     └── pricecharting.py   # URL-based scraper for region-exclusive cards
 ```
 
-Adding a new source is a matter of dropping a module under `sources/` that
-returns the normalized card shape, then adding it to `lookup.find_card`.
+Adding a new source is a matter of dropping a module under `sources/`
+that returns the normalized card shape, then adding it to
+`lookup.find_card`.
 
 ## Development
 
@@ -52,7 +56,8 @@ uv run ruff check --fix src/                  # autofix
 uv run python -m unittest discover -s tests   # run tests
 ```
 
-Ruff config lives in [pyproject.toml](pyproject.toml) under `[tool.ruff]`.
+Ruff config lives in [pyproject.toml](../pyproject.toml) under
+`[tool.ruff]`.
 
 ## Pre-commit hooks
 
@@ -62,33 +67,36 @@ Ruff config lives in [pyproject.toml](pyproject.toml) under `[tool.ruff]`.
 make install-hooks
 ```
 
-That runs `uv tool install pre-commit` and registers the git hook so lint and
-format checks fire automatically before every commit. Equivalent manual flow:
+That runs `uv tool install pre-commit` and registers the git hook so
+lint and format checks fire automatically before every commit.
+Equivalent manual flow:
 
 ```bash
 uv tool install pre-commit
 pre-commit install
 ```
 
-The hooks are defined in [.pre-commit-config.yaml](.pre-commit-config.yaml) and
-run `ruff check --fix` and `ruff format` on every staged file.
+The hooks are defined in
+[.pre-commit-config.yaml](../.pre-commit-config.yaml) and run
+`ruff check --fix` and `ruff format` on every staged file.
 
-> **Why `uv tool install` and not `uv run --with pre-commit`?** `uv run --with`
-> drops pre-commit into an ephemeral environment under `~/.cache/uv/builds-v0/`
-> that uv eventually garbage-collects. The installed git hook bakes in the
-> absolute path to that Python, so once the cache is cleaned you'll start
-> seeing `` `pre-commit` not found.  Did you forget to activate your
-> virtualenv? `` on every commit. `uv tool install` puts pre-commit in a
-> stable location (`~/.local/bin`) that survives cache cleanup.
+> **Why `uv tool install` and not `uv run --with pre-commit`?**
+> `uv run --with` drops pre-commit into an ephemeral environment under
+> `~/.cache/uv/builds-v0/` that uv eventually garbage-collects. The
+> installed git hook bakes in the absolute path to that Python, so once
+> the cache is cleaned you'll start seeing
+> `` `pre-commit` not found.  Did you forget to activate your virtualenv? ``
+> on every commit. `uv tool install` puts pre-commit in a stable
+> location (`~/.local/bin`) that survives cache cleanup.
 
-If you already hit that error, the fix is the same two commands above —
-`uv tool install pre-commit` then `pre-commit install` regenerates the hook
-with a stable Python path.
+If you already hit that error, the fix is the same two commands above
+— `uv tool install pre-commit` then `pre-commit install` regenerates
+the hook with a stable Python path.
 
 ## CI
 
-GitHub Actions runs three parallel jobs on every pull request and push to
-`main`:
+GitHub Actions runs three parallel jobs on every pull request and push
+to `main`:
 
 | Job | What it checks |
 |---|---|
@@ -105,5 +113,5 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow builds the package, runs the test suite, and publishes a GitHub
-Release with the built distribution files attached.
+The workflow builds the package, runs the test suite, and publishes a
+GitHub Release with the built distribution files attached.

@@ -1,0 +1,90 @@
+name: Sync docs/ to Wiki
+
+# Mirrors the contents of docs/ into the GitHub Wiki on every push to main.
+# docs/ is the single source of truth — Wiki edits are NOT pushed back; any
+# direct change to the Wiki gets clobbered on the next sync.
+#
+# One-time setup: enable the Wiki under repo Settings → Features → Wikis,
+# then create at least one page (any title) so the wiki repo exists.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/sync-wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout wiki
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+          # GITHUB_TOKEN can push to the wiki repo when contents:write is granted
+          # at the workflow level (see permissions above).
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mirror docs/ → wiki
+        run: |
+          # Wipe everything except .git so renames / deletes propagate, then
+          # repopulate from docs/. rsync gives us a clean delta.
+          find wiki -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          cp -R source/docs/. wiki/
+
+          # The wiki uses Home.md as the landing page (not README.md).
+          if [ -f wiki/README.md ]; then
+            mv wiki/README.md wiki/Home.md
+          fi
+
+          # Rewrite intra-docs links so they resolve in the flat wiki layout:
+          #   [text](foo.md)            → [text](foo)              (same dir refs)
+          #   [text](README.md#anchor)  → [text](Home#anchor)      (TOC special case)
+          # Cross-repo links (../foo, http://…) are left alone.
+          python3 - <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          wiki = Path("wiki")
+          link_re = re.compile(r"\]\((?!https?://|\.\./|/)([^)#]+?)(?:\.md)?(#[^)]*)?\)")
+
+          for md in wiki.glob("*.md"):
+              text = md.read_text()
+
+              def fix(m: re.Match) -> str:
+                  target, anchor = m.group(1), m.group(2) or ""
+                  # README.md → Home (the wiki landing page slug)
+                  if target.lower() in ("readme", "readme.md"):
+                      target = "Home"
+                  return f"]({target}{anchor})"
+
+              new = link_re.sub(fix, text)
+              if new != text:
+                  md.write_text(new)
+                  print(f"rewrote links in {md.name}", file=sys.stderr)
+          PY
+
+      - name: Commit + push
+        working-directory: wiki
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Wiki already up to date — no commit."
+            exit 0
+          fi
+          git commit -m "Sync from docs/ @ ${GITHUB_SHA::7}"
+          git push
