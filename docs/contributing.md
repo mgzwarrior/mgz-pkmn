@@ -31,6 +31,16 @@ Adding a new source is a matter of dropping a module under `sources/`
 that returns the normalized card shape, then adding it to
 `lookup.find_card`.
 
+## Branch naming
+
+Name feature/fix branches `<issueNumber>-<shortDescription>` (e.g.
+`28-add-license-file`). GitHub auto-links any PR opened from such a
+branch to the matching issue, so the issue page surfaces the in-flight
+PR without manual cross-referencing.
+
+If there is no tracking issue, open one first — every change should be
+traceable back to an issue.
+
 ## Development
 
 The Makefile at the repo root wraps the common dev commands. Run
