@@ -38,42 +38,94 @@ jobs:
 
       - name: Mirror docs/ → wiki
         run: |
-          # Wipe everything except .git so renames / deletes propagate, then
-          # repopulate from docs/. rsync gives us a clean delta.
+          # Wipe the wiki except .git so renames/deletes propagate.
           find wiki -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
           cp -R source/docs/. wiki/
+
+          # Promote the ADR index to a top-level page with a known slug.
+          # The custom sidebar links to "Architecture-decisions" — this
+          # keeps that link stable even as individual ADR filenames change.
+          if [ -f wiki/adr/README.md ]; then
+            mv wiki/adr/README.md wiki/Architecture-decisions.md
+          fi
 
           # The wiki uses Home.md as the landing page (not README.md).
           if [ -f wiki/README.md ]; then
             mv wiki/README.md wiki/Home.md
           fi
 
-          # Rewrite intra-docs links so they resolve in the flat wiki layout:
-          #   [text](foo.md)            → [text](foo)              (same dir refs)
-          #   [text](README.md#anchor)  → [text](Home#anchor)      (TOC special case)
-          # Cross-repo links (../foo, http://…) are left alone.
+          # Rewrite intra-doc links so they resolve in the flat wiki layout.
+          # Runs recursively so files still under wiki/adr/ (the individual
+          # ADRs) also get their relative links normalized.
           python3 - <<'PY'
           import re
-          import sys
           from pathlib import Path
 
-          wiki = Path("wiki")
-          link_re = re.compile(r"\]\((?!https?://|\.\./|/)([^)#]+?)(?:\.md)?(#[^)]*)?\)")
+          # Match `]( <target>[#anchor] )` — but skip absolute, mailto, and
+          # cross-repo (../) links which we want to leave alone.
+          link_re = re.compile(
+              r"\]\((?!https?://|mailto:|/)([^)#]+?)(#[^)]*)?\)"
+          )
 
-          for md in wiki.glob("*.md"):
+          def slug_for(target: str, *, in_adr: bool) -> str | None:
+              """Convert a doc-relative link target to a wiki slug.
+              `in_adr` indicates whether the file containing the link
+              originated from docs/adr/ (so unqualified references resolve
+              relative to that directory). Returns None if the link should
+              be left untouched."""
+              t = target.strip()
+              if not t:
+                  return None
+
+              # Cross-repo links (../api/README.md, ../pyproject.toml, …)
+              # leave the docs tree — leave them alone.
+              if t.startswith("../"):
+                  return None
+
+              # ADR index (any spelling that resolves to docs/adr/ or its README)
+              if t.rstrip("/") in ("adr", "adr/README", "adr/README.md"):
+                  return "Architecture-decisions"
+
+              # Cross-section: a top-level doc linking into adr/<file>.md.
+              # Flatten to the basename's slug (GitHub Wiki addresses pages
+              # by basename even when stored in subdirectories).
+              if not in_adr and t.split("/")[0] == "adr":
+                  base = t.rsplit("/", 1)[-1]
+                  if base.endswith(".md"):
+                      base = base[:-3]
+                  return base
+
+              # Inside the ADR dir, README.md means the ADR index, not the
+              # top-level docs index.
+              if in_adr and t.lower() == "readme.md":
+                  return "Architecture-decisions"
+
+              # Top-level README → Home (only for files outside adr/).
+              if not in_adr and t.lower() in ("readme", "readme.md"):
+                  return "Home"
+
+              # Plain page reference — strip .md if present.
+              if t.endswith(".md"):
+                  return t[:-3]
+
+              # Already a bare slug — leave alone.
+              return None
+
+          for md in Path("wiki").rglob("*.md"):
+              in_adr = md.parent.name == "adr"
               text = md.read_text()
 
               def fix(m: re.Match) -> str:
-                  target, anchor = m.group(1), m.group(2) or ""
-                  # README.md → Home (the wiki landing page slug)
-                  if target.lower() in ("readme", "readme.md"):
-                      target = "Home"
-                  return f"]({target}{anchor})"
+                  slug = slug_for(m.group(1), in_adr=in_adr)
+                  if slug is None:
+                      return m.group(0)
+                  anchor = m.group(2) or ""
+                  return f"]({slug}{anchor})"
 
-              new = link_re.sub(fix, text)
-              if new != text:
-                  md.write_text(new)
-                  print(f"rewrote links in {md.name}", file=sys.stderr)
+              new_text = link_re.sub(fix, text)
+              if new_text != text:
+                  md.write_text(new_text)
+                  print(f"rewrote links in {md.relative_to(Path('wiki'))}")
           PY
 
       - name: Commit + push
