@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     branch: main
-    autoDeploy: false
+    autoDeploy: true
     healthCheckPath: /health
     envVars:
       - key: POKEMONTCG_IO_API_KEY

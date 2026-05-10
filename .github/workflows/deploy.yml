@@ -1,6 +1,12 @@
 name: Deploy
 
-# Manual-only. Trigger from the Actions tab → "Run workflow".
+# Manual-only forced rebuild. Routine deploys are handled by Render's
+# auto-deploy on push to `main` (see render.yaml). Use this workflow when
+# you need to:
+#   - clear the build cache before deploying (use the input below), or
+#   - re-deploy without a code change (e.g., after rotating an env var).
+#
+# Trigger from the Actions tab → "Run workflow".
 # Requires repo secret RENDER_DEPLOY_HOOK (Render dashboard → Service → Settings → Deploy Hook).
 on:
   workflow_dispatch:

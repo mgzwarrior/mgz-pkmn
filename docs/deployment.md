@@ -77,21 +77,36 @@ POKEMONTCG_IO_API_KEY=your-key make docker-run
 
 ## Deploy to Render (free tier)
 
-The repo ships a [`render.yaml`](../render.yaml) blueprint and a manual
-deploy workflow. One-time setup:
+The repo ships a [`render.yaml`](../render.yaml) blueprint with
+**auto-deploy on**: every push to `main` rebuilds and redeploys
+automatically. One-time setup:
 
 1. **Create the service** — in the Render dashboard,
    *New → Blueprint*, point it at this repo. It picks up `render.yaml`
    and creates a Docker web service on the free plan with `autoDeploy`
-   off.
+   on.
 2. **Set the API key** — in the service's *Environment* tab, set
    `POKEMONTCG_IO_API_KEY`.
-3. **Capture the deploy hook** — *Settings → Deploy Hook*, copy the
-   URL, save it as a GitHub repo secret named `RENDER_DEPLOY_HOOK`.
+3. **(Optional) Capture the deploy hook** — *Settings → Deploy Hook*,
+   copy the URL, save it as a GitHub repo secret named
+   `RENDER_DEPLOY_HOOK`. This enables the manual *Deploy* GitHub
+   Action for forced rebuilds (see below). Not required for routine
+   deployment, since auto-deploy handles that.
 
-Once set up, deploys are manual: GitHub → *Actions* → *Deploy* →
-*Run workflow*. The job POSTs to the deploy hook and Render rebuilds
-from `main`.
+### Forced rebuilds (when needed)
+
+Auto-deploy handles every commit that lands on `main`, so most
+deploys happen without thinking. The manual workflow is for the
+edge cases:
+
+- **Clear the build cache** before deploying (e.g., a stale layer
+  cached a bad dep).
+- **Re-deploy without a code change** (e.g., after rotating an env
+  var that doesn't trigger a redeploy on its own).
+
+GitHub → *Actions* → *Deploy* → *Run workflow*, optionally toggling
+*Clear build cache before deploying*. The job POSTs to the deploy
+hook and Render starts a fresh build from `main`.
 
 > **Free-tier caveat:** Render's free web service spins down after
 > ~15 min of idle traffic; the next request takes ~30s to wake it.

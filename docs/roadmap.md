@@ -14,14 +14,19 @@ document is the navigator.
 - **V1** (`1.0.0`) — **committed**. A defensible 1.0 with no obvious
   gaps. Polish, tests, docs, basic release engineering. Tracked on the
   [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
+- **V1.x / Post-V1** — **committed but later**. Items best done *after*
+  the 1.0 cut (the announcement, the contributor-comms refresh, set
+  identification cards) rather than blocking it.
 - **V2** — **committed**. Deeper development per area. Tracked per-area
   on GitHub Projects (links below).
-- **V1.x / Post-V1** — **committed but later**. Items that are best done
-  *after* the 1.0 cut (the announcement, the contributor-comms refresh)
-  rather than blocking it.
-- **V3 and beyond** — **proposed**. Big ideas (paid features, vendor
-  portal, marketplace integrations) that need community input before
-  any commitment. Subject to redirection.
+- **V2.x / Post-V2** — **committed but later**. Currently themed around
+  the **free / paid separation and monetization work** — once V2 is
+  shipped, the project is mature enough to consider sustainable funding
+  models. Free features stay free forever; paid features expand the
+  vendor / power-user surface.
+- **V3 and beyond** — **proposed**. Big ideas (vendor portal,
+  marketplace integrations, multi-TCG expansion) that need community
+  input before any commitment. Subject to redirection.
 
 ## Project areas
 
@@ -133,6 +138,15 @@ known gaps. The goal of V1 is *defensible*, not *new*.
 Items best done *after* the 1.0 cut so they can lean on the existence
 of a stable release.
 
+### Output artifacts
+
+- **Set identification cards.** A printable A4 / Letter page of
+  card-sized cutouts to slot into the first pocket of each binder
+  section, identifying which set the section is collecting. Each
+  cutout shows the set logo + key art, total cards in the set, total
+  market price as of the run date, and the set release year.
+  Generated alongside the existing `--checklist` flow.
+
 ### DevOps & release
 
 - **Announce 1.0 via GitHub Discussions.** Enable Discussions, post an
@@ -163,6 +177,12 @@ its own GitHub issue + PR thread.
   (`"alternatives": [{...}]`) instead of silently picking one.
 - Pluggable name aliases — `top 5 ナッシー` works as well as
   `top 5 Exeggutor`.
+- **Pokemon type-aware search.** First-class support for the actual
+  type system (Fire, Water, Grass, Lightning, Psychic, Fighting,
+  Darkness, Metal, Fairy, Dragon, Colorless). `top 5 Fire type
+  cards`, `top 10 Dragon cards in Surging Sparks`, name + type
+  combos. Routes to pokemontcg.io's `types:` filter rather than the
+  current flavor-text fallback.
 - Public `parse_lines(text) → list[CardQuery]` for downstream tools.
 
 ### Output artifacts
@@ -219,6 +239,40 @@ its own GitHub issue + PR thread.
 
 ---
 
+## V2.x — committed but post-V2
+
+Themed around **monetization**. The premise: *every end-user-facing
+feature stays free forever* — collection prep, binders, checklists,
+all of it. A separate **vendor / power-user track** charges based on
+the additional volume and complexity those personas need. A small
+number of **opt-in power features** also live behind a fair price for
+end users who want them, so the project can monetize its largest
+audience without breaking the free-forever promise on core flows.
+
+V2.x has its own GitHub Project so the policy work, infra changes,
+and feature gating land coherently.
+
+### Monetization
+
+- **Free / paid separation policy doc.** A `docs/monetization.md`
+  laying out the rules: which categories of feature are free forever,
+  which are paid power-user (still affordable), which are paid vendor
+  (volume- or complexity-driven). Public from day one — transparency
+  is the trust foundation.
+- **Feature-flag scaffolding.** A small system in the API + SPA for
+  gating paid features behind plan tiers without forking the codebase.
+  Should support: free, paid power-user (hosted instance), paid
+  vendor (hosted instance + SLA).
+- **Hosted billing integration.** Stripe (or similar) wired into the
+  hosted instance only — the OSS distribution stays unencumbered.
+  Free users never see the billing surface.
+- **Power-user feature inventory.** Audit V2 features to identify
+  candidates for paid tier (e.g., persistent run history could be
+  paid; column filtering should stay free). Single-PR exercise per
+  feature, low risk.
+
+---
+
 ## V3 and beyond — proposed (not committed)
 
 Speculative directions, especially the ones that might justify a paid
@@ -252,6 +306,30 @@ booth, not just attends one.
 - **Trade-matching.** Connect users with opposite halves of a trade
   (you have what they want, they have what you want) inside a single
   hosted instance. Zero-friction discovery; out-of-band negotiation.
+
+### Multi-TCG expansion
+
+The current scope is Pokemon-only. Expanding to other TCGs is a
+significant lift — each game has its own data sources, pricing
+conventions, set vocabularies, and edge cases — but the underlying
+shape (parse → look up → emit artifacts) generalizes cleanly.
+
+- **One Piece TCG.** Bandai's growing TCG with a healthy secondary
+  market. Likely sources: TCGPlayer, OnePieceTopDecks-style aggregators.
+- **Disney Lorcana.** Newer game with strong collector demand and
+  active set rotation.
+- **Magic: The Gathering.** The veteran. Scryfall is the canonical
+  free API, with vastly more comprehensive coverage than
+  pokemontcg.io. Different scoring concerns (Standard vs. Modern vs.
+  Commander legality, foil pricing tiers).
+- **Yu-Gi-Oh!**, **Flesh and Blood**, **Star Wars: Unlimited**, and
+  others as community demand surfaces.
+
+Open question: separate projects per TCG (`mgz-pokemon`, `mgz-mtg`)
+or a single `mgz-tcg` with pluggable backends? The latter shares
+infrastructure but pulls scope; the former lets each TCG move at its
+own pace. Worth its own ADR and discussion thread before any code
+lands.
 
 ### Other speculative ideas
 
