@@ -2,6 +2,8 @@
 name = "mgz-pkmn"
 version = "0.1.0"
 description = "CLI to look up Pokemon cards, fetch images and prices, and emit an .xlsx for card-show prep."
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "click>=8.1",

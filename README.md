@@ -91,6 +91,10 @@ the FastAPI server. Swagger UI lives at <http://localhost:8000/docs>.
 For deeper docs (endpoint reference, troubleshooting, architecture),
 see [api/README.md](api/README.md) and [web/README.md](web/README.md).
 
+## License
+
+Released under the [MIT License](LICENSE).
+
 ## Documentation
 
 Reference docs live under [`docs/`](docs/) and are mirrored to the
