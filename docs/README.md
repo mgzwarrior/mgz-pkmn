@@ -25,6 +25,13 @@ point — start there, then drill into a topic below.
 | [api/README.md](../api/README.md) | FastAPI endpoint reference, SSE streaming, troubleshooting. |
 | [web/README.md](../web/README.md) | React + Vite frontend, dev server, build, settings. |
 
+## Project direction
+
+| Page | What's in it |
+|---|---|
+| [Architecture decisions](adr/) | The load-bearing decisions behind the codebase, recorded as ADRs (one decision per file, dated, with alternatives). |
+| [Roadmap](roadmap.md) | V1 polish items + V2 directions, organized by project area. |
+
 ## Contributing
 
 See [contributing.md](contributing.md) for project layout, dev workflow,

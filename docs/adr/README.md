@@ -1,0 +1,54 @@
+# Architecture Decision Records
+
+Architecture Decision Records (ADRs) capture *why* the project is built the
+way it is — not the code (that's the source) and not how to use it (that's
+the rest of `docs/`), but the load-bearing decisions and the tradeoffs that
+went into them. They exist so that a contributor (or future-you) reading
+the codebase a year from now can recover the *intent* behind a design,
+not just the shape.
+
+## Index
+
+| # | Title | Status | Date |
+|---|---|---|---|
+| [0001](0001-record-architecture-decisions.md) | Record architecture decisions in this directory | Accepted | 2026-05-09 |
+| [0002](0002-multi-source-lookup-priority.md) | Layer three open data sources with explicit priority order | Accepted | 2026-05-09 |
+| [0003](0003-click-and-uv-for-cli-tooling.md) | Click for the CLI; uv for dependency management | Accepted | 2026-05-09 |
+| [0004](0004-disk-cache-with-mtime-ttl-and-overrides.md) | On-disk response cache with mtime TTL + sticky URL overrides | Accepted | 2026-05-09 |
+| [0005](0005-reportlab-with-binderlayout-dataclass.md) | ReportLab + `BinderLayout` dataclass for PDF presets | Accepted | 2026-05-09 |
+| [0006](0006-row-as-shared-output-shape.md) | A single `Row` shape feeds every output writer | Accepted | 2026-05-09 |
+| [0007](0007-fastapi-and-sse-for-streaming-results.md) | FastAPI backend + Server-Sent Events for streaming lookup results | Accepted | 2026-05-09 |
+| [0008](0008-two-pass-stable-sort-for-row-ordering.md) | Two-pass stable sort for compound row ordering | Accepted | 2026-05-09 |
+| [0009](0009-docs-as-source-with-wiki-sync.md) | `docs/` is the source of truth; the GitHub Wiki is a mirror | Accepted | 2026-05-09 |
+
+## Adding a new ADR
+
+1. Copy [`template.md`](template.md) to the next number:
+   `cp template.md NNNN-short-title-in-kebab-case.md`.
+2. Fill it in. Keep it tight — most ADRs in this repo are 50–100 lines.
+3. Add a row to the index table above (preserve numeric order).
+4. If the new ADR replaces an old one, set the old one's status to
+   *Superseded by ADR-NNNN* and link to the replacement.
+
+The numbering is monotonic — never reuse a number, even for ADRs that
+were never accepted. Status values you can use:
+
+- **Proposed** — draft, not yet accepted. Open as a PR for review.
+- **Accepted** — the current decision. Reflects what the code actually
+  does. Most ADRs land here.
+- **Superseded by ADR-NNNN** — replaced by a newer decision. Keep the
+  file for history.
+- **Deprecated** — the decision no longer applies but no replacement was
+  recorded.
+
+## When *not* to write an ADR
+
+Most code doesn't need one. Reserve ADRs for decisions that:
+
+- Constrain the shape of unrelated code that comes later.
+- Have non-obvious alternatives someone else might reach for first.
+- Are expensive to reverse later (anything that lands in a wire format,
+  on-disk format, public CLI flag, etc.).
+
+Day-to-day refactors, bug fixes, dependency bumps, and one-off layout
+tweaks are not ADR material — they live in commits.
