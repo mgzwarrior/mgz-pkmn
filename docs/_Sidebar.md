@@ -19,6 +19,15 @@
 - [Roadmap](roadmap)
 - [Architecture decisions](Architecture-decisions)
 
+<details>
+<summary>Browse all ADRs</summary>
+
+<!-- ADR-LIST-START -->
+*Populated by the sync workflow.*
+<!-- ADR-LIST-END -->
+
+</details>
+
 ### Contributing
 
 - [Guide](contributing)

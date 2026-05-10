@@ -54,6 +54,38 @@ jobs:
             mv wiki/README.md wiki/Home.md
           fi
 
+          # Auto-populate the ADR list inside the sidebar's <details> block,
+          # pulling titles from each ADR's first line ("# ADR NNNN: <title>").
+          # This keeps the sidebar current without contributors having to
+          # update _Sidebar.md when adding an ADR.
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          adrs = []
+          for adr_path in sorted(Path("source/docs/adr").glob("[0-9]*-*.md")):
+              first_line = adr_path.read_text().split("\n", 1)[0]
+              m = re.match(r"#\s+ADR\s+(\d+):\s*(.+)", first_line)
+              if not m:
+                  continue
+              num, title = m.group(1), m.group(2).strip()
+              slug = adr_path.stem  # e.g. 0001-record-architecture-decisions
+              adrs.append(f"- [{num} — {title}]({slug})")
+
+          sidebar = Path("wiki/_Sidebar.md")
+          if sidebar.exists() and adrs:
+              text = sidebar.read_text()
+              new_text = re.sub(
+                  r"<!-- ADR-LIST-START -->.*?<!-- ADR-LIST-END -->",
+                  "<!-- ADR-LIST-START -->\n" + "\n".join(adrs) + "\n<!-- ADR-LIST-END -->",
+                  text,
+                  flags=re.DOTALL,
+              )
+              if new_text != text:
+                  sidebar.write_text(new_text)
+                  print(f"populated {len(adrs)} ADR entries in _Sidebar.md")
+          PY
+
           # Rewrite intra-doc links so they resolve in the flat wiki layout.
           # Runs recursively so files still under wiki/adr/ (the individual
           # ADRs) also get their relative links normalized.
