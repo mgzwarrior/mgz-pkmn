@@ -73,9 +73,12 @@ gh pr create \
   --project   "DevOps & release"
 ```
 
-If you've already opened the PR, sync after the fact with `gh pr edit
-<PR> --add-label ... --milestone ...` and `gh project item-add <project-number>
---owner mgzwarrior --url <pr-url>`.
+If you've already opened the PR, sync after the fact:
+
+```bash
+gh pr edit <PR> --add-label "..." --milestone "..."
+gh project item-add <project-number> --owner mgzwarrior --url <pr-url>
+```
 
 The PR body must still include a closing keyword (`Fixes #N`, `Closes
 #N`, `Resolves #N`) — that's what GitHub uses for the issue/PR link
