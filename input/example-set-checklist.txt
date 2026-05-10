@@ -1,0 +1,6 @@
+# Pulls every priced card in a single set — meant to showcase the full
+# `--checklist` output (one row per card in the set) alongside the binder
+# PDFs. Surging Sparks has ~250 cards, so the run takes a minute on a cold
+# cache and produces a multi-page checklist with prices for each entry.
+
+All Surging Sparks cards

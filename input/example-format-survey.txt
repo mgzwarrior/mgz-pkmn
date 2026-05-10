@@ -1,0 +1,27 @@
+# Shows every input syntax the parser supports on one page.
+# See README "Input format" + "Bulk top-N lookups" for the full spec.
+
+# --- Single-card lookups ---
+
+# Pipe-delimited (canonical, most precise — name | set | number)
+Charizard | Base | 4/102
+
+# Dash-delimited
+Pikachu - Jungle - 60/64
+
+# Markdown task-list prefixes are stripped automatically
+- [ ] Blastoise | Base | 2/102
+
+# Variant hint in square brackets — selects which price tier to use
+Charizard | Base | 4/102 [1stEditionHolofoil]
+
+# --- Bulk lookups ---
+
+# Top-N by Pokemon name
+top:3 Pikachu
+
+# Top-N by card subtype (V, VMAX, VSTAR, GX, EX, MEGA, BREAK, …)
+top 4 vmax cards
+
+# Inline price filter — combine with --max-price; most-restrictive wins
+top 5 Charizard >= $50

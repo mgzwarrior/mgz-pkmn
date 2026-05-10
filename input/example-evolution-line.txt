@@ -1,0 +1,9 @@
+# Demonstrates the two "multi-name" bulk lookup paths.
+#
+# Slash-separated names are searched independently and the results are
+# pooled before ranking, so "top 9" returns the nine highest-priced cards
+# across the whole evolution line. Concept keywords (eeveelution, puppy,
+# starter, …) expand to a curated name list and follow the same flow.
+
+top 9 Charmander/Charmeleon/Charizard cards
+top 9 eeveelution cards
