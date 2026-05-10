@@ -6,9 +6,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from mgz_pkmn.cli import _build_json_report, _dedupe_rows
+from mgz_pkmn.cli import _dedupe_rows
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
+from mgz_pkmn.report import build_json_report
 from mgz_pkmn.spreadsheet import Row
 
 
@@ -34,7 +35,7 @@ class CliHelpersTests(unittest.TestCase):
 
     def test_json_report_includes_rows_deduped(self) -> None:
         rows = [_make_row("a", 10)]
-        payload = _build_json_report(
+        payload = build_json_report(
             rows=rows,
             counters={"bulk": 3},
             input_lines=2,

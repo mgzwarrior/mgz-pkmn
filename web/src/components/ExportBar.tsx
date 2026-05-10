@@ -1,56 +1,60 @@
 /**
- * ExportBar — "Download .xlsx" and "Download PDF binder" buttons.
+ * ExportBar — download buttons for xlsx, standard PDF binder, condensed PDF
+ * binder, and the per-tag checklist PDF.
  *
  * Disabled until at least one matched row is available.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { FileSpreadsheet, BookOpen, Loader2 } from 'lucide-react'
+import { FileSpreadsheet, BookOpen, LayoutGrid, ListChecks, Loader2 } from 'lucide-react'
 import { exportFile } from '../api/client'
 import { useAppStore } from '../store'
+import type { ExportFormat } from '../types'
+
+const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
+  { format: 'xlsx', label: 'Download .xlsx', icon: <FileSpreadsheet size={14} /> },
+  { format: 'pdf', label: 'PDF binder', icon: <BookOpen size={14} /> },
+  { format: 'condensed-pdf', label: 'Condensed PDF', icon: <LayoutGrid size={14} /> },
+  { format: 'checklist', label: 'Checklist', icon: <ListChecks size={14} /> },
+]
 
 export function ExportBar() {
   const { rows, settings } = useAppStore()
-  const [loadingXlsx, setLoadingXlsx] = useState(false)
-  const [loadingPdf, setLoadingPdf] = useState(false)
+  const [loading, setLoading] = useState<ExportFormat | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const matchedRows = rows.filter((r) => r.matched)
   const disabled = matchedRows.length === 0
 
-  async function handleExport(format: 'xlsx' | 'pdf') {
+  async function handleExport(format: ExportFormat) {
     if (disabled) return
-    const setter = format === 'xlsx' ? setLoadingXlsx : setLoadingPdf
-    setter(true)
+    setLoading(format)
     setError(null)
     try {
       await exportFile(rows, format, {
         maxPrice: settings.maxPrice,
         title: settings.tag || 'cards',
+        sort: settings.sort,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
-      setter(false)
+      setLoading(null)
     }
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <ExportButton
-        label="Download .xlsx"
-        icon={<FileSpreadsheet size={14} />}
-        loading={loadingXlsx}
-        disabled={disabled}
-        onClick={() => handleExport('xlsx')}
-      />
-      <ExportButton
-        label="Download PDF binder"
-        icon={<BookOpen size={14} />}
-        loading={loadingPdf}
-        disabled={disabled}
-        onClick={() => handleExport('pdf')}
-      />
+    <div className="flex items-center gap-2 flex-wrap">
+      {BUTTONS.map((b) => (
+        <ExportButton
+          key={b.format}
+          label={b.label}
+          icon={b.icon}
+          loading={loading === b.format}
+          disabled={disabled || loading !== null}
+          onClick={() => handleExport(b.format)}
+        />
+      ))}
       {matchedRows.length > 0 && !disabled && (
         <span className="text-xs text-zinc-500 ml-1">
           {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}

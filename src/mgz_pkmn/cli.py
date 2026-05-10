@@ -7,20 +7,21 @@ import os
 import re
 import sys
 import time
-from datetime import UTC, datetime
 from pathlib import Path
-from statistics import median
 
 import click
 import requests
 
 from . import __version__
 from . import cache as disk_cache
-from .binder import write_binder_pdf
+from .binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
+from .checklist import write_checklist_pdf
 from .images import download_image
 from .lookup import find_card, find_top_cards
 from .parser import CardQuery, read_input
-from .pricing import COMP_PERCENTS, Pricing, extract_pricing
+from .pricing import Pricing, extract_pricing
+from .report import build_json_report
+from .sorting import DEFAULT_SORT, SORT_MODES, sort_rows
 from .sources import PriceChartingClient, TCGClient, TCGDexClient
 from .sources.base import MatchResult
 from .spreadsheet import Row, write_spreadsheet
@@ -66,91 +67,6 @@ def _format_price(amount: float | None, currency: str = "USD") -> str:
     return click.style(f"{sym}{amount:,.2f}", fg="green", bold=True)
 
 
-# ---------------------------------------------------------------------------
-# JSON report builder.
-# ---------------------------------------------------------------------------
-
-
-def _card_summary(r: Row) -> dict:
-    """Compact card identity used in highlights / per-tag winners."""
-    card = r.card or {}
-    return {
-        "tag": r.tag,
-        "name": card.get("name"),
-        "set": (card.get("set") or {}).get("name"),
-        "number": card.get("number"),
-        "rarity": card.get("rarity"),
-        "market": r.pricing.market,
-        "currency": r.pricing.currency,
-        "variant": r.pricing.variant,
-        "url": r.pricing.url,
-    }
-
-
-def _totals_by_currency(rs: list[Row]) -> dict:
-    """Sum market + comps per currency. Mixed-currency runs stay separable."""
-    out: dict[str, dict] = {}
-    for r in rs:
-        if r.pricing.market is None:
-            continue
-        bucket = out.setdefault(
-            r.pricing.currency,
-            {"row_count": 0, "market": 0.0, **{f"{p}%": 0.0 for p in COMP_PERCENTS}},
-        )
-        bucket["row_count"] += 1
-        bucket["market"] += r.pricing.market
-        for p in COMP_PERCENTS:
-            bucket[f"{p}%"] += r.pricing.market * p / 100
-    for bucket in out.values():
-        for k in ("market", *(f"{p}%" for p in COMP_PERCENTS)):
-            bucket[k] = round(bucket[k], 2)
-    return out
-
-
-def _stats_by_currency(rs: list[Row]) -> dict:
-    """Avg / median / min / max market price per currency."""
-    prices: dict[str, list[float]] = {}
-    for r in rs:
-        if r.pricing.market is None:
-            continue
-        prices.setdefault(r.pricing.currency, []).append(r.pricing.market)
-    return {
-        cur: {
-            "average": round(sum(vs) / len(vs), 2),
-            "median": round(median(vs), 2),
-            "min": round(min(vs), 2),
-            "max": round(max(vs), 2),
-        }
-        for cur, vs in prices.items()
-    }
-
-
-def _highest_value(rs: list[Row]) -> dict | None:
-    """Highest market within a row group. Caveat: mixes currencies arithmetically;
-    intended as a quick "what's the headline card here?" hint, not a comparator."""
-    priced = [r for r in rs if r.pricing.market is not None]
-    if not priced:
-        return None
-    return _card_summary(max(priced, key=lambda r: r.pricing.market or 0.0))
-
-
-def _count_by(rs: list[Row], key_fn) -> dict[str, int]:
-    """Frequency table sorted high-to-low. Skips None keys."""
-    out: dict[str, int] = {}
-    for r in rs:
-        k = key_fn(r)
-        if k is None:
-            continue
-        out[k] = out.get(k, 0) + 1
-    return dict(sorted(out.items(), key=lambda kv: -kv[1]))
-
-
-def _comps(market: float | None) -> dict[str, float] | None:
-    if market is None:
-        return None
-    return {f"{p}%": round(market * p / 100, 2) for p in COMP_PERCENTS}
-
-
 def _dedupe_rows(rows: list[Row]) -> tuple[list[Row], int]:
     """Drop duplicate matched cards by card id, preserving first occurrence."""
     out: list[Row] = []
@@ -165,121 +81,6 @@ def _dedupe_rows(rows: list[Row]) -> tuple[list[Row], int]:
             seen_ids.add(cid)
         out.append(r)
     return out, removed
-
-
-def _build_json_report(
-    rows: list[Row],
-    counters: dict[str, int],
-    input_lines: int,
-    elapsed: float,
-    max_price: float | None = None,
-    deduped_rows: int = 0,
-) -> dict:
-    matched_rows = [r for r in rows if r.card is not None]
-    priced_rows = [r for r in matched_rows if r.pricing.market is not None]
-
-    # Per-tag aggregates, preserving first-appearance order.
-    tag_order: list[str] = []
-    tag_buckets: dict[str, list[Row]] = {}
-    for r in rows:
-        if r.tag not in tag_buckets:
-            tag_order.append(r.tag)
-            tag_buckets[r.tag] = []
-        tag_buckets[r.tag].append(r)
-
-    tags_payload = []
-    for tag in tag_order:
-        bucket = tag_buckets[tag]
-        bucket_matched = [r for r in bucket if r.card is not None]
-        bucket_priced = [r for r in bucket_matched if r.pricing.market is not None]
-        tags_payload.append(
-            {
-                "tag": tag,
-                "rows": len(bucket),
-                "matched": len(bucket_matched),
-                "missed": len(bucket) - len(bucket_matched),
-                "priced": len(bucket_priced),
-                "totals_by_currency": _totals_by_currency(bucket),
-                "stats_by_currency": _stats_by_currency(bucket),
-                "highest_value_card": _highest_value(bucket),
-            }
-        )
-
-    summary = {
-        "input_lines": input_lines,
-        "rows_total": len(rows),
-        "rows_deduped": deduped_rows,
-        "rows_matched": len(matched_rows),
-        "rows_missed": len(rows) - len(matched_rows),
-        "rows_bulk_expanded": counters.get("bulk", 0),
-        "rows_priced": len(priced_rows),
-        "rows_unpriced_matched": len(matched_rows) - len(priced_rows),
-        "totals_by_currency": _totals_by_currency(rows),
-        "stats_by_currency": _stats_by_currency(rows),
-        "by_database": _count_by(matched_rows, lambda r: (r.card or {}).get("_database")),
-        "by_price_source": _count_by(matched_rows, lambda r: r.pricing.source),
-        "by_rarity": _count_by(matched_rows, lambda r: (r.card or {}).get("rarity")),
-        "by_language": _count_by(matched_rows, lambda r: (r.card or {}).get("language")),
-    }
-
-    def _over_cap(r: Row) -> bool:
-        return (
-            max_price is not None and r.pricing.market is not None and r.pricing.market > max_price
-        )
-
-    top5 = sorted(priced_rows, key=lambda r: r.pricing.market or 0.0, reverse=True)[:5]
-    missing = [{"tag": r.tag, "input": r.query.raw} for r in rows if r.card is None]
-    above_cap = [
-        {
-            "tag": r.tag,
-            "input": r.query.raw,
-            "name": (r.card or {}).get("name"),
-            "market": r.pricing.market,
-            "currency": r.pricing.currency,
-        }
-        for r in rows
-        if _over_cap(r)
-    ]
-
-    rows_payload = [
-        {
-            "tag": r.tag,
-            "input": r.query.raw,
-            "matched": bool(r.card),
-            "name": (r.card or {}).get("name"),
-            "set": ((r.card or {}).get("set") or {}).get("name"),
-            "number": (r.card or {}).get("number"),
-            "rarity": (r.card or {}).get("rarity"),
-            "language": (r.card or {}).get("language"),
-            "database": (r.card or {}).get("_database"),
-            "image_path": str(r.image_path) if r.image_path else None,
-            "market": r.pricing.market,
-            "currency": r.pricing.currency,
-            "variant": r.pricing.variant,
-            "source": r.pricing.source,
-            "url": r.pricing.url,
-            "comps": _comps(r.pricing.market),
-            "over_max_price": _over_cap(r),
-        }
-        for r in rows
-    ]
-
-    summary["rows_above_max_price"] = len(above_cap)
-
-    return {
-        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "version": __version__,
-        "elapsed_seconds": round(elapsed, 2),
-        "max_price": max_price,
-        "summary": summary,
-        "tags": tags_payload,
-        "highlights": {
-            "most_valuable": [_card_summary(r) for r in top5],
-            "missing": missing,
-            "above_max_price": above_cap,
-        },
-        "rows": rows_payload,
-    }
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
@@ -349,6 +150,28 @@ def _build_json_report(
     help="Also write a 3x3 binder-style PDF for vendor scanning.",
 )
 @click.option(
+    "--condensed-pdf",
+    "condensed_pdf_path",
+    type=click.Path(dir_okay=False, writable=True, path_type=Path),
+    default=None,
+    help=(
+        "Also write a denser binder PDF (6x4 grid, 24 cards/page) with the "
+        "same caption block as --pdf. Lives alongside the standard binder "
+        "for visual scanning when you don't need printable placeholder cells."
+    ),
+)
+@click.option(
+    "--checklist",
+    "checklist_path",
+    type=click.Path(dir_okay=False, writable=True, path_type=Path),
+    default=None,
+    help=(
+        "Also write a printable checklist PDF for the front of the binder. "
+        "One section per input file (tag), listing every matched card lookup "
+        "returned with an empty checkbox to mark off by hand."
+    ),
+)
+@click.option(
     "--no-cache",
     is_flag=True,
     help=(
@@ -380,6 +203,20 @@ def _build_json_report(
         "ko, zh-tw, zh-cn, pt, pt-br."
     ),
 )
+@click.option(
+    "--sort",
+    "sort_mode",
+    type=click.Choice(SORT_MODES, case_sensitive=False),
+    default=DEFAULT_SORT,
+    show_default=True,
+    help=(
+        "Row order applied uniformly to xlsx, binder, and checklist outputs. "
+        "Tag (input file) is always the outermost group; this option only "
+        "changes order WITHIN each tag. Choices: number (group by set, then "
+        "card number asc — the default), number-desc, price-asc, price-desc, "
+        "release-date (chronological by set release date), alpha (by card name)."
+    ),
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def cli(
     input_paths: tuple[Path, ...],
@@ -391,9 +228,12 @@ def cli(
     dedupe: bool,
     report_json: Path | None,
     pdf: Path | None,
+    condensed_pdf_path: Path | None,
+    checklist_path: Path | None,
     no_cache: bool,
     clear_cache: bool,
     default_lang: str | None,
+    sort_mode: str,
     verbose: bool,
 ) -> None:
     """Look up Pokemon cards, fetch images and prices, and emit an .xlsx for card-show prep.
@@ -590,21 +430,7 @@ def cli(
         if max_price is not None and r.pricing.market is not None and r.pricing.market > max_price
     )
 
-    # Sort within each tag group: highest market price first. Tag order is
-    # preserved (first-appearance) so the per-file sections stay in the order
-    # the files were read. Rows without a price (no match / new releases) sink
-    # to the bottom of their section. Stable across equal prices.
-    tag_order: list[str] = []
-    for r in rows:
-        if r.tag not in tag_order:
-            tag_order.append(r.tag)
-    tag_rank = {t: i for i, t in enumerate(tag_order)}
-    rows.sort(
-        key=lambda r: (
-            tag_rank.get(r.tag, len(tag_rank)),
-            -(r.pricing.market or 0.0),
-        )
-    )
+    sort_rows(rows, sort_mode)
 
     _print_section("Summary")
     matched_total = len([r for r in rows if r.card is not None])
@@ -649,7 +475,7 @@ def cli(
 
     if pdf:
         title = ", ".join(sorted({r.tag for r in rows if r.tag})) or pdf.stem
-        write_binder_pdf(rows, pdf, title=title, max_price=max_price)
+        write_binder_pdf(rows, pdf, title=title, max_price=max_price, layout=STANDARD_LAYOUT)
         sections = len({r.tag for r in rows if r.tag})
         click.secho("  ✓ ", fg="green", nl=False)
         click.echo(
@@ -660,8 +486,47 @@ def cli(
             )
         )
 
+    if condensed_pdf_path:
+        title = ", ".join(sorted({r.tag for r in rows if r.tag})) or condensed_pdf_path.stem
+        write_binder_pdf(
+            rows,
+            condensed_pdf_path,
+            title=title,
+            max_price=max_price,
+            layout=CONDENSED_LAYOUT,
+        )
+        sections = len({r.tag for r in rows if r.tag})
+        click.secho("  ✓ ", fg="green", nl=False)
+        click.echo(
+            f"{condensed_pdf_path}  "
+            + click.style(
+                f"({len(rows)} cards, {sections} section{'s' if sections != 1 else ''}, condensed)",
+                fg="bright_black",
+            )
+        )
+
+    if checklist_path:
+        written = write_checklist_pdf(rows, checklist_path)
+        if written:
+            click.secho("  ✓ ", fg="green", nl=False)
+            click.echo(
+                f"{checklist_path}  "
+                + click.style(
+                    f"({written} checklist section{'s' if written != 1 else ''})",
+                    fg="bright_black",
+                )
+            )
+        else:
+            click.secho("  · ", fg="bright_black", nl=False)
+            click.echo(
+                click.style(
+                    "checklist skipped — no matched cards to list",
+                    fg="bright_black",
+                )
+            )
+
     if report_json:
-        payload = _build_json_report(
+        payload = build_json_report(
             rows=rows,
             counters=counters,
             input_lines=len(tagged),

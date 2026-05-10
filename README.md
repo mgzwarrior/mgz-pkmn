@@ -95,10 +95,13 @@ banner showing the tag + card count) at each file boundary.
 | `--max-price FLOAT` | (none) | Per-card budget cap. **Bulk** `top:N` / `All …` lookups respect it strictly — candidates above the cap are excluded *before* the top-N cut, so an "affordable top 10" still returns 10. **Single-card** lookups always appear in every artifact even when above the cap, but get a visual flag (amber-fill on the Market cell in xlsx, red `! MP $X` line in the PDF, `over_max_price: true` in JSON). Applied to the raw market figure regardless of currency — keep your input list single-currency for it to mean what you'd expect. |
 | `--dedupe` | off | Remove duplicate matched cards across all queries (keyed by card id), keeping the first occurrence in xlsx / PDF / JSON. |
 | `--report-json PATH` | (none) | Also dump a structured JSON report. |
-| `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF for vendor scanning. |
+| `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF (9 cards/page) — image-forward, sized to print and slip into 9-pocket pages as physical placeholders. |
+| `--condensed-pdf PATH` | (none) | Also write a denser binder PDF (6×4 grid, 24 cards/page) with the same caption block as `--pdf`. Same data, packed tighter for visual scanning. |
+| `--checklist PATH` | (none) | Also write a printable checklist PDF (one section per input file, every matched card listed with an empty checkbox to mark off by hand). Meant for the front of the binder. |
 | `--no-cache` | off | Skip the disk cache; force every lookup to hit the network and don't write back. |
 | `--clear-cache` | off | Wipe the API response cache before the run, then continue normally so fresh data is re-cached. URL overrides preserved. |
 | `--lang CODE` | (none) | Default TCGdex language for lines that don't name one. Per-line keywords (`japanese`, `chinese`, …) still take priority. Common codes: `en`, `ja`, `fr`, `de`, `es`, `it`, `ko`, `zh-tw`, `zh-cn`, `pt`, `pt-br`. |
+| `--sort MODE` | `number` | Row order applied to xlsx, binder, and checklist. Tag is always the outermost group; this changes order WITHIN each tag. Choices: `number` (group by set then card # asc — default), `number-desc`, `price-asc`, `price-desc`, `release-date` (chronological by set release date), `alpha` (by card name). |
 | `-v, --verbose` | off | Echo each API request URL (cached entries are flagged). |
 | `-h, --help` | | Show usage. |
 
@@ -111,6 +114,8 @@ POKEMONTCG_IO_API_KEY=xxx ./pkmn cards.txt -v
 ./pkmn cards.txt -o show.xlsx --report-json show.json
 ./pkmn cards.txt -o show.xlsx --pdf binder.pdf       # spreadsheet + PDF binder
 ./pkmn cards.txt --max-price 50 --pdf binder.pdf     # only show cards ≤ $50
+./pkmn input/ --pdf binder.pdf --checklist checklist.pdf   # binder + front-of-binder checklist
+./pkmn input/ --pdf binder.pdf --sort price-desc           # restore old "priciest first" ordering
 ```
 
 ### Sample run
@@ -397,6 +402,44 @@ so the PDF stays small even for 60+ cards.
 The PDF is meant for vendor recognition at a card show — pair it with the
 xlsx (the spreadsheet has the full price/comp data and clickable listing
 links).
+
+### Condensed binder (`--condensed-pdf`)
+
+Pass `--condensed-pdf preview.pdf` (alongside or instead of `--pdf`) for a
+denser version of the same layout — **6×4 grid, 24 cards per page, all
+eight caption lines preserved.** The standard 3×3 stays exactly as today,
+sized so cells print and slip into binder pockets as placeholder cards.
+The condensed version is for visual scanning when you don't need print-ready
+cells: at-a-glance prices, names, and rarity across a wider page sweep.
+
+Both can be produced in one run:
+
+```bash
+./pkmn input/ \
+  --pdf output/binder.pdf \
+  --condensed-pdf output/binder-condensed.pdf
+```
+
+## Checklist PDF (`--checklist`)
+
+Pass `--checklist checklist.pdf` to also produce a printable checklist —
+designed to live in the front of the binder so you can mark off cards by
+hand as you sort, verify, or acquire them at the show.
+
+One section per input file (Source tag). Each section is a 3-column layout
+with one row per matched card: empty checkbox · `#N/Total` · card name ·
+market price (right-aligned, in green when present). The header shows the
+tag name, total card count, and page number (`p.1`, `p.2`, …).
+
+Row order follows whatever you pass to `--sort` — by default that's card
+number grouped by set, which mirrors how a printed set checklist reads.
+Pass `--sort price-desc` to fall back to the old "highest price first"
+ordering.
+
+Content is whatever lookup produced — if the input has `top 18 Surging
+Sparks cards` you get those 18; if it has `All Charizard cards` you get
+every Charizard variant returned. Sections with zero matched cards are
+skipped, and if every tag is empty no file is written.
 
 ## Output
 

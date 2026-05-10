@@ -6,7 +6,7 @@
  * origin as the API.
  */
 
-import type { BulkEvent, CardQuery, Row, SetInfo, Settings } from '../types'
+import type { BulkEvent, CardQuery, ExportFormat, Row, SetInfo, Settings, SortMode } from '../types'
 
 const BASE = '/api/v1'
 
@@ -124,10 +124,21 @@ export async function bulkLookup(
 // export
 // ---------------------------------------------------------------------------
 
+const DOWNLOAD_FILENAMES: Record<ExportFormat, string> = {
+  xlsx: 'cards.xlsx',
+  pdf: 'binder.pdf',
+  'condensed-pdf': 'binder-condensed.pdf',
+  checklist: 'checklist.pdf',
+}
+
 export async function exportFile(
   rows: Row[],
-  format: 'xlsx' | 'pdf',
-  options: { maxPrice?: number | null; title?: string } = {},
+  format: ExportFormat,
+  options: {
+    maxPrice?: number | null
+    title?: string
+    sort?: SortMode
+  } = {},
 ): Promise<void> {
   const res = await fetch(`${BASE}/export`, {
     method: 'POST',
@@ -135,18 +146,28 @@ export async function exportFile(
     body: JSON.stringify({
       rows,
       format,
+      sort: options.sort ?? 'number',
       max_price: options.maxPrice ?? null,
       title: options.title ?? 'cards',
     }),
   })
 
-  if (!res.ok) throw new Error(`export failed: ${res.status}`)
+  if (!res.ok) {
+    let detail = `export failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
 
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = format === 'xlsx' ? 'cards.xlsx' : 'binder.pdf'
+  a.download = DOWNLOAD_FILENAMES[format]
   a.click()
   // Defer revocation: revoking synchronously can cancel the download in some
   // browsers because the click hasn't started navigation yet.

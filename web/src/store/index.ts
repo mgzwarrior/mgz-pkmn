@@ -49,6 +49,7 @@ export const useAppStore = create<AppState>()(
         noImages: true,
         tag: '',
         dedupe: false,
+        sort: 'number',
       },
       updateSettings: (partial) =>
         set((state) => ({ settings: { ...state.settings, ...partial } })),
@@ -60,6 +61,17 @@ export const useAppStore = create<AppState>()(
         inputText: state.inputText,
         settings: state.settings,
       }),
+      // Merge persisted state with defaults so new settings fields (e.g.
+      // `sort`, added later) fall back to the initial value rather than
+      // landing as `undefined` for users with older localStorage entries.
+      merge: (persisted, current) => {
+        const p = (persisted as Partial<AppState>) ?? {}
+        return {
+          ...current,
+          ...p,
+          settings: { ...current.settings, ...(p.settings ?? {}) },
+        }
+      },
     },
   ),
 )

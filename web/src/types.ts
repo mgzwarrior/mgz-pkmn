@@ -62,6 +62,18 @@ export interface BulkEvent extends Row {
   done?: boolean
 }
 
+/** Sort modes accepted by the API (must mirror mgz_pkmn.sorting.SORT_MODES). */
+export type SortMode =
+  | 'number'
+  | 'number-desc'
+  | 'price-asc'
+  | 'price-desc'
+  | 'release-date'
+  | 'alpha'
+
+/** Export formats accepted by POST /api/v1/export. */
+export type ExportFormat = 'xlsx' | 'pdf' | 'condensed-pdf' | 'checklist'
+
 /** Application-level settings stored in Zustand and sent with each request. */
 export interface Settings {
   apiKey: string
@@ -69,6 +81,7 @@ export interface Settings {
   noImages: boolean
   tag: string
   dedupe: boolean
+  sort: SortMode
 }
 
 export interface SetInfo {

@@ -6,6 +6,16 @@ import * as Dialog from '@radix-ui/react-dialog'
 import type { ReactNode } from 'react'
 import { Settings as SettingsIcon, X } from 'lucide-react'
 import { useAppStore } from '../store'
+import type { SortMode } from '../types'
+
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: 'number', label: 'Card number (group by set) — default' },
+  { value: 'number-desc', label: 'Card number, descending' },
+  { value: 'price-asc', label: 'Price, ascending' },
+  { value: 'price-desc', label: 'Price, descending' },
+  { value: 'release-date', label: 'Release date (chronological)' },
+  { value: 'alpha', label: 'Card name (alphabetical)' },
+]
 
 export function SettingsDrawer() {
   const { settings, updateSettings } = useAppStore()
@@ -61,6 +71,26 @@ export function SettingsDrawer() {
                 placeholder="Labels rows in the export"
                 className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
+            </Field>
+
+            {/* Sort order */}
+            <Field label="Sort order" htmlFor="sort">
+              <select
+                id="sort"
+                value={settings.sort}
+                onChange={(e) => updateSettings({ sort: e.target.value as SortMode })}
+                className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-zinc-500">
+                Applied to every export (xlsx, PDF binder, condensed PDF, checklist). Tag stays the
+                outermost group; this only changes order within each tag.
+              </p>
             </Field>
 
             {/* Max price */}
