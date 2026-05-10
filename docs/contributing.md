@@ -34,9 +34,14 @@ that returns the normalized card shape, then adding it to
 ## Branch naming
 
 Name feature/fix branches `<issueNumber>-<shortDescription>` (e.g.
-`28-add-license-file`). GitHub auto-links any PR opened from such a
-branch to the matching issue, so the issue page surfaces the in-flight
-PR without manual cross-referencing.
+`28-add-license-file`). The number prefix makes the related issue easy
+to spot in `git branch` output and in the PR list at a glance.
+
+The branch name alone does **not** make GitHub link the PR to the
+issue — for that, either reference the issue in the PR body with a
+closing keyword (`Fixes #28`, `Closes #28`, `Resolves #28`), or create
+the branch from the issue's "Development" panel in the GitHub UI, which
+records an explicit link.
 
 If there is no tracking issue, open one first — every change should be
 traceable back to an issue.
