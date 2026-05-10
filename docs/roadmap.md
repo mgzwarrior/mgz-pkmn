@@ -7,7 +7,8 @@
 A working backlog of what shipping a polished **V1** looks like, where the
 project goes after that, and a parking lot of bigger speculative ideas.
 Items live on GitHub as issues, labels, milestones, and projects — this
-document is the navigator.
+document is the navigator. Every committed item below carries its issue
+number for one-click navigation; speculative items don't have issues yet.
 
 ## Versioning policy
 
@@ -52,84 +53,113 @@ known gaps. The goal of V1 is *defensible*, not *new*.
 ### Lookup engine
 
 - Apply inline price filters to single-card lookups, or warn when
-  ignored.
+  ignored. ([#6](https://github.com/mgzwarrior/mgz-pkmn/issues/6))
 - Distinguish `>` from `>=` (and `<` from `<=`) in the comparator
-  parser.
+  parser. ([#7](https://github.com/mgzwarrior/mgz-pkmn/issues/7))
 - Currency-aware price filtering — at minimum loud documentation of
   the existing currency-blind behavior; ideally gating by currency.
+  ([#8](https://github.com/mgzwarrior/mgz-pkmn/issues/8))
 - Wrap PriceCharting scrape failures in a structured `MatchResult`
   rather than letting the `requests.HTTPError` surface raw.
+  ([#9](https://github.com/mgzwarrior/mgz-pkmn/issues/9))
 - Regression test covering the word-boundary post-filter so `top 4
   Mew` never re-introduces Mewtwo.
+  ([#10](https://github.com/mgzwarrior/mgz-pkmn/issues/10))
 
 ### Output artifacts
 
 - Add `summary.sort_mode` to the JSON report so consumers know the
-  ordering used.
+  ordering used. ([#11](https://github.com/mgzwarrior/mgz-pkmn/issues/11))
 - Document (or fix) the `--no-images` divergence between CLI exports
   and Web-UI-driven exports.
+  ([#12](https://github.com/mgzwarrior/mgz-pkmn/issues/12))
 - Tighten checklist truncation tests with a long-name fixture.
+  ([#13](https://github.com/mgzwarrior/mgz-pkmn/issues/13))
 - New `--print-summary-only` CLI mode for input iteration.
+  ([#14](https://github.com/mgzwarrior/mgz-pkmn/issues/14))
 - `make refresh-examples` target to keep the tracked
   [`output/`](../output/) artifacts current.
+  ([#15](https://github.com/mgzwarrior/mgz-pkmn/issues/15))
 
 ### Cache & persistence
 
 - Show cache hit rate in the CLI summary line.
+  ([#16](https://github.com/mgzwarrior/mgz-pkmn/issues/16))
 - Soft-warn when the cache directory exceeds 50 MB.
+  ([#17](https://github.com/mgzwarrior/mgz-pkmn/issues/17))
 - Versioned schema for `url_overrides.json` (`{schema_version: 1, …}`).
+  ([#18](https://github.com/mgzwarrior/mgz-pkmn/issues/18))
 - `pkmn cache stats` subcommand printing size, oldest entry, override
-  count.
+  count. ([#19](https://github.com/mgzwarrior/mgz-pkmn/issues/19))
 - Document the `MGZ_PKMN_NO_CACHE` env var (exists in code, missing
-  from docs).
+  from docs). ([#20](https://github.com/mgzwarrior/mgz-pkmn/issues/20))
 
 ### Web UI / API
 
 - Add a `LICENSE` file at the repo root (cross-listed with DevOps —
   hard blocker for any release).
+  ([#28](https://github.com/mgzwarrior/mgz-pkmn/issues/28))
 - API tests for `/parse`, `/lookup`, `/sets`, `/overrides` (currently
   only `/export` is covered).
+  ([#21](https://github.com/mgzwarrior/mgz-pkmn/issues/21))
 - Vitest setup + smoke tests per web component.
+  ([#22](https://github.com/mgzwarrior/mgz-pkmn/issues/22))
 - Error boundary in the SPA so a render failure shows a message
   instead of a blank page.
+  ([#23](https://github.com/mgzwarrior/mgz-pkmn/issues/23))
 - "Restore defaults" button in `SettingsDrawer` (escape hatch from a
-  weird state).
+  weird state). ([#24](https://github.com/mgzwarrior/mgz-pkmn/issues/24))
 - Surface the `--dedupe` toggle in the UI (settings type has the
   field; no control to flip it).
+  ([#25](https://github.com/mgzwarrior/mgz-pkmn/issues/25))
 - **Column filtering / sorting in the results table.** Click a column
   header to sort; per-column filter inputs to narrow.
+  ([#26](https://github.com/mgzwarrior/mgz-pkmn/issues/26))
 - **Improved loading state** during a lookup so users have visible
   proof the API is working — progress count, animated rows, or a
   per-line status indicator.
+  ([#27](https://github.com/mgzwarrior/mgz-pkmn/issues/27))
+- **`Cache-Control: no-cache` on `index.html`.** Hashed JS/CSS keep
+  long-cache headers, but the SPA shell shouldn't be browser-cached
+  — otherwise newly-deployed builds keep pointing at old asset URLs.
+  ([#70](https://github.com/mgzwarrior/mgz-pkmn/issues/70))
 
 ### DevOps & release
 
 - `LICENSE` file at the repo root (likely MIT given the project's
   framing). Cross-listed with Web UI / API.
+  ([#28](https://github.com/mgzwarrior/mgz-pkmn/issues/28))
 - GitHub issue + PR templates under `.github/ISSUE_TEMPLATE/` (bug,
   feature, docs, plus a generic PR template).
+  ([#29](https://github.com/mgzwarrior/mgz-pkmn/issues/29))
 - `CHANGELOG.md` seeded with entries for everything between `0.1.0`
   and the upcoming `1.0.0`. Going forward, every PR adds an
   `[Unreleased]` entry.
+  ([#30](https://github.com/mgzwarrior/mgz-pkmn/issues/30))
 - Polish `pyproject.toml` metadata for PyPI release (`description`,
   `keywords`, `classifiers`, `urls` — current description doesn't
   even mention the PDF / checklist / web UI).
+  ([#31](https://github.com/mgzwarrior/mgz-pkmn/issues/31))
 - Confirm Render + Docker recipes still work post-restructure.
+  ([#32](https://github.com/mgzwarrior/mgz-pkmn/issues/32))
 - **GitHub Sponsors button.** `.github/FUNDING.yml` with a sponsor
   username so the "Sponsor" button appears on the repo. Last item
   before the V1 release goes out.
+  ([#33](https://github.com/mgzwarrior/mgz-pkmn/issues/33))
 - **Logo + social preview.** A small logo for the README header and a
   1280×640 social preview image set under repo Settings → Social
   preview. Improves shareability when the repo gets linked.
+  ([#34](https://github.com/mgzwarrior/mgz-pkmn/issues/34))
 - **Security policy + Dependabot.** `SECURITY.md` covering disclosure
   process, plus `.github/dependabot.yml` and the GitHub Advanced
   Security toggles (secret scanning, code scanning, dependency
-  graph).
+  graph). ([#35](https://github.com/mgzwarrior/mgz-pkmn/issues/35))
 - **AI-agent scaffolding.** A top-level `AGENTS.md` (or
   `CLAUDE.md`) plus a `.cursorrules` / similar that orients AI
   assistants to the repo's conventions: dataclass-driven layouts,
   pure-function writers, single `Row` shape, signed commits, doc
   cross-link conventions, tests-first for behavior changes.
+  ([#36](https://github.com/mgzwarrior/mgz-pkmn/issues/36))
 
 ---
 
@@ -146,17 +176,20 @@ of a stable release.
   cutout shows the set logo + key art, total cards in the set, total
   market price as of the run date, and the set release year.
   Generated alongside the existing `--checklist` flow.
+  ([#71](https://github.com/mgzwarrior/mgz-pkmn/issues/71))
 
 ### DevOps & release
 
 - **Announce 1.0 via GitHub Discussions.** Enable Discussions, post an
   Announcement category thread describing what the project is and what
   shipped in 1.0.
+  ([#37](https://github.com/mgzwarrior/mgz-pkmn/issues/37))
 - **Refresh the contributing guide and start a contributors discussion.**
   Update [`docs/contributing.md`](contributing.md) with concrete
   starter-issue patterns. Open a Discussion thread inviting community
   contributions and explicitly encouraging AI-assisted development —
   the [AGENTS.md scaffolding](#devops--release) makes that supportable.
+  ([#38](https://github.com/mgzwarrior/mgz-pkmn/issues/38))
 
 ---
 
@@ -170,72 +203,98 @@ its own GitHub issue + PR thread.
 
 - Structured query DSL (`top:N subtype:V,VMAX in "Surging Sparks"
   rarity:rare>=$50`) — replace the flavor-text fallback with real
-  semantics.
+  semantics. ([#39](https://github.com/mgzwarrior/mgz-pkmn/issues/39))
 - eBay sold-listings as a fourth price source (opt-in via `--ebay`).
+  ([#40](https://github.com/mgzwarrior/mgz-pkmn/issues/40))
 - Cache TCGdex responses too (today only pokemontcg.io is cached).
+  ([#41](https://github.com/mgzwarrior/mgz-pkmn/issues/41))
 - Surface ambiguity in the JSON report
   (`"alternatives": [{...}]`) instead of silently picking one.
+  ([#42](https://github.com/mgzwarrior/mgz-pkmn/issues/42))
 - Pluggable name aliases — `top 5 ナッシー` works as well as
   `top 5 Exeggutor`.
+  ([#43](https://github.com/mgzwarrior/mgz-pkmn/issues/43))
 - **Pokemon type-aware search.** First-class support for the actual
   type system (Fire, Water, Grass, Lightning, Psychic, Fighting,
   Darkness, Metal, Fairy, Dragon, Colorless). `top 5 Fire type
   cards`, `top 10 Dragon cards in Surging Sparks`, name + type
   combos. Routes to pokemontcg.io's `types:` filter rather than the
   current flavor-text fallback.
+  ([#72](https://github.com/mgzwarrior/mgz-pkmn/issues/72))
 - Public `parse_lines(text) → list[CardQuery]` for downstream tools.
+  ([#44](https://github.com/mgzwarrior/mgz-pkmn/issues/44))
 
 ### Output artifacts
 
 - Configurable comp tiers via `--comps 70,80,90`.
+  ([#45](https://github.com/mgzwarrior/mgz-pkmn/issues/45))
 - Per-section charts in xlsx (price-distribution, top-N).
+  ([#46](https://github.com/mgzwarrior/mgz-pkmn/issues/46))
 - HTML output mode for sharing a wishlist by URL.
+  ([#47](https://github.com/mgzwarrior/mgz-pkmn/issues/47))
 - Custom binder layouts via TOML config (user-supplied
   `BinderLayout` instance without editing Python).
+  ([#48](https://github.com/mgzwarrior/mgz-pkmn/issues/48))
 - Color-coded rarity in xlsx.
+  ([#49](https://github.com/mgzwarrior/mgz-pkmn/issues/49))
 - Skip-already-owned mode (filters binder + checklist against a
   user-supplied "what I own" list).
+  ([#50](https://github.com/mgzwarrior/mgz-pkmn/issues/50))
 - **Expanded PDF design customization.** Per-page-size presets
   (A4, A5, custom), per-cell border/background controls, optional
   watermark, configurable card-art aspect / rotation, branded header
-  bar.
+  bar. ([#51](https://github.com/mgzwarrior/mgz-pkmn/issues/51))
 
 ### Cache & persistence
 
 - LRU eviction with size cap (`MGZ_PKMN_CACHE_MAX_MB`, default 100).
+  ([#52](https://github.com/mgzwarrior/mgz-pkmn/issues/52))
 - `pkmn cache compact` subcommand (re-encodes, drops corrupt
-  entries).
+  entries). ([#53](https://github.com/mgzwarrior/mgz-pkmn/issues/53))
 - TTL per source (pokemontcg.io stable; PriceCharting volatile).
+  ([#54](https://github.com/mgzwarrior/mgz-pkmn/issues/54))
 - `pkmn cache warm input/` — pre-populate the cache before a
   show with spotty Wi-Fi.
+  ([#55](https://github.com/mgzwarrior/mgz-pkmn/issues/55))
 - SQLite cache option (queryable history) — opt-in; default JSON
-  store stays.
+  store stays. ([#56](https://github.com/mgzwarrior/mgz-pkmn/issues/56))
 - **Multi-user persistent collections.** Promote the disk cache to a
   full database (PostgreSQL or SQLite-with-Alembic) so deployed
   instances can track per-user collections, wishlists, and run
   history. Backwards-compatible: single-user CLI keeps the
   filesystem path; the API gains `/collections` endpoints.
+  ([#57](https://github.com/mgzwarrior/mgz-pkmn/issues/57))
 
 ### Web UI / API
 
 - Persistent run history with sidebar diff/re-export.
+  ([#58](https://github.com/mgzwarrior/mgz-pkmn/issues/58))
 - Drag-and-drop `.txt` upload onto the editor.
+  ([#59](https://github.com/mgzwarrior/mgz-pkmn/issues/59))
 - Inline edit + re-run for unmatched rows.
+  ([#60](https://github.com/mgzwarrior/mgz-pkmn/issues/60))
 - Authentication for hosted instances (API keys, per-key rate
-  limits).
+  limits). ([#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61))
 - Mobile-responsive layout + a11y audit (axe-core in CI).
+  ([#62](https://github.com/mgzwarrior/mgz-pkmn/issues/62))
 - OpenAPI client codegen (`@mgzwarrior/mgz-pkmn-client` published
   from the FastAPI schema).
+  ([#63](https://github.com/mgzwarrior/mgz-pkmn/issues/63))
 
 ### DevOps & release
 
 - PyPI publish on `v*` tag (Trusted Publisher).
+  ([#64](https://github.com/mgzwarrior/mgz-pkmn/issues/64))
 - Docker image to GHCR on tag.
+  ([#65](https://github.com/mgzwarrior/mgz-pkmn/issues/65))
 - Standalone PyInstaller binaries (macOS / Linux / Windows) on
-  releases.
+  releases. ([#66](https://github.com/mgzwarrior/mgz-pkmn/issues/66))
 - Homebrew tap: `brew install mgzwarrior/tap/mgz-pkmn`.
+  ([#67](https://github.com/mgzwarrior/mgz-pkmn/issues/67))
 - Conventional Commits + auto-generated release notes.
+  ([#68](https://github.com/mgzwarrior/mgz-pkmn/issues/68))
 - Coverage reporting (Codecov) with a hard threshold on PRs.
+  ([#69](https://github.com/mgzwarrior/mgz-pkmn/issues/69))
 
 ---
 
@@ -250,7 +309,9 @@ end users who want them, so the project can monetize its largest
 audience without breaking the free-forever promise on core flows.
 
 V2.x has its own GitHub Project so the policy work, infra changes,
-and feature gating land coherently.
+and feature gating land coherently. Issues for these items will be
+filed once V1 ships — leaving them un-numbered keeps the doc honest
+about what's open vs. just intended.
 
 ### Monetization
 
@@ -278,7 +339,8 @@ and feature gating land coherently.
 Speculative directions, especially the ones that might justify a paid
 or hosted offering. Filed as ideas, not commitments. Items here are
 welcome to grow, shrink, or get killed entirely based on community
-feedback before any of them become committed work.
+feedback before any of them become committed work. No issues filed
+yet — items here graduate to issues only after community discussion.
 
 ### Vendor / power-user portal
 
@@ -347,17 +409,16 @@ lands.
 
 ## How this list becomes work
 
-Each item under V1 / V1.x / V2 is filed (or about to be filed) as a
-GitHub issue with two labels: an **area** label
-(`area:lookup` / `area:outputs` / `area:cache` / `area:web` /
-`area:devops`) and a **version** label
-(`version:v1` / `version:v1.x` / `version:v2`). V1 issues additionally
-sit on the [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
+Each item under V1 / V1.x / V2 is filed as a GitHub issue with two
+labels: an **area** label (`area:lookup` / `area:outputs` / `area:cache`
+/ `area:web` / `area:devops`) and a **version** label (`version:v1` /
+`version:v1.x` / `version:v2`). V1 issues additionally sit on the
+[v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
 
-V3+ items stay in this document until/unless they get promoted to
-committed work. The "proposed" tag is load-bearing: items can be
-challenged, refined, or removed without anyone having to close a
-GitHub issue.
+V2.x and V3+ items stay in this document as text-only proposals until
+they get promoted to committed work. The "proposed" tag is
+load-bearing: items can be challenged, refined, or removed without
+anyone having to close a GitHub issue.
 
 New ideas land here as a draft proposal first — open a PR against
 this file. After review, the agreed items get filed as issues with
