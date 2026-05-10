@@ -48,7 +48,7 @@ you omit it, the highest-priority variant with a market price is used.
 One input line expands to multiple rows.
 
 ```text
-All Exeggutor cards                # → 5 highest-priced Exeggutor variants
+All Exeggutor cards                # → every priced Exeggutor variant, ranked by price
 top:3 Charizard                    # → 3 highest-priced Charizards
 top 10 charizard ex prints         # → 10 by name "Charizard ex"
 top:5 Charizard | Hidden Fates     # → name + set filter
