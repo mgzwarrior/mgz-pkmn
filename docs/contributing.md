@@ -46,6 +46,41 @@ records an explicit link.
 If there is no tracking issue, open one first — every change should be
 traceable back to an issue.
 
+## Opening a PR
+
+When opening a PR for an issue, mirror the issue's labels, milestone,
+and project assignment onto the PR so the issue and PR move through
+the project board together. None of this is automatic — branch name
+prefix and closing keywords don't copy metadata.
+
+`gh pr create` accepts these directly. Pull the values from the issue
+first:
+
+```bash
+ISSUE=28
+REPO=mgzwarrior/mgz-pkmn
+gh issue view $ISSUE --repo $REPO --json labels,milestone,projectItems
+```
+
+Then pass them at create time:
+
+```bash
+gh pr create \
+  --title "..." \
+  --body  "...Resolves #$ISSUE..." \
+  --label    "area:devops,version:v1,type:chore" \
+  --milestone "v1.0" \
+  --project   "DevOps & release"
+```
+
+If you've already opened the PR, sync after the fact with `gh pr edit
+<PR> --add-label ... --milestone ...` and `gh project item-add <project-number>
+--owner mgzwarrior --url <pr-url>`.
+
+The PR body must still include a closing keyword (`Fixes #N`, `Closes
+#N`, `Resolves #N`) — that's what GitHub uses for the issue/PR link
+and for auto-closing the issue on merge.
+
 ## Development
 
 The Makefile at the repo root wraps the common dev commands. Run
