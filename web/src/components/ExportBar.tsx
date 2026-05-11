@@ -1,13 +1,23 @@
 /**
  * ExportBar — download buttons for xlsx, standard PDF binder, condensed PDF
- * binder, and the per-tag checklist PDF.
+ * binder, the per-tag checklist PDF, and the set identification cards PDF.
  *
- * Disabled until at least one matched row is available.
+ * Row-dependent buttons (xlsx/pdf/condensed-pdf/checklist) are disabled
+ * until at least one matched row is available. The Set ID cards button
+ * is always enabled — it fetches the full set catalog server-side and
+ * doesn't require any input rows.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { FileSpreadsheet, BookOpen, LayoutGrid, ListChecks, Loader2 } from 'lucide-react'
-import { exportFile } from '../api/client'
+import {
+  FileSpreadsheet,
+  BookOpen,
+  LayoutGrid,
+  ListChecks,
+  Tags,
+  Loader2,
+} from 'lucide-react'
+import { downloadSetCardsPdf, exportFile } from '../api/client'
 import { useAppStore } from '../store'
 import type { ExportFormat } from '../types'
 
@@ -20,7 +30,7 @@ const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
 
 export function ExportBar() {
   const { rows, settings } = useAppStore()
-  const [loading, setLoading] = useState<ExportFormat | null>(null)
+  const [loading, setLoading] = useState<ExportFormat | 'set-cards' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const matchedRows = rows.filter((r) => r.matched)
@@ -43,6 +53,18 @@ export function ExportBar() {
     }
   }
 
+  async function handleSetCards() {
+    setLoading('set-cards')
+    setError(null)
+    try {
+      await downloadSetCardsPdf(settings.apiKey || undefined)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(null)
+    }
+  }
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
       {BUTTONS.map((b) => (
@@ -55,6 +77,13 @@ export function ExportBar() {
           onClick={() => handleExport(b.format)}
         />
       ))}
+      <ExportButton
+        label="Set ID cards"
+        icon={<Tags size={14} />}
+        loading={loading === 'set-cards'}
+        disabled={loading !== null}
+        onClick={handleSetCards}
+      />
       {matchedRows.length > 0 && !disabled && (
         <span className="text-xs text-zinc-500 ml-1">
           {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}

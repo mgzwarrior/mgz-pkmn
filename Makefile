@@ -117,7 +117,7 @@ docker-run:  ## Run the Docker image on :8000. Reads POKEMONTCG_IO_API_KEY from 
 .PHONY: run-sample
 run-sample:  ## Smoke-run the CLI on sample_cards.txt (override: INPUT=, OUTPUT_DIR=).
 	@mkdir -p $(OUTPUT_DIR)
-	uv run pkmn $(INPUT) -o $(OUTPUT_DIR)/cards.xlsx --pdf $(OUTPUT_DIR)/binder.pdf --report-json $(OUTPUT_DIR)/summary.json
+	uv run pkmn lookup $(INPUT) -o $(OUTPUT_DIR)/cards.xlsx --pdf $(OUTPUT_DIR)/binder.pdf --report-json $(OUTPUT_DIR)/summary.json
 
 .PHONY: cache-clear
 cache-clear:  ## Wipe the on-disk cache (~/.cache/mgz-pkmn) — including URL overrides.

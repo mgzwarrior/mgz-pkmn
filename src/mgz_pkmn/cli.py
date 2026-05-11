@@ -21,6 +21,7 @@ from .lookup import find_card, find_top_cards
 from .parser import CardQuery, read_input
 from .pricing import Pricing, extract_pricing
 from .report import build_json_report
+from .set_cards import fetch_all_sets, write_set_cards_pdf
 from .sorting import DEFAULT_SORT, SORT_MODES, sort_rows
 from .sources import PriceChartingClient, TCGClient, TCGDexClient
 from .sources.base import MatchResult
@@ -191,7 +192,30 @@ def _exeggutor_checkpoint() -> None:
     click.echo()
 
 
-@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+class FallbackGroup(click.Group):
+    """A Click group that forwards unknown subcommands to `lookup`.
+
+    Lets `pkmn cards.txt` keep working alongside `pkmn lookup cards.txt`
+    and `pkmn set-cards` — preserves the historical, no-subcommand CLI
+    while still surfacing real subcommands in `--help`."""
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        try:
+            return super().resolve_command(ctx, args)
+        except click.UsageError:
+            lookup_cmd = self.commands.get("lookup")
+            if lookup_cmd is None:
+                raise
+            return "lookup", lookup_cmd, args
+
+
+@click.group(
+    cls=FallbackGroup,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    invoke_without_command=True,
+)
 @click.version_option(__version__, "-V", "--version", prog_name="pkmn")
 @click.option(
     "--exeggutor",
@@ -201,6 +225,18 @@ def _exeggutor_checkpoint() -> None:
     expose_value=False,
     callback=_print_exeggutor_egg,
 )
+@click.pass_context
+def cli(ctx: click.Context) -> None:
+    """Pokémon card lookup, pricing, and binder/PDF output tools.
+
+    Without a subcommand, behaves like `pkmn lookup ...` for backward
+    compatibility — pass input files as positional arguments. Use
+    `pkmn set-cards` to generate printable set identification cutouts."""
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@cli.command(name="lookup", context_settings={"help_option_names": ["-h", "--help"]})
 @click.argument(
     "input_paths",
     metavar="INPUTS...",
@@ -334,7 +370,7 @@ def _exeggutor_checkpoint() -> None:
     ),
 )
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
-def cli(
+def lookup(
     input_paths: tuple[Path, ...],
     output: Path,
     images_dir: Path,
@@ -697,6 +733,78 @@ def _expand_inputs(paths: tuple[Path, ...]) -> list[Path]:
             seen.add(resolved)
             out.append(c)
     return out
+
+
+@cli.command(name="set-cards", context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(dir_okay=False, writable=True, path_type=Path),
+    default=Path("set-cards.pdf"),
+    show_default=True,
+    help="Where to write the PDF.",
+)
+@click.option(
+    "--api-key",
+    envvar="POKEMONTCG_IO_API_KEY",
+    default=None,
+    help="pokemontcg.io API key (or set POKEMONTCG_IO_API_KEY).",
+)
+@click.option(
+    "--logos-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path("output/images/set-logos"),
+    show_default=True,
+    help="Where to cache downloaded set logos.",
+)
+@click.option(
+    "--no-images",
+    is_flag=True,
+    help="Skip logo downloads and render text-only cutouts.",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
+def set_cards_command(
+    output: Path,
+    api_key: str | None,
+    logos_dir: Path,
+    no_images: bool,
+    verbose: bool,
+) -> None:
+    """Generate printable set ID cards for binder section dividers.
+
+    Fetches every Pokémon TCG set from pokemontcg.io and emits one
+    card-sized cutout per set, laid out 3x3 on Letter so a printed page
+    drops straight into a 9-pocket binder sheet. Takes no positional
+    arguments."""
+    _print_banner(__version__)
+
+    _print_section("Fetching set catalog from pokemontcg.io")
+    client = TCGClient(api_key=api_key, verbose=verbose)
+    try:
+        sets = fetch_all_sets(client)
+    except requests.RequestException as exc:
+        raise click.ClickException(f"set fetch failed: {exc}") from exc
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(f"{len(sets)} set{'s' if len(sets) != 1 else ''}")
+
+    _print_section("Writing outputs")
+    logos = None if no_images else logos_dir
+    session = None if no_images else client.session
+    written = write_set_cards_pdf(sets, output, logos_dir=logos, session=session)
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(
+        f"{output}  "
+        + click.style(
+            f"({written} cutout{'s' if written != 1 else ''})",
+            fg="bright_black",
+        )
+    )
+    if not no_images:
+        click.secho("  ✓ ", fg="green", nl=False)
+        click.echo(f"logos cached in {logos_dir}/")
+
+    click.echo()
+    click.secho("Done!", fg="green", bold=True)
 
 
 if __name__ == "__main__":

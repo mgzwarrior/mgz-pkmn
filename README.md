@@ -11,7 +11,8 @@ condensed binder, set-completion checklist, and JSON report alongside.
 
 Two ways to drive it:
 
-- **CLI** — `./pkmn cards.txt` produces xlsx + (optional) PDF + JSON.
+- **CLI** — `./pkmn lookup cards.txt` produces xlsx + (optional) PDF +
+  JSON; `./pkmn set-cards` emits printable set ID cutouts.
 - **Web UI** — FastAPI backend in [api/](api/) and a React + Vite
   frontend in [web/](web/) put the same pipeline behind a live
   in-browser interface with streaming results and one-click export.
@@ -50,12 +51,14 @@ Run `make help` for the full target list.
 ## Quickstart
 
 ```bash
-./pkmn input/ --no-images \
+./pkmn lookup input/ --no-images \
   -o output/cards.xlsx \
   --pdf output/binder.pdf \
   --condensed-pdf output/binder-condensed.pdf \
   --checklist output/checklist.pdf \
   --report-json output/summary.json
+
+./pkmn set-cards -o output/set-cards.pdf   # printable set ID cutouts (no input needed)
 ```
 
 The bundled [`input/`](input/) directory ships three small example lists
