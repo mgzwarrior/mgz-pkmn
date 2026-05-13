@@ -11,7 +11,12 @@ from ..parser import CardQuery
 @dataclass
 class MatchResult:
     card: dict[str, Any] | None
-    reason: str  # "matched" | "no_candidates" | "set_mismatch" | "scrape_failed"
+    # Core reasons emitted by the lookup module:
+    #   "matched" | "no_candidates" | "set_mismatch" | "scrape_failed"
+    # Higher layers (API routes) may synthesize their own values
+    # (e.g. "error", "unparseable") when surfacing results to clients, so the
+    # set is non-exhaustive.
+    reason: str
     # Set when reason="scrape_failed" so callers can name the URL in error
     # messages. Left None for the other reasons.
     url: str | None = None

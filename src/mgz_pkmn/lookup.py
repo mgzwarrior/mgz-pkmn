@@ -125,13 +125,16 @@ def find_card(
     to ``"ja"`` to make every untagged line fall through to TCGdex Japanese
     after pokemontcg.io misses."""
     # 1. Explicit URL hint takes precedence — the user already found the card.
-    #    Record it so future runs auto-pick it up without the user re-pasting.
     #    A scrape failure (404 / 500 / connection error) propagates as
     #    `scrape_failed` so the CLI can name the URL instead of pretending
-    #    nothing matched.
+    #    nothing matched. The override is recorded ONLY on success so a bad
+    #    URL the user pastes once doesn't get pinned as a sticky override
+    #    that quietly fails on every subsequent run.
     if q.url_hint and "pricecharting.com" in q.url_hint:
-        disk_cache.record_url_override(q.name, q.set_hint, q.url_hint)
-        return pc.fetch(q.url_hint)
+        result = pc.fetch(q.url_hint)
+        if result.card:
+            disk_cache.record_url_override(q.name, q.set_hint, q.url_hint)
+        return result
     # Other URL hosts: not yet supported; fall through to DB search.
 
     # 2. URL override (sticky) — an earlier run recorded a PriceCharting URL
