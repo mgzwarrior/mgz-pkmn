@@ -175,6 +175,37 @@ export async function exportFile(
 }
 
 // ---------------------------------------------------------------------------
+// set identification cards
+// ---------------------------------------------------------------------------
+
+/**
+ * Download the printable set-identification-cards PDF. Triggers a save in
+ * the browser; no rows or settings are required — the server fetches the
+ * full set catalog itself.
+ */
+export async function downloadSetCardsPdf(apiKey?: string): Promise<void> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/set-cards.pdf${params}`)
+  if (!res.ok) {
+    let detail = `set-cards failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'set-cards.pdf'
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+// ---------------------------------------------------------------------------
 // sets
 // ---------------------------------------------------------------------------
 

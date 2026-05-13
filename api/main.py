@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .routes import export, lookup, overrides, parse, sets
+from .routes import export, lookup, overrides, parse, set_cards, sets
 
 app = FastAPI(
     title="mgz-pkmn API",
@@ -42,6 +42,7 @@ app.include_router(parse.router, prefix="/api/v1", tags=["parse"])
 app.include_router(lookup.router, prefix="/api/v1", tags=["lookup"])
 app.include_router(export.router, prefix="/api/v1", tags=["export"])
 app.include_router(sets.router, prefix="/api/v1", tags=["sets"])
+app.include_router(set_cards.router, prefix="/api/v1", tags=["set-cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 
 

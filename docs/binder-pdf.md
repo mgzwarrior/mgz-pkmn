@@ -56,6 +56,37 @@ as `STANDARD_LAYOUT` and `CONDENSED_LAYOUT` instances of the
 one — every drawing function reads its constants from the layout
 object, so adding a new size is a single dataclass call away.
 
+## Set identification cards (`pkmn set-cards`)
+
+`pkmn set-cards` is a **standalone subcommand** — it takes no positional
+arguments and is unrelated to the lookup/checklist flow above. It fetches
+every Pokémon TCG set from pokemontcg.io and emits one card-sized cutout
+per set, laid out **3×3 on Letter** so a printed page slots straight into
+a 9-pocket binder sheet. Cut out the set you want and drop it into the
+first pocket of that section.
+
+Each cutout shows:
+
+- The **set logo** (when the set's API payload provides one)
+- **Set name** and **series**
+- **Release year**
+- **N cards** — the set's printed total
+- The **generation date** in small print at the bottom
+
+```bash
+./pkmn set-cards                                 # → ./set-cards.pdf
+./pkmn set-cards -o output/set-cards.pdf         # custom path
+./pkmn set-cards --no-images                     # skip logo downloads
+POKEMONTCG_IO_API_KEY=xxx ./pkmn set-cards       # authenticated upstream
+```
+
+Set logos are downloaded into `output/images/set-logos/` (configurable
+with `--logos-dir`) and reused on subsequent runs.
+
+In the web UI, the **Set ID cards** button in the header downloads the
+same PDF on demand. The button is always enabled — it doesn't depend on
+the card list in the editor.
+
 ## Non-English cards
 
 Non-English cards get a full-width dark-red banner above the card image

@@ -1,17 +1,27 @@
 # CLI reference
 
-`pkmn` is a single Click command. All artifacts are optional — pass the
-flag for each one you want.
+`pkmn` is a Click group exposing two subcommands:
+
+- **`pkmn lookup INPUTS...`** — the original card-lookup pipeline (xlsx,
+  binder PDFs, checklist, JSON report). Documented below.
+- **`pkmn set-cards`** — generate printable set identification cutouts
+  for binder section dividers; takes no positional arguments. See
+  [PDF binder → Set identification cards](binder-pdf.md#set-identification-cards-pkmn-set-cards).
+
+For backward compatibility, **invoking `pkmn` with input paths and no
+subcommand is forwarded to `lookup`** — `./pkmn cards.txt` and
+`./pkmn lookup cards.txt` are equivalent.
 
 ## Invocation patterns
 
 ```bash
-./pkmn sample_cards.txt                      # one file
-./pkmn list-a.txt list-b.txt                 # multiple files
-./pkmn input/                                # a directory of *.txt files
-./pkmn input/ extras.txt                     # mix of dirs + files
-uv run pkmn input/ -o output/cards.xlsx --pdf output/binder.pdf
-python -m mgz_pkmn input/
+./pkmn sample_cards.txt                      # one file (forwards to lookup)
+./pkmn lookup list-a.txt list-b.txt          # explicit, multiple files
+./pkmn lookup input/                         # a directory of *.txt files
+./pkmn lookup input/ extras.txt              # mix of dirs + files
+./pkmn set-cards                             # all-sets cutout PDF, no args
+uv run pkmn lookup input/ -o output/cards.xlsx --pdf output/binder.pdf
+python -m mgz_pkmn lookup input/
 ```
 
 Each input file's stem becomes a **Source tag** — every row in the
@@ -19,7 +29,7 @@ spreadsheet records its source list, and the PDF binder starts a new
 section (with a banner showing the tag + card count) at each file
 boundary.
 
-## Options
+## `pkmn lookup` options
 
 | Flag | Default | Purpose |
 |---|---|---|
@@ -41,17 +51,29 @@ boundary.
 | `-v, --verbose` | off | Echo each API request URL (cached entries are flagged). |
 | `-h, --help` | | Show usage. |
 
+## `pkmn set-cards` options
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `-o, --output PATH` | `set-cards.pdf` | PDF output path. |
+| `--api-key TEXT` | `$POKEMONTCG_IO_API_KEY` | pokemontcg.io API key. |
+| `--logos-dir PATH` | `output/images/set-logos/` | Where to cache downloaded set logos. |
+| `--no-images` | off | Skip logo downloads and render text-only cutouts. |
+| `-v, --verbose` | off | Echo each API request URL. |
+| `-h, --help` | | Show usage. |
+
 ## Examples
 
 ```bash
-./pkmn cards.txt
-./pkmn cards.txt --no-images -o quick.xlsx
-POKEMONTCG_IO_API_KEY=xxx ./pkmn cards.txt -v
-./pkmn cards.txt -o show.xlsx --report-json show.json
-./pkmn cards.txt -o show.xlsx --pdf binder.pdf       # spreadsheet + PDF binder
-./pkmn cards.txt --max-price 50 --pdf binder.pdf     # only show cards ≤ $50
-./pkmn input/ --pdf binder.pdf --checklist checklist.pdf   # binder + front-of-binder checklist
-./pkmn input/ --pdf binder.pdf --sort price-desc           # restore old "priciest first" ordering
+./pkmn cards.txt                                     # forwards to lookup
+./pkmn lookup cards.txt --no-images -o quick.xlsx
+POKEMONTCG_IO_API_KEY=xxx ./pkmn lookup cards.txt -v
+./pkmn lookup cards.txt -o show.xlsx --report-json show.json
+./pkmn lookup cards.txt -o show.xlsx --pdf binder.pdf       # spreadsheet + PDF binder
+./pkmn lookup cards.txt --max-price 50 --pdf binder.pdf     # only show cards ≤ $50
+./pkmn lookup input/ --pdf binder.pdf --checklist checklist.pdf
+./pkmn set-cards                                            # all-sets ID cutouts
+./pkmn set-cards -o output/set-cards.pdf
 ```
 
 ## Worked examples
@@ -68,7 +90,7 @@ together cover every input syntax and lookup mode the tool supports:
 Run all three at once and produce every artifact:
 
 ```bash
-./pkmn input/ --no-images \
+./pkmn lookup input/ --no-images \
   -o output/cards.xlsx \
   --pdf output/binder.pdf \
   --condensed-pdf output/binder-condensed.pdf \
