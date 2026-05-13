@@ -20,14 +20,25 @@ from mgz_pkmn.sources import TCGClient
 
 router = APIRouter()
 
+# Logos are cached on disk across requests so we don't re-download the entire
+# set catalog every time someone hits this endpoint. Shared with the CLI's
+# default `--logos-dir` only when the API runs as the same user — otherwise
+# each gets its own cache, which is fine.
+_LOGOS_CACHE_DIR = Path("~/.cache/mgz-pkmn/set-logos").expanduser()
+
 
 @router.get("/set-cards.pdf")
-async def get_set_cards_pdf(api_key: str | None = None) -> StreamingResponse:
+async def get_set_cards_pdf(
+    api_key: str | None = None,
+    no_images: bool = False,
+) -> StreamingResponse:
     """Return a PDF of printable set identification cutouts.
 
     Pass `api_key` as a query parameter to authenticate the upstream
-    pokemontcg.io request (otherwise the public rate limit applies)."""
-    content = await run_in_threadpool(_render, api_key)
+    pokemontcg.io request (otherwise the public rate limit applies).
+    Pass `no_images=true` to skip logo downloads and render text-only
+    cutouts — much faster on a cold cache."""
+    content = await run_in_threadpool(_render, api_key, no_images)
     return StreamingResponse(
         io.BytesIO(content),
         media_type="application/pdf",
@@ -35,7 +46,7 @@ async def get_set_cards_pdf(api_key: str | None = None) -> StreamingResponse:
     )
 
 
-def _render(api_key: str | None) -> bytes:
+def _render(api_key: str | None, no_images: bool) -> bytes:
     client = TCGClient(api_key=api_key)
     try:
         sets = fetch_all_sets(client)
@@ -43,9 +54,9 @@ def _render(api_key: str | None) -> bytes:
         raise HTTPException(status_code=502, detail=f"upstream fetch failed: {exc}") from exc
     if not sets:
         raise HTTPException(status_code=502, detail="pokemontcg.io returned no sets")
+    logos_dir = None if no_images else _LOGOS_CACHE_DIR
+    session = None if no_images else client.session
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
-        out_path = tmp / "set-cards.pdf"
-        logos_dir = tmp / "logos"
-        write_set_cards_pdf(sets, out_path, logos_dir=logos_dir, session=client.session)
+        out_path = Path(tmpdir) / "set-cards.pdf"
+        write_set_cards_pdf(sets, out_path, logos_dir=logos_dir, session=session)
         return out_path.read_bytes()

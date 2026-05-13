@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -182,8 +183,20 @@ def _draw_logo(c: canvas.Canvas, path: Path | None, x: float, y: float, w: float
             preserveAspectRatio=True,
             mask="auto",
         )
-    except Exception:
-        return
+    except Exception as exc:
+        print(f"  ! logo render failed for {path}: {exc}", file=sys.stderr)
+        _draw_placeholder(c, x, y, w, h, "image error")
+
+
+def _draw_placeholder(c: canvas.Canvas, x: float, y: float, w: float, h: float, label: str) -> None:
+    c.saveState()
+    c.setFillColorRGB(0.95, 0.95, 0.95)
+    c.setStrokeColorRGB(0.85, 0.85, 0.85)
+    c.rect(x, y, w, h, stroke=1, fill=1)
+    c.setFillColorRGB(0.55, 0.55, 0.55)
+    c.setFont("Helvetica-Oblique", 9)
+    c.drawCentredString(x + w / 2, y + h / 2 - 3, label)
+    c.restoreState()
 
 
 def _draw_text_block(

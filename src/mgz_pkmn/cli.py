@@ -784,6 +784,8 @@ def set_cards_command(
         sets = fetch_all_sets(client)
     except requests.RequestException as exc:
         raise click.ClickException(f"set fetch failed: {exc}") from exc
+    if not sets:
+        raise click.ClickException("pokemontcg.io returned no sets")
     click.secho("  ✓ ", fg="green", nl=False)
     click.echo(f"{len(sets)} set{'s' if len(sets) != 1 else ''}")
 

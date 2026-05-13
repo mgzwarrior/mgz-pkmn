@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import datetime as _dt
+import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import MagicMock
+
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from mgz_pkmn.set_cards import (
+    _draw_logo,
     _release_year,
     fetch_all_sets,
     write_set_cards_pdf,
@@ -122,6 +128,27 @@ class WritePdfTests(unittest.TestCase):
             out = Path(tmp) / "set-cards.pdf"
             written = write_set_cards_pdf(sets, out, today=_dt.date(2026, 5, 10))
             self.assertEqual(written, 1)
+
+
+class DrawLogoTests(unittest.TestCase):
+    def test_corrupt_file_logs_and_draws_placeholder(self) -> None:
+        # A path that exists but isn't a valid image used to silently fail.
+        # Now it should log to stderr and render an "image error" placeholder
+        # instead of leaving an invisible gap.
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "broken.png"
+            bad.write_bytes(b"not a real image")
+            out = Path(tmp) / "out.pdf"
+            c = canvas.Canvas(str(out), pagesize=letter)
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                _draw_logo(c, bad, 100, 100, 100, 50)
+            c.save()
+
+            self.assertIn("logo render failed", err.getvalue())
+            self.assertTrue(out.exists())
+            self.assertGreater(out.stat().st_size, 0)
 
 
 if __name__ == "__main__":
