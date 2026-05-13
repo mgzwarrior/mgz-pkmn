@@ -19,7 +19,8 @@ number for one-click navigation; speculative items don't have issues yet.
   the 1.0 cut (the announcement, the contributor-comms refresh, set
   identification cards) rather than blocking it.
 - **V2** — **committed**. Deeper development per area. Tracked per-area
-  on GitHub Projects (links below).
+  on the unified [`mgz-pkmn`](https://github.com/users/mgzwarrior/projects/11)
+  project (per-area views linked below).
 - **V2.x / Post-V2** — **committed but later**. Currently themed around
   the **free / paid separation and monetization work** — once V2 is
   shipped, the project is mature enough to consider sustainable funding
@@ -31,17 +32,21 @@ number for one-click navigation; speculative items don't have issues yet.
 
 ## Project areas
 
-The codebase splits cleanly into five areas. Each has its own GitHub
-Project for tracking V1 + V2 work, plus an auto-updating open-issues
-badge below.
+The codebase splits cleanly into five areas. All work tracks on the
+unified [`mgz-pkmn`](https://github.com/users/mgzwarrior/projects/11)
+project, with a saved board view per area filtered by the matching
+`area:*` label. Each row below links to that area's view, plus an
+auto-updating open-issues badge. See
+[ADR-0010](adr/0010-unified-project-with-area-views.md) for the
+rationale behind the single-project structure.
 
-| Area | Owns | Project | Open |
+| Area | Owns | View | Open |
 |---|---|---|---|
-| **Lookup engine** | Parse user input, resolve cards across data sources, attach pricing. ([`parser.py`](../src/mgz_pkmn/parser.py), [`lookup.py`](../src/mgz_pkmn/lookup.py), [`sources/`](../src/mgz_pkmn/sources/), [`pricing.py`](../src/mgz_pkmn/pricing.py)) | [#6](https://github.com/users/mgzwarrior/projects/6) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Alookup?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Alookup) |
-| **Output artifacts** | Render rows into spreadsheet / PDFs / checklist / JSON. ([`spreadsheet.py`](../src/mgz_pkmn/spreadsheet.py), [`binder.py`](../src/mgz_pkmn/binder.py), [`checklist.py`](../src/mgz_pkmn/checklist.py), [`report.py`](../src/mgz_pkmn/report.py)) | [#7](https://github.com/users/mgzwarrior/projects/7) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aoutputs?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aoutputs) |
-| **Cache & persistence** | Disk cache for API responses + URL overrides; (V2) multi-user storage. ([`cache.py`](../src/mgz_pkmn/cache.py)) | [#8](https://github.com/users/mgzwarrior/projects/8) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Acache?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Acache) |
-| **Web UI / API** | FastAPI service + React SPA. ([`api/`](../api/), [`web/`](../web/)) | [#9](https://github.com/users/mgzwarrior/projects/9) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aweb?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aweb) |
-| **DevOps & release** | CI, deployment, packaging, distribution, security, governance. | [#10](https://github.com/users/mgzwarrior/projects/10) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Adevops?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Adevops) |
+| **Lookup engine** | Parse user input, resolve cards across data sources, attach pricing. ([`parser.py`](../src/mgz_pkmn/parser.py), [`lookup.py`](../src/mgz_pkmn/lookup.py), [`sources/`](../src/mgz_pkmn/sources/), [`pricing.py`](../src/mgz_pkmn/pricing.py)) | [Lookup](https://github.com/users/mgzwarrior/projects/11/views/3) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Alookup?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Alookup) |
+| **Output artifacts** | Render rows into spreadsheet / PDFs / checklist / JSON. ([`spreadsheet.py`](../src/mgz_pkmn/spreadsheet.py), [`binder.py`](../src/mgz_pkmn/binder.py), [`checklist.py`](../src/mgz_pkmn/checklist.py), [`report.py`](../src/mgz_pkmn/report.py)) | [Outputs](https://github.com/users/mgzwarrior/projects/11/views/4) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aoutputs?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aoutputs) |
+| **Cache & persistence** | Disk cache for API responses + URL overrides; (V2) multi-user storage. ([`cache.py`](../src/mgz_pkmn/cache.py)) | [Cache](https://github.com/users/mgzwarrior/projects/11/views/5) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Acache?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Acache) |
+| **Web UI / API** | FastAPI service + React SPA. ([`api/`](../api/), [`web/`](../web/)) | [Web / API](https://github.com/users/mgzwarrior/projects/11/views/6) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aweb?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aweb) |
+| **DevOps & release** | CI, deployment, packaging, distribution, security, governance. | [DevOps](https://github.com/users/mgzwarrior/projects/11/views/7) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Adevops?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Adevops) |
 
 ---
 
@@ -308,10 +313,12 @@ number of **opt-in power features** also live behind a fair price for
 end users who want them, so the project can monetize its largest
 audience without breaking the free-forever promise on core flows.
 
-V2.x has its own GitHub Project so the policy work, infra changes,
-and feature gating land coherently. Issues for these items will be
-filed once V1 ships — leaving them un-numbered keeps the doc honest
-about what's open vs. just intended.
+V2.x items track on the unified
+[`mgz-pkmn`](https://github.com/users/mgzwarrior/projects/11) project
+alongside the rest of the roadmap; once issues are filed they get the
+`version:v2.x` label so the policy work, infra changes, and feature
+gating land coherently. Leaving them un-numbered until V1 ships keeps
+the doc honest about what's open vs. just intended.
 
 ### Monetization
 
