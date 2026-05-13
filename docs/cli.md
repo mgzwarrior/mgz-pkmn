@@ -44,7 +44,7 @@ boundary.
 | `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF (9 cards/page) — image-forward, sized to print and slip into 9-pocket pages as physical placeholders. See [PDF binder](binder-pdf.md). |
 | `--condensed-pdf PATH` | (none) | Also write a denser binder PDF (6×4 grid, 24 cards/page) with the same caption block as `--pdf`. See [PDF binder](binder-pdf.md#condensed-binder). |
 | `--checklist PATH` | (none) | Also write a printable checklist PDF (one section per input file). See [Checklist PDF](checklist.md). |
-| `--no-cache` | off | Skip the disk cache; force every lookup to hit the network and don't write back. See [Cache](cache.md). |
+| `--no-cache` | off | Skip the disk cache; force every lookup to hit the network and don't write back. Equivalent to exporting `MGZ_PKMN_NO_CACHE=1` for non-CLI callers (FastAPI service, library use). See [Cache → Environment variables](cache.md#environment-variables). |
 | `--clear-cache` | off | Wipe the API response cache before the run, then continue normally so fresh data is re-cached. URL overrides preserved. |
 | `--lang CODE` | (none) | Default TCGdex language for lines that don't name one. Per-line keywords (`japanese`, `chinese`, …) still take priority. See [Languages](languages.md). |
 | `--sort MODE` | `number` | Row order applied to xlsx, binder, and checklist. Tag is always the outermost group; this changes order WITHIN each tag. Choices: `number` (group by set then card # asc — default), `number-desc`, `price-asc`, `price-desc`, `release-date` (chronological by set release date), `alpha` (by card name). |
