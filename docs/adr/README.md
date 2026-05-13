@@ -20,6 +20,7 @@ not just the shape.
 | [0007](0007-fastapi-and-sse-for-streaming-results.md) | FastAPI backend + Server-Sent Events for streaming lookup results | Accepted | 2026-05-09 |
 | [0008](0008-two-pass-stable-sort-for-row-ordering.md) | Two-pass stable sort for compound row ordering | Accepted | 2026-05-09 |
 | [0009](0009-docs-as-source-with-wiki-sync.md) | `docs/` is the source of truth; the GitHub Wiki is a mirror | Accepted | 2026-05-09 |
+| [0010](0010-unified-project-with-area-views.md) | Single unified GitHub Project with per-area views | Accepted | 2026-05-12 |
 
 ## Adding a new ADR
 
