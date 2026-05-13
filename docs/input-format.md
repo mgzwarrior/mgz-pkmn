@@ -127,9 +127,9 @@ cell in the PDF binder.
 ## Known limitations
 
 - **Inline price filtering is approximate.** The comparator parser
-  handles `>=`, `<=`, `>`, `<` correctly and intersects with
-  `--max-price`, but it's currency-blind, treats `>` like `>=`, and
-  silently drops conditions on single-card lookups. A line like
+  distinguishes strict (`>`, `<`) from inclusive (`>=`, `<=`) and
+  intersects with `--max-price`, but it's currency-blind and silently
+  drops conditions on single-card lookups. A line like
   `Charizard | Base | 4 >= $100` parses the bound but doesn't act on
   it. Acceptable for bulk budgeting; not a general-purpose query
   language.

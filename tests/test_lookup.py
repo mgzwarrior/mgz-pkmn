@@ -193,6 +193,94 @@ class FindTopCardsTests(unittest.TestCase):
         self.assertEqual(by_id["sv8-3"]["language"], "en")
 
 
+class PriceBoundaryFilterTests(unittest.TestCase):
+    """`>` / `<` are exclusive: a card whose price exactly equals the bound
+    must be dropped. `>=` / `<=` are inclusive: the boundary value is kept.
+    These tests pin that contract through `find_top_cards` so the parser
+    flags are wired all the way to the filter."""
+
+    @staticmethod
+    def _client_with_boundary_cards() -> _StubTCGClient:
+        # Three cards at $10, $20, $30 — covers both sides of a $20 bound.
+        return _StubTCGClient(
+            {
+                "name:Charizard": [
+                    _card("low", "Charizard", 10.0),
+                    _card("at", "Charizard", 20.0),
+                    _card("high", "Charizard", 30.0),
+                ],
+                "name:Charizard*": [
+                    _card("low", "Charizard", 10.0),
+                    _card("at", "Charizard", 20.0),
+                    _card("high", "Charizard", 30.0),
+                ],
+            }
+        )
+
+    def test_inclusive_min_keeps_boundary(self) -> None:
+        # `>= 20` admits the card priced exactly at $20.
+        q = CardQuery(raw="x", name="Charizard", bulk_top=5, price_min=20.0)
+        results = find_top_cards(self._client_with_boundary_cards(), q, limit=5)
+        self.assertEqual(sorted(c["id"] for c in results), ["at", "high"])
+
+    def test_strict_min_drops_boundary(self) -> None:
+        # `> 20` excludes the card priced exactly at $20.
+        q = CardQuery(
+            raw="x",
+            name="Charizard",
+            bulk_top=5,
+            price_min=20.0,
+            price_min_exclusive=True,
+        )
+        results = find_top_cards(self._client_with_boundary_cards(), q, limit=5)
+        self.assertEqual([c["id"] for c in results], ["high"])
+
+    def test_inclusive_max_keeps_boundary(self) -> None:
+        # `<= 20` admits the card priced exactly at $20.
+        q = CardQuery(raw="x", name="Charizard", bulk_top=5, price_max=20.0)
+        results = find_top_cards(self._client_with_boundary_cards(), q, limit=5)
+        self.assertEqual(sorted(c["id"] for c in results), ["at", "low"])
+
+    def test_strict_max_drops_boundary(self) -> None:
+        # `< 20` excludes the card priced exactly at $20.
+        q = CardQuery(
+            raw="x",
+            name="Charizard",
+            bulk_top=5,
+            price_max=20.0,
+            price_max_exclusive=True,
+        )
+        results = find_top_cards(self._client_with_boundary_cards(), q, limit=5)
+        self.assertEqual([c["id"] for c in results], ["low"])
+
+    def test_strict_band_drops_both_boundaries(self) -> None:
+        # `> 10 < 30` keeps only the card at $20 (strict on both sides).
+        q = CardQuery(
+            raw="x",
+            name="Charizard",
+            bulk_top=5,
+            price_min=10.0,
+            price_min_exclusive=True,
+            price_max=30.0,
+            price_max_exclusive=True,
+        )
+        results = find_top_cards(self._client_with_boundary_cards(), q, limit=5)
+        self.assertEqual([c["id"] for c in results], ["at"])
+
+    def test_strict_max_wins_over_inclusive_global_cap_at_same_value(self) -> None:
+        # `--max-price 20` (inclusive) AND inline `< 20` (strict) → strict wins
+        # because it's the more restrictive at the same value.
+        q = CardQuery(
+            raw="x",
+            name="Charizard",
+            bulk_top=5,
+            price_max=20.0,
+            price_max_exclusive=True,
+        )
+        results = find_top_cards(self._client_with_boundary_cards(), q, limit=5, max_price=20.0)
+        self.assertEqual([c["id"] for c in results], ["low"])
+
+
 class ExpandConceptTests(unittest.TestCase):
     def test_known_concept_returns_slash_string(self) -> None:
         result = _expand_concept("eeveelution")

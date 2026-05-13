@@ -155,6 +155,74 @@ class BulkDetectionTests(unittest.TestCase):
         self.assertLess(elapsed, 0.5, f"parse_line was too slow: {elapsed:.3f}s")
 
 
+class PriceComparatorTests(unittest.TestCase):
+    """`>` / `<` are strict; `>=` / `<=` are inclusive. The parser must
+    preserve that distinction so the lookup filter can drop the boundary
+    value when the user wrote a strict comparator."""
+
+    def test_inclusive_min(self) -> None:
+        q = parse_line("Charizard >= $20")
+        assert q is not None
+        self.assertEqual(q.price_min, 20.0)
+        self.assertFalse(q.price_min_exclusive)
+
+    def test_strict_min(self) -> None:
+        q = parse_line("Charizard > $20")
+        assert q is not None
+        self.assertEqual(q.price_min, 20.0)
+        self.assertTrue(q.price_min_exclusive)
+
+    def test_inclusive_max(self) -> None:
+        q = parse_line("top 10 Charizard cards <= $50")
+        assert q is not None
+        self.assertEqual(q.price_max, 50.0)
+        self.assertFalse(q.price_max_exclusive)
+
+    def test_strict_max(self) -> None:
+        q = parse_line("top 10 Charizard cards < $50")
+        assert q is not None
+        self.assertEqual(q.price_max, 50.0)
+        self.assertTrue(q.price_max_exclusive)
+
+    def test_two_min_bounds_narrow_to_higher_value(self) -> None:
+        # `>= 20 > 30` → the strict 30 wins (it's the more restrictive).
+        q = parse_line("Charizard >= $20 > $30")
+        assert q is not None
+        self.assertEqual(q.price_min, 30.0)
+        self.assertTrue(q.price_min_exclusive)
+
+    def test_same_value_strict_wins_over_inclusive_min(self) -> None:
+        # When both bounds name the same value, the strict one excludes the
+        # boundary — strictly stricter, so it wins.
+        q = parse_line("Charizard >= $20 > $20")
+        assert q is not None
+        self.assertEqual(q.price_min, 20.0)
+        self.assertTrue(q.price_min_exclusive)
+
+    def test_same_value_strict_wins_over_inclusive_max(self) -> None:
+        q = parse_line("top 10 Charizard cards <= $50 < $50")
+        assert q is not None
+        self.assertEqual(q.price_max, 50.0)
+        self.assertTrue(q.price_max_exclusive)
+
+    def test_str_renders_strict_comparators(self) -> None:
+        q = parse_line("top 5 Charizard cards > $20 < $50")
+        assert q is not None
+        rendered = str(q)
+        self.assertIn(">$20", rendered)
+        self.assertIn("<$50", rendered)
+        # Should not have rendered as inclusive.
+        self.assertNotIn(">=$20", rendered)
+        self.assertNotIn("<=$50", rendered)
+
+    def test_str_renders_inclusive_comparators(self) -> None:
+        q = parse_line("top 5 Charizard cards >= $20 <= $50")
+        assert q is not None
+        rendered = str(q)
+        self.assertIn(">=$20", rendered)
+        self.assertIn("<=$50", rendered)
+
+
 class DetectCardLanguageTests(unittest.TestCase):
     def test_japanese_katakana_in_name(self) -> None:
         # The real motivating case: pokemontcg.io card xy12-109 returns
