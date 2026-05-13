@@ -450,21 +450,37 @@ def find_top_cards(
 
     # Combine global cap with the per-query inline bounds. Both upper bounds
     # are intersected (most restrictive wins). The lower bound only comes
-    # from the query — there's no global "minimum price" knob.
+    # from the query — there's no global "minimum price" knob. The global
+    # `--max-price` cap is always inclusive; if a strict `<` bound shares
+    # the winning value with the cap, we keep the strict flag.
     effective_max = max_price
+    effective_max_exclusive = False
     if q.price_max is not None:
-        effective_max = q.price_max if effective_max is None else min(effective_max, q.price_max)
+        if effective_max is None or q.price_max < effective_max:
+            effective_max = q.price_max
+            effective_max_exclusive = q.price_max_exclusive
+        elif q.price_max == effective_max and q.price_max_exclusive:
+            effective_max_exclusive = True
     effective_min = q.price_min
+    effective_min_exclusive = q.price_min_exclusive
 
     enriched: list[tuple[float, dict[str, Any]]] = []
     for card in pool:
         pricing = extract_pricing(card, q.variant_hint)
         if pricing.market is None:
             continue
-        if effective_max is not None and pricing.market > effective_max:
-            continue
-        if effective_min is not None and pricing.market < effective_min:
-            continue
+        if effective_max is not None:
+            if effective_max_exclusive:
+                if pricing.market >= effective_max:
+                    continue
+            elif pricing.market > effective_max:
+                continue
+        if effective_min is not None:
+            if effective_min_exclusive:
+                if pricing.market <= effective_min:
+                    continue
+            elif pricing.market < effective_min:
+                continue
         enriched.append((pricing.market, card))
 
     enriched.sort(key=lambda pair: pair[0], reverse=True)

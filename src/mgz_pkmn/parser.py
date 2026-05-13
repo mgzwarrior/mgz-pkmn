@@ -116,6 +116,10 @@ class CardQuery:
     # top-N cut so an "affordable top 10 ≥ $20" still returns 10.
     price_min: float | None = None
     price_max: float | None = None
+    # Whether each bound is strict (`>` / `<`) or inclusive (`>=` / `<=`).
+    # When True, a card whose price exactly equals the bound is excluded.
+    price_min_exclusive: bool = False
+    price_max_exclusive: bool = False
     # Set by "All <subject> cards" lines — return every matching card rather
     # than capping at top-N. Mutually exclusive with bulk_top in practice.
     bulk_all: bool = False
@@ -123,9 +127,11 @@ class CardQuery:
     def __str__(self) -> str:
         bound_bits: list[str] = []
         if self.price_min is not None:
-            bound_bits.append(f">=${self.price_min:g}")
+            op = ">" if self.price_min_exclusive else ">="
+            bound_bits.append(f"{op}${self.price_min:g}")
         if self.price_max is not None:
-            bound_bits.append(f"<=${self.price_max:g}")
+            op = "<" if self.price_max_exclusive else "<="
+            bound_bits.append(f"{op}${self.price_max:g}")
         bound = f" ({' '.join(bound_bits)})" if bound_bits else ""
         if self.bulk_all:
             in_set = f" in {self.set_hint}" if self.set_hint else ""
@@ -179,7 +185,9 @@ def parse_line(line: str) -> CardQuery | None:
     # In-line price conditions (`>= $20`, `<= $50`, `between` via two clauses).
     # Pulled out before bulk-phrase matching because the bulk regex is anchored
     # to end-of-string and would otherwise miss when a price tail is present.
-    body, price_min, price_max = _extract_price_conds(body)
+    body, price_min, price_max, price_min_exclusive, price_max_exclusive = _extract_price_conds(
+        body
+    )
 
     if not body and url_hint:
         return CardQuery(
@@ -191,6 +199,8 @@ def parse_line(line: str) -> CardQuery | None:
             url_hint,
             price_min=price_min,
             price_max=price_max,
+            price_min_exclusive=price_min_exclusive,
+            price_max_exclusive=price_max_exclusive,
         )
 
     # "Top-N chase cards" patterns trump the regular parsing. The user is
@@ -209,6 +219,8 @@ def parse_line(line: str) -> CardQuery | None:
             count,
             price_min=price_min,
             price_max=price_max,
+            price_min_exclusive=price_min_exclusive,
+            price_max_exclusive=price_max_exclusive,
             bulk_all=count is None,
         )
 
@@ -229,6 +241,8 @@ def parse_line(line: str) -> CardQuery | None:
                         url_hint,
                         price_min=price_min,
                         price_max=price_max,
+                        price_min_exclusive=price_min_exclusive,
+                        price_max_exclusive=price_max_exclusive,
                     )
                 return CardQuery(
                     raw,
@@ -239,6 +253,8 @@ def parse_line(line: str) -> CardQuery | None:
                     url_hint,
                     price_min=price_min,
                     price_max=price_max,
+                    price_min_exclusive=price_min_exclusive,
+                    price_max_exclusive=price_max_exclusive,
                 )
             if len(parts) == 2:
                 if NUMBER_RE.match(parts[1].replace(" ", "")):
@@ -251,6 +267,8 @@ def parse_line(line: str) -> CardQuery | None:
                         url_hint,
                         price_min=price_min,
                         price_max=price_max,
+                        price_min_exclusive=price_min_exclusive,
+                        price_max_exclusive=price_max_exclusive,
                     )
                 return CardQuery(
                     raw,
@@ -261,6 +279,8 @@ def parse_line(line: str) -> CardQuery | None:
                     url_hint,
                     price_min=price_min,
                     price_max=price_max,
+                    price_min_exclusive=price_min_exclusive,
+                    price_max_exclusive=price_max_exclusive,
                 )
 
     # Positional fallback. Find a number-shaped token; everything else is name+set.
@@ -285,28 +305,45 @@ def parse_line(line: str) -> CardQuery | None:
         url_hint,
         price_min=price_min,
         price_max=price_max,
+        price_min_exclusive=price_min_exclusive,
+        price_max_exclusive=price_max_exclusive,
     )
 
 
-def _extract_price_conds(body: str) -> tuple[str, float | None, float | None]:
+def _extract_price_conds(
+    body: str,
+) -> tuple[str, float | None, float | None, bool, bool]:
     """Pull `>=`, `<=`, `>`, `<` numeric conditions out of a line and return
-    the cleaned body plus the resolved (min, max) bounds.
+    the cleaned body plus the resolved (min, max) bounds and their strict /
+    inclusive flags.
 
     Multiple conditions on the same side narrow toward the more restrictive
-    bound (`>= 20 >= 30` → min=30; `<= 100 <= 50` → max=50). Inclusive vs
-    strict is collapsed — `>` is treated like `>=` and `<` like `<=` for
-    simplicity since "exactly $20" isn't a useful budget filter."""
+    bound (`>= 20 >= 30` → min=30; `<= 100 <= 50` → max=50). Strict (`>`,
+    `<`) and inclusive (`>=`, `<=`) are tracked distinctly: when two bounds
+    name the same value, the strict form wins (it admits a smaller set).
+    """
     price_min: float | None = None
     price_max: float | None = None
+    price_min_exclusive = False
+    price_max_exclusive = False
 
     def _capture(m: re.Match) -> str:
-        nonlocal price_min, price_max
+        nonlocal price_min, price_max, price_min_exclusive, price_max_exclusive
         op, raw_val = m.group(1), m.group(2)
         val = float(raw_val)
+        strict = op in (">", "<")
         if op in (">=", ">"):
-            price_min = val if price_min is None else max(price_min, val)
+            if price_min is None or val > price_min:
+                price_min = val
+                price_min_exclusive = strict
+            elif val == price_min and strict:
+                price_min_exclusive = True
         else:
-            price_max = val if price_max is None else min(price_max, val)
+            if price_max is None or val < price_max:
+                price_max = val
+                price_max_exclusive = strict
+            elif val == price_max and strict:
+                price_max_exclusive = True
         return ""
 
     cleaned = PRICE_COND_RE.sub(_capture, body)
@@ -316,7 +353,7 @@ def _extract_price_conds(body: str) -> tuple[str, float | None, float | None]:
     # (e.g. "X cards >= $20" → "X cards", or "X | >= $20" → "X").
     # str.rstrip() is O(n) with no backtracking.
     cleaned = cleaned.rstrip(" ,;|-—")
-    return cleaned, price_min, price_max
+    return cleaned, price_min, price_max, price_min_exclusive, price_max_exclusive
 
 
 def _normalize_number(raw: str) -> str:
