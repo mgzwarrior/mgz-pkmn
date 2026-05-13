@@ -9,13 +9,39 @@ Or from inside the api/ directory:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 
 from .routes import export, lookup, overrides, parse, set_cards, sets
+
+
+class SPAStaticFiles(StaticFiles):
+    """StaticFiles that disables browser caching for ``index.html``.
+
+    Vite emits content-hashed filenames for JS/CSS, so those are safe to cache
+    aggressively. But ``index.html`` points at the current hashed bundle names,
+    and a stale copy will load the old assets after a redeploy. Forcing
+    revalidation on ``index.html`` keeps deploys visible without a hard reload.
+    """
+
+    def file_response(
+        self,
+        full_path: Any,
+        stat_result: os.stat_result,
+        scope: Any,
+        status_code: int = 200,
+    ) -> Response:
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        if os.path.basename(os.fspath(full_path)) == "index.html":
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
 
 app = FastAPI(
     title="mgz-pkmn API",
@@ -55,4 +81,4 @@ def health() -> dict:
 # lives below the API routes so /api/* and /health continue to win.
 _web_dist = Path(__file__).resolve().parent.parent / "web" / "dist"
 if _web_dist.is_dir():
-    app.mount("/", StaticFiles(directory=_web_dist, html=True), name="web")
+    app.mount("/", SPAStaticFiles(directory=_web_dist, html=True), name="web")
