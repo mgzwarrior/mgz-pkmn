@@ -538,6 +538,11 @@ def lookup(
                     "(try adding a PriceCharting URL on the line)",
                     fg="yellow",
                 )
+            elif result.reason == "scrape_failed":
+                click.secho(
+                    f"      ✗ PriceCharting fetch failed for {result.url}",
+                    fg="yellow",
+                )
             else:
                 click.secho(
                     "      ✗ no match in pokemontcg.io or TCGdex",

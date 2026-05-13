@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from mgz_pkmn import cache
 from mgz_pkmn.lookup import (
     _expand_concept,
     _name_token_match,
     _split_evolution_line,
     _subtype_filter,
+    find_card,
     find_top_cards,
 )
 from mgz_pkmn.parser import CardQuery
+from mgz_pkmn.sources.base import MatchResult
 
 
 class _StubTCGClient:
@@ -295,6 +300,70 @@ class ExpandConceptTests(unittest.TestCase):
 
     def test_concept_lookup_is_case_insensitive(self) -> None:
         self.assertEqual(_expand_concept("PUPPY"), _expand_concept("puppy"))
+
+
+class _StubPCClient:
+    """PriceCharting client stub: returns a configured MatchResult from fetch."""
+
+    def __init__(self, result: MatchResult) -> None:
+        self.result = result
+        self.calls: list[str] = []
+
+    def fetch(self, url: str) -> MatchResult:
+        self.calls.append(url)
+        return self.result
+
+
+class _NullTCGDexClient:
+    """TCGdex client stub — should never be called on the URL-hint path."""
+
+    def search_cards(self, *_: object, **__: object) -> list[dict]:
+        return []
+
+
+class FindCardUrlHintOverrideTests(unittest.TestCase):
+    """A PriceCharting URL the user pastes should be persisted as a sticky
+    override only when the fetch actually succeeded — a bad URL must not get
+    pinned into the override store and quietly fail on every future run."""
+
+    URL = "https://www.pricecharting.com/game/pokemon-base-set/charizard-4"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._NO_CACHE_ENV, None)
+        self.q = CardQuery(raw=f"Charizard | {self.URL}", name="Charizard", url_hint=self.URL)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+
+    def test_scrape_failed_url_is_not_persisted(self) -> None:
+        pc = _StubPCClient(MatchResult(None, "scrape_failed", url=self.URL))
+        result = find_card(_StubTCGClient(), _NullTCGDexClient(), pc, self.q)
+        self.assertEqual(result.reason, "scrape_failed")
+        self.assertEqual(result.url, self.URL)
+        self.assertIsNone(cache.find_url_override("Charizard", None))
+        # PC client was actually consulted — guards against a regression
+        # where the URL-hint branch silently fell through.
+        self.assertEqual(pc.calls, [self.URL])
+
+    def test_successful_url_is_persisted(self) -> None:
+        card = {"id": "pricecharting:x", "name": "Charizard"}
+        pc = _StubPCClient(MatchResult(card, "matched"))
+        result = find_card(_StubTCGClient(), _NullTCGDexClient(), pc, self.q)
+        self.assertEqual(result.reason, "matched")
+        self.assertIs(result.card, card)
+        self.assertEqual(cache.find_url_override("Charizard", None), self.URL)
 
 
 if __name__ == "__main__":
