@@ -126,22 +126,24 @@ def find_card(
     after pokemontcg.io misses."""
     # 1. Explicit URL hint takes precedence — the user already found the card.
     #    Record it so future runs auto-pick it up without the user re-pasting.
+    #    A scrape failure (404 / 500 / connection error) propagates as
+    #    `scrape_failed` so the CLI can name the URL instead of pretending
+    #    nothing matched.
     if q.url_hint and "pricecharting.com" in q.url_hint:
         disk_cache.record_url_override(q.name, q.set_hint, q.url_hint)
-        card = pc.fetch(q.url_hint)
-        if card:
-            return MatchResult(card, "matched")
-        return MatchResult(None, "no_candidates")
+        return pc.fetch(q.url_hint)
     # Other URL hosts: not yet supported; fall through to DB search.
 
     # 2. URL override (sticky) — an earlier run recorded a PriceCharting URL
     #    for this (name, set). Treat it like an explicit hint so the user
-    #    only has to paste a URL once per card across runs.
+    #    only has to paste a URL once per card across runs. If the override
+    #    is stale or the scrape fails, fall through to DB sources rather than
+    #    failing the lookup — the user didn't paste it this run.
     override = disk_cache.find_url_override(q.name, q.set_hint)
     if override and "pricecharting.com" in override:
-        card = pc.fetch(override)
-        if card:
-            return MatchResult(card, "matched")
+        override_result = pc.fetch(override)
+        if override_result.card:
+            return override_result
 
     # 3. pokemontcg.io — best for English / international English releases.
     primary = search_pokemontcg(pkmn, q)

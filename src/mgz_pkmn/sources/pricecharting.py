@@ -12,6 +12,7 @@ import requests
 
 from ..parser import detect_card_language
 from ._common import USER_AGENT
+from .base import MatchResult
 
 # Anchor on the <td id="..."> wrapper so the prices come from the right row.
 _PC_PRICE_RE_TEMPLATE = r'<td id="{}">.*?<span class="price js-price">\s*\$([\d,.]+)\s*</span>'
@@ -43,7 +44,14 @@ class PriceChartingClient:
         self.verbose = verbose
         self._cache: dict[str, str] = {}
 
-    def fetch(self, url: str) -> dict[str, Any] | None:
+    def fetch(self, url: str) -> MatchResult:
+        """Scrape a PriceCharting product page.
+
+        Returns `MatchResult(card, "matched")` on success and
+        `MatchResult(None, "scrape_failed", url=url)` on HTTP / connection
+        error so callers can surface the failing URL instead of treating it
+        as a generic "no match".
+        """
         if self.verbose:
             print(f"  GET {url}", file=sys.stderr)
         try:
@@ -56,8 +64,8 @@ class PriceChartingClient:
         except requests.RequestException as exc:
             if self.verbose:
                 print(f"  ! pricecharting fetch failed: {exc}", file=sys.stderr)
-            return None
-        return _scrape_pricecharting(html, url)
+            return MatchResult(None, "scrape_failed", url=url)
+        return MatchResult(_scrape_pricecharting(html, url), "matched")
 
 
 def _find_pc_image(html: str) -> str | None:

@@ -11,7 +11,10 @@ from ..parser import CardQuery
 @dataclass
 class MatchResult:
     card: dict[str, Any] | None
-    reason: str  # "matched" | "no_candidates" | "set_mismatch"
+    reason: str  # "matched" | "no_candidates" | "set_mismatch" | "scrape_failed"
+    # Set when reason="scrape_failed" so callers can name the URL in error
+    # messages. Left None for the other reasons.
+    url: str | None = None
 
 
 def set_overlap(card: dict[str, Any], hint: str) -> bool:

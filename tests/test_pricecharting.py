@@ -3,10 +3,13 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from mgz_pkmn.sources.pricecharting import _scrape_pricecharting
+from mgz_pkmn.sources.pricecharting import PriceChartingClient, _scrape_pricecharting
 
 _HTML_TEMPLATE = """
 <html>
@@ -77,6 +80,50 @@ class PriceChartingScrapeTests(unittest.TestCase):
             "https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407",
         )
         self.assertEqual(result["language"], "zh-cn")
+
+
+class PriceChartingFetchErrorTests(unittest.TestCase):
+    """`PriceChartingClient.fetch` must wrap scrape failures in a MatchResult
+    so the CLI can name the URL instead of surfacing a raw `requests.HTTPError`
+    or pretending the card simply wasn't found."""
+
+    URL = "https://www.pricecharting.com/game/pokemon-base-set/charizard-4"
+
+    def _fetch_with_exception(self, exc: Exception) -> object:
+        client = PriceChartingClient()
+        with patch.object(client.session, "get", side_effect=exc):
+            return client.fetch(self.URL)
+
+    def test_http_404_returns_scrape_failed(self) -> None:
+        resp = requests.Response()
+        resp.status_code = 404
+        result = self._fetch_with_exception(requests.HTTPError(response=resp))
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "scrape_failed")
+        self.assertEqual(result.url, self.URL)
+
+    def test_http_500_returns_scrape_failed(self) -> None:
+        resp = requests.Response()
+        resp.status_code = 500
+        result = self._fetch_with_exception(requests.HTTPError(response=resp))
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "scrape_failed")
+        self.assertEqual(result.url, self.URL)
+
+    def test_connection_error_returns_scrape_failed(self) -> None:
+        result = self._fetch_with_exception(requests.ConnectionError("boom"))
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "scrape_failed")
+        self.assertEqual(result.url, self.URL)
+
+    def test_successful_fetch_returns_matched(self) -> None:
+        client = PriceChartingClient()
+        # Prime the in-memory cache so fetch never touches the network.
+        client._cache[self.URL] = _HTML_TEMPLATE.format(title="Charizard #4 Base Set")
+        result = client.fetch(self.URL)
+        self.assertEqual(result.reason, "matched")
+        self.assertIsNotNone(result.card)
+        self.assertEqual(result.card["name"], "Charizard")
 
 
 if __name__ == "__main__":
