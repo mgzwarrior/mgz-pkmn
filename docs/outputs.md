@@ -35,7 +35,7 @@ alongside the spreadsheet.
 | Key | Contents |
 |---|---|
 | `generated_at`, `version`, `elapsed_seconds` | Run metadata. |
-| `summary` | Counts (rows / matched / missed / priced / bulk-expanded), `totals_by_currency` (sum of market + each comp tier), `stats_by_currency` (avg / median / min / max), and frequency tables for `by_database`, `by_price_source`, `by_rarity`. |
+| `summary` | `sort_mode` (the `--sort` value used for the run, so consumers can reproduce the ordering), counts (rows / matched / missed / priced / bulk-expanded), `totals_by_currency` (sum of market + each comp tier), `stats_by_currency` (avg / median / min / max), and frequency tables for `by_database`, `by_price_source`, `by_rarity`. |
 | `tags` | Same shape as `summary` but per input file (per "Source" tag), plus the `highest_value_card` in that section. |
 | `highlights.most_valuable` | Top 5 priced cards across the whole run. |
 | `highlights.missing` | Every unmatched line + its tag, so you can iterate the input. |

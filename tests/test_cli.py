@@ -55,6 +55,17 @@ class CliHelpersTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["rows_total"], 1)
         self.assertEqual(payload["summary"]["rows_bulk_expanded"], 3)
 
+    def test_json_report_includes_sort_mode(self) -> None:
+        rows = [_make_row("a", 10)]
+        payload = build_json_report(
+            rows=rows,
+            counters={},
+            input_lines=1,
+            elapsed=1.0,
+            sort_mode="price-desc",
+        )
+        self.assertEqual(payload["summary"]["sort_mode"], "price-desc")
+
 
 class FormatHelpersTests(unittest.TestCase):
     def test_format_bytes_renders_each_unit(self) -> None:

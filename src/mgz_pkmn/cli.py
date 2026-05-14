@@ -705,6 +705,7 @@ def lookup(
             elapsed=overall_elapsed,
             max_price=max_price,
             deduped_rows=deduped_rows,
+            sort_mode=sort_mode,
         )
         report_json.parent.mkdir(parents=True, exist_ok=True)
         report_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
