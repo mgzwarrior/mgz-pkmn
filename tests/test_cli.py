@@ -160,6 +160,23 @@ class WarnIfCacheLargeTests(unittest.TestCase):
         self.assertIn("threshold", result.stderr)
         self.assertIn("--clear-cache", result.stderr)
 
+    def test_warning_shell_quotes_path_with_spaces(self) -> None:
+        # XDG roots with spaces are real (e.g. macOS "Application Support").
+        # The `rm -rf …` suggestion must be copy-pasteable, so the path
+        # needs to be quoted in the printed message.
+        spaced = tempfile.TemporaryDirectory(prefix="cache space ")
+        self.addCleanup(spaced.cleanup)
+        os.environ["XDG_CACHE_HOME"] = spaced.name
+        cache.write_api("k", {"x": 1})
+        os.environ[cache._WARN_BYTES_ENV] = "1"
+        result = self._invoke()
+        # The unquoted path would land in the message verbatim; the quoted
+        # form wraps it in single quotes (shlex.quote's behaviour on paths
+        # with spaces). Either way, the literal "rm -rf <space><space>" with
+        # an unquoted space MUST NOT appear.
+        self.assertIn("'", result.stderr)
+        self.assertNotIn(f"rm -rf {spaced.name}/mgz-pkmn ", result.stderr)
+
     def test_zero_threshold_disables_warning(self) -> None:
         cache.write_api("k", {"x": 1})
         os.environ[cache._WARN_BYTES_ENV] = "0"

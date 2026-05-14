@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -849,10 +850,14 @@ def _warn_if_cache_large() -> None:
     size = disk_cache.cache_size_bytes()
     if size <= threshold:
         return
+    # `size > 0` implies the cache dir exists, so `cache_root()`'s mkdir is
+    # a no-op here. Quote the path with shlex so a user can copy-paste the
+    # `rm -rf` suggestion verbatim even when XDG_CACHE_HOME has spaces.
+    root = str(disk_cache.cache_root())
     click.secho(
         f"⚠ cache directory is {_format_bytes(size)} "
         f"(threshold {_format_bytes(threshold)}). "
-        f"Run with --clear-cache or `rm -rf {disk_cache.cache_root()}` to reclaim space.",
+        f"Run with --clear-cache or `rm -rf {shlex.quote(root)}` to reclaim space.",
         fg="yellow",
         err=True,
     )

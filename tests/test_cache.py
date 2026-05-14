@@ -50,6 +50,18 @@ class CacheSizeTests(_IsolatedCacheDirMixin):
         expected += cache._overrides_path().stat().st_size
         self.assertEqual(cache.cache_size_bytes(), expected)
 
+    def test_size_check_does_not_create_cache_root(self) -> None:
+        # Point at a fresh, untouched XDG location and call size_bytes — it
+        # should report 0 *without* the side effect of creating the dir
+        # (matters for read-only filesystems and clean-environment checks).
+        fresh = tempfile.TemporaryDirectory()
+        self.addCleanup(fresh.cleanup)
+        os.environ["XDG_CACHE_HOME"] = fresh.name
+        root = cache._cache_root_path()
+        self.assertFalse(root.exists())
+        self.assertEqual(cache.cache_size_bytes(), 0)
+        self.assertFalse(root.exists(), "size check must not create the cache dir")
+
 
 class CacheWarnThresholdTests(_IsolatedCacheDirMixin):
     def test_default_is_50_mb(self) -> None:
