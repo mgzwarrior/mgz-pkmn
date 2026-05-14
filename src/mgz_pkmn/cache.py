@@ -20,6 +20,7 @@ eviction — the cache is small (KB per query) and clearing is a manual
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -29,7 +30,9 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_API_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
+DEFAULT_CACHE_WARN_BYTES = 50 * 1024 * 1024  # 50 MB
 _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
+_WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
 
 
@@ -54,16 +57,69 @@ def _disabled() -> bool:
     return os.environ.get(_NO_CACHE_ENV, "").strip() not in ("", "0", "false", "False")
 
 
+def _cache_root_path() -> Path:
+    """Compute the cache root path without creating it.
+
+    Read-only counterpart to `cache_root()` — used by pre-flight checks
+    (size warning, etc.) that shouldn't have the side effect of creating
+    a cache directory on a fresh install or read-only filesystem."""
+    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(base) / "mgz-pkmn"
+
+
 def cache_root() -> Path:
     """Resolve the cache directory, creating it lazily.
 
     Honours `XDG_CACHE_HOME` so users with a custom cache layout aren't
     overridden, and falls back to `~/.cache/mgz-pkmn` otherwise. Safe to
     call repeatedly — `mkdir(parents=True, exist_ok=True)` is idempotent."""
-    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    root = Path(base) / "mgz-pkmn"
+    root = _cache_root_path()
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def cache_warn_threshold() -> int:
+    """Resolve the soft-warn threshold for total cache size, in bytes.
+
+    Reads `MGZ_PKMN_CACHE_WARN_BYTES` (an integer byte count) when set;
+    unset / empty / unparseable values fall back to `DEFAULT_CACHE_WARN_BYTES`
+    (50 MB). Only an explicit non-positive integer (`0` or negative) disables
+    the warning — callers treat `<= 0` as "do not warn"."""
+    raw = os.environ.get(_WARN_BYTES_ENV, "").strip()
+    if not raw:
+        return DEFAULT_CACHE_WARN_BYTES
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_CACHE_WARN_BYTES
+
+
+def cache_size_bytes() -> int:
+    """Total on-disk cache size in bytes (API responses + URL overrides file).
+
+    Stat-only — no payload reads, no JSON parsing, and no side effects: the
+    cache directory is not created if it doesn't exist yet. Safe to call at
+    every CLI startup as a cheap pre-flight check. Returns 0 when the cache
+    root is missing (fresh install, post-`rm -rf`, read-only $HOME, etc.)."""
+    root = _cache_root_path()
+    if not root.exists():
+        return 0
+    total = 0
+    api_dir = root / "api"
+    if api_dir.exists():
+        try:
+            entries = list(api_dir.iterdir())
+        except OSError:
+            entries = []
+        for entry in entries:
+            if not entry.is_file() or entry.suffix != ".json":
+                continue
+            with contextlib.suppress(OSError):
+                total += entry.stat().st_size
+    overrides = root / _OVERRIDES_FILE
+    with contextlib.suppress(OSError):
+        total += overrides.stat().st_size
+    return total
 
 
 # ---------------------------------------------------------------------------

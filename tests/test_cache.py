@@ -33,7 +33,52 @@ class _IsolatedCacheDirMixin(unittest.TestCase):
             os.environ.pop(cache._NO_CACHE_ENV, None)
         else:
             os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        os.environ.pop(cache._WARN_BYTES_ENV, None)
         self._tmp.cleanup()
+
+
+class CacheSizeTests(_IsolatedCacheDirMixin):
+    def test_empty_cache_size_is_zero(self) -> None:
+        self.assertEqual(cache.cache_size_bytes(), 0)
+
+    def test_size_sums_api_and_overrides(self) -> None:
+        cache.write_api("k1", {"a": 1})
+        cache.write_api("k2", {"b": 2})
+        cache.record_url_override("Mew", None, "https://pc/mew")
+        api_dir = cache.cache_root() / "api"
+        expected = sum(p.stat().st_size for p in api_dir.glob("*.json"))
+        expected += cache._overrides_path().stat().st_size
+        self.assertEqual(cache.cache_size_bytes(), expected)
+
+    def test_size_check_does_not_create_cache_root(self) -> None:
+        # Point at a fresh, untouched XDG location and call size_bytes — it
+        # should report 0 *without* the side effect of creating the dir
+        # (matters for read-only filesystems and clean-environment checks).
+        fresh = tempfile.TemporaryDirectory()
+        self.addCleanup(fresh.cleanup)
+        os.environ["XDG_CACHE_HOME"] = fresh.name
+        root = cache._cache_root_path()
+        self.assertFalse(root.exists())
+        self.assertEqual(cache.cache_size_bytes(), 0)
+        self.assertFalse(root.exists(), "size check must not create the cache dir")
+
+
+class CacheWarnThresholdTests(_IsolatedCacheDirMixin):
+    def test_default_is_50_mb(self) -> None:
+        self.assertEqual(cache.cache_warn_threshold(), 50 * 1024 * 1024)
+        self.assertEqual(cache.cache_warn_threshold(), cache.DEFAULT_CACHE_WARN_BYTES)
+
+    def test_env_override_parses_integer(self) -> None:
+        os.environ[cache._WARN_BYTES_ENV] = "12345"
+        self.assertEqual(cache.cache_warn_threshold(), 12345)
+
+    def test_zero_disables_warning(self) -> None:
+        os.environ[cache._WARN_BYTES_ENV] = "0"
+        self.assertEqual(cache.cache_warn_threshold(), 0)
+
+    def test_bad_env_falls_back_to_default(self) -> None:
+        os.environ[cache._WARN_BYTES_ENV] = "not-a-number"
+        self.assertEqual(cache.cache_warn_threshold(), cache.DEFAULT_CACHE_WARN_BYTES)
 
 
 class ApiCacheTests(_IsolatedCacheDirMixin):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -402,6 +403,7 @@ def lookup(
         # but the cache module checks it) inherit the setting.
         os.environ["MGZ_PKMN_NO_CACHE"] = "1"
     _print_banner(__version__)
+    _warn_if_cache_large()
 
     if clear_cache:
         cleared = disk_cache.clear_api_cache()
@@ -833,6 +835,32 @@ def _format_bytes(n: int) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024
     return f"{size:.1f} {units[-1]}"  # unreachable, satisfies type-checkers
+
+
+def _warn_if_cache_large() -> None:
+    """Soft-warn when the on-disk cache exceeds the configured threshold.
+
+    Stat-only check at run start (no payload reads). Threshold defaults to
+    50 MB and is overridable via `MGZ_PKMN_CACHE_WARN_BYTES`; a non-positive
+    value disables the warning. We surface this on the CLI's stderr so it
+    doesn't pollute piped stdout output but is still visible interactively."""
+    threshold = disk_cache.cache_warn_threshold()
+    if threshold <= 0:
+        return
+    size = disk_cache.cache_size_bytes()
+    if size <= threshold:
+        return
+    # `size > 0` implies the cache dir exists, so `cache_root()`'s mkdir is
+    # a no-op here. Quote the path with shlex so a user can copy-paste the
+    # `rm -rf` suggestion verbatim even when XDG_CACHE_HOME has spaces.
+    root = str(disk_cache.cache_root())
+    click.secho(
+        f"⚠ cache directory is {_format_bytes(size)} "
+        f"(threshold {_format_bytes(threshold)}). "
+        f"Run with --clear-cache or `rm -rf {shlex.quote(root)}` to reclaim space.",
+        fg="yellow",
+        err=True,
+    )
 
 
 def _format_age(mtime: float | None, *, now: float | None = None) -> str:
