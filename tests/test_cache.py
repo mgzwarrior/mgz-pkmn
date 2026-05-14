@@ -199,6 +199,57 @@ class CacheStatsTests(_IsolatedCacheDirMixin):
         self.assertEqual(s.override_count, 1)
 
 
+class ApiCounterTests(_IsolatedCacheDirMixin):
+    def setUp(self) -> None:
+        super().setUp()
+        cache.reset_api_counters()
+
+    def test_reset_zeroes_counters(self) -> None:
+        cache.write_api("k", {"x": 1})
+        cache.read_api("k")
+        self.assertNotEqual(cache.api_counters(), (0, 0))
+        cache.reset_api_counters()
+        self.assertEqual(cache.api_counters(), (0, 0))
+
+    def test_write_increments_fetches(self) -> None:
+        cache.write_api("k1", {"a": 1})
+        cache.write_api("k2", {"b": 2})
+        hits, fetches = cache.api_counters()
+        self.assertEqual(hits, 0)
+        self.assertEqual(fetches, 2)
+
+    def test_read_hit_increments_hits(self) -> None:
+        cache.write_api("k", {"x": 1})
+        cache.reset_api_counters()
+        self.assertEqual(cache.read_api("k"), {"x": 1})
+        self.assertEqual(cache.read_api("k"), {"x": 1})
+        hits, fetches = cache.api_counters()
+        self.assertEqual(hits, 2)
+        self.assertEqual(fetches, 0)
+
+    def test_read_miss_does_not_increment_hits(self) -> None:
+        self.assertIsNone(cache.read_api("never-written"))
+        self.assertEqual(cache.api_counters(), (0, 0))
+
+    def test_ttl_expiry_is_not_a_hit(self) -> None:
+        key = "expired"
+        cache.write_api(key, {"x": 1})
+        cache.reset_api_counters()
+        path = cache._api_path(key)
+        old = time.time() - (cache.DEFAULT_API_TTL_SECONDS + 100)
+        os.utime(path, (old, old))
+        self.assertIsNone(cache.read_api(key))
+        self.assertEqual(cache.api_counters(), (0, 0))
+
+    def test_no_cache_env_suppresses_both_counters(self) -> None:
+        cache.write_api("k", {"x": 1})
+        cache.reset_api_counters()
+        os.environ[cache._NO_CACHE_ENV] = "1"
+        self.assertIsNone(cache.read_api("k"))
+        cache.write_api("k2", {"y": 2})
+        self.assertEqual(cache.api_counters(), (0, 0))
+
+
 class UrlOverrideTests(_IsolatedCacheDirMixin):
     def test_record_and_find_round_trip(self) -> None:
         cache.record_url_override(

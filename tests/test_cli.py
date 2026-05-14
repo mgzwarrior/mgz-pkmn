@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
@@ -17,6 +18,7 @@ from mgz_pkmn.cli import _dedupe_rows, _format_age, _format_bytes, _warn_if_cach
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
 from mgz_pkmn.report import build_json_report
+from mgz_pkmn.sources.base import MatchResult
 from mgz_pkmn.spreadsheet import Row
 
 
@@ -182,6 +184,97 @@ class WarnIfCacheLargeTests(unittest.TestCase):
         os.environ[cache._WARN_BYTES_ENV] = "0"
         result = self._invoke()
         self.assertEqual(result.stderr, "")
+
+
+class LookupSummaryCacheTests(unittest.TestCase):
+    """End-to-end check that `· N cached / M fetched` appears in the summary
+    when the run produced cache hits — and is suppressed when it didn't.
+
+    We stub `find_card` so the test stays hermetic, but drive real disk-cache
+    reads/writes from inside the stub so the counters increment for the same
+    reason they would in production."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_warn = os.environ.get(cache._WARN_BYTES_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        # Silence the size-warn helper so it doesn't pollute the captured
+        # output we're asserting against.
+        os.environ[cache._WARN_BYTES_ENV] = "0"
+        cache.reset_api_counters()
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_warn is None:
+            os.environ.pop(cache._WARN_BYTES_ENV, None)
+        else:
+            os.environ[cache._WARN_BYTES_ENV] = self._old_warn
+
+    def _write_inputs(self, names: list[str]) -> Path:
+        path = Path(self._tmp.name) / "in.txt"
+        path.write_text("\n".join(names) + "\n", encoding="utf-8")
+        return path
+
+    def _make_stub(self) -> object:
+        """Return a `find_card` replacement that simulates cache traffic.
+
+        Each call reads a per-query URL from disk; if absent, performs a
+        write (the production `_fetch_page` does the same). Pre-seeding
+        keys before invoking the CLI lets the test force a specific
+        hit/fetch mix."""
+
+        def stub(pkmn, tcgdex, pc, q, default_lang=None):
+            url = f"https://example.test/q={q.name}"
+            if cache.read_api(url) is None:
+                cache.write_api(url, {"id": q.name, "name": q.name})
+            card = {
+                "id": q.name,
+                "name": q.name,
+                "number": "1",
+                "set": {"name": "Test Set"},
+                "rarity": "Common",
+                "_database": "stub",
+            }
+            return MatchResult(card, "matched")
+
+        return stub
+
+    def test_summary_includes_cached_and_fetched_counts(self) -> None:
+        # Pre-seed one URL so the first query is a hit; the second query
+        # writes a fresh entry (a "fetch"). Expected: 1 cached / 1 fetched.
+        cache.write_api("https://example.test/q=Mew", {"id": "Mew", "name": "Mew"})
+        input_path = self._write_inputs(["Mew", "Pikachu"])
+        out = Path(self._tmp.name) / "out.xlsx"
+
+        with patch("mgz_pkmn.cli.find_card", side_effect=self._make_stub()):
+            result = CliRunner().invoke(
+                cli,
+                ["lookup", str(input_path), "-o", str(out), "--no-images"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("1 cached / 1 fetched", result.output)
+
+    def test_summary_omits_cache_counts_when_no_hits(self) -> None:
+        # Fresh cache → every query is a fetch, no hits. The summary tail
+        # should be suppressed entirely on a zero-hit run.
+        input_path = self._write_inputs(["Pikachu"])
+        out = Path(self._tmp.name) / "out.xlsx"
+
+        with patch("mgz_pkmn.cli.find_card", side_effect=self._make_stub()):
+            result = CliRunner().invoke(
+                cli,
+                ["lookup", str(input_path), "-o", str(out), "--no-images"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertNotIn("cached", result.output)
+        self.assertNotIn("fetched", result.output)
 
 
 if __name__ == "__main__":

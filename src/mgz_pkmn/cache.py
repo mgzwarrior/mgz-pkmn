@@ -35,6 +35,12 @@ _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
 _WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
 
+# Per-run counters for the API response cache: hits = served from disk,
+# fetches = written after a successful network call. Reset at the start of
+# each `pkmn lookup` invocation so the summary line reflects only that run.
+_api_hits = 0
+_api_fetches = 0
+
 
 @dataclass(frozen=True)
 class CacheStats:
@@ -139,7 +145,8 @@ def read_api(key: str, ttl_seconds: float = DEFAULT_API_TTL_SECONDS) -> Any | No
 
     `key` is expected to be a fully-qualified request URL — same URL hashes
     to the same path. Returns None on miss, expiry, or any I/O / JSON error
-    (caller falls through to a network fetch)."""
+    (caller falls through to a network fetch). A successful return bumps the
+    per-run hit counter (see `api_counters()`)."""
     if _disabled():
         return None
     p = _api_path(key)
@@ -148,9 +155,12 @@ def read_api(key: str, ttl_seconds: float = DEFAULT_API_TTL_SECONDS) -> Any | No
     if time.time() - p.stat().st_mtime > ttl_seconds:
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        payload = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+    global _api_hits
+    _api_hits += 1
+    return payload
 
 
 def clear_api_cache() -> int:
@@ -183,7 +193,9 @@ def write_api(key: str, data: Any) -> None:
 
     Atomic write: payload goes to a sibling `.tmp` file and then renames.
     A failed serialisation or rename is silently ignored — caching is best
-    effort, never a hard requirement."""
+    effort, never a hard requirement. A successful write bumps the per-run
+    fetch counter (see `api_counters()`); callers only invoke this after a
+    successful network fetch, so it doubles as the fetch tally."""
     if _disabled():
         return
     try:
@@ -193,6 +205,27 @@ def write_api(key: str, data: Any) -> None:
         tmp.replace(p)
     except (OSError, TypeError, ValueError):
         return
+    global _api_fetches
+    _api_fetches += 1
+
+
+def reset_api_counters() -> None:
+    """Zero the per-run hit/fetch counters. Called at `pkmn lookup` start so
+    the summary reflects only the current run, not any prior in-process state
+    (matters for the test suite, where many runs share an interpreter)."""
+    global _api_hits, _api_fetches
+    _api_hits = 0
+    _api_fetches = 0
+
+
+def api_counters() -> tuple[int, int]:
+    """Return `(hits, fetches)` accumulated since the last `reset_api_counters`.
+
+    `hits` is the number of `read_api` calls that served a cached payload;
+    `fetches` is the number of `write_api` calls that successfully persisted
+    a freshly-fetched payload. The CLI summary reads this snapshot to render
+    the `· N cached / M fetched` tail."""
+    return (_api_hits, _api_fetches)
 
 
 # ---------------------------------------------------------------------------
