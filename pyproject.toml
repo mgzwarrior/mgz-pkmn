@@ -59,7 +59,7 @@ Documentation = "https://github.com/mgzwarrior/mgz-pkmn/tree/main/docs"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "ruff>=0.6",
+    "ruff>=0.15.13",
 ]
 
 [build-system]
