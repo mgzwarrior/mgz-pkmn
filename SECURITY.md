@@ -7,8 +7,8 @@ We take security seriously. Thank you for helping keep `mgz-pkmn` and its users 
 `mgz-pkmn` is pre-1.0 and ships from `main`. Security fixes land on the latest
 release line — older tagged versions are not patched.
 
-| Version | Supported          |
-| ------- | ------------------ |
+| Version                 | Supported          |
+| ----------------------- | ------------------ |
 | `main` / latest release | :white_check_mark: |
 | Older tags              | :x:                |
 
