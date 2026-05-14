@@ -34,6 +34,7 @@ DEFAULT_CACHE_WARN_BYTES = 50 * 1024 * 1024  # 50 MB
 _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
 _WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
+OVERRIDES_SCHEMA_VERSION = 1
 
 # Per-run counters for the API response cache: hits = served from disk,
 # fetches = written after a successful network call. Reset at the start of
@@ -247,6 +248,29 @@ def _override_key(name: str, set_hint: str | None) -> str:
     return f"{name.lower().strip()}|{(set_hint or '').lower().strip()}"
 
 
+def _extract_overrides(data: Any) -> dict[str, str]:
+    """Pull the `name|set → URL` map out of a parsed overrides document.
+
+    Recognises two on-disk shapes:
+
+    - **Versioned** (current): `{"schema_version": N, "overrides": {...}}`.
+      Future schema bumps will key off `schema_version` to drive migrations;
+      for now any integer version is accepted and the `overrides` payload is
+      read as-is.
+    - **Legacy** (pre-#18): a bare `{name|set: url, ...}` flat dict. Read
+      transparently so existing user caches keep working — the next write
+      upgrades the file to the versioned shape.
+
+    Anything else (non-dict, missing `overrides` key, non-dict payload)
+    returns `{}` so a corrupt file doesn't take down a lookup run."""
+    if not isinstance(data, dict):
+        return {}
+    if isinstance(data.get("schema_version"), int):
+        payload = data.get("overrides")
+        return payload if isinstance(payload, dict) else {}
+    return data
+
+
 def _load_overrides() -> dict[str, str]:
     if _disabled():
         return {}
@@ -255,9 +279,9 @@ def _load_overrides() -> dict[str, str]:
         return {}
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
         return {}
+    return _extract_overrides(data)
 
 
 def _save_overrides(data: dict[str, str]) -> None:
@@ -266,7 +290,11 @@ def _save_overrides(data: dict[str, str]) -> None:
     try:
         p = _overrides_path()
         tmp = p.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+        document = {
+            "schema_version": OVERRIDES_SCHEMA_VERSION,
+            "overrides": data,
+        }
+        tmp.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
         tmp.replace(p)
     except (OSError, TypeError, ValueError):
         return
@@ -345,8 +373,7 @@ def stats() -> CacheStats:
         try:
             override_bytes = overrides_path.stat().st_size
             data = json.loads(overrides_path.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                override_count = len(data)
+            override_count = len(_extract_overrides(data))
         except (OSError, json.JSONDecodeError):
             # Malformed file — report bytes (if we got them) but no entries.
             pass

@@ -13,6 +13,14 @@
 # Variant in square brackets is optional. Common values:
 #   normal, holofoil, reverseHolofoil, 1stEditionHolofoil, unlimitedHolofoil
 #
+# Paste a PriceCharting product URL anywhere on a line to pin that exact
+# page (handy for obscure promos / regional prints the databases can't
+# disambiguate). On a successful scrape the URL is remembered, keyed by
+# (name, set hint) — drop it from the line on later runs and it's
+# re-applied automatically. See input/example-url-overrides.txt.
+#
+#   Cubone | Chinese Gem Pack Vol 3 | 407 https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407
+#
 # Examples (uncomment to try):
 Charizard | Base | 4/102
 Pikachu | Base | 58/102
