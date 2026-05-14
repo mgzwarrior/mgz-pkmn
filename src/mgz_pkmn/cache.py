@@ -226,8 +226,10 @@ def stats() -> CacheStats:
 
     Honoured even when `MGZ_PKMN_NO_CACHE=1` is set: the user is asking
     about real on-disk state, and silently reporting zeros would defeat
-    the purpose. Reads stat() info directly — no payload parsing — so a
-    huge cache costs the same as an empty one."""
+    the purpose. For API entries we only call `stat()` — no payload reads
+    — so cost scales with the number of files, not their aggregate bytes.
+    The overrides file is parsed once (a single JSON document) to count
+    keys."""
     root = cache_root()
 
     api_dir = root / "api"
