@@ -126,8 +126,8 @@ export function SettingsDrawer() {
               />
               <Toggle
                 id="noImages"
-                label="Hide images in results"
-                description="Speeds up the table but hides thumbnails"
+                label="Hide images"
+                description="Skips thumbnails in the table and image embedding in exports — faster and smaller"
                 checked={settings.noImages}
                 onChange={(v) => updateSettings({ noImages: v })}
               />

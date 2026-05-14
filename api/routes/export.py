@@ -4,16 +4,20 @@ binder PDF, or set-completion checklist PDF."""
 from __future__ import annotations
 
 import io
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
 
+import requests
 from fastapi import APIRouter, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from mgz_pkmn.binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from mgz_pkmn.checklist import write_checklist_pdf
+from mgz_pkmn.images import download_image
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
 from mgz_pkmn.sorting import DEFAULT_SORT, SORT_MODES, sort_rows
@@ -61,6 +65,7 @@ class ExportRequest(BaseModel):
     sort: str = DEFAULT_SORT
     max_price: float | None = None
     title: str = "cards"
+    no_images: bool = True  # mirrors the lookup Settings default
 
 
 # Valid formats and the (filename, media-type) each maps to.
@@ -74,6 +79,9 @@ _FORMAT_MAP: dict[str, tuple[str, str]] = {
     "checklist": ("checklist.pdf", "application/pdf"),
 }
 
+# Formats whose writers embed card art. The checklist is text-only.
+_IMAGE_FORMATS = frozenset({"xlsx", "pdf", "condensed-pdf"})
+
 
 # ---------------------------------------------------------------------------
 # Route
@@ -86,9 +94,9 @@ async def export_file(req: ExportRequest) -> StreamingResponse:
 
     `format` is one of `xlsx`, `pdf`, `condensed-pdf`, `checklist`.
     `sort` controls row ordering (see `mgz_pkmn.sorting.SORT_MODES`).
-    Images are not embedded during API export — the export is intentionally
-    fast and dependency-free on the server side. Use the CLI for
-    image-embedded spreadsheets.
+    When `no_images` is false, each matched card's art is downloaded and
+    embedded into the xlsx / binder PDFs, mirroring the CLI. The default
+    (`no_images: true`) skips downloads for a faster, smaller export.
     """
     if req.format not in _FORMAT_MAP:
         raise HTTPException(
@@ -101,13 +109,33 @@ async def export_file(req: ExportRequest) -> StreamingResponse:
             detail=f"sort must be one of {list(SORT_MODES)}",
         )
 
-    rows = [_to_row(r) for r in req.rows]
-    sort_rows(rows, req.sort)
-
     filename, media_type = _FORMAT_MAP[req.format]
+    # Image downloads + document rendering are blocking; keep them off the
+    # event loop.
+    content = await run_in_threadpool(_render, req, filename)
 
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+def _render(req: ExportRequest, filename: str) -> bytes:
+    """Build the requested file and return its bytes. Runs in a worker thread."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        out_path = Path(tmpdir) / filename
+        tmp = Path(tmpdir)
+
+        embed_images = not req.no_images and req.format in _IMAGE_FORMATS
+        if embed_images:
+            images_dir = tmp / "images"
+            with requests.Session() as session:
+                rows = [_to_row(r, images_dir, session) for r in req.rows]
+        else:
+            rows = [_to_row(r, None, None) for r in req.rows]
+        sort_rows(rows, req.sort)
+
+        out_path = tmp / filename
         if req.format == "xlsx":
             write_spreadsheet(rows, out_path, max_price=req.max_price)
         elif req.format == "pdf":
@@ -125,17 +153,20 @@ async def export_file(req: ExportRequest) -> StreamingResponse:
                     status_code=400,
                     detail="checklist has no matched rows to render",
                 )
-        content = out_path.read_bytes()
-
-    return StreamingResponse(
-        io.BytesIO(content),
-        media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+        return out_path.read_bytes()
 
 
-def _to_row(r: RowIn) -> Row:
-    """Reconstruct an internal Row from the wire payload."""
+def _to_row(
+    r: RowIn,
+    images_dir: Path | None,
+    session: requests.Session | None,
+) -> Row:
+    """Reconstruct an internal Row from the wire payload.
+
+    When `images_dir` and `session` are provided, the matched card's art is
+    downloaded into `images_dir` so the writers can embed it — mirroring the
+    CLI. Otherwise `image_path` is left None.
+    """
     q = CardQuery(
         raw=r.query.raw,
         name=r.query.name,
@@ -155,4 +186,28 @@ def _to_row(r: RowIn) -> Row:
         url=r.pricing.url,
         currency=r.pricing.currency,
     )
-    return Row(query=q, card=r.card, pricing=pricing, image_path=None, tag=r.tag)
+    image_path = _download_card_image(r.card, images_dir, session)
+    return Row(query=q, card=r.card, pricing=pricing, image_path=image_path, tag=r.tag)
+
+
+def _download_card_image(
+    card: dict[str, Any] | None,
+    images_dir: Path | None,
+    session: requests.Session | None,
+) -> Path | None:
+    """Download a matched card's art into `images_dir`, mirroring the CLI.
+
+    Returns the local path, or None when image embedding is off, the card has
+    no art, or the download failed.
+    """
+    if images_dir is None or session is None or not card:
+        return None
+    images = card.get("images") or {}
+    img_url = images.get("large") or images.get("small")
+    if not img_url:
+        return None
+    ext = Path(img_url).suffix or ".png"
+    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", f"{card.get('id')}")
+    dest = images_dir / f"{safe}{ext}"
+    download_image(img_url, dest, session)
+    return dest if dest.exists() else None

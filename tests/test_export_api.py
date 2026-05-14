@@ -3,11 +3,13 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi.testclient import TestClient
+from PIL import Image as PILImage
 
 from api.main import app
 
@@ -22,20 +24,31 @@ def _row_payload(
     set_name: str = "Surging Sparks",
     market: float | None = 12.5,
     tag: str = "test",
+    images: dict | None = None,
 ) -> dict:
+    card = {
+        "id": cid,
+        "name": name,
+        "number": number,
+        "set": {"id": "sv8", "name": set_name, "printedTotal": 191, "total": 252},
+        "_database": "pokemontcg.io",
+        "language": "en",
+    }
+    if images is not None:
+        card["images"] = images
     return {
         "query": {"raw": name, "name": name},
-        "card": {
-            "id": cid,
-            "name": name,
-            "number": number,
-            "set": {"id": "sv8", "name": set_name, "printedTotal": 191, "total": 252},
-            "_database": "pokemontcg.io",
-            "language": "en",
-        },
+        "card": card,
         "pricing": {"market": market, "currency": "USD"},
         "tag": tag,
     }
+
+
+def _fake_download(url, dest, session) -> bool:
+    """Stand-in for images.download_image — writes a tiny valid PNG."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    PILImage.new("RGB", (10, 14), "white").save(dest, format="PNG")
+    return True
 
 
 class ExportApiTests(unittest.TestCase):
@@ -104,6 +117,38 @@ class ExportApiTests(unittest.TestCase):
             json={"rows": [_row_payload()], "format": "xlsx", "sort": "bogus"},
         )
         self.assertEqual(resp.status_code, 400)
+
+    def test_xlsx_export_skips_images_by_default(self) -> None:
+        payload = _row_payload(images={"large": "https://img.example/pikachu.png"})
+        with patch("api.routes.export.download_image") as mock_dl:
+            resp = client.post(
+                "/api/v1/export",
+                json={"rows": [payload], "format": "xlsx"},
+            )
+        self.assertEqual(resp.status_code, 200)
+        mock_dl.assert_not_called()
+
+    def test_xlsx_export_embeds_images_when_enabled(self) -> None:
+        payload = _row_payload(images={"large": "https://img.example/pikachu.png"})
+        with patch("api.routes.export.download_image", side_effect=_fake_download) as mock_dl:
+            resp = client.post(
+                "/api/v1/export",
+                json={"rows": [payload], "format": "xlsx", "no_images": False},
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreater(len(resp.content), 0)
+        mock_dl.assert_called_once()
+
+    def test_checklist_export_never_downloads_images(self) -> None:
+        # The checklist is text-only — even with images enabled, no downloads.
+        payload = _row_payload(images={"large": "https://img.example/pikachu.png"})
+        with patch("api.routes.export.download_image") as mock_dl:
+            resp = client.post(
+                "/api/v1/export",
+                json={"rows": [payload], "format": "checklist", "no_images": False},
+            )
+        self.assertEqual(resp.status_code, 200)
+        mock_dl.assert_not_called()
 
     def test_sort_accepts_documented_modes(self) -> None:
         for mode in ("number", "number-desc", "price-asc", "price-desc", "release-date", "alpha"):

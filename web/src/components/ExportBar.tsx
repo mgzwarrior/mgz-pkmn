@@ -45,6 +45,7 @@ export function ExportBar() {
         maxPrice: settings.maxPrice,
         title: settings.tag || 'cards',
         sort: settings.sort,
+        noImages: settings.noImages,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
