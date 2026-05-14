@@ -1,0 +1,44 @@
+# Demonstrates PriceCharting URL overrides — the "paste a URL once and
+# forget it" workflow.
+#
+# When the public databases can't disambiguate a card (obscure promos,
+# regional prints, reprints that share a name + number), you can paste a
+# PriceCharting product URL directly on the line. mgz-pkmn scrapes that
+# exact page instead of guessing, and — on a SUCCESSFUL scrape — records
+# the URL in the on-disk override store (`url_overrides.json` in the
+# cache dir), keyed by the card's (name, set hint), both lower-cased.
+#
+# On every later run, a line with the same (name, set hint) but NO URL
+# automatically picks the recorded URL back up. So you paste the URL on
+# the first run, then delete it — subsequent runs stay pinned to the
+# right product page.
+#
+# Notes:
+#   - The URL can sit anywhere on the line; it's pulled out before the
+#     name / set / number are parsed. These are all equivalent:
+#         Cubone | Chinese Gem Pack Vol 3 | 407 https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407
+#         Cubone | Chinese Gem Pack Vol 3 | 407 — https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407
+#   - A bad URL (404 / 500 / connection error) is NOT recorded, so a
+#     typo you paste once won't get pinned as a sticky override that
+#     quietly fails on every future run.
+#   - Only pricecharting.com URLs are honored today; other hosts are
+#     ignored and the line falls through to the normal database search.
+#   - A URL with no card text is allowed too — the name is derived from
+#     the URL slug (see the third line below).
+
+# Name + set + number + URL — the canonical "pin this card" form. The
+# override is keyed by ("charizard", "base"), so a later run can drop the
+# URL from this line and still resolve to the same page.
+Charizard | Base | 4/102 https://www.pricecharting.com/game/pokemon-base-set/charizard-4
+
+# Set hint is part of the key — this is a DIFFERENT override from the one
+# above, keyed by ("cubone", "chinese gem pack vol 3").
+Cubone | Chinese Gem Pack Vol 3 | 407 https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407
+
+# URL only, no card text — the name is derived from the URL slug.
+https://www.pricecharting.com/game/pokemon-base-set/blastoise-2
+
+# After running this file once, re-run with the URLs deleted from the
+# first two lines — they stay pinned to the same product pages:
+#   Charizard | Base | 4/102
+#   Cubone | Chinese Gem Pack Vol 3 | 407
