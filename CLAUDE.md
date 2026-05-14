@@ -63,10 +63,17 @@ make fix
 ```
 
 Pre-commit hooks run `ruff check --fix` and `ruff format` automatically — make sure they
-pass. The full CI equivalent is:
+pass. Before opening the PR, run the local gate:
 
 ```bash
-make check   # lint + format + full test suite
+make check   # ruff lint + format check + Python tests + web ESLint
+```
+
+`make check` does not cover the web typecheck/build (`npm run build`) that CI runs — if
+you've touched `web/`, run it separately:
+
+```bash
+cd web && npm run build
 ```
 
 All CI checks must be green before opening the PR.
@@ -122,12 +129,14 @@ gh project item-add <project-number> --owner mgzwarrior --url <pr-url>
 
 ## Step 6 — Confirm CI is green
 
-You're done when the PR is open and all three CI jobs pass:
+You're done when the PR is open and CI is green. The `CI` workflow
+(`.github/workflows/ci.yml`) defines two jobs:
 
 | Job | What it checks |
 |-----|---------------|
-| `lint-and-test` | ruff + format check + full test suite (Python 3.11–3.13) |
-| `api-lint` | ruff lint + format check for `api/` |
-| `web-lint-and-build` | ESLint + TypeScript build for `web/` |
+| `api` | ruff lint + format check (`src/`, `api/`) + full test suite, on Python 3.11, 3.12, and 3.13 |
+| `web` | ESLint + TypeScript typecheck/build (`npm run build`) for `web/` |
+
+CodeQL (`Analyze`) also runs on every PR — wait for those checks to pass too.
 
 Do **not** merge the PR.
