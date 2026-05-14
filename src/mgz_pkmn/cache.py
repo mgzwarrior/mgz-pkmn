@@ -24,12 +24,28 @@ import hashlib
 import json
 import os
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 DEFAULT_API_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
 _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
 _OVERRIDES_FILE = "url_overrides.json"
+
+
+@dataclass(frozen=True)
+class CacheStats:
+    """Snapshot of disk-cache usage. Returned by `stats()` for the CLI to render.
+
+    `api_oldest_mtime` is None when the API cache holds no entries — callers
+    should treat that as "no oldest" rather than an unfilled field."""
+
+    root: Path
+    api_entry_count: int
+    api_bytes: int
+    api_oldest_mtime: float | None
+    override_count: int
+    override_bytes: int
 
 
 def _disabled() -> bool:
@@ -198,3 +214,59 @@ def list_url_overrides() -> dict[str, str]:
     private helpers. Returns an empty dict if the cache is disabled or empty.
     """
     return dict(_load_overrides())
+
+
+# ---------------------------------------------------------------------------
+# Stats — health snapshot for `pkmn cache stats`.
+# ---------------------------------------------------------------------------
+
+
+def stats() -> CacheStats:
+    """Summarise on-disk cache usage without touching `MGZ_PKMN_NO_CACHE`.
+
+    Honoured even when `MGZ_PKMN_NO_CACHE=1` is set: the user is asking
+    about real on-disk state, and silently reporting zeros would defeat
+    the purpose. For API entries we only call `stat()` — no payload reads
+    — so cost scales with the number of files, not their aggregate bytes.
+    The overrides file is parsed once (a single JSON document) to count
+    keys."""
+    root = cache_root()
+
+    api_dir = root / "api"
+    api_count = 0
+    api_bytes = 0
+    api_oldest: float | None = None
+    if api_dir.exists():
+        for entry in api_dir.iterdir():
+            if not entry.is_file() or entry.suffix != ".json":
+                continue
+            try:
+                st = entry.stat()
+            except OSError:
+                continue
+            api_count += 1
+            api_bytes += st.st_size
+            if api_oldest is None or st.st_mtime < api_oldest:
+                api_oldest = st.st_mtime
+
+    overrides_path = _overrides_path()
+    override_count = 0
+    override_bytes = 0
+    if overrides_path.exists():
+        try:
+            override_bytes = overrides_path.stat().st_size
+            data = json.loads(overrides_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                override_count = len(data)
+        except (OSError, json.JSONDecodeError):
+            # Malformed file — report bytes (if we got them) but no entries.
+            pass
+
+    return CacheStats(
+        root=root,
+        api_entry_count=api_count,
+        api_bytes=api_bytes,
+        api_oldest_mtime=api_oldest,
+        override_count=override_count,
+        override_bytes=override_bytes,
+    )

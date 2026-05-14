@@ -814,5 +814,73 @@ def set_cards_command(
     click.secho("Done!", fg="green", bold=True)
 
 
+@cli.group(name="cache", context_settings={"help_option_names": ["-h", "--help"]})
+def cache_group() -> None:
+    """Inspect and manage the on-disk cache."""
+
+
+def _format_bytes(n: int) -> str:
+    """Render a byte count with a human-readable suffix (B/KB/MB/GB).
+
+    Powers-of-1024 to match `du -h`; one decimal once we leave the B range
+    so small caches still show "12 B" without a noisy ".0"."""
+    units = ("B", "KB", "MB", "GB", "TB")
+    size = float(n)
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            if unit == "B":
+                return f"{int(size)} {unit}"
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} {units[-1]}"  # unreachable, satisfies type-checkers
+
+
+def _format_age(mtime: float | None, *, now: float | None = None) -> str:
+    """Render an mtime as a relative age (e.g. '3d ago', '5h ago').
+
+    `now` is injectable so tests can pin the comparison instant — production
+    callers leave it at None and get `time.time()`."""
+    if mtime is None:
+        return "—"
+    delta = (now if now is not None else time.time()) - mtime
+    if delta < 60:
+        return "just now"
+    if delta < 3600:
+        return f"{int(delta // 60)}m ago"
+    if delta < 86400:
+        return f"{int(delta // 3600)}h ago"
+    return f"{int(delta // 86400)}d ago"
+
+
+@cache_group.command(name="stats", context_settings={"help_option_names": ["-h", "--help"]})
+def cache_stats_command() -> None:
+    """Show on-disk cache health: total size, oldest entry, override count.
+
+    Reports stats even when MGZ_PKMN_NO_CACHE is set — the user is asking
+    about real on-disk state, not the effective behaviour of the current
+    run."""
+    s = disk_cache.stats()
+    total_bytes = s.api_bytes + s.override_bytes
+
+    _print_section("Cache stats")
+    click.echo("  " + click.style("Location:      ", fg="bright_black") + str(s.root))
+    click.echo(
+        "  "
+        + click.style("Total size:    ", fg="bright_black")
+        + click.style(_format_bytes(total_bytes), bold=True)
+    )
+    click.echo(
+        "  "
+        + click.style("API responses: ", fg="bright_black")
+        + f"{s.api_entry_count} entries · {_format_bytes(s.api_bytes)} · "
+        + f"oldest {_format_age(s.api_oldest_mtime)}"
+    )
+    click.echo(
+        "  "
+        + click.style("URL overrides: ", fg="bright_black")
+        + f"{s.override_count} entries · {_format_bytes(s.override_bytes)}"
+    )
+
+
 if __name__ == "__main__":
     cli()
