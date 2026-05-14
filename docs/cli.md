@@ -88,7 +88,7 @@ POKEMONTCG_IO_API_KEY=xxx ./pkmn lookup cards.txt -v
 
 ## Worked examples
 
-[`input/`](../input/) ships three small, self-contained example lists that
+[`input/`](../input/) ships four small, self-contained example lists that
 together cover every input syntax and lookup mode the tool supports:
 
 | File | What it shows |
@@ -96,6 +96,7 @@ together cover every input syntax and lookup mode the tool supports:
 | [`example-set-checklist.txt`](../input/example-set-checklist.txt) | `All <set> cards` — full-set bulk lookup, ~250 priced rows, drives a multi-page checklist + binder. |
 | [`example-evolution-line.txt`](../input/example-evolution-line.txt) | Slash-separated evolution lines and curated concept keywords (`eeveelution`, `puppy`, …). |
 | [`example-format-survey.txt`](../input/example-format-survey.txt) | Pipe / dash / markdown-task input forms, variant hints, subtype + inline price filters. |
+| [`example-url-overrides.txt`](../input/example-url-overrides.txt) | Inline PriceCharting URL hints and the sticky URL-override store — paste a product URL once, drop it on later runs. |
 
 Run all three at once and produce every artifact:
 
