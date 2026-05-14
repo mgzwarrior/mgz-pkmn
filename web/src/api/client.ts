@@ -138,6 +138,7 @@ export async function exportFile(
     maxPrice?: number | null
     title?: string
     sort?: SortMode
+    noImages?: boolean
   } = {},
 ): Promise<void> {
   const res = await fetch(`${BASE}/export`, {
@@ -149,6 +150,7 @@ export async function exportFile(
       sort: options.sort ?? 'number',
       max_price: options.maxPrice ?? null,
       title: options.title ?? 'cards',
+      no_images: options.noImages ?? true,
     }),
   })
 

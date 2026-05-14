@@ -8,7 +8,7 @@ checklist live in their own pages — see [PDF binder](binder-pdf.md) and
 
 | Column | Notes |
 |---|---|
-| Image | Embedded 96 × 134 thumbnail (CLI exports only — see note below). |
+| Image | Embedded 96 × 134 thumbnail. |
 | **Source** | The input file's stem — groups rows by which list they came from. |
 | Input | Your original line. |
 | Name / Set / Series / Number / Rarity | From the matched card. |
@@ -26,14 +26,6 @@ a number looks off.
 
 Full-resolution PNGs land in `output/images/` by default (named after
 the matched card id).
-
-**Images and the web app:** only CLI runs embed thumbnails in the
-spreadsheet. The web app's `/api/v1/export` endpoint never embeds
-images — the export is intentionally kept fast and dependency-free on
-the server side, so it skips downloading and thumbnailing card art
-regardless of the "Hide images in results" setting (which only affects
-the on-screen results table). For an image-embedded spreadsheet, use
-the CLI.
 
 ## JSON report (`--report-json`)
 
