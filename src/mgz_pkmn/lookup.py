@@ -107,7 +107,11 @@ _CONCEPT_KEYWORDS: dict[str, str] = {
 
 
 def _is_pricecharting_url(url: str) -> bool:
-    host = urlparse(url).hostname
+    """Return True when URL host is pricecharting.com or one of its subdomains."""
+    try:
+        host = urlparse(url).hostname
+    except ValueError:
+        return False
     if not host:
         return False
     host = host.lower()
