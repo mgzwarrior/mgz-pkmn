@@ -36,6 +36,26 @@ list don't keep re-spending API quota. Two stores live there:
   including URL overrides. There's no LRU eviction; the cache stays
   small (a few MB after a typical run).
 
+## Inspecting the cache
+
+`pkmn cache stats` prints a one-screen summary of on-disk usage —
+useful for spotting a runaway cache or a stale `url_overrides.json`
+without `du`-ing the directory by hand.
+
+```text
+▸ Cache stats
+  Location:      /Users/you/.cache/mgz-pkmn
+  Total size:    8.8 MB
+  API responses: 175 entries · 8.8 MB · oldest 5d ago
+  URL overrides: 20 entries · 2.2 KB
+```
+
+The command reports on-disk state directly, so it runs even when
+`MGZ_PKMN_NO_CACHE=1` is set — the disable flag suppresses reads and
+writes during normal lookups, but inspecting real files should still
+show what's there. Combine with [`--clear-cache`](#behavior) on the next
+`pkmn lookup` if the API cache has grown stale relative to the code.
+
 ## Environment variables
 
 | Variable | Effect |

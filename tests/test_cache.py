@@ -104,6 +104,56 @@ class ApiCacheTests(_IsolatedCacheDirMixin):
         self.assertEqual(len(list(api_dir.glob("*.json"))), 1)
 
 
+class CacheStatsTests(_IsolatedCacheDirMixin):
+    def test_empty_cache_reports_zeros(self) -> None:
+        s = cache.stats()
+        self.assertEqual(s.api_entry_count, 0)
+        self.assertEqual(s.api_bytes, 0)
+        self.assertIsNone(s.api_oldest_mtime)
+        self.assertEqual(s.override_count, 0)
+        self.assertEqual(s.override_bytes, 0)
+        self.assertEqual(s.root, cache.cache_root())
+
+    def test_reports_api_entry_count_size_and_oldest(self) -> None:
+        cache.write_api("k1", {"a": 1})
+        cache.write_api("k2", {"b": 2})
+        cache.write_api("k3", {"c": 3})
+        # Backdate one entry so we have a determinate "oldest".
+        oldest_path = cache._api_path("k2")
+        target = time.time() - 3600
+        os.utime(oldest_path, (target, target))
+
+        s = cache.stats()
+        self.assertEqual(s.api_entry_count, 3)
+        self.assertGreater(s.api_bytes, 0)
+        # Sum of individual file sizes — sanity-check the aggregate.
+        api_dir = cache.cache_root() / "api"
+        expected = sum(p.stat().st_size for p in api_dir.glob("*.json"))
+        self.assertEqual(s.api_bytes, expected)
+        assert s.api_oldest_mtime is not None
+        self.assertAlmostEqual(s.api_oldest_mtime, target, delta=1.0)
+
+    def test_reports_override_count_and_size(self) -> None:
+        cache.record_url_override("Penny", "S&V Base", "https://pc/penny")
+        cache.record_url_override("Mew", "Hidden Fates", "https://pc/mew")
+
+        s = cache.stats()
+        self.assertEqual(s.override_count, 2)
+        self.assertGreater(s.override_bytes, 0)
+        self.assertEqual(s.override_bytes, cache._overrides_path().stat().st_size)
+
+    def test_runs_even_when_no_cache_env_set(self) -> None:
+        # Inspecting on-disk state should not be silenced by the runtime
+        # disable flag — the user is asking about real files.
+        cache.write_api("k", {"x": 1})
+        cache.record_url_override("Mew", None, "https://pc/mew")
+        os.environ[cache._NO_CACHE_ENV] = "1"
+
+        s = cache.stats()
+        self.assertEqual(s.api_entry_count, 1)
+        self.assertEqual(s.override_count, 1)
+
+
 class UrlOverrideTests(_IsolatedCacheDirMixin):
     def test_record_and_find_round_trip(self) -> None:
         cache.record_url_override(

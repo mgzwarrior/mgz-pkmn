@@ -1,12 +1,15 @@
 # CLI reference
 
-`pkmn` is a Click group exposing two subcommands:
+`pkmn` is a Click group exposing three subcommands:
 
 - **`pkmn lookup INPUTS...`** — the original card-lookup pipeline (xlsx,
   binder PDFs, checklist, JSON report). Documented below.
 - **`pkmn set-cards`** — generate printable set identification cutouts
   for binder section dividers; takes no positional arguments. See
   [PDF binder → Set identification cards](binder-pdf.md#set-identification-cards-pkmn-set-cards).
+- **`pkmn cache stats`** — print on-disk cache health (total size,
+  oldest API entry, URL-override count). See
+  [Cache → Inspecting the cache](cache.md#inspecting-the-cache).
 
 For backward compatibility, **invoking `pkmn` with input paths and no
 subcommand is forwarded to `lookup`** — `./pkmn cards.txt` and
@@ -62,6 +65,12 @@ boundary.
 | `-v, --verbose` | off | Echo each API request URL. |
 | `-h, --help` | | Show usage. |
 
+## `pkmn cache stats` options
+
+Takes no flags beyond `-h, --help`. Reports on-disk state directly, so
+it runs even when `MGZ_PKMN_NO_CACHE=1` is set. See
+[Cache → Inspecting the cache](cache.md#inspecting-the-cache).
+
 ## Examples
 
 ```bash
@@ -74,6 +83,7 @@ POKEMONTCG_IO_API_KEY=xxx ./pkmn lookup cards.txt -v
 ./pkmn lookup input/ --pdf binder.pdf --checklist checklist.pdf
 ./pkmn set-cards                                            # all-sets ID cutouts
 ./pkmn set-cards -o output/set-cards.pdf
+./pkmn cache stats                                          # disk cache health snapshot
 ```
 
 ## Worked examples
