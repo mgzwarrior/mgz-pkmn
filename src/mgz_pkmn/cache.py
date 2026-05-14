@@ -20,6 +20,7 @@ eviction — the cache is small (KB per query) and clearing is a manual
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -29,7 +30,9 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_API_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
+DEFAULT_CACHE_WARN_BYTES = 50 * 1024 * 1024  # 50 MB
 _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
+_WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
 
 
@@ -64,6 +67,45 @@ def cache_root() -> Path:
     root = Path(base) / "mgz-pkmn"
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def cache_warn_threshold() -> int:
+    """Resolve the soft-warn threshold for total cache size, in bytes.
+
+    Reads `MGZ_PKMN_CACHE_WARN_BYTES` (an integer byte count) when set; falls
+    back to `DEFAULT_CACHE_WARN_BYTES` (50 MB). A non-positive value disables
+    the warning entirely, which is how an unparseable env var also lands —
+    callers should treat `<= 0` as "do not warn"."""
+    raw = os.environ.get(_WARN_BYTES_ENV, "").strip()
+    if not raw:
+        return DEFAULT_CACHE_WARN_BYTES
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_CACHE_WARN_BYTES
+
+
+def cache_size_bytes() -> int:
+    """Total on-disk cache size in bytes (API responses + URL overrides file).
+
+    Stat-only — no payload reads, no JSON parsing — so it's safe to call at
+    every CLI startup as a cheap pre-flight check. Returns 0 when the cache
+    has no contents yet (fresh install, post-`rm -rf`, etc.)."""
+    root = cache_root()
+    total = 0
+    api_dir = root / "api"
+    if api_dir.exists():
+        for entry in api_dir.iterdir():
+            if not entry.is_file() or entry.suffix != ".json":
+                continue
+            try:
+                total += entry.stat().st_size
+            except OSError:
+                continue
+    overrides = _overrides_path()
+    with contextlib.suppress(OSError):
+        total += overrides.stat().st_size
+    return total
 
 
 # ---------------------------------------------------------------------------

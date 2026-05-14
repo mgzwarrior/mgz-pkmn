@@ -35,6 +35,12 @@ list don't keep re-spending API quota. Two stores live there:
 - **Manual nuke** — `rm -rf ~/.cache/mgz-pkmn` removes everything
   including URL overrides. There's no LRU eviction; the cache stays
   small (a few MB after a typical run).
+- **Soft-warn at startup** — `pkmn lookup` stats the cache directory
+  at run start and prints a yellow `⚠` to stderr if total size exceeds
+  50 MB. The threshold is overridable via
+  [`MGZ_PKMN_CACHE_WARN_BYTES`](#environment-variables); set it to `0`
+  to silence the warning entirely. The check is stat-only (no payload
+  reads) so it adds negligible startup cost.
 
 ## Inspecting the cache
 
@@ -61,4 +67,5 @@ show what's there. Combine with [`--clear-cache`](#behavior) on the next
 | Variable | Effect |
 |---|---|
 | `MGZ_PKMN_NO_CACHE` | When set to a truthy value (anything other than empty, `0`, `false`, `False`), disables both the API response cache and URL-override lookups for the current process. Reads always miss; writes are no-ops; the on-disk cache is left untouched. The CLI's [`--no-cache`](cli.md#pkmn-lookup-options) flag sets this internally — set it directly when running the FastAPI service or invoking the library from another process where the flag isn't available. `--clear-cache` still wipes the API cache even when this is set; the explicit wipe wins over the implicit skip. |
+| `MGZ_PKMN_CACHE_WARN_BYTES` | Integer byte count for the cache-size soft-warn threshold checked at `pkmn lookup` startup. Defaults to `52428800` (50 MB). Set to `0` (or any non-positive value) to disable the warning entirely. Unparseable values fall back to the default. |
 | `XDG_CACHE_HOME` | Overrides the cache root. The store lives at `$XDG_CACHE_HOME/mgz-pkmn` when set, falling back to `~/.cache/mgz-pkmn` otherwise. Standard XDG semantics — no mgz-pkmn-specific behavior. |

@@ -10,8 +10,10 @@ from click.testing import CliRunner
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import click
+
 from mgz_pkmn import cache
-from mgz_pkmn.cli import _dedupe_rows, _format_age, _format_bytes, cli
+from mgz_pkmn.cli import _dedupe_rows, _format_age, _format_bytes, _warn_if_cache_large, cli
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
 from mgz_pkmn.report import build_json_report
@@ -106,6 +108,63 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("API responses: 0 entries", result.output)
         self.assertIn("oldest —", result.output)
+
+
+class WarnIfCacheLargeTests(unittest.TestCase):
+    """The soft-warn helper invoked at `pkmn lookup` start. We drive it
+    through a throwaway Click command so its `secho(err=True)` output lands
+    in `result.stderr` rather than leaking onto the real test terminal."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_warn = os.environ.get(cache._WARN_BYTES_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._WARN_BYTES_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_warn is None:
+            os.environ.pop(cache._WARN_BYTES_ENV, None)
+        else:
+            os.environ[cache._WARN_BYTES_ENV] = self._old_warn
+        self._tmp.cleanup()
+
+    @staticmethod
+    def _invoke() -> object:
+        @click.command()
+        def runner() -> None:
+            _warn_if_cache_large()
+
+        return CliRunner().invoke(runner, [])
+
+    def test_no_warning_on_empty_cache(self) -> None:
+        result = self._invoke()
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.stderr, "")
+
+    def test_no_warning_below_threshold(self) -> None:
+        cache.write_api("k", {"x": 1})
+        # Real default is 50 MB — a single tiny JSON file falls well under.
+        result = self._invoke()
+        self.assertEqual(result.stderr, "")
+
+    def test_warning_emitted_when_over_threshold(self) -> None:
+        cache.write_api("k", {"x": 1})
+        os.environ[cache._WARN_BYTES_ENV] = "1"
+        result = self._invoke()
+        self.assertIn("cache directory is", result.stderr)
+        self.assertIn("threshold", result.stderr)
+        self.assertIn("--clear-cache", result.stderr)
+
+    def test_zero_threshold_disables_warning(self) -> None:
+        cache.write_api("k", {"x": 1})
+        os.environ[cache._WARN_BYTES_ENV] = "0"
+        result = self._invoke()
+        self.assertEqual(result.stderr, "")
 
 
 if __name__ == "__main__":
