@@ -31,6 +31,7 @@
 ### Contributing
 
 - [Guide](contributing)
+- [Security policy](SECURITY)
 
 ---
 
