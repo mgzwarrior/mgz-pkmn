@@ -404,6 +404,7 @@ def lookup(
         os.environ["MGZ_PKMN_NO_CACHE"] = "1"
     _print_banner(__version__)
     _warn_if_cache_large()
+    disk_cache.reset_api_counters()
 
     if clear_cache:
         cleared = disk_cache.clear_api_cache()
@@ -625,6 +626,14 @@ def lookup(
     )
     if non_en:
         summary_parts.append(click.style(f"⚑ {non_en} non-English", fg="bright_red"))
+    cache_hits, cache_fetches = disk_cache.api_counters()
+    if cache_hits:
+        # Only surface when caching actually helped this run — zero-hit runs
+        # (first invocation, --no-cache, or an all-miss TTL refresh) would
+        # just clutter the line without adding signal.
+        summary_parts.append(
+            click.style(f"{cache_hits} cached / {cache_fetches} fetched", fg="cyan")
+        )
     summary_parts.append(click.style(f"{overall_elapsed:.1f}s total", fg="bright_black"))
     click.echo("  " + "  ·  ".join(summary_parts))
 
