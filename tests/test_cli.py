@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -54,6 +55,17 @@ class CliHelpersTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["rows_deduped"], 4)
         self.assertEqual(payload["summary"]["rows_total"], 1)
         self.assertEqual(payload["summary"]["rows_bulk_expanded"], 3)
+
+    def test_json_report_includes_sort_mode(self) -> None:
+        rows = [_make_row("a", 10)]
+        payload = build_json_report(
+            rows=rows,
+            counters={},
+            input_lines=1,
+            elapsed=1.0,
+            sort_mode="price-desc",
+        )
+        self.assertEqual(payload["summary"]["sort_mode"], "price-desc")
 
 
 class FormatHelpersTests(unittest.TestCase):
@@ -259,6 +271,33 @@ class LookupSummaryCacheTests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("1 cached / 1 fetched", result.output)
+
+    def test_report_json_records_sort_mode_from_cli(self) -> None:
+        # Drives the full CLI wiring: `--sort` must reach `summary.sort_mode`
+        # in the written report, not just `build_json_report`'s argument.
+        input_path = self._write_inputs(["Mew"])
+        out = Path(self._tmp.name) / "out.xlsx"
+        report_path = Path(self._tmp.name) / "summary.json"
+
+        with patch("mgz_pkmn.cli.find_card", side_effect=self._make_stub()):
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "lookup",
+                    str(input_path),
+                    "-o",
+                    str(out),
+                    "--no-images",
+                    "--report-json",
+                    str(report_path),
+                    "--sort",
+                    "price-desc",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["summary"]["sort_mode"], "price-desc")
 
     def test_summary_omits_cache_counts_when_no_hits(self) -> None:
         # Fresh cache → every query is a fetch, no hits. The summary tail

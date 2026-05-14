@@ -104,6 +104,7 @@ def build_json_report(
     elapsed: float,
     max_price: float | None = None,
     deduped_rows: int = 0,
+    sort_mode: str | None = None,
 ) -> dict[str, Any]:
     """Assemble the full report payload.
 
@@ -140,6 +141,7 @@ def build_json_report(
         )
 
     summary = {
+        "sort_mode": sort_mode,
         "input_lines": input_lines,
         "rows_total": len(rows),
         "rows_deduped": deduped_rows,
