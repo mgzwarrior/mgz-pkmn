@@ -1,6 +1,9 @@
 # Dependabot keeps our pinned dependencies fresh. We cover:
-#   - Python at the repo root (CLI + library, managed by uv/pyproject)
-#   - Python under api/ (FastAPI service, separate pyproject)
+#   - Python at the repo root (CLI + library, managed by uv/pyproject —
+#     uses the "uv" ecosystem so uv.lock is regenerated alongside
+#     pyproject.toml; Docker builds run `uv sync --frozen`, so an
+#     out-of-sync lockfile would break the image)
+#   - Python under api/ (FastAPI service, separate pyproject, no lockfile)
 #   - npm under web/ (React SPA)
 #   - GitHub Actions used by our workflows
 #
@@ -8,7 +11,7 @@
 # major bumps still come through individually so they get explicit attention.
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
