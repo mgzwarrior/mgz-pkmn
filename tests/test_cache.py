@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -286,6 +287,84 @@ class UrlOverrideTests(_IsolatedCacheDirMixin):
         cache.record_url_override("Mew", None, "https://pc/old")
         cache.record_url_override("Mew", None, "https://pc/new")
         self.assertEqual(cache.find_url_override("Mew", None), "https://pc/new")
+
+
+class UrlOverrideSchemaTests(_IsolatedCacheDirMixin):
+    """Versioned `url_overrides.json` schema — see issue #18.
+
+    On-disk shape is `{"schema_version": N, "overrides": {...}}`. We still
+    accept the pre-#18 flat-dict layout transparently so existing caches
+    keep working; the first write upgrades them in place."""
+
+    def test_save_uses_versioned_shape(self) -> None:
+        cache.record_url_override("Mew", None, "https://pc/mew")
+        raw = json.loads(cache._overrides_path().read_text(encoding="utf-8"))
+        self.assertEqual(raw.get("schema_version"), cache.OVERRIDES_SCHEMA_VERSION)
+        self.assertEqual(raw.get("overrides"), {"mew|": "https://pc/mew"})
+
+    def test_reads_legacy_flat_dict(self) -> None:
+        # Simulate a cache written by an older client (no schema_version wrapper).
+        legacy = {"mew|hidden fates": "https://pc/legacy-mew"}
+        cache._overrides_path().write_text(json.dumps(legacy), encoding="utf-8")
+        self.assertEqual(
+            cache.find_url_override("Mew", "Hidden Fates"),
+            "https://pc/legacy-mew",
+        )
+        self.assertEqual(
+            cache.list_url_overrides(),
+            {"mew|hidden fates": "https://pc/legacy-mew"},
+        )
+
+    def test_next_write_upgrades_legacy_file(self) -> None:
+        legacy = {"mew|hidden fates": "https://pc/legacy-mew"}
+        cache._overrides_path().write_text(json.dumps(legacy), encoding="utf-8")
+        # Adding a new override should rewrite the file in the versioned shape
+        # while preserving the legacy entry.
+        cache.record_url_override("Penny", "S&V Base", "https://pc/penny")
+        raw = json.loads(cache._overrides_path().read_text(encoding="utf-8"))
+        self.assertEqual(raw.get("schema_version"), cache.OVERRIDES_SCHEMA_VERSION)
+        self.assertEqual(
+            raw.get("overrides"),
+            {
+                "mew|hidden fates": "https://pc/legacy-mew",
+                "penny|s&v base": "https://pc/penny",
+            },
+        )
+
+    def test_reads_versioned_shape(self) -> None:
+        document = {
+            "schema_version": cache.OVERRIDES_SCHEMA_VERSION,
+            "overrides": {"penny|s&v base": "https://pc/penny"},
+        }
+        cache._overrides_path().write_text(json.dumps(document), encoding="utf-8")
+        self.assertEqual(
+            cache.find_url_override("Penny", "S&V Base"),
+            "https://pc/penny",
+        )
+
+    def test_versioned_without_overrides_payload_reads_empty(self) -> None:
+        # Malformed: schema_version present but `overrides` missing / wrong type.
+        cache._overrides_path().write_text(
+            json.dumps({"schema_version": 1, "overrides": "not a dict"}),
+            encoding="utf-8",
+        )
+        self.assertEqual(cache.list_url_overrides(), {})
+
+    def test_stats_counts_versioned_overrides(self) -> None:
+        document = {
+            "schema_version": cache.OVERRIDES_SCHEMA_VERSION,
+            "overrides": {
+                "mew|": "https://pc/mew",
+                "penny|s&v base": "https://pc/penny",
+            },
+        }
+        cache._overrides_path().write_text(json.dumps(document), encoding="utf-8")
+        self.assertEqual(cache.stats().override_count, 2)
+
+    def test_stats_counts_legacy_overrides(self) -> None:
+        legacy = {"mew|": "https://pc/mew", "penny|s&v base": "https://pc/penny"}
+        cache._overrides_path().write_text(json.dumps(legacy), encoding="utf-8")
+        self.assertEqual(cache.stats().override_count, 2)
 
 
 if __name__ == "__main__":
