@@ -24,8 +24,10 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --extra api --no-dev --no-install-project --frozen
 
-# Install the project itself.
+# Install the project itself. README.md is required because pyproject.toml
+# declares it as the package readme — hatchling validates it at build time.
 COPY src/ ./src/
+COPY README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --extra api --no-dev --frozen
 
