@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 from . import cache as disk_cache
 from .parser import CardQuery, detect_card_language, detect_languages, strip_noise
@@ -105,6 +106,18 @@ _CONCEPT_KEYWORDS: dict[str, str] = {
 }
 
 
+def _is_pricecharting_url(url: str) -> bool:
+    """Return True when URL host is pricecharting.com or one of its subdomains."""
+    try:
+        host = urlparse(url).hostname
+    except ValueError:
+        return False
+    if not host:
+        return False
+    host = host.lower()
+    return host == "pricecharting.com" or host.endswith(".pricecharting.com")
+
+
 def find_card(
     pkmn: TCGClient,
     tcgdex: TCGDexClient,
@@ -130,7 +143,7 @@ def find_card(
     #    nothing matched. The override is recorded ONLY on success so a bad
     #    URL the user pastes once doesn't get pinned as a sticky override
     #    that quietly fails on every subsequent run.
-    if q.url_hint and "pricecharting.com" in q.url_hint:
+    if q.url_hint and _is_pricecharting_url(q.url_hint):
         result = pc.fetch(q.url_hint)
         if result.card:
             disk_cache.record_url_override(q.name, q.set_hint, q.url_hint)
@@ -143,7 +156,7 @@ def find_card(
     #    is stale or the scrape fails, fall through to DB sources rather than
     #    failing the lookup — the user didn't paste it this run.
     override = disk_cache.find_url_override(q.name, q.set_hint)
-    if override and "pricecharting.com" in override:
+    if override and _is_pricecharting_url(override):
         override_result = pc.fetch(override)
         if override_result.card:
             return override_result
