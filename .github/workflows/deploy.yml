@@ -24,6 +24,8 @@ concurrency:
   group: deploy
   cancel-in-progress: false
 
+permissions: {}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
