@@ -654,10 +654,13 @@ def lookup(
     click.echo("  " + "  ·  ".join(summary_parts))
 
     if max_price is not None:
-        foreign_priced = [
-            r for r in rows if r.pricing.market is not None and r.pricing.currency != "USD"
-        ]
-        if foreign_priced:
+        priced_rows = [r for r in rows if r.pricing.market is not None]
+        pool_currencies = {r.pricing.currency for r in priced_rows}
+        # Only warn when currencies are genuinely mixed.  An all-EUR or all-USD
+        # run is internally consistent; the mismatch arises only when both appear
+        # in the same result set and the cap treats them as the same unit.
+        if len(pool_currencies) > 1:
+            foreign_priced = [r for r in priced_rows if r.pricing.currency != "USD"]
             currencies = "/".join(sorted({r.pricing.currency for r in foreign_priced}))
             click.secho(
                 f"  ⚠  --max-price is currency-blind: {len(foreign_priced)} card(s) priced in"
