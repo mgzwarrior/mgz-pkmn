@@ -502,11 +502,21 @@ def detect_card_language(
     return "en"
 
 
-def read_input(path) -> list[CardQuery]:
-    """Read a card-list file and return the parsed queries."""
+def parse_lines(text: str) -> list[CardQuery]:
+    """Parse a multi-line card list string and return the matched queries.
+
+    Empty lines and lines starting with ``#`` are ignored. Every other line
+    is passed through :func:`parse_line`; ``None`` results (unrecognised
+    lines) are dropped silently.
+    """
     queries: list[CardQuery] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         q = parse_line(line)
         if q is not None:
             queries.append(q)
     return queries
+
+
+def read_input(path) -> list[CardQuery]:
+    """Read a card-list file and return the parsed queries."""
+    return parse_lines(path.read_text(encoding="utf-8"))
