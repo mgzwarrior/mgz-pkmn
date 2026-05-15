@@ -160,9 +160,25 @@ to `main`:
 | `api-lint` | ruff lint + format check for `api/` (with the `api` extras installed) |
 | `web-lint-and-build` | ESLint + TypeScript build (`tsc -b && vite build`) for `web/` |
 
+## Changelog
+
+[CHANGELOG.md](../CHANGELOG.md) follows the [Keep a
+Changelog](https://keepachangelog.com/en/1.1.0/) format. A PR with a
+**user-facing** change — a new feature, bug fix, behaviour change,
+deprecation, or removal — adds a bullet under the matching subsection
+(`Added` / `Changed` / `Fixed` / `Deprecated` / `Removed`) of the
+`[Unreleased]` section at the top of the file.
+
+Skip the changelog for changes users never see: dependency bumps, CI
+config, internal refactors, and test-only changes.
+
 ## Releasing
 
-Push a `v*` tag to trigger the release workflow:
+First, rotate the changelog: rename the `[Unreleased]` section to the
+new version with today's date, add a fresh empty `[Unreleased]` above
+it, and update the compare links at the bottom of the file.
+
+Then push a `v*` tag to trigger the release workflow:
 
 ```bash
 git tag v0.2.0

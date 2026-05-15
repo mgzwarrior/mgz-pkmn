@@ -56,6 +56,10 @@ No other format is acceptable. Keep the description short (2–4 words, kebab-ca
 
 - Match existing patterns and style. Don't introduce new dependencies without a strong reason.
 - Keep the change **focused**: one issue, one PR.
+- For **user-facing** changes (features, fixes, behavior changes, deprecations,
+  removals), add a bullet under the matching subsection of `[Unreleased]` in
+  [CHANGELOG.md](CHANGELOG.md). Skip it for dependency bumps, CI tweaks,
+  internal refactors, and test-only changes.
 - Run `make fix` before committing to auto-apply lint/formatting fixes:
 
 ```bash
