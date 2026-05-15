@@ -7,7 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from mgz_pkmn.parser import detect_card_language, parse_line
+import mgz_pkmn
+from mgz_pkmn.parser import detect_card_language, parse_line, parse_lines
 
 
 class ParseLineTests(unittest.TestCase):
@@ -273,6 +274,108 @@ class DetectCardLanguageTests(unittest.TestCase):
             ),
             "ja",
         )
+
+
+class ParseLinesTests(unittest.TestCase):
+    """Tests for the public ``parse_lines()`` API covering every supported input form."""
+
+    def test_exported_from_package(self) -> None:
+        self.assertIs(mgz_pkmn.parse_lines, parse_lines)
+        self.assertIs(
+            mgz_pkmn.CardQuery, __import__("mgz_pkmn.parser", fromlist=["CardQuery"]).CardQuery
+        )
+
+    def test_empty_string_returns_empty_list(self) -> None:
+        self.assertEqual(parse_lines(""), [])
+
+    def test_blank_lines_are_dropped(self) -> None:
+        result = parse_lines("\n\n   \n")
+        self.assertEqual(result, [])
+
+    def test_comment_lines_are_dropped(self) -> None:
+        result = parse_lines("# This is a comment\nCharizard\n# another comment")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].name, "Charizard")
+
+    def test_pipe_delimited_name_set_number(self) -> None:
+        result = parse_lines("Charizard | Base Set | 4/102")
+        self.assertEqual(len(result), 1)
+        q = result[0]
+        self.assertEqual(q.name, "Charizard")
+        self.assertEqual(q.set_hint, "Base Set")
+        self.assertEqual(q.number, "4/102")
+
+    def test_pipe_delimited_name_set(self) -> None:
+        result = parse_lines("Pikachu | Base Set")
+        self.assertEqual(len(result), 1)
+        q = result[0]
+        self.assertEqual(q.name, "Pikachu")
+        self.assertEqual(q.set_hint, "Base Set")
+
+    def test_positional_name_only(self) -> None:
+        result = parse_lines("Mewtwo")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].name, "Mewtwo")
+
+    def test_positional_number_token(self) -> None:
+        result = parse_lines("Charizard 4/102")
+        self.assertEqual(len(result), 1)
+        q = result[0]
+        self.assertEqual(q.name, "Charizard")
+        self.assertEqual(q.number, "4/102")
+
+    def test_bulk_top_form(self) -> None:
+        result = parse_lines("top:5 Charizard cards")
+        self.assertEqual(len(result), 1)
+        q = result[0]
+        self.assertEqual(q.bulk_top, 5)
+        self.assertEqual(q.name, "Charizard")
+
+    def test_bulk_all_form(self) -> None:
+        result = parse_lines("All Exeggutor cards")
+        self.assertEqual(len(result), 1)
+        q = result[0]
+        self.assertTrue(q.bulk_all)
+        self.assertIsNone(q.bulk_top)
+        self.assertEqual(q.name, "Exeggutor")
+
+    def test_url_only_line(self) -> None:
+        result = parse_lines("https://www.pricecharting.com/game/pokemon-base-set/charizard-4")
+        self.assertEqual(len(result), 1)
+        self.assertIsNotNone(result[0].url_hint)
+
+    def test_markdown_list_prefix_stripped(self) -> None:
+        result = parse_lines("- [ ] Charizard | Base Set")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].name, "Charizard")
+
+    def test_variant_hint_parsed(self) -> None:
+        result = parse_lines("Charizard [Holo]")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].variant_hint, "Holo")
+
+    def test_price_condition_parsed(self) -> None:
+        result = parse_lines("top 10 Charizard cards >= $20")
+        self.assertEqual(len(result), 1)
+        q = result[0]
+        self.assertEqual(q.price_min, 20.0)
+        self.assertFalse(q.price_min_exclusive)
+
+    def test_multiple_cards_returned_in_order(self) -> None:
+        text = "Charizard | Base Set\nPikachu\ntop:3 Mewtwo cards"
+        result = parse_lines(text)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0].name, "Charizard")
+        self.assertEqual(result[1].name, "Pikachu")
+        self.assertEqual(result[2].name, "Mewtwo")
+        self.assertEqual(result[2].bulk_top, 3)
+
+    def test_mixed_blanks_and_comments_between_cards(self) -> None:
+        text = "# Header\n\nCharizard | Base Set\n   \n# comment\nPikachu\n"
+        result = parse_lines(text)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].name, "Charizard")
+        self.assertEqual(result[1].name, "Pikachu")
 
 
 if __name__ == "__main__":
