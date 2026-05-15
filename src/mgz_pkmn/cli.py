@@ -653,6 +653,19 @@ def lookup(
     summary_parts.append(click.style(f"{overall_elapsed:.1f}s total", fg="bright_black"))
     click.echo("  " + "  ·  ".join(summary_parts))
 
+    if max_price is not None:
+        foreign_priced = [
+            r for r in rows if r.pricing.market is not None and r.pricing.currency != "USD"
+        ]
+        if foreign_priced:
+            currencies = "/".join(sorted({r.pricing.currency for r in foreign_priced}))
+            click.secho(
+                f"  ⚠  --max-price is currency-blind: {len(foreign_priced)} card(s) priced in"
+                f" {currencies} are compared against ${max_price:,.2f} as if USD."
+                " Pass a single-currency input list or the cap may not mean what you expect.",
+                fg="yellow",
+            )
+
     if print_summary_only:
         click.echo()
         click.secho(

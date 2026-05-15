@@ -126,10 +126,19 @@ cell in the PDF binder.
 
 ## Known limitations
 
-- **Inline price filtering is approximate.** The comparator parser
-  distinguishes strict (`>`, `<`) from inclusive (`>=`, `<=`) and
-  intersects with `--max-price`, but it's currency-blind and silently
-  drops conditions on single-card lookups. A line like
+- **Price filtering (inline and `--max-price`) is currency-blind.**
+  All price comparisons — both `--max-price` and inline bounds like
+  `>= $50` — are applied to the raw market figure regardless of whether
+  the card is priced in USD (TCGPlayer, PriceCharting) or EUR
+  (Cardmarket). A mixed-currency input list produces unintuitive
+  results: a €40 German card and a $40 American card look identical to
+  the filter. The CLI prints a warning when `--max-price` is set and
+  EUR-priced cards are in the results. **Keep your input list
+  single-currency** — all TCGPlayer / PriceCharting (USD) or all
+  Cardmarket (EUR) — to make the cap meaningful. In addition, inline
+  price bounds are approximate in other ways: the comparator parser
+  distinguishes strict (`>`, `<`) from inclusive (`>=`, `<=`) but
+  silently drops conditions on single-card lookups. A line like
   `Charizard | Base | 4 >= $100` parses the bound but doesn't act on
   it. Acceptable for bulk budgeting; not a general-purpose query
   language.

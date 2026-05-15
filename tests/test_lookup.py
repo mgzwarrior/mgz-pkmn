@@ -286,6 +286,66 @@ class PriceBoundaryFilterTests(unittest.TestCase):
         self.assertEqual([c["id"] for c in results], ["low"])
 
 
+def _eur_card(card_id: str, name: str, market: float) -> dict:
+    """Build a stub card priced in EUR via Cardmarket (not USD via TCGPlayer)."""
+    return {
+        "id": card_id,
+        "name": name,
+        "number": "1",
+        "set": {"name": "Test Set", "series": "Test Series"},
+        "subtypes": [],
+        "cardmarket": {
+            "_currency": "EUR",
+            "prices": {"averageSellPrice": market},
+        },
+    }
+
+
+class MixedCurrencyFilterTests(unittest.TestCase):
+    """--max-price compares raw market figures regardless of currency.
+
+    A pool containing both USD (TCGPlayer) and EUR (Cardmarket) cards is
+    filtered by the same numeric threshold.  This test documents the current
+    currency-blind behaviour so any future currency-aware change is intentional.
+    """
+
+    @staticmethod
+    def _mixed_client() -> _StubTCGClient:
+        return _StubTCGClient(
+            {
+                "name:Pikachu": [
+                    _card("usd-10", "Pikachu", 10.0),
+                    _card("usd-30", "Pikachu", 30.0),
+                    _eur_card("eur-15", "Pikachu", 15.0),
+                    _eur_card("eur-25", "Pikachu", 25.0),
+                ],
+                "name:Pikachu*": [
+                    _card("usd-10", "Pikachu", 10.0),
+                    _card("usd-30", "Pikachu", 30.0),
+                    _eur_card("eur-15", "Pikachu", 15.0),
+                    _eur_card("eur-25", "Pikachu", 25.0),
+                ],
+            }
+        )
+
+    def test_max_price_drops_eur_cards_above_cap_currency_blind(self) -> None:
+        # Both USD and EUR cards above the $20 cap are dropped, even though the
+        # EUR values are in a different currency.  usd-30 ($30 USD) and
+        # eur-25 (€25 EUR treated as 25) are both excluded.
+        q = CardQuery(raw="x", name="Pikachu", bulk_top=10)
+        results = find_top_cards(self._mixed_client(), q, limit=10, max_price=20.0)
+        ids = {c["id"] for c in results}
+        self.assertIn("usd-10", ids)
+        self.assertIn("eur-15", ids)
+        self.assertNotIn("usd-30", ids)
+        self.assertNotIn("eur-25", ids)
+
+    def test_max_price_passes_all_cards_when_no_cap(self) -> None:
+        q = CardQuery(raw="x", name="Pikachu", bulk_top=10)
+        results = find_top_cards(self._mixed_client(), q, limit=10)
+        self.assertEqual(len(results), 4)
+
+
 class ExpandConceptTests(unittest.TestCase):
     def test_known_concept_returns_slash_string(self) -> None:
         result = _expand_concept("eeveelution")
