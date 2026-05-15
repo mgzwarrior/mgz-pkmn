@@ -118,6 +118,40 @@ def _is_pricecharting_url(url: str) -> bool:
     return host == "pricecharting.com" or host.endswith(".pricecharting.com")
 
 
+def _apply_price_bounds(result: MatchResult, q: CardQuery) -> MatchResult:
+    """Return a price_mismatch MatchResult when the card violates inline bounds.
+
+    Both `price_min` and `price_max` on the query are checked. Cards with no
+    pricing data pass through — filtering on an unknown price would silently
+    swallow valid matches."""
+    if result.card is None:
+        return result
+    if q.price_min is None and q.price_max is None:
+        return result
+
+    pricing = extract_pricing(result.card, q.variant_hint)
+    if pricing.market is None:
+        return result
+
+    if q.price_min is not None:
+        if q.price_min_exclusive:
+            if pricing.market <= q.price_min:
+                return MatchResult(None, "price_mismatch")
+        else:
+            if pricing.market < q.price_min:
+                return MatchResult(None, "price_mismatch")
+
+    if q.price_max is not None:
+        if q.price_max_exclusive:
+            if pricing.market >= q.price_max:
+                return MatchResult(None, "price_mismatch")
+        else:
+            if pricing.market > q.price_max:
+                return MatchResult(None, "price_mismatch")
+
+    return result
+
+
 def find_card(
     pkmn: TCGClient,
     tcgdex: TCGDexClient,
@@ -147,6 +181,7 @@ def find_card(
         result = pc.fetch(q.url_hint)
         if result.card:
             disk_cache.record_url_override(q.name, q.set_hint, q.url_hint)
+            result = _apply_price_bounds(result, q)
         return result
     # Other URL hosts: not yet supported; fall through to DB search.
 
@@ -159,12 +194,12 @@ def find_card(
     if override and _is_pricecharting_url(override):
         override_result = pc.fetch(override)
         if override_result.card:
-            return override_result
+            return _apply_price_bounds(override_result, q)
 
     # 3. pokemontcg.io — best for English / international English releases.
     primary = search_pokemontcg(pkmn, q)
     if primary.card:
-        return primary
+        return _apply_price_bounds(primary, q)
 
     # 3. TCGdex — fall back through any languages hinted in the input, then EN.
     langs = detect_languages(q.name) or []
@@ -180,7 +215,7 @@ def find_card(
     for lang in langs:
         result = search_tcgdex(tcgdex, q, lang)
         if result.card:
-            return result
+            return _apply_price_bounds(result, q)
         if result.reason == "set_mismatch":
             saw_set_mismatch = True
 

@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from mgz_pkmn import cache
 from mgz_pkmn.lookup import (
+    _apply_price_bounds,
     _expand_concept,
     _name_token_match,
     _split_evolution_line,
@@ -300,6 +301,139 @@ class ExpandConceptTests(unittest.TestCase):
 
     def test_concept_lookup_is_case_insensitive(self) -> None:
         self.assertEqual(_expand_concept("PUPPY"), _expand_concept("puppy"))
+
+
+class ApplyPriceBoundsTests(unittest.TestCase):
+    """Unit tests for _apply_price_bounds — the helper that enforces inline price
+    conditions on single-card lookup results."""
+
+    def _priced_card(self, market: float) -> dict:
+        return {
+            "id": "test-1",
+            "name": "Charizard",
+            "number": "4",
+            "set": {"name": "Base Set", "series": "Base"},
+            "tcgplayer": {"prices": {"holofoil": {"market": market}}},
+        }
+
+    def _q(self, **kwargs) -> CardQuery:
+        return CardQuery(raw="test", name="Charizard", **kwargs)
+
+    def test_no_bounds_passes_through(self) -> None:
+        card = self._priced_card(50.0)
+        result = _apply_price_bounds(MatchResult(card, "matched"), self._q())
+        self.assertIs(result.card, card)
+
+    def test_inclusive_min_passes_equal(self) -> None:
+        card = self._priced_card(100.0)
+        q = self._q(price_min=100.0, price_min_exclusive=False)
+        result = _apply_price_bounds(MatchResult(card, "matched"), q)
+        self.assertIs(result.card, card)
+
+    def test_inclusive_min_drops_below(self) -> None:
+        card = self._priced_card(80.0)
+        q = self._q(price_min=100.0, price_min_exclusive=False)
+        result = _apply_price_bounds(MatchResult(card, "matched"), q)
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "price_mismatch")
+
+    def test_strict_min_drops_equal(self) -> None:
+        card = self._priced_card(100.0)
+        q = self._q(price_min=100.0, price_min_exclusive=True)
+        result = _apply_price_bounds(MatchResult(card, "matched"), q)
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "price_mismatch")
+
+    def test_strict_min_passes_above(self) -> None:
+        card = self._priced_card(100.01)
+        q = self._q(price_min=100.0, price_min_exclusive=True)
+        result = _apply_price_bounds(MatchResult(card, "matched"), q)
+        self.assertIs(result.card, card)
+
+    def test_inclusive_max_passes_equal(self) -> None:
+        card = self._priced_card(50.0)
+        q = self._q(price_max=50.0, price_max_exclusive=False)
+        result = _apply_price_bounds(MatchResult(card, "matched"), q)
+        self.assertIs(result.card, card)
+
+    def test_inclusive_max_drops_above(self) -> None:
+        card = self._priced_card(60.0)
+        q = self._q(price_max=50.0, price_max_exclusive=False)
+        result = _apply_price_bounds(MatchResult(card, "matched"), q)
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "price_mismatch")
+
+    def test_strict_max_drops_equal(self) -> None:
+        card = self._priced_card(50.0)
+        q = self._q(price_max=50.0, price_max_exclusive=True)
+        result = _apply_price_bounds(MatchResult(card, "matched"), q)
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "price_mismatch")
+
+    def test_no_pricing_data_passes_through(self) -> None:
+        card = {
+            "id": "test-1",
+            "name": "Charizard",
+            "number": "4",
+            "set": {"name": "Base Set", "series": "Base"},
+        }
+        q = self._q(price_min=100.0)
+        result = _apply_price_bounds(MatchResult(card, "matched"), q)
+        self.assertIs(result.card, card)
+
+    def test_none_card_passes_through(self) -> None:
+        q = self._q(price_min=100.0)
+        result = _apply_price_bounds(MatchResult(None, "no_candidates"), q)
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "no_candidates")
+
+
+class FindCardPriceBoundsTests(unittest.TestCase):
+    """Integration tests: find_card() enforces inline price bounds end-to-end."""
+
+    def _charizard(self, market: float) -> dict:
+        return {
+            "id": "base1-4",
+            "name": "Charizard",
+            "number": "4",
+            "set": {"name": "Base Set", "series": "Base"},
+            "tcgplayer": {"prices": {"holofoil": {"market": market}}},
+        }
+
+    def test_find_card_drops_when_price_below_min(self) -> None:
+        card = self._charizard(80.0)
+        client = _StubTCGClient({"name:Charizard": [card]})
+        q = CardQuery(
+            raw="Charizard >= $100", name="Charizard", price_min=100.0, price_min_exclusive=False
+        )
+        result = find_card(
+            client, _NullTCGDexClient(), _StubPCClient(MatchResult(None, "no_candidates")), q
+        )
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "price_mismatch")
+
+    def test_find_card_passes_when_price_meets_min(self) -> None:
+        card = self._charizard(120.0)
+        client = _StubTCGClient({"name:Charizard": [card]})
+        q = CardQuery(
+            raw="Charizard >= $100", name="Charizard", price_min=100.0, price_min_exclusive=False
+        )
+        result = find_card(
+            client, _NullTCGDexClient(), _StubPCClient(MatchResult(None, "no_candidates")), q
+        )
+        self.assertIsNotNone(result.card)
+
+    def test_find_card_drops_when_price_above_max(self) -> None:
+        card = self._charizard(200.0)
+        client = _StubTCGClient({"name:Charizard": [card]})
+        q = CardQuery(
+            raw="Charizard <= $100", name="Charizard", price_max=100.0, price_max_exclusive=False
+        )
+        result = find_card(
+            client, _NullTCGDexClient(), _StubPCClient(MatchResult(None, "no_candidates")), q
+        )
+        self.assertIsNone(result.card)
+        self.assertEqual(result.reason, "price_mismatch")
 
 
 class _StubPCClient:

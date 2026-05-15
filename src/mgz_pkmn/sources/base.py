@@ -12,7 +12,8 @@ from ..parser import CardQuery
 class MatchResult:
     card: dict[str, Any] | None
     # Core reasons emitted by the lookup module:
-    #   "matched" | "no_candidates" | "set_mismatch" | "scrape_failed"
+    #   "matched" | "no_candidates" | "set_mismatch" | "scrape_failed" |
+    #   "price_mismatch"
     # Higher layers (API routes) may synthesize their own values
     # (e.g. "error", "unparseable") when surfacing results to clients, so the
     # set is non-exhaustive.

@@ -562,6 +562,11 @@ def lookup(
                     f"      ✗ PriceCharting fetch failed for {result.url}",
                     fg="yellow",
                 )
+            elif result.reason == "price_mismatch":
+                click.secho(
+                    f"      ✗ {q.name!r} found but price is outside the requested bound",
+                    fg="yellow",
+                )
             else:
                 click.secho(
                     "      ✗ no match in pokemontcg.io or TCGdex",
