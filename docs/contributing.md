@@ -3,6 +3,9 @@
 Developer-facing setup, workflow, and release notes for `mgz-pkmn`. For
 end-user installation and usage, see the [README](../README.md).
 
+> **AI agents** — see [AGENTS.md](../AGENTS.md) for the code conventions,
+> invariants, and commit rules that agents must follow.
+
 ## Project layout
 
 ```
