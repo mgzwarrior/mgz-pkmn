@@ -51,7 +51,7 @@ boundary.
 | `--clear-cache` | off | Wipe the API response cache before the run, then continue normally so fresh data is re-cached. URL overrides preserved. |
 | `--lang CODE` | (none) | Default TCGdex language for lines that don't name one. Per-line keywords (`japanese`, `chinese`, …) still take priority. See [Languages](languages.md). |
 | `--sort MODE` | `number` | Row order applied to xlsx, binder, and checklist. Tag is always the outermost group; this changes order WITHIN each tag. Choices: `number` (group by set then card # asc — default), `number-desc`, `price-asc`, `price-desc`, `release-date` (chronological by set release date), `alpha` (by card name). |
-| `--print-summary-only` | off | Print the run summary but write no artifacts — no xlsx, PDFs, checklist, JSON report, or images (image downloads are skipped too). Useful when iterating on input formatting without regenerating outputs on every run. |
+| `--print-summary-only` | off | Print the run summary but write no output artifacts — no xlsx, PDFs, checklist, JSON report, or images (image downloads are skipped too). The disk cache still operates normally, so repeated runs stay fast. Useful when iterating on input formatting without regenerating outputs on every run. |
 | `-v, --verbose` | off | Echo each API request URL (cached entries are flagged). |
 | `-h, --help` | | Show usage. |
 

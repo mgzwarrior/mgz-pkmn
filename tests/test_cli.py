@@ -325,6 +325,7 @@ class LookupSummaryCacheTests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("matched", result.output)
+        self.assertIn("outputs skipped (--print-summary-only)", result.output)
         self.assertFalse(out.exists(), "xlsx should not be written")
         self.assertFalse(pdf.exists(), "PDF should not be written")
         self.assertFalse(report_path.exists(), "JSON report should not be written")

@@ -417,8 +417,9 @@ def lookup(
     disk_cache.reset_api_counters()
 
     if print_summary_only:
-        # Suppress every artifact write, including image downloads, so the
-        # run is read-only on the filesystem.
+        # Suppress every output-artifact write, including image downloads.
+        # The disk cache is intentionally left active — iterating on input
+        # formatting is exactly when warm cache hits matter most.
         no_images = True
 
     if clear_cache:
