@@ -1,11 +1,11 @@
 # Agent Guidance for mgz-pkmn
 
-This file documents the conventions, invariants, and workflow that AI coding
-agents (Claude Code, GitHub Copilot, Cursor, etc.) must follow when working
-on this repo.
+This file documents the code conventions and invariants that AI coding agents
+(GitHub Copilot, Cursor, etc.) must follow when working in this repo.
 
-For the human contributor workflow (issue selection, branching, PR process),
-see [docs/contributing.md](docs/contributing.md).
+**Workflow** — for issue selection, branching, and PR process, see
+[CLAUDE.md](CLAUDE.md) (Claude Code) or [docs/contributing.md](docs/contributing.md)
+(all contributors).
 
 ---
 
@@ -91,16 +91,6 @@ existing sources for the expected dict keys), then register it in
 ```bash
 make check
 ```
-
----
-
-## Commit and branch conventions
-
-- Branch names: `<issueNumber>-<short-description>` (e.g. `42-fix-pricing-scraper`).
-- Commits must be signed (`git commit -S`).
-- Every PR body must include a closing keyword (`Closes #N`) so GitHub
-  auto-links and auto-closes the issue.
-- One issue per PR — keep changes focused.
 
 ---
 
