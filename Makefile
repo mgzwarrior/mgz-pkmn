@@ -119,6 +119,16 @@ run-sample:  ## Smoke-run the CLI on sample_cards.txt (override: INPUT=, OUTPUT_
 	@mkdir -p $(OUTPUT_DIR)
 	uv run pkmn lookup $(INPUT) -o $(OUTPUT_DIR)/cards.xlsx --pdf $(OUTPUT_DIR)/binder.pdf --report-json $(OUTPUT_DIR)/summary.json
 
+.PHONY: refresh-examples
+refresh-examples:  ## Regenerate all tracked output/ examples from sample_cards.txt. Run before tagging a release (requires network).
+	@mkdir -p $(OUTPUT_DIR)
+	uv run pkmn lookup $(INPUT) \
+	  -o $(OUTPUT_DIR)/cards.xlsx \
+	  --pdf $(OUTPUT_DIR)/binder.pdf \
+	  --condensed-pdf $(OUTPUT_DIR)/binder-condensed.pdf \
+	  --checklist $(OUTPUT_DIR)/checklist.pdf \
+	  --report-json $(OUTPUT_DIR)/summary.json
+
 .PHONY: cache-clear
 cache-clear:  ## Wipe the on-disk cache (~/.cache/mgz-pkmn) — including URL overrides.
 	rm -rf $${XDG_CACHE_HOME:-$$HOME/.cache}/mgz-pkmn
