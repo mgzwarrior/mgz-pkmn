@@ -299,6 +299,37 @@ class LookupSummaryCacheTests(unittest.TestCase):
         payload = json.loads(report_path.read_text(encoding="utf-8"))
         self.assertEqual(payload["summary"]["sort_mode"], "price-desc")
 
+    def test_print_summary_only_suppresses_all_writes(self) -> None:
+        # --print-summary-only must still print the run summary but write
+        # nothing: no xlsx, PDF, or JSON report on disk.
+        input_path = self._write_inputs(["Mew", "Pikachu"])
+        out = Path(self._tmp.name) / "out.xlsx"
+        pdf = Path(self._tmp.name) / "binder.pdf"
+        report_path = Path(self._tmp.name) / "summary.json"
+
+        with patch("mgz_pkmn.cli.find_card", side_effect=self._make_stub()):
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "lookup",
+                    str(input_path),
+                    "-o",
+                    str(out),
+                    "--pdf",
+                    str(pdf),
+                    "--report-json",
+                    str(report_path),
+                    "--print-summary-only",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("matched", result.output)
+        self.assertIn("outputs skipped (--print-summary-only)", result.output)
+        self.assertFalse(out.exists(), "xlsx should not be written")
+        self.assertFalse(pdf.exists(), "PDF should not be written")
+        self.assertFalse(report_path.exists(), "JSON report should not be written")
+
     def test_summary_omits_cache_counts_when_no_hits(self) -> None:
         # Fresh cache → every query is a fetch, no hits. The summary tail
         # should be suppressed entirely on a zero-hit run.
