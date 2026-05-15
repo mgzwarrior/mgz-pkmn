@@ -41,7 +41,7 @@ boundary.
 | `--images-dir PATH` | `output/images/` | Where to save downloaded card images. |
 | `--api-key TEXT` | `$POKEMONTCG_IO_API_KEY` | pokemontcg.io API key (raises rate limits). |
 | `--no-images` | off | Skip image downloads + embedding. |
-| `--max-price FLOAT` | (none) | Per-card budget cap. **Bulk** `top:N` / `All …` lookups respect it strictly — candidates above the cap are excluded *before* the top-N cut, so an "affordable top 10" still returns 10. **Single-card** lookups always appear in every artifact even when above the cap, but get a visual flag (amber-fill on the Market cell in xlsx, red `! MP $X` line in the PDF, `over_max_price: true` in JSON). Applied to the raw market figure regardless of currency — keep your input list single-currency for it to mean what you'd expect. |
+| `--max-price FLOAT` | (none) | Per-card budget cap. **Bulk** `top:N` / `All …` lookups respect it strictly — candidates above the cap are excluded *before* the top-N cut, so an "affordable top 10" still returns 10. **Single-card** lookups always appear in every artifact even when above the cap, but get a visual flag (amber-fill on the Market cell in xlsx, red `! MP $X` line in the PDF, `over_max_price: true` in JSON). See the currency-blindness warning below. |
 | `--dedupe` | off | Remove duplicate matched cards across all queries (keyed by card id), keeping the first occurrence in xlsx / PDF / JSON. |
 | `--report-json PATH` | (none) | Also dump a structured JSON report. See [Outputs](outputs.md#json-report). |
 | `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF (9 cards/page) — image-forward, sized to print and slip into 9-pocket pages as physical placeholders. See [PDF binder](binder-pdf.md). |
@@ -54,6 +54,15 @@ boundary.
 | `--print-summary-only` | off | Print the run summary but write no output artifacts — no xlsx, PDFs, checklist, JSON report, or images (image downloads are skipped too). The disk cache still operates normally, so repeated runs stay fast. Useful when iterating on input formatting without regenerating outputs on every run. |
 | `-v, --verbose` | off | Echo each API request URL (cached entries are flagged). |
 | `-h, --help` | | Show usage. |
+
+> **`--max-price` is currency-blind.**
+> The cap is applied to the raw market figure regardless of whether the card is priced
+> in USD (TCGPlayer / PriceCharting) or EUR (Cardmarket). A `--max-price 50` run over
+> a mixed-currency input compares €50 German cards against the $50 threshold as if they
+> were the same number. The CLI prints a warning when this mismatch is detected, but
+> the cap is still enforced as-is. **To keep the cap meaningful, use a single-currency
+> input list** — either all TCGPlayer / PriceCharting sources (USD) or all Cardmarket
+> sources (EUR).
 
 ## `pkmn set-cards` options
 

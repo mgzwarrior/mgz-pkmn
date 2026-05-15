@@ -347,5 +347,111 @@ class LookupSummaryCacheTests(unittest.TestCase):
         self.assertNotIn("fetched", result.output)
 
 
+class LookupCurrencyWarningTests(unittest.TestCase):
+    """The ⚠ currency-blind warning should appear only when --max-price is set
+    AND the result set contains a genuine mix of USD and non-USD priced rows."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_warn = os.environ.get(cache._WARN_BYTES_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ[cache._WARN_BYTES_ENV] = "0"
+        cache.reset_api_counters()
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_warn is None:
+            os.environ.pop(cache._WARN_BYTES_ENV, None)
+        else:
+            os.environ[cache._WARN_BYTES_ENV] = self._old_warn
+
+    def _write_inputs(self, names: list[str]) -> Path:
+        path = Path(self._tmp.name) / "in.txt"
+        path.write_text("\n".join(names) + "\n", encoding="utf-8")
+        return path
+
+    @staticmethod
+    def _mixed_currency_stub(pkmn, tcgdex, pc, q, default_lang=None):
+        """Return USD pricing for 'Mew', EUR pricing for 'Pikachu'."""
+        if q.name == "Pikachu":
+            card = {
+                "id": "pikachu-eur",
+                "name": "Pikachu",
+                "number": "1",
+                "set": {"name": "Test Set"},
+                "_database": "stub",
+                "cardmarket": {
+                    "_currency": "EUR",
+                    "prices": {"averageSellPrice": 15.0},
+                },
+            }
+        else:
+            card = {
+                "id": "mew-usd",
+                "name": "Mew",
+                "number": "1",
+                "set": {"name": "Test Set"},
+                "_database": "stub",
+                "tcgplayer": {"prices": {"holofoil": {"market": 10.0}}},
+            }
+        return MatchResult(card, "matched")
+
+    @staticmethod
+    def _usd_only_stub(pkmn, tcgdex, pc, q, default_lang=None):
+        card = {
+            "id": q.name,
+            "name": q.name,
+            "number": "1",
+            "set": {"name": "Test Set"},
+            "_database": "stub",
+            "tcgplayer": {"prices": {"holofoil": {"market": 10.0}}},
+        }
+        return MatchResult(card, "matched")
+
+    def test_warning_emitted_for_mixed_currencies_with_max_price(self) -> None:
+        input_path = self._write_inputs(["Mew", "Pikachu"])
+        out = Path(self._tmp.name) / "out.xlsx"
+
+        with patch("mgz_pkmn.cli.find_card", side_effect=self._mixed_currency_stub):
+            result = CliRunner().invoke(
+                cli,
+                ["lookup", str(input_path), "-o", str(out), "--no-images", "--max-price", "20"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("currency-blind", result.output)
+
+    def test_warning_suppressed_for_single_currency_with_max_price(self) -> None:
+        input_path = self._write_inputs(["Mew", "Pikachu"])
+        out = Path(self._tmp.name) / "out.xlsx"
+
+        with patch("mgz_pkmn.cli.find_card", side_effect=self._usd_only_stub):
+            result = CliRunner().invoke(
+                cli,
+                ["lookup", str(input_path), "-o", str(out), "--no-images", "--max-price", "20"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertNotIn("currency-blind", result.output)
+
+    def test_warning_suppressed_without_max_price(self) -> None:
+        input_path = self._write_inputs(["Mew", "Pikachu"])
+        out = Path(self._tmp.name) / "out.xlsx"
+
+        with patch("mgz_pkmn.cli.find_card", side_effect=self._mixed_currency_stub):
+            result = CliRunner().invoke(
+                cli,
+                ["lookup", str(input_path), "-o", str(out), "--no-images"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertNotIn("currency-blind", result.output)
+
+
 if __name__ == "__main__":
     unittest.main()
