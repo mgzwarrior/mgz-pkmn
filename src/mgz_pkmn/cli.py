@@ -370,6 +370,15 @@ def cli(ctx: click.Context) -> None:
         "release-date (chronological by set release date), alpha (by card name)."
     ),
 )
+@click.option(
+    "--print-summary-only",
+    is_flag=True,
+    help=(
+        "Print the run summary but write no artifacts — no xlsx, PDFs, "
+        "checklist, JSON report, or images. Useful when iterating on input "
+        "formatting without regenerating outputs on every run."
+    ),
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def lookup(
     input_paths: tuple[Path, ...],
@@ -387,6 +396,7 @@ def lookup(
     clear_cache: bool,
     default_lang: str | None,
     sort_mode: str,
+    print_summary_only: bool,
     verbose: bool,
 ) -> None:
     """Look up Pokemon cards, fetch images and prices, and emit an .xlsx for card-show prep.
@@ -405,6 +415,11 @@ def lookup(
     _print_banner(__version__)
     _warn_if_cache_large()
     disk_cache.reset_api_counters()
+
+    if print_summary_only:
+        # Suppress every artifact write, including image downloads, so the
+        # run is read-only on the filesystem.
+        no_images = True
 
     if clear_cache:
         cleared = disk_cache.clear_api_cache()
@@ -637,80 +652,88 @@ def lookup(
     summary_parts.append(click.style(f"{overall_elapsed:.1f}s total", fg="bright_black"))
     click.echo("  " + "  ·  ".join(summary_parts))
 
-    _print_section("Writing outputs")
-    write_spreadsheet(rows, output, max_price=max_price)
-    click.secho("  ✓ ", fg="green", nl=False)
-    click.echo(f"{output}  " + click.style(f"({len(rows)} rows)", fg="bright_black"))
-    if not no_images:
-        click.secho("  ✓ ", fg="green", nl=False)
-        click.echo(f"images in {images_dir}/")
-
-    if pdf:
-        title = ", ".join(sorted({r.tag for r in rows if r.tag})) or pdf.stem
-        write_binder_pdf(rows, pdf, title=title, max_price=max_price, layout=STANDARD_LAYOUT)
-        sections = len({r.tag for r in rows if r.tag})
-        click.secho("  ✓ ", fg="green", nl=False)
-        click.echo(
-            f"{pdf}  "
-            + click.style(
-                f"({len(rows)} cards, {sections} section{'s' if sections != 1 else ''})",
-                fg="bright_black",
-            )
+    if print_summary_only:
+        click.echo()
+        click.secho(
+            "  · outputs skipped (--print-summary-only)",
+            fg="bright_black",
         )
-
-    if condensed_pdf_path:
-        title = ", ".join(sorted({r.tag for r in rows if r.tag})) or condensed_pdf_path.stem
-        write_binder_pdf(
-            rows,
-            condensed_pdf_path,
-            title=title,
-            max_price=max_price,
-            layout=CONDENSED_LAYOUT,
-        )
-        sections = len({r.tag for r in rows if r.tag})
+    else:
+        _print_section("Writing outputs")
+        write_spreadsheet(rows, output, max_price=max_price)
         click.secho("  ✓ ", fg="green", nl=False)
-        click.echo(
-            f"{condensed_pdf_path}  "
-            + click.style(
-                f"({len(rows)} cards, {sections} section{'s' if sections != 1 else ''}, condensed)",
-                fg="bright_black",
-            )
-        )
+        click.echo(f"{output}  " + click.style(f"({len(rows)} rows)", fg="bright_black"))
+        if not no_images:
+            click.secho("  ✓ ", fg="green", nl=False)
+            click.echo(f"images in {images_dir}/")
 
-    if checklist_path:
-        written = write_checklist_pdf(rows, checklist_path)
-        if written:
+        if pdf:
+            title = ", ".join(sorted({r.tag for r in rows if r.tag})) or pdf.stem
+            write_binder_pdf(rows, pdf, title=title, max_price=max_price, layout=STANDARD_LAYOUT)
+            sections = len({r.tag for r in rows if r.tag})
             click.secho("  ✓ ", fg="green", nl=False)
             click.echo(
-                f"{checklist_path}  "
+                f"{pdf}  "
                 + click.style(
-                    f"({written} checklist section{'s' if written != 1 else ''})",
-                    fg="bright_black",
-                )
-            )
-        else:
-            click.secho("  · ", fg="bright_black", nl=False)
-            click.echo(
-                click.style(
-                    "checklist skipped — no matched cards to list",
+                    f"({len(rows)} cards, {sections} section{'s' if sections != 1 else ''})",
                     fg="bright_black",
                 )
             )
 
-    if report_json:
-        payload = build_json_report(
-            rows=rows,
-            counters=counters,
-            input_lines=len(tagged),
-            elapsed=overall_elapsed,
-            max_price=max_price,
-            deduped_rows=deduped_rows,
-            sort_mode=sort_mode,
-        )
-        report_json.parent.mkdir(parents=True, exist_ok=True)
-        report_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        click.secho("  ✓ ", fg="green", nl=False)
-        click.echo(f"{report_json}  " + click.style("(JSON report)", fg="bright_black"))
+        if condensed_pdf_path:
+            title = ", ".join(sorted({r.tag for r in rows if r.tag})) or condensed_pdf_path.stem
+            write_binder_pdf(
+                rows,
+                condensed_pdf_path,
+                title=title,
+                max_price=max_price,
+                layout=CONDENSED_LAYOUT,
+            )
+            sections = len({r.tag for r in rows if r.tag})
+            click.secho("  ✓ ", fg="green", nl=False)
+            click.echo(
+                f"{condensed_pdf_path}  "
+                + click.style(
+                    f"({len(rows)} cards, {sections} section{'s' if sections != 1 else ''}, "
+                    "condensed)",
+                    fg="bright_black",
+                )
+            )
+
+        if checklist_path:
+            written = write_checklist_pdf(rows, checklist_path)
+            if written:
+                click.secho("  ✓ ", fg="green", nl=False)
+                click.echo(
+                    f"{checklist_path}  "
+                    + click.style(
+                        f"({written} checklist section{'s' if written != 1 else ''})",
+                        fg="bright_black",
+                    )
+                )
+            else:
+                click.secho("  · ", fg="bright_black", nl=False)
+                click.echo(
+                    click.style(
+                        "checklist skipped — no matched cards to list",
+                        fg="bright_black",
+                    )
+                )
+
+        if report_json:
+            payload = build_json_report(
+                rows=rows,
+                counters=counters,
+                input_lines=len(tagged),
+                elapsed=overall_elapsed,
+                max_price=max_price,
+                deduped_rows=deduped_rows,
+                sort_mode=sort_mode,
+            )
+            report_json.parent.mkdir(parents=True, exist_ok=True)
+            report_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            click.secho("  ✓ ", fg="green", nl=False)
+            click.echo(f"{report_json}  " + click.style("(JSON report)", fg="bright_black"))
 
     missing = sum(1 for r in rows if r.card is None)
     click.echo()
