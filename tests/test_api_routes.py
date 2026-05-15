@@ -67,35 +67,6 @@ class ParseRouteTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-def _matched_row(name: str = "Charizard") -> dict:
-    """Minimal row dict that _row_to_dict would produce for a successful match."""
-    return {
-        "query": {
-            "raw": name,
-            "name": name,
-            "set_hint": None,
-            "number": None,
-            "variant_hint": None,
-            "url_hint": None,
-            "bulk_top": None,
-            "bulk_all": False,
-            "price_min": None,
-            "price_max": None,
-        },
-        "card": {"id": "base1-4", "name": name},
-        "pricing": {
-            "market": 100.0,
-            "variant": None,
-            "source": None,
-            "url": None,
-            "currency": "USD",
-        },
-        "tag": "",
-        "matched": True,
-        "reason": "matched",
-    }
-
-
 class LookupRouteTests(unittest.TestCase):
     def test_blank_line_returns_empty_rows(self) -> None:
         resp = client.post("/api/v1/lookup", json={"line": ""})
