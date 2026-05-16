@@ -1,0 +1,44 @@
+---
+const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
+---
+
+<header class="border-b border-zinc-900/80 bg-zinc-950/70 backdrop-blur sticky top-0 z-10">
+  <nav
+    class="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between"
+    aria-label="Primary"
+  >
+    <a href="/" class="flex items-center gap-2" aria-label="mgz-pkmn home">
+      <img src="/favicon.svg" alt="" width="120" height="30" class="h-7 w-auto" />
+    </a>
+    <ul class="flex items-center gap-1 sm:gap-2 text-sm">
+      <li>
+        <a
+          href="#features"
+          class="px-3 py-2 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-900 transition"
+          >Features</a
+        >
+      </li>
+      <li class="hidden sm:list-item">
+        <a
+          href="#how-it-works"
+          class="px-3 py-2 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-900 transition"
+          >How it works</a
+        >
+      </li>
+      <li class="hidden sm:list-item">
+        <a
+          href="#roadmap"
+          class="px-3 py-2 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-900 transition"
+          >Roadmap</a
+        >
+      </li>
+      <li>
+        <a
+          href={repoUrl}
+          class="px-3 py-2 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-900 transition"
+          >GitHub</a
+        >
+      </li>
+    </ul>
+  </nav>
+</header>

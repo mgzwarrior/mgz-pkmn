@@ -46,6 +46,10 @@ install-api:  ## CLI + API dependencies (`uv sync --extra api`).
 install-web:  ## Web frontend dependencies (`npm install` in web/).
 	cd web && npm install
 
+.PHONY: install-site
+install-site:  ## Marketing site dependencies (`npm install` in site/).
+	cd site && npm install
+
 .PHONY: install-hooks
 install-hooks:  ## Install pre-commit as a uv tool and register the git hook.
 	uv tool install pre-commit
@@ -60,6 +64,10 @@ dev-api:  ## Start the FastAPI dev server with reload on :8000 (override: PORT_A
 .PHONY: dev-web
 dev-web:  ## Start the Vite dev server on :5173 (proxies /api to :8000).
 	cd web && npm run dev
+
+.PHONY: dev-site
+dev-site:  ## Start the Astro dev server on :4321 for the marketing site.
+	cd site && npm run dev
 
 ## Test, lint, format
 
@@ -103,6 +111,10 @@ precommit:  ## Run all pre-commit hooks against every file in the repo.
 .PHONY: build-web
 build-web:  ## Type-check and bundle the web frontend into web/dist/.
 	cd web && npm run build
+
+.PHONY: build-site
+build-site:  ## Build the static marketing site into site/dist/.
+	cd site && npm run build
 
 .PHONY: docker-build
 docker-build:  ## Build the single-image Docker artifact (API + built SPA).
