@@ -69,6 +69,15 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Astro 6 ships Vite 7 while @tailwindcss/vite@4.x bundles Vite 8.
+      # The version mismatch breaks the build (see PR #148). Re-enable
+      # by removing this ignore block once @tailwindcss/vite ships a
+      # release compatible with Astro 6's bundled Vite, or once Astro 6
+      # itself moves to Vite 8.
+      - dependency-name: "astro"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "github-actions"
     directory: "/"
