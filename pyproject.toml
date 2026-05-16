@@ -36,7 +36,7 @@ dependencies = [
     "openpyxl>=3.1",
     "pillow>=10.0",
     "reportlab>=4.5.1",
-    "requests>=2.34.1",
+    "requests>=2.34.2",
 ]
 
 [project.optional-dependencies]
@@ -44,7 +44,7 @@ dependencies = [
 # Pulls in the FastAPI server stack used by `api/`. CLI users don't need this.
 api = [
     "fastapi>=0.136.1",
-    "uvicorn[standard]>=0.46.0",
+    "uvicorn[standard]>=0.47.0",
 ]
 
 [project.scripts]
