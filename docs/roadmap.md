@@ -48,6 +48,17 @@ rationale behind the single-project structure.
 | **Web UI / API** | FastAPI service + React SPA. ([`api/`](../api/), [`web/`](../web/)) | [Web / API](https://github.com/users/mgzwarrior/projects/11/views/6) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aweb?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aweb) |
 | **DevOps & release** | CI, deployment, packaging, distribution, security, governance. | [DevOps](https://github.com/users/mgzwarrior/projects/11/views/7) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Adevops?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Adevops) |
 
+## New contributors
+
+If you're looking to make a first contribution, [CONTRIBUTORS.md](../CONTRIBUTORS.md)
+maintains a hand-picked set of small, well-scoped starter issues
+alongside the live
+[`good first issue`](https://github.com/mgzwarrior/mgz-pkmn/labels/good%20first%20issue)
+and
+[`help wanted`](https://github.com/mgzwarrior/mgz-pkmn/labels/help%20wanted)
+label filters. AI-assisted PRs welcome — see
+[AGENTS.md](../AGENTS.md).
+
 ---
 
 ## V1 — complete
