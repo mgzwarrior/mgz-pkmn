@@ -12,9 +12,9 @@ number for one-click navigation; speculative items don't have issues yet.
 
 ## Versioning policy
 
-- **V1** (`1.0.0`) — **committed**. A defensible 1.0 with no obvious
-  gaps. Polish, tests, docs, basic release engineering. Tracked on the
-  [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
+- **V1** (`1.0.0`) — **shipped**. A defensible 1.0 with no obvious
+  gaps. Polish, tests, docs, basic release engineering. Released
+  2026-05-15; see the [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
 - **V1.x / Post-V1** — **committed but later**. Items best done *after*
   the 1.0 cut (the announcement, the contributor-comms refresh, set
   identification cards) rather than blocking it.
@@ -50,10 +50,10 @@ rationale behind the single-project structure.
 
 ---
 
-## V1 — committed
+## V1 — complete
 
-What needs to land before tagging `1.0.0`. Most are polish or filling
-known gaps. The goal of V1 is *defensible*, not *new*.
+All items shipped in **1.0.0** (2026-05-15). See the
+[CHANGELOG](../CHANGELOG.md) for the full list.
 
 ### Lookup engine
 
@@ -138,8 +138,7 @@ known gaps. The goal of V1 is *defensible*, not *new*.
   feature, docs, plus a generic PR template).
   ([#29](https://github.com/mgzwarrior/mgz-pkmn/issues/29))
 - `CHANGELOG.md` seeded with entries for everything between `0.1.0`
-  and the upcoming `1.0.0`. Going forward, every PR adds an
-  `[Unreleased]` entry.
+  and `1.0.0`. Going forward, every PR adds an `[Unreleased]` entry.
   ([#30](https://github.com/mgzwarrior/mgz-pkmn/issues/30))
 - Polish `pyproject.toml` metadata for PyPI release (`description`,
   `keywords`, `classifiers`, `urls` — current description doesn't

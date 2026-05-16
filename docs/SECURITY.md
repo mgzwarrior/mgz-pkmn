@@ -4,8 +4,8 @@ We take security seriously. Thank you for helping keep `mgz-pkmn` and its users 
 
 ## Supported versions
 
-`mgz-pkmn` is pre-1.0 and ships from `main`. Security fixes land on the latest
-release line — older tagged versions are not patched.
+`mgz-pkmn` ships from `main`. Security fixes land on the latest release
+line — older tagged versions are not patched.
 
 | Version                 | Supported          |
 | ----------------------- | ------------------ |

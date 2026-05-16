@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-15
+
 ### Added
 
 - Web: per-input-line status panel during bulk lookups — each card line
@@ -118,5 +120,6 @@ UI, multi-source card lookup, all output formats, and release infrastructure.
 - Incomplete URL substring sanitization (CodeQL alerts).
 - Workflow permissions hardening (CodeQL alerts).
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/mgzwarrior/mgz-pkmn/releases/tag/v0.1.0

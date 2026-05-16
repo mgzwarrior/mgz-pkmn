@@ -46,7 +46,7 @@ class SPAStaticFiles(StaticFiles):
 app = FastAPI(
     title="mgz-pkmn API",
     description="Browser-accessible API for the mgz-pkmn Pokémon card lookup tool.",
-    version="0.1.0",
+    version="1.0.0",
 )
 
 # Allow the Vite dev server (and any localhost port) to call the API.
