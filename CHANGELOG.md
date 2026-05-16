@@ -26,7 +26,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
   exports continue to honor the sort mode in Settings.
 - Project logo SVG and 1280×640 social preview (rendered PNG checked in
   for upload to GitHub repo settings). Logo appears at the top of the
-  README.
+  README and in the web app header.
 
 ## [0.1.0] - 2026-05-08
 
