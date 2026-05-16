@@ -20,3 +20,8 @@ repos:
         entry: bash -c 'cd web && npx tsc -b'
         files: ^web/.*\.(ts|tsx)$
         pass_filenames: false
+      - id: dco-signoff
+        name: DCO sign-off (auto-append if missing)
+        language: system
+        stages: [commit-msg]
+        entry: .githooks/dco-signoff

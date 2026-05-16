@@ -115,3 +115,9 @@ When adding or changing a public-facing behaviour:
 - Do not add print statements inside library code; use `logging` or surface
   errors through return values.
 - Do not bypass pre-commit hooks (`--no-verify`).
+- Do not commit without `-s`. The `DCO` CI job fails on any non-merge commit
+  missing the `Signed-off-by:` trailer (and will block merge once required in
+  branch protection). The `commit-msg` pre-commit hook auto-appends the
+  sign-off if installed, but always `git commit -s -m "..."` to be safe. See
+  [docs/contributing.md](docs/contributing.md#signing-off-your-commits) for
+  recovery commands.
