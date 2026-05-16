@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { SettingsDrawer } from './SettingsDrawer'
 
-const mockResetSettings = vi.fn()
-const mockUpdateSettings = vi.fn()
+const { mockResetSettings, mockUpdateSettings } = vi.hoisted(() => ({
+  mockResetSettings: vi.fn(),
+  mockUpdateSettings: vi.fn(),
+}))
 
 vi.mock('../store', () => ({
   useAppStore: () => ({
