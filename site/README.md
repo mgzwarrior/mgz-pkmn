@@ -8,7 +8,8 @@ it describes — a push to `main` that touches `site/**` triggers a redeploy.
 
 Issues and PRs that touch this directory should carry the
 [`area:site`](https://github.com/mgzwarrior/mgz-pkmn/labels/area%3Asite)
-label so they land in the marketing-site view on the project board.
+label, so they're discoverable via the `area:site` filter on the
+[project board](https://github.com/users/mgzwarrior/projects/11?filterQuery=label%3A%22area%3Asite%22).
 See the [Project areas](../docs/roadmap.md#project-areas) table for
 how the area labels map to the codebase.
 
