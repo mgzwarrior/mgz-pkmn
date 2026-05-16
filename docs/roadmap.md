@@ -50,9 +50,10 @@ rationale behind the single-project structure.
 
 ## New contributors
 
-If you're looking to make a first contribution, [CONTRIBUTORS.md](../CONTRIBUTORS.md)
-maintains a hand-picked set of small, well-scoped starter issues
-alongside the live
+If you're looking to make a first contribution, the
+[Curated starter issues](contributing.md#curated-starter-issues)
+section of the contributing guide maintains a hand-picked set of small,
+well-scoped issues alongside the live
 [`good first issue`](https://github.com/mgzwarrior/mgz-pkmn/labels/good%20first%20issue)
 and
 [`help wanted`](https://github.com/mgzwarrior/mgz-pkmn/labels/help%20wanted)
