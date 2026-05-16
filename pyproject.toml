@@ -51,7 +51,7 @@ api = [
 pkmn = "mgz_pkmn.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/mgzwarrior/mgz-pkmn"
+Homepage = "https://mgz-pkmn.com"
 Repository = "https://github.com/mgzwarrior/mgz-pkmn"
 Issues = "https://github.com/mgzwarrior/mgz-pkmn/issues"
 Documentation = "https://github.com/mgzwarrior/mgz-pkmn/tree/main/docs"
