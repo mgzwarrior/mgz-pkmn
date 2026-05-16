@@ -376,11 +376,20 @@ git push origin v0.2.0
 
 The `pypi-publish` job uses [PyPI Trusted
 Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) so the
-workflow uploads to PyPI without a stored API token. The binding —
-owner `mgzwarrior`, repo `mgz-pkmn`, workflow `release.yml`,
-environment `pypi` — and the matching `pypi` GitHub Environment
-(no secrets) are already in place. If either ever needs to be
+workflow uploads to PyPI without a stored API token. PyPI verifies
+against the **entry workflow** that started the run (not the reusable
+workflow that actually performs the upload), so each release path
+needs its own trusted publisher binding. Two are configured:
+
+| Path | Entry workflow | When it fires |
+|---|---|---|
+| Auto | `release-on-version-bump.yml` | A merged PR bumps the version in `pyproject.toml` |
+| Manual fallback | `release.yml` | A maintainer pushes a `v*` tag from their laptop |
+
+Both bindings share: owner `mgzwarrior`, repo `mgz-pkmn`,
+environment `pypi`. The matching `pypi` GitHub Environment
+(no secrets) is also in place. If any of this ever needs to be
 rebuilt (project re-owned, environment recreated, etc.), re-add the
-trusted publisher in the PyPI project's **Publishing** settings with
-those same four values and recreate the `pypi` Environment under
-repo Settings → Environments.
+trusted publishers in the PyPI project's **Publishing** settings
+with those values and recreate the `pypi` Environment under repo
+Settings → Environments.
