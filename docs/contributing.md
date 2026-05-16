@@ -340,22 +340,37 @@ config, internal refactors, and test-only changes.
 
 ## Releasing
 
-First, rotate the changelog: rename the `[Unreleased]` section to the
-new version with today's date, add a fresh empty `[Unreleased]` above
-it, and update the compare links at the bottom of the file.
+Releases are driven by `pyproject.toml`. A PR that bumps the version
+**is** the release — once it merges to `main`, the
+`release-on-version-bump` workflow tags the new commit, builds the
+package, runs the test suite, publishes to
+[PyPI](https://pypi.org/project/mgz-pkmn/) via trusted publishing, and
+creates a GitHub Release with the built distribution attached and
+notes linking to the new PyPI version.
 
-Then push a `v*` tag to trigger the release workflow:
+To cut a release, open a single PR that:
+
+1. Rotates the changelog: rename the `[Unreleased]` section to the new
+   version with today's date, add a fresh empty `[Unreleased]` above
+   it, and update the compare links at the bottom of the file.
+2. Bumps the version string in `pyproject.toml`,
+   `src/mgz_pkmn/__init__.py`, and `uv.lock` (run `uv lock` after
+   editing `pyproject.toml` to update the lockfile).
+
+Merge the PR — the rest is automatic. The
+`release-on-version-bump` workflow no-ops if the `v<version>` tag
+already exists, so unrelated `pyproject.toml` edits (dependency
+bumps, metadata tweaks) don't trigger spurious releases.
+
+### Emergency manual release
+
+If automation is unavailable, the underlying `release.yml` workflow
+still accepts a manually pushed tag:
 
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
 ```
-
-The workflow builds the package, runs the test suite, publishes the
-built distribution to [PyPI](https://pypi.org/project/mgz-pkmn/) via
-trusted publishing, and creates a GitHub Release with the same
-distribution files attached. The Release notes link to the new PyPI
-version.
 
 ### PyPI trusted publisher wiring
 
