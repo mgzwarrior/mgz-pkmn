@@ -138,8 +138,7 @@ All items shipped in **1.0.0** (2026-05-15). See the
   feature, docs, plus a generic PR template).
   ([#29](https://github.com/mgzwarrior/mgz-pkmn/issues/29))
 - `CHANGELOG.md` seeded with entries for everything between `0.1.0`
-  and the upcoming `1.0.0`. Going forward, every PR adds an
-  `[Unreleased]` entry.
+  and `1.0.0`. Going forward, every PR adds an `[Unreleased]` entry.
   ([#30](https://github.com/mgzwarrior/mgz-pkmn/issues/30))
 - Polish `pyproject.toml` metadata for PyPI release (`description`,
   `keywords`, `classifiers`, `urls` — current description doesn't

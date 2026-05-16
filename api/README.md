@@ -70,6 +70,7 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | `GET`  | `/api/v1/sets` | Cached list of Pokémon TCG sets (weekly TTL) |
 | `POST` | `/api/v1/overrides` | Record a sticky PriceCharting URL override |
 | `GET`  | `/api/v1/overrides` | List all recorded URL overrides |
+| `GET`  | `/api/v1/set-cards.pdf` | Printable set identification cards PDF (no input needed) |
 
 The full schema (request models, response shapes) is in Swagger — the
 examples below are just the bits worth calling out.
@@ -176,6 +177,7 @@ api/
 │   ├── lookup.py      # POST /lookup, POST /bulk (SSE)
 │   ├── export.py      # POST /export
 │   ├── sets.py        # GET /sets (with disk cache)
+│   ├── set_cards.py   # GET /set-cards.pdf
 │   └── overrides.py   # POST/GET /overrides
 └── pyproject.toml     # editable-installs `mgz-pkmn` from ../
 ```
@@ -207,9 +209,10 @@ expect each to maintain its own.
 
 ## Dev workflow
 
-The API has no dedicated test suite yet — the underlying `mgz_pkmn` package
-is well-covered by `tests/` at the repo root, and the routes are thin
-wrappers. To smoke-test a route:
+API routes are covered by `tests/test_api_routes.py`, `tests/test_export_api.py`,
+`tests/test_set_cards_api.py`, and `tests/test_spa_mount.py` at the repo root.
+Run them with `make test` or `uv run python -m unittest discover -s tests`.
+To smoke-test a route manually:
 
 ```bash
 # Health
