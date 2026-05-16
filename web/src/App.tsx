@@ -16,6 +16,7 @@ import { bulkLookup, lookupLine } from './api/client'
 import { InputEditor } from './components/InputEditor'
 import { ResultsTable } from './components/ResultsTable'
 import { ExportBar } from './components/ExportBar'
+import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { useAppStore } from './store'
 import type { BulkEvent } from './types'
@@ -29,6 +30,8 @@ function App() {
     isRunning,
     setIsRunning,
     setProgress,
+    setProcessingLines,
+    markLineStatus,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -55,6 +58,7 @@ function App() {
     if (nonEmpty.length === 0) return
 
     clearRows()
+    setProcessingLines(nonEmpty.map((line) => ({ line, status: 'pending' })))
     setIsRunning(true)
     setProgress({ done: 0, total: nonEmpty.length })
 
@@ -65,6 +69,10 @@ function App() {
 
     function onEvent(event: BulkEvent) {
       if (event.done) return
+
+      // First event for this input line transitions it out of "pending".
+      // Subsequent events (top:N expansions) leave the status alone.
+      markLineStatus(event.index, event.matched ? 'resolved' : 'error')
 
       if (settings.dedupe && event.matched && event.card) {
         const cid = event.card.id as string | undefined
@@ -95,7 +103,17 @@ function App() {
     } catch {
       setIsRunning(false)
     }
-  }, [inputText, settings, isRunning, clearRows, appendRow, setIsRunning, setProgress])
+  }, [
+    inputText,
+    settings,
+    isRunning,
+    clearRows,
+    appendRow,
+    setIsRunning,
+    setProgress,
+    setProcessingLines,
+    markLineStatus,
+  ])
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort()
@@ -148,7 +166,10 @@ function App() {
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Results
           </h2>
-          <ResultsTable onRerunLine={handleRerunLine} />
+          <div className="flex flex-col gap-3">
+            <ProcessingQueue />
+            <ResultsTable onRerunLine={handleRerunLine} />
+          </div>
         </section>
       </main>
 

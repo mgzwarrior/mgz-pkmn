@@ -9,6 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: per-input-line status panel during bulk lookups — each card line
+  starts as pending (blue spinner), then transitions to resolved (green
+  check) or error (amber alert) as its first lookup event arrives.
+  New result rows fade in to make streaming visible.
+
 - Web: "Restore defaults" button in the settings drawer footer that resets
   all settings (API key, tag, sort, max price, dedupe, hide images) to
   their initial values.

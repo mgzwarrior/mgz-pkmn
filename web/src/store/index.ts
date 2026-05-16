@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Row, Settings } from '../types'
+import type { ProcessingLine, Row, Settings } from '../types'
 
 const DEFAULT_SETTINGS: Settings = {
   apiKey: '',
@@ -30,6 +30,11 @@ interface AppState {
   isRunning: boolean
   setIsRunning: (v: boolean) => void
 
+  /** Per-input-line status tracked across the current bulk lookup. */
+  processingLines: ProcessingLine[]
+  setProcessingLines: (lines: ProcessingLine[]) => void
+  markLineStatus: (index: number, status: ProcessingLine['status']) => void
+
   /** Persistent settings (survives page reload). */
   settings: Settings
   updateSettings: (partial: Partial<Settings>) => void
@@ -52,6 +57,17 @@ export const useAppStore = create<AppState>()(
 
       isRunning: false,
       setIsRunning: (isRunning) => set({ isRunning }),
+
+      processingLines: [],
+      setProcessingLines: (processingLines) => set({ processingLines }),
+      markLineStatus: (index, status) =>
+        set((state) => {
+          const current = state.processingLines[index]
+          if (!current || current.status !== 'pending') return state
+          const next = state.processingLines.slice()
+          next[index] = { ...current, status }
+          return { processingLines: next }
+        }),
 
       settings: { ...DEFAULT_SETTINGS },
       updateSettings: (partial) =>

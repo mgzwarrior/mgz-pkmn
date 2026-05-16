@@ -148,7 +148,7 @@ function ResultRow({
   return (
     <>
       <tr
-        className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
+        className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors motion-safe:animate-[fadeInRow_220ms_ease-out] ${
           !row.matched ? 'opacity-60' : ''
         } ${isOverCap ? 'bg-amber-950/30' : ''}`}
       >
