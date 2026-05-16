@@ -120,3 +120,7 @@ push to `main`.
 | Disk cache + URL overrides | [Cache](docs/cache.md) |
 | Render / Docker / production recipe | [Deployment](docs/deployment.md) |
 | Project layout, dev workflow, CI, release | [Contributing](docs/contributing.md) |
+
+## Community
+
+Questions, ideas, or want to share what you built? Open a thread in [GitHub Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions).
