@@ -71,7 +71,19 @@ make fix
 ```
 
 Pre-commit hooks run `ruff check --fix` and `ruff format` automatically — make sure they
-pass. Before opening the PR, run the local gate:
+pass.
+
+**Sign off every commit with `-s`.** This project runs a DCO check on every PR; the
+`DCO` job fails when any non-merge commit is missing a `Signed-off-by:` trailer (the
+check becomes merge-blocking once the maintainer adds it to branch protection's
+required-checks list). Always commit with `git commit -s -m "..."`; if you forget,
+recover with `git commit --amend --no-edit -s` (last commit) or
+`git rebase --signoff origin/main` (all PR commits), then force-push. If `make install`
+or `make install-hooks` has been run, the `commit-msg` pre-commit hook auto-appends the
+sign-off so `-s` becomes optional locally. See
+[docs/contributing.md](docs/contributing.md#signing-off-your-commits).
+
+Before opening the PR, run the local gate:
 
 ```bash
 make check   # ruff lint + format check + Python tests + web ESLint
@@ -138,12 +150,15 @@ gh project item-add <project-number> --owner mgzwarrior --url <pr-url>
 ## Step 6 — Confirm CI is green
 
 You're done when the PR is open and CI is green. The `CI` workflow
-(`.github/workflows/ci.yml`) defines two jobs:
+(`.github/workflows/ci.yml`) defines three jobs, and `DCO`
+(`.github/workflows/dco.yml`) runs separately on PRs:
 
 | Job | What it checks |
 |-----|---------------|
 | `api` | ruff lint + format check (`src/`, `api/`) + full test suite, on Python 3.11, 3.12, and 3.13 |
 | `web` | ESLint + TypeScript typecheck/build (`npm run build`) for `web/` |
+| `site` | Astro build for the marketing site (`site/`) |
+| `DCO` | Every non-merge PR commit carries a well-formed `Signed-off-by:` trailer (advisory until added to branch protection's required-checks list) |
 
 CodeQL (`Analyze`) also runs on every PR — wait for those checks to pass too.
 
