@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions or general discussion
+    url: https://github.com/mgzwarrior/mgz-pkmn/discussions
+    about: Ask a question or start a conversation in Discussions.
+  - name: Introduce yourself
+    url: https://github.com/mgzwarrior/mgz-pkmn/discussions/160
+    about: Say hello and meet the community.
