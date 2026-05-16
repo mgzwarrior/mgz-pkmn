@@ -69,34 +69,28 @@ Adopt an **open-core architecture with three structural commitments**:
    coordination.
 
 3. **Hosted offerings are additional delivery layers over the same
-   plugin surface. Ship one hosted product (Cloud) with multiple
-   plans on shared multi-tenant infrastructure; offer dedicated
-   hosting as an opt-in upgrade for vendors who require it.**
+   plugin surface. Ship one default multi-tenant hosted product
+   that serves both audiences on shared infrastructure; preserve a
+   deferred opt-in upgrade path to dedicated tenancy for customers
+   who require it.**
 
-   - **Cloud (default hosted product)** — multi-tenant on shared
-     infrastructure operated by the maintainer. Two plans on the
-     same infrastructure, differing only in feature surface,
-     quotas, and price:
-     - *Collector plan* — persistence features (saved want-lists,
-       run history, scheduled re-pricing, email / Discord delivery
-       of generated outputs). Price-sensitive; the
-       few-dollars-a-month anchor is what makes multi-tenant the
-       only viable model.
-     - *Vendor plan* — the vendor-only capabilities (multi-user
-       accounts, inventory state, acquisition-cost comps,
-       paid-third-party-API integrations). Same isolation
-       guarantees as the Collector plan; what differs is the
-       feature surface above and the quotas / rate limits sized
-       for vendor workloads.
-   - **Vendor Cloud Pro (opt-in dedicated upgrade)** — runs the
-     OSS CLI plus the vendor plugin on dedicated per-tenant
-     infrastructure. Targeted at vendors who specifically require
-     it (compliance posture, prior trust events, workloads heavy
-     enough to justify the cost). *Not a launch-day commitment*:
-     ships when there's evidence of demand and willingness to pay
-     for it. The architecture must preserve the upgrade path
-     (shared-infra schema is the same as, or trivially convertible
-     to, the dedicated-infra schema) from the start.
+   - The **default hosted product** is multi-tenant on shared
+     infrastructure operated by the maintainer. The same
+     infrastructure serves collectors and vendors via plans that
+     differ in feature surface, quotas, and price, but share the
+     same isolation guarantees enforced at the application layer.
+     Multi-tenancy is itself an architectural constraint: every
+     query is scoped to the requesting tenant, no per-customer
+     infra footprint.
+   - A **dedicated-tenancy upgrade** is preserved as an opt-in
+     path for the subset of customers who require it (compliance
+     posture, prior trust events, workloads heavy enough to
+     justify the cost). *Not a launch-day commitment*: ships
+     when there's evidence of demand and willingness to pay for
+     it. The architecture must preserve the upgrade path —
+     shared-infra and dedicated-infra schemas must be the same,
+     or trivially convertible, from the start — so the upgrade
+     can land without rework when justified.
 
    No hosted layer replaces a locally-installable equivalent:
    collectors keep the free OSS CLI, vendors keep the locally
@@ -134,16 +128,16 @@ until they're real.
   repo beyond the plugin surface (which is justified on its own).
   Decoupling the two codebases means the paid product can iterate
   on its own cadence without forcing OSS releases.
-- All hosted layers (Cloud's Collector and Vendor plans, plus the
-  deferred Vendor Cloud Pro upgrade) are additive, not exclusive —
-  they don't foreclose on serving customers who insist on the
+- The default multi-tenant hosted product and the deferred
+  dedicated-tenancy upgrade are additive, not exclusive — they
+  don't foreclose on serving customers who insist on the
   locally-installable equivalent for data-residency, trust, or
   offline-use reasons.
-- Starting with a single multi-tenant Cloud (rather than two
-  parallel hosted products from day one) defers the operational
-  cost of running a second production system until there's evidence
-  of demand for dedicated tenancy. Cheaper to launch, easier to
-  evolve.
+- Starting with a single multi-tenant hosted product (rather than
+  two parallel hosted products from day one) defers the
+  operational cost of running a second production system until
+  there's evidence of demand for dedicated tenancy. Cheaper to
+  launch, easier to evolve.
 - DCO sign-off makes downstream commercial reuse unambiguous
   without imposing CLA friction or key-management burden on
   contributors.
@@ -163,45 +157,45 @@ until they're real.
   -s`) but non-zero, particularly for web-edits and contributors
   unfamiliar with the convention. Mitigated by docs and an optional
   `commit-msg` hook.
-- **Noisy-neighbor risk.** Vendor-plan workloads (scheduled
-  re-pricing, bulk imports, paid-API integrations) running
-  alongside Collector-plan workloads on shared infrastructure will
-  need quota management, rate limiting, and ideally an async job
-  queue so one tenant's heavy run doesn't degrade another's. None
-  of this is hard, but all of it has to actually be there from the
-  first vendor onboarded.
-- **Cloud → Vendor Cloud Pro migration is a known problem to
-  design for, not against.** Moving an existing tenant's data from
+- **Noisy-neighbor risk.** Heavier workloads (scheduled jobs,
+  bulk imports, integrations with paid external APIs) running
+  alongside lighter ones on shared infrastructure will need quota
+  management, rate limiting, and ideally an async job queue so
+  one tenant's heavy run doesn't degrade another's. None of this
+  is hard, but all of it has to actually be there from the first
+  heavy-workload tenant onboarded.
+- **Shared-to-dedicated migration is a known problem to design
+  for, not against.** Moving an existing tenant's data from
   shared to dedicated infrastructure is non-trivial and needs to
-  be cheap before the first customer asks. The shared-infra schema
-  and the dedicated-infra schema need to be the same (or trivially
-  convertible) from the start; designing them as if they'll always
-  diverge would be a foreclosure.
-- **Launching with shared-only Cloud foregoes the largest
-  vendors** — those who require dedicated infrastructure from day
-  one. Likely the right tradeoff (those vendors are rarely early
-  customers anyway), but worth being honest about: those are
+  be cheap before the first customer asks. The shared-infra
+  schema and the dedicated-infra schema need to be the same (or
+  trivially convertible) from the start; designing them as if
+  they'll always diverge would be a foreclosure.
+- **Launching with shared-only hosting foregoes the customers
+  who require dedicated infrastructure from day one.** Likely
+  the right tradeoff (those customers are rarely early adopters
+  anyway), but worth being honest about: they're
   deferred-revenue customers, not lost ones, as long as the
   upgrade path is preserved.
 - **Tenant scoping must be correct everywhere, every time.** In a
-  multi-tenant Cloud that serves both audiences, every query must
-  be scoped to the requesting tenant; a single missed scope is a
-  cross-tenant leak. Mitigated by ORM-level discipline (a base
-  query that always filters by tenant) and a per-PR review checklist,
-  but it's a continuous obligation.
+  multi-tenant hosted product that serves multiple audiences,
+  every query must be scoped to the requesting tenant; a single
+  missed scope is a cross-tenant leak. Mitigated by ORM-level
+  discipline (a base query that always filters by tenant) and a
+  per-PR review checklist, but it's a continuous obligation.
 
 **Neutral.**
 
 - This ADR documents the architectural commitment; commercial
   details (tier names, pricing, feature gating) are intentionally
   excluded and live in private planning artifacts until launch.
-- **Vendor Cloud Pro is a deferred commitment, not a launch-day
-  product.** The architecture preserves the option to ship it
-  whenever demand justifies; nothing about Cloud's design
-  forecloses on adding dedicated tenancy as an upgrade. The
-  maintainer can also choose to never ship Vendor Cloud Pro at
-  all — Cloud with strong application-layer isolation may suffice
-  for the available market.
+- **The dedicated-tenancy upgrade is a deferred commitment, not a
+  launch-day product.** The architecture preserves the option to
+  ship it whenever demand justifies; nothing about the
+  multi-tenant product's design forecloses on adding dedicated
+  tenancy as an upgrade. The maintainer can also choose to never
+  ship dedicated tenancy at all — multi-tenant hosting with strong
+  application-layer isolation may suffice for the available market.
 
 ## Alternatives considered
 
@@ -229,15 +223,15 @@ until they're real.
   data-residency requirements). Retained as an *additional* delivery
   layer per the third decision point above.
 
-- **Two parallel hosted products from day one (Cloud for
-  collectors, Vendor Cloud for vendors).** Build distinct hosted
-  shapes for each audience from the start, with Vendor Cloud
-  running on stronger isolation than Cloud. Rejected for now:
+- **Two parallel hosted products from day one — a multi-tenant
+  one for collectors and a dedicated-tenancy one for vendors.**
+  Build distinct hosted products for each audience from the
+  start, with different isolation guarantees. Rejected for now:
   doubles the operational surface area before there's evidence
-  vendors need dedicated infrastructure on day one. Tier-up from a
-  single multi-tenant Cloud is the cheaper, evidence-driven path;
-  dedicated upgrades land via Vendor Cloud Pro when a customer
-  specifically asks. Reconsider if a pattern of
+  the vendor audience needs dedicated infrastructure on day one.
+  A tier-up from a single multi-tenant product (with a dedicated
+  upgrade path for customers who specifically ask) is the
+  cheaper, evidence-driven path. Reconsider if a pattern of
   vendors-asking-for-dedicated appears before launch.
 
 - **CLA instead of DCO.** Contributors sign a one-time agreement
