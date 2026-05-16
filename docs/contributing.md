@@ -41,6 +41,13 @@ Stuck on scope or design? Open a [GitHub
 Discussion](https://github.com/mgzwarrior/mgz-pkmn/discussions/new?category=general)
 before writing code — it's cheaper to align early than to redo a PR.
 
+## Opening an issue
+
+Blank issues are disabled — the "New Issue" button shows structured templates
+and contact links instead. If you want to ask a question or start a discussion
+rather than file a bug or feature request, use [GitHub
+Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions) directly.
+
 ## Claiming an issue
 
 Comment on the issue saying you'd like to take it — something as
