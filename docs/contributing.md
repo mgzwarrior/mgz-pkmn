@@ -11,7 +11,16 @@ end-user installation and usage, see the [README](../README.md).
 New here? Welcome — contributions are explicitly invited, including
 AI-assisted ones. [AGENTS.md](../AGENTS.md) is there to make
 agent-driven contributions supportable, not exotic; humans benefit
-from the same conventions.
+from the same conventions. All contributors are expected to follow the
+[Code of Conduct](../CODE_OF_CONDUCT.md).
+
+Before or after your first PR, feel free to pop into the
+[Introduce yourself 👋](https://github.com/mgzwarrior/mgz-pkmn/discussions/160)
+discussion and say hello — it's a nice place to meet the community.
+For the full picture on contributing (including AI-assisted PRs and
+current priorities), see the
+[Contributing to mgz-pkmn](https://github.com/mgzwarrior/mgz-pkmn/discussions/141)
+discussion.
 
 The fastest way in:
 
@@ -31,6 +40,33 @@ The fastest way in:
 Stuck on scope or design? Open a [GitHub
 Discussion](https://github.com/mgzwarrior/mgz-pkmn/discussions/new?category=general)
 before writing code — it's cheaper to align early than to redo a PR.
+
+## Opening an issue
+
+Blank issues are disabled — the "New Issue" button shows structured templates
+and contact links instead. If you want to ask a question or start a discussion
+rather than file a bug or feature request, use [GitHub
+Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions) directly.
+
+## Claiming an issue
+
+Comment on the issue saying you'd like to take it — something as
+simple as "I'd like to work on this" is enough. The maintainer will
+assign it to you.
+
+Claimed issues that have seen no activity for **two weeks** are
+reopened for others to pick up. If life gets in the way, just say so
+in the thread — it won't be reassigned without notice.
+
+## Contributor ladder
+
+| Level | How you get there |
+|---|---|
+| **Contributor** | Any merged PR. Your name is in the commit history. |
+| **Collaborator** | Invited by the maintainer after a merged PR — grants write access to the repository (subject to branch protection rules) and the ability to self-assign issues. |
+
+No formal process — if you've shipped something and want to stay
+involved, say so and the invite will follow.
 
 ## Curated starter issues
 
