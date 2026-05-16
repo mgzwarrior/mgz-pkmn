@@ -18,10 +18,15 @@ Three forces shape the option space:
 
 1. **The collector ↔ vendor split is a real audience boundary.** A
    solo collector prepping for a card show needs the current CLI plus
-   maybe a hosted convenience layer. A card-shop vendor needs
+   maybe a hosted convenience layer for persistence (saved want-lists,
+   run history, sync across devices). A card-shop vendor needs
    multi-user accounts, persistent inventory, acquisition-cost comps,
    and integrations with paid third-party APIs. These aren't
-   gradations of the same product — they serve different jobs.
+   gradations of the same product — they serve different jobs, and
+   their hosted-infrastructure expectations differ accordingly:
+   collectors are price-sensitive and will share infrastructure with
+   other collectors; vendors expect tenant isolation strong enough to
+   treat their inventory and pricing data as private.
 
 2. **The OSS contributor base is small but growing.** Decisions made
    now about contributor licensing are cheap to change today and
@@ -56,13 +61,32 @@ Adopt an **open-core architecture with three structural commitments**:
    — community contributors can write their own plugins without
    coordination.
 
-3. **A hosted offering can be added later as a separate delivery
-   layer over the same plugin surface.** "Vendor Cloud" runs the OSS
-   CLI plus the vendor plugin on infrastructure operated by the
-   maintainer, adds multi-user state, scheduled jobs, and paid-API
-   integrations. It does not replace the locally-installable vendor
-   package; the two coexist because customers split on trust /
-   connectivity / data-residency lines that aren't going away.
+3. **Hosted offerings are additional delivery layers over the same
+   plugin surface — not a single product, but a small family,
+   matched to the audience.** Two distinct hosted shapes are
+   anticipated:
+
+   - **Cloud (for collectors)** — multi-tenant on shared
+     infrastructure operated by the maintainer. Adds the persistence
+     features collectors will plausibly pay a few dollars a month for
+     (saved want-lists, run history, scheduled re-pricing, email /
+     Discord delivery of generated outputs), without any of the
+     vendor-only machinery. Economically only viable as multi-tenant
+     at the collector price point, which is itself an architectural
+     constraint: every query is scoped to a user, no per-customer
+     infra footprint.
+   - **Vendor Cloud (for vendors)** — runs the OSS CLI plus the
+     vendor plugin with stronger tenant isolation than Cloud — at
+     minimum strict per-tenant data segregation, plausibly dedicated
+     compute for larger customers. Adds the vendor-only capabilities
+     (multi-user, inventory state, acquisition-cost comps,
+     paid-third-party-API integrations).
+
+   Neither hosted layer replaces a locally-installable equivalent:
+   collectors keep the free OSS CLI, vendors keep the locally
+   installable `mgz-pkmn-vendor` package. Customers split on trust /
+   connectivity / data-residency lines that aren't going away, and
+   the architecture preserves that optionality on both sides.
 
 Adopt **DCO (Developer Certificate of Origin)** sign-off as the
 licensing posture for OSS contributions (tracked separately in #170).
@@ -94,9 +118,10 @@ until they're real.
   repo beyond the plugin surface (which is justified on its own).
   Decoupling the two codebases means the paid product can iterate
   on its own cadence without forcing OSS releases.
-- "Vendor Cloud" as a future hosted layer is additive, not
-  exclusive — it does not foreclose on serving customers who insist
-  on local install for data-residency or trust reasons.
+- Both hosted layers (Cloud for collectors, Vendor Cloud for
+  vendors) are additive, not exclusive — they don't foreclose on
+  serving customers who insist on the locally-installable
+  equivalent for data-residency, trust, or offline-use reasons.
 - DCO sign-off makes downstream commercial reuse unambiguous
   without imposing CLA friction or key-management burden on
   contributors.
@@ -116,16 +141,26 @@ until they're real.
   -s`) but non-zero, particularly for web-edits and contributors
   unfamiliar with the convention. Mitigated by docs and an optional
   `commit-msg` hook.
+- Operating two hosted shapes with different isolation guarantees
+  (multi-tenant Cloud, more isolated Vendor Cloud) is genuinely
+  more work than operating one. The architecture preserves the
+  option to defer either indefinitely — but if both ship, the
+  application layer must enforce tenant scoping correctly on
+  every query in Cloud, and the deploy story for Vendor Cloud
+  needs to make per-tenant separation cheap. Both are real costs
+  worth flagging before commitment.
 
 **Neutral.**
 
 - This ADR documents the architectural commitment; commercial
   details (tier names, pricing, feature gating) are intentionally
   excluded and live in private planning artifacts until launch.
-- "Vendor Cloud" being a separate delivery layer means the
-  maintainer must decide separately whether to be in the
-  infrastructure-operation business. The architecture doesn't force
-  the decision; it preserves the option.
+- Both hosted layers being separate delivery layers means the
+  maintainer can decide independently per audience whether to be
+  in the infrastructure-operation business — ship Cloud without
+  Vendor Cloud, ship neither, ship both, in any order. The
+  architecture doesn't force any of those decisions; it preserves
+  the optionality.
 
 ## Alternatives considered
 
@@ -152,6 +187,15 @@ until they're real.
   install (vendors with sensitive inventory data, offline shows,
   data-residency requirements). Retained as an *additional* delivery
   layer per the third decision point above.
+
+- **Single hosted tier serving both collectors and vendors.** One
+  hosted product, isolation good enough for vendors, priced low
+  enough for collectors. Rejected because the two ends of that
+  range are economically incompatible: collector-grade pricing only
+  works on shared infrastructure, vendor-grade isolation only works
+  on per-tenant separation. Trying to bridge them collapses to
+  serving one audience badly. Two distinct hosted shapes is the
+  honest split.
 
 - **CLA instead of DCO.** Contributors sign a one-time agreement
   (typically out-of-band, via a bot) granting the project broader
