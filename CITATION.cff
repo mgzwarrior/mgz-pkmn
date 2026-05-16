@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use mgz-pkmn, please cite it using the metadata below."
+title: "mgz-pkmn"
+authors:
+  - family-names: "Grant"
+    given-names: "Matt"
+    email: "mattgrant33@gmail.com"
+url: "https://github.com/mgzwarrior/mgz-pkmn"
+repository-code: "https://github.com/mgzwarrior/mgz-pkmn"
+license: "MIT"
+version: "1.0.0"
+date-released: "2026-05-15"
