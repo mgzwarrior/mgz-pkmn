@@ -133,6 +133,8 @@ The PR body must still include a closing keyword (`Fixes #N`, `Closes
 #N`, `Resolves #N`) — that's what GitHub uses for the issue/PR link
 and for auto-closing the issue on merge.
 
+If you have a question before you open the PR, use [GitHub Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions) for that first-pass conversation — it keeps exploratory design talk out of the issue tracker until there is a concrete change to make.
+
 ## Development
 
 The Makefile at the repo root wraps the common dev commands. Run
