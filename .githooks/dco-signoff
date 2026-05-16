@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# pre-commit commit-msg hook: auto-append DCO Signed-off-by trailer if missing.
+# Invoked by pre-commit; $1 is the commit message file.
+set -euo pipefail
+
+name=$(git config user.name)
+email=$(git config user.email)
+
+if [ -z "$name" ] || [ -z "$email" ]; then
+  echo "error: git config user.name and user.email must be set for DCO sign-off" >&2
+  exit 1
+fi
+
+git interpret-trailers \
+  --if-exists doNothing \
+  --trailer "Signed-off-by: $name <$email>" \
+  --in-place \
+  "$1"

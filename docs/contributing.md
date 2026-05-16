@@ -226,18 +226,22 @@ Ruff config lives in [pyproject.toml](../pyproject.toml) under
 make install-hooks
 ```
 
-That runs `uv tool install pre-commit` and registers the git hook so
-lint and format checks fire automatically before every commit.
-Equivalent manual flow:
+That runs `uv tool install pre-commit` and registers the git hooks
+(both the `pre-commit` stage for lint/format/typecheck and the
+`commit-msg` stage for DCO sign-off auto-append) so checks fire
+automatically before every commit. Equivalent manual flow:
 
 ```bash
 uv tool install pre-commit
 pre-commit install
+pre-commit install --hook-type commit-msg
 ```
 
 The hooks are defined in
 [.pre-commit-config.yaml](../.pre-commit-config.yaml) and run
-`ruff check --fix` and `ruff format` on every staged file.
+`ruff check --fix` and `ruff format` on every staged file, plus the
+DCO sign-off auto-append on every commit message (see
+[Signing off your commits](#signing-off-your-commits)).
 
 > **Why `uv tool install` and not `uv run --with pre-commit`?**
 > `uv run --with` drops pre-commit into an ephemeral environment under
@@ -254,13 +258,31 @@ the hook with a stable Python path.
 
 ## Signing off your commits
 
-Every commit on a PR needs a [DCO](https://developercertificate.org/)
+Every non-merge commit on a PR needs a [DCO](https://developercertificate.org/)
 sign-off — a `Signed-off-by: Name <email>` trailer in the commit
 message that asserts you have the right to license your contribution
-under MIT. CI blocks merges where any PR commit is missing the trailer.
-See [ADR-0012](adr/0012-open-core-architecture.md) for the rationale.
+under MIT. The `DCO` CI job fails when any non-merge commit is missing
+the trailer; merges are blocked once the maintainer adds the check to
+branch protection's required-checks list (until then the check is
+advisory). Merge commits are exempted to match the convention used by
+Linux, Kubernetes, and most CNCF projects — resolve conflicts in a
+separate signed commit rather than in a merge commit.
 
-Add it automatically by passing `-s` to `git commit`:
+See [ADR-0012](adr/0012-open-core-architecture.md) for the rationale
+behind the DCO posture.
+
+### The easy path: the pre-commit hook auto-appends sign-off
+
+`make install-hooks` (or the full `make install`) registers a
+`commit-msg`-stage pre-commit hook that auto-appends the sign-off
+trailer to every commit using your `git config user.name` and
+`user.email`. With the hook installed you don't have to remember
+`-s` — every local commit is signed off automatically.
+
+### Manual sign-off
+
+If you don't use the hook (or are committing on a machine without the
+pre-commit framework installed), pass `-s` explicitly:
 
 ```bash
 git commit -s -m "your message"
@@ -302,7 +324,7 @@ to `main`, plus a DCO check on PRs:
 | `api` | ruff lint + format check + full test suite (`src/` and `api/`), across Python 3.11 / 3.12 / 3.13 |
 | `web` | ESLint + Vitest + TypeScript build (`tsc -b && vite build`) for `web/` |
 | `site` | Astro build for the marketing site (`site/`) |
-| `DCO` | Every PR commit carries a `Signed-off-by:` trailer (PRs only) |
+| `DCO` | Every non-merge PR commit carries a well-formed `Signed-off-by:` trailer (PRs only; advisory until added to branch protection's required-checks list) |
 
 ## Changelog
 

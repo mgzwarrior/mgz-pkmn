@@ -51,9 +51,10 @@ install-site:  ## Marketing site dependencies (`npm install` in site/).
 	cd site && npm install
 
 .PHONY: install-hooks
-install-hooks:  ## Install pre-commit as a uv tool and register the git hook.
+install-hooks:  ## Install pre-commit as a uv tool and register the git hooks (pre-commit + commit-msg).
 	uv tool install pre-commit
 	uv tool run pre-commit install
+	uv tool run pre-commit install --hook-type commit-msg
 
 ## Dev servers
 
