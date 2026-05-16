@@ -1,0 +1,47 @@
+---
+const steps = [
+  {
+    n: "01",
+    title: "Write your want-list",
+    body: "Plain text. One card per line. Use shortcuts like top 5 Mew | base set under $50 or all charizard cards | japanese — the parser does the rest.",
+  },
+  {
+    n: "02",
+    title: "Run the tool",
+    body: "pkmn lookup input.txt -o cards.xlsx --pdf binder.pdf --checklist checklist.pdf. Or open the web UI and paste your list — same pipeline, no install.",
+  },
+  {
+    n: "03",
+    title: "Walk in informed",
+    body: "Open the xlsx for live reference, hand the printable binder to the vendor, tick cards off the checklist as you find them. Negotiate from facts.",
+  },
+];
+---
+
+<section id="how-it-works" class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+  <div class="mx-auto max-w-6xl">
+    <div class="max-w-2xl">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+        Three steps from idea to show floor.
+      </h2>
+      <p class="mt-4 text-lg text-zinc-400">
+        Designed for the buyer's workflow first — but the same pipeline produces a
+        seller's inventory sheet when you bring binders to the table.
+      </p>
+    </div>
+
+    <ol class="mt-12 grid gap-8 md:grid-cols-3">
+      {
+        steps.map((step) => (
+          <li class="relative rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+            <span class="absolute -top-3 -left-3 inline-flex h-10 w-10 items-center justify-center rounded-md bg-brand-500 text-sm font-bold text-white shadow-lg shadow-brand-500/30">
+              {step.n}
+            </span>
+            <h3 class="mt-2 text-lg font-semibold text-white">{step.title}</h3>
+            <p class="mt-3 text-sm leading-relaxed text-zinc-400">{step.body}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>

@@ -5,6 +5,8 @@
 [![CI](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml/badge.svg)](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
+🌐 **Project site:** <https://mgz-pkmn.com> · 🚀 **Live demo:** <https://mgz-pkmn.onrender.com>
+
 A toolkit for prepping Pokemon card binders for a card show: take a list
 of cards, look each one up across **three open data sources**, download
 images, and write an `.xlsx` with embedded thumbnails, current market
@@ -95,6 +97,9 @@ make dev-web         # Terminal 2 — Vite dev server on :5173
 Open <http://localhost:5173>. The Vite dev server proxies `/api/*` to
 the FastAPI server. Swagger UI lives at <http://localhost:8000/docs>.
 
+Prefer not to install anything? The same UI is hosted at
+<https://mgz-pkmn.onrender.com>.
+
 For deeper docs (endpoint reference, troubleshooting, architecture),
 see [api/README.md](api/README.md) and [web/README.md](web/README.md).
 
@@ -119,6 +124,7 @@ push to `main`.
 | Front-of-binder set checklist | [Checklist PDF](docs/checklist.md) |
 | Disk cache + URL overrides | [Cache](docs/cache.md) |
 | Render / Docker / production recipe | [Deployment](docs/deployment.md) |
+| Marketing site (Astro + Tailwind, Cloudflare Pages) | [site/README.md](site/README.md) |
 | Project layout, dev workflow, CI, release | [Contributing](docs/contributing.md) |
 
 ## Community

@@ -1,0 +1,75 @@
+---
+const year = new Date().getFullYear();
+const links = {
+  Project: [
+    { label: "GitHub", href: "https://github.com/mgzwarrior/mgz-pkmn" },
+    { label: "Live demo", href: "https://mgz-pkmn.onrender.com" },
+    { label: "Roadmap", href: "https://github.com/mgzwarrior/mgz-pkmn/blob/main/docs/roadmap.md" },
+  ],
+  Community: [
+    { label: "Discussions", href: "https://github.com/mgzwarrior/mgz-pkmn/discussions" },
+    { label: "Issues", href: "https://github.com/mgzwarrior/mgz-pkmn/issues" },
+    {
+      label: "Good first issue",
+      href: "https://github.com/mgzwarrior/mgz-pkmn/labels/good%20first%20issue",
+    },
+  ],
+  Docs: [
+    {
+      label: "CLI reference",
+      href: "https://github.com/mgzwarrior/mgz-pkmn/blob/main/docs/cli.md",
+    },
+    {
+      label: "Contributing",
+      href: "https://github.com/mgzwarrior/mgz-pkmn/blob/main/docs/contributing.md",
+    },
+    {
+      label: "Wiki",
+      href: "https://github.com/mgzwarrior/mgz-pkmn/wiki",
+    },
+  ],
+};
+---
+
+<footer class="px-6 py-16">
+  <div class="mx-auto max-w-6xl grid gap-10 md:grid-cols-4">
+    <div>
+      <img src="/favicon.svg" alt="mgz-pkmn" width="140" height="35" class="h-8 w-auto" />
+      <p class="mt-4 text-sm text-zinc-400 max-w-xs">
+        Open-source prep tool for Pokemon card show buyers and sellers. MIT licensed.
+      </p>
+    </div>
+
+    {
+      Object.entries(links).map(([heading, items]) => (
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            {heading}
+          </h4>
+          <ul class="mt-4 space-y-2 text-sm">
+            {items.map((item) => (
+              <li>
+                <a href={item.href} class="text-zinc-300 hover:text-white transition">
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))
+    }
+  </div>
+
+  <div
+    class="mx-auto mt-12 max-w-6xl border-t border-zinc-900 pt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500"
+  >
+    <span>© {year} Matt Grant. Released under the MIT License.</span>
+    <span>
+      Built by
+      <a
+        href="https://github.com/mgzwarrior"
+        class="text-zinc-400 hover:text-white transition">@mgzwarrior</a
+      >.
+    </span>
+  </div>
+</footer>

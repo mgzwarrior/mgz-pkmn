@@ -7,6 +7,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Marketing site under `site/`: Astro 5 + Tailwind 4, single landing
+  page (hero, features, how-it-works, roadmap teaser, footer),
+  designed to deploy to Cloudflare Pages on a custom domain. New
+  `make install-site` / `make dev-site` / `make build-site` targets;
+  CI `site` job verifies the build on every PR. Rationale in
+  [ADR-0011](docs/adr/0011-marketing-site-stack.md).
+
 ## [1.0.0] - 2026-05-15
 
 ### Added
