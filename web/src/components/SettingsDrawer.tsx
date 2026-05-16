@@ -18,7 +18,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 ]
 
 export function SettingsDrawer() {
-  const { settings, updateSettings } = useAppStore()
+  const { settings, updateSettings, resetSettings } = useAppStore()
 
   return (
     <Dialog.Root>
@@ -132,6 +132,16 @@ export function SettingsDrawer() {
                 onChange={(v) => updateSettings({ noImages: v })}
               />
             </div>
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-zinc-700 px-5 py-4">
+            <button
+              onClick={resetSettings}
+              className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition-colors"
+            >
+              Restore defaults
+            </button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
