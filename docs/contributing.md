@@ -351,5 +351,21 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow builds the package, runs the test suite, and publishes a
-GitHub Release with the built distribution files attached.
+The workflow builds the package, runs the test suite, publishes the
+built distribution to [PyPI](https://pypi.org/project/mgz-pkmn/) via
+trusted publishing, and creates a GitHub Release with the same
+distribution files attached. The Release notes link to the new PyPI
+version.
+
+### PyPI trusted publisher wiring
+
+The `pypi-publish` job uses [PyPI Trusted
+Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) so the
+workflow uploads to PyPI without a stored API token. The binding —
+owner `mgzwarrior`, repo `mgz-pkmn`, workflow `release.yml`,
+environment `pypi` — and the matching `pypi` GitHub Environment
+(no secrets) are already in place. If either ever needs to be
+rebuilt (project re-owned, environment recreated, etc.), re-add the
+trusted publisher in the PyPI project's **Publishing** settings with
+those same four values and recreate the `pypi` Environment under
+repo Settings → Environments.
