@@ -24,7 +24,7 @@ The fastest way in:
    touch.
 2. **Skim [AGENTS.md](../AGENTS.md)** for the project's invariants
    (single `Row` shape, pure-function writers, dataclass-driven
-   layouts, signed commits).
+   layouts).
 3. **Open a PR** following the [branch naming](#branch-naming) and
    [opening a PR](#opening-a-pr) sections below.
 
