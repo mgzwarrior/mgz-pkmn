@@ -1,8 +1,9 @@
 /**
  * ProcessingQueue — per-line status panel shown while a bulk lookup is
  * in flight. Each input line transitions pending → resolved / error as
- * its first SSE event arrives. Resolved lines fade out after a short
- * delay so the user can see the green check before the row settles.
+ * its first SSE event arrives. The panel unmounts as soon as the run
+ * finishes (whether by completion, Stop, or error) so abandoned
+ * pending entries don't spin indefinitely.
  */
 import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
 import { useAppStore } from '../store'
@@ -12,11 +13,13 @@ export function ProcessingQueue() {
   const { processingLines, isRunning } = useAppStore()
 
   if (processingLines.length === 0) return null
+  // Hide as soon as the run finishes — covers both the success case
+  // (where every line is already resolved/error) and the abort/error
+  // case (where some lines would otherwise stay pending forever).
+  if (!isRunning) return null
 
   const done = processingLines.filter((l) => l.status !== 'pending').length
   const total = processingLines.length
-  // Hide once everything has resolved and the run has finished.
-  if (!isRunning && done === total) return null
 
   return (
     <div className="rounded-md border border-zinc-800 bg-zinc-900/60 px-4 py-3">
