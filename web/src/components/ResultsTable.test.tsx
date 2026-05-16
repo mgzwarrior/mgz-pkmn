@@ -122,6 +122,29 @@ describe('applySort', () => {
       100, 50, 1,
     ])
   })
+
+  it('keeps null values at the end in both directions', () => {
+    const withNulls: Row[] = [
+      makeRow({
+        pricing: { market: null, currency: 'USD', variant: null, source: null, url: null },
+      }),
+      makeRow({
+        pricing: { market: 10, currency: 'USD', variant: null, source: null, url: null },
+      }),
+      makeRow({
+        pricing: { market: null, currency: 'USD', variant: null, source: null, url: null },
+      }),
+      makeRow({
+        pricing: { market: 5, currency: 'USD', variant: null, source: null, url: null },
+      }),
+    ]
+    expect(applySort(withNulls, 'market', 'asc').map((r) => r.pricing.market)).toEqual([
+      5, 10, null, null,
+    ])
+    expect(applySort(withNulls, 'market', 'desc').map((r) => r.pricing.market)).toEqual([
+      10, 5, null, null,
+    ])
+  })
 })
 
 describe('ResultsTable: header sort cycle', () => {

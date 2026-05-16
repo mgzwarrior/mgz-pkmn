@@ -57,7 +57,15 @@ export function applySort(rows: Row[], column: SortColumn | null, dir: SortDir |
   const get = SORT_ACCESSORS[column]
   const indexed = rows.map((row, i) => ({ row, i }))
   indexed.sort((a, b) => {
-    const cmp = compareValues(get(a.row), get(b.row))
+    const av = get(a.row)
+    const bv = get(b.row)
+    // Nulls always sort last, regardless of direction. Without this they'd
+    // flip to the front under desc because `cmp * mul` would negate the
+    // "nulls go after" decision.
+    if (av == null && bv == null) return a.i - b.i
+    if (av == null) return 1
+    if (bv == null) return -1
+    const cmp = compareValues(av, bv)
     return cmp !== 0 ? cmp * mul : a.i - b.i
   })
   return indexed.map((x) => x.row)
@@ -88,10 +96,7 @@ function getRarity(row: Row): string | null {
   return (row.card?.rarity as string | undefined) ?? null
 }
 
-function compareValues(a: string | number | null, b: string | number | null): number {
-  if (a == null && b == null) return 0
-  if (a == null) return 1
-  if (b == null) return -1
+function compareValues(a: string | number, b: string | number): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b
   return String(a).localeCompare(String(b))
 }

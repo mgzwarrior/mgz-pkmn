@@ -54,6 +54,16 @@ export function ResultsTable({ onRerunLine }: Props) {
     [rows, filters, sortColumn, sortDir],
   )
 
+  // Map each Row object to its insertion index so the React key stays
+  // pinned to the same logical row across sort/filter. Without this,
+  // re-ordering would move ResultRow's local override-form state onto
+  // a different card.
+  const rowKeys = useMemo(() => {
+    const map = new WeakMap<(typeof rows)[number], number>()
+    rows.forEach((r, i) => map.set(r, i))
+    return map
+  }, [rows])
+
   if (rows.length === 0 && !isRunning) {
     return (
       <div className="flex items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 py-16 text-zinc-500 text-sm">
@@ -228,9 +238,9 @@ export function ResultsTable({ onRerunLine }: Props) {
             )}
           </thead>
           <tbody>
-            {displayedRows.map((row, i) => (
+            {displayedRows.map((row) => (
               <ResultRow
-                key={i}
+                key={rowKeys.get(row) ?? -1}
                 row={row}
                 showImage={!settings.noImages}
                 onRerunLine={onRerunLine}
@@ -389,7 +399,7 @@ function ResultRow({
   return (
     <>
       <tr
-        className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
+        className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors motion-safe:animate-[fadeInRow_220ms_ease-out] ${
           !row.matched ? 'opacity-60' : ''
         } ${isOverCap ? 'bg-amber-950/30' : ''}`}
       >
