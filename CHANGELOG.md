@@ -7,6 +7,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Web: "Restore defaults" button in the settings drawer footer that resets
+  all settings (API key, tag, sort, max price, dedupe, hide images) to
+  their initial values.
+
 ## [0.1.0] - 2026-05-08
 
 Foundation release. Establishes the full CLI pipeline, a FastAPI/React web

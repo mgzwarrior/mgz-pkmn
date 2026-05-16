@@ -2,6 +2,15 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Row, Settings } from '../types'
 
+const DEFAULT_SETTINGS: Settings = {
+  apiKey: '',
+  maxPrice: null,
+  noImages: true,
+  tag: '',
+  dedupe: false,
+  sort: 'number',
+}
+
 interface AppState {
   /** The raw multi-line card-list text typed by the user. */
   inputText: string
@@ -24,6 +33,7 @@ interface AppState {
   /** Persistent settings (survives page reload). */
   settings: Settings
   updateSettings: (partial: Partial<Settings>) => void
+  resetSettings: () => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -43,16 +53,10 @@ export const useAppStore = create<AppState>()(
       isRunning: false,
       setIsRunning: (isRunning) => set({ isRunning }),
 
-      settings: {
-        apiKey: '',
-        maxPrice: null,
-        noImages: true,
-        tag: '',
-        dedupe: false,
-        sort: 'number',
-      },
+      settings: { ...DEFAULT_SETTINGS },
       updateSettings: (partial) =>
         set((state) => ({ settings: { ...state.settings, ...partial } })),
+      resetSettings: () => set({ settings: { ...DEFAULT_SETTINGS } }),
     }),
     {
       name: 'mgz-pkmn-settings',
