@@ -49,6 +49,7 @@ rationale behind the single-project structure.
 | **Output artifacts** | Render rows into spreadsheet / PDFs / checklist / JSON. ([`spreadsheet.py`](../src/mgz_pkmn/spreadsheet.py), [`binder.py`](../src/mgz_pkmn/binder.py), [`checklist.py`](../src/mgz_pkmn/checklist.py), [`report.py`](../src/mgz_pkmn/report.py)) | [Outputs](https://github.com/users/mgzwarrior/projects/11/views/4) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aoutputs?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aoutputs) |
 | **Cache & persistence** | Disk cache for API responses + URL overrides; (V2) multi-user storage. ([`cache.py`](../src/mgz_pkmn/cache.py)) | [Cache](https://github.com/users/mgzwarrior/projects/11/views/5) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Acache?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Acache) |
 | **Web UI / API** | FastAPI service + React SPA. ([`api/`](../api/), [`web/`](../web/)) | [Web / API](https://github.com/users/mgzwarrior/projects/11/views/6) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aweb?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aweb) |
+| **Marketing site** | Astro static site deployed to Cloudflare Pages — landing page, copy, visuals. ([`site/`](../site/)) | [Site](https://github.com/users/mgzwarrior/projects/11) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Asite?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Asite) |
 | **DevOps & release** | CI, deployment, packaging, distribution, security, governance. | [DevOps](https://github.com/users/mgzwarrior/projects/11/views/7) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Adevops?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Adevops) |
 
 ## New contributors
@@ -432,9 +433,9 @@ lands.
 
 Each item under V1 / V1.x / V2 is filed as a GitHub issue with two
 labels: an **area** label (`area:lookup` / `area:outputs` / `area:cache`
-/ `area:web` / `area:devops`) and a **version** label (`version:v1` /
-`version:v1.x` / `version:v2`). V1 issues additionally sit on the
-[v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
+/ `area:web` / `area:site` / `area:devops`) and a **version** label
+(`version:v1` / `version:v1.x` / `version:v2`). V1 issues additionally
+sit on the [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
 
 V2.x and V3+ items stay in this document as text-only proposals until
 they get promoted to committed work. The "proposed" tag is

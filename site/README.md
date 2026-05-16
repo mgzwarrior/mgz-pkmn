@@ -6,6 +6,12 @@ Astro 5 + Tailwind 4 static site deployed to Cloudflare Pages. Lives
 alongside the source so site copy can ship atomically with the features
 it describes — a push to `main` that touches `site/**` triggers a redeploy.
 
+Issues and PRs that touch this directory should carry the
+[`area:site`](https://github.com/mgzwarrior/mgz-pkmn/labels/area%3Asite)
+label so they land in the marketing-site view on the project board.
+See the [Project areas](../docs/roadmap.md#project-areas) table for
+how the area labels map to the codebase.
+
 ## Dev
 
 ```bash
