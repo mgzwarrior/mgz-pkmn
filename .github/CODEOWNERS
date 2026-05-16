@@ -1,0 +1,9 @@
+# Code owners for mgz-pkmn.
+#
+# Used by the "Require review from Code Owners" branch protection rule
+# on `main`. Order matters: later, more-specific rules win.
+#
+# Reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner — every file in the repo unless overridden below.
+* @mgzwarrior
