@@ -4,12 +4,27 @@
  * Each row shows: thumbnail (if available), name, set, rarity,
  * market price, comp tiers (80/85/90/95%), price source, and a link to
  * the listing. Unmatched rows show an amber "not found" badge.
+ *
+ * Headers for Name / Set / Rarity / Market / Source are click-to-sort
+ * (asc → desc → off). A Filter toggle reveals a row of per-column
+ * inputs — text match for strings, min/max for the Market column. The
+ * column sort/filter is view-only; exports still honor the sort mode
+ * in Settings.
  */
-import { useState } from 'react'
-import { ExternalLink, AlertCircle } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, AlertCircle, Filter } from 'lucide-react'
 import { addOverride } from '../api/client'
 import { useAppStore } from '../store'
 import type { Row } from '../types'
+import {
+  applyFilters,
+  applySort,
+  EMPTY_FILTERS,
+  hasActiveFilters,
+  type Filters,
+  type SortColumn,
+  type SortDir,
+} from './resultsTableFilter'
 
 interface Props {
   onRerunLine?: (line: string) => void
@@ -17,6 +32,37 @@ interface Props {
 
 export function ResultsTable({ onRerunLine }: Props) {
   const { rows, progress, isRunning, settings } = useAppStore()
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+
+  function cycleSort(column: SortColumn) {
+    if (sortColumn !== column) {
+      setSortColumn(column)
+      setSortDir('asc')
+    } else if (sortDir === 'asc') {
+      setSortDir('desc')
+    } else {
+      setSortColumn(null)
+      setSortDir(null)
+    }
+  }
+
+  const displayedRows = useMemo(
+    () => applySort(applyFilters(rows, filters), sortColumn, sortDir),
+    [rows, filters, sortColumn, sortDir],
+  )
+
+  // Map each Row object to its insertion index so the React key stays
+  // pinned to the same logical row across sort/filter. Without this,
+  // re-ordering would move ResultRow's local override-form state onto
+  // a different card.
+  const rowKeys = useMemo(() => {
+    const map = new WeakMap<(typeof rows)[number], number>()
+    rows.forEach((r, i) => map.set(r, i))
+    return map
+  }, [rows])
 
   if (rows.length === 0 && !isRunning) {
     return (
@@ -47,6 +93,36 @@ export function ResultsTable({ onRerunLine }: Props) {
         </div>
       )}
 
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          aria-pressed={showFilters}
+          className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
+            showFilters
+              ? 'border-blue-700 bg-blue-900/30 text-blue-300'
+              : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
+          }`}
+        >
+          <Filter size={12} />
+          {showFilters ? 'Hide filters' : 'Filter'}
+        </button>
+        {(sortColumn || hasActiveFilters(filters)) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSortColumn(null)
+              setSortDir(null)
+              setFilters(EMPTY_FILTERS)
+            }}
+            className="text-xs text-zinc-500 hover:text-zinc-300"
+          >
+            Clear sort &amp; filters
+          </button>
+        )}
+      </div>
+
       {/* Table */}
       <div className="overflow-x-auto rounded-md border border-zinc-700">
         <table className="w-full text-sm border-collapse">
@@ -55,22 +131,116 @@ export function ResultsTable({ onRerunLine }: Props) {
               {!settings.noImages && (
                 <th className="px-3 py-2 text-xs font-medium text-zinc-400 w-16">Img</th>
               )}
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400">Name</th>
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 hidden md:table-cell">Set</th>
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 hidden lg:table-cell">Rarity</th>
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right">Market</th>
+              <SortableHeader
+                label="Name"
+                column="name"
+                active={sortColumn}
+                dir={sortDir}
+                onClick={cycleSort}
+              />
+              <SortableHeader
+                label="Set"
+                column="set"
+                active={sortColumn}
+                dir={sortDir}
+                onClick={cycleSort}
+                className="hidden md:table-cell"
+              />
+              <SortableHeader
+                label="Rarity"
+                column="rarity"
+                active={sortColumn}
+                dir={sortDir}
+                onClick={cycleSort}
+                className="hidden lg:table-cell"
+              />
+              <SortableHeader
+                label="Market"
+                column="market"
+                active={sortColumn}
+                dir={sortDir}
+                onClick={cycleSort}
+                align="right"
+              />
               <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right hidden xl:table-cell">80%</th>
               <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right hidden xl:table-cell">85%</th>
               <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right hidden xl:table-cell">90%</th>
               <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right hidden xl:table-cell">95%</th>
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 hidden sm:table-cell">Source</th>
+              <SortableHeader
+                label="Source"
+                column="source"
+                active={sortColumn}
+                dir={sortDir}
+                onClick={cycleSort}
+                className="hidden sm:table-cell"
+              />
               <th className="px-3 py-2 text-xs font-medium text-zinc-400 w-8" />
             </tr>
+            {showFilters && (
+              <tr className="border-b border-zinc-700 bg-zinc-900">
+                {!settings.noImages && <th />}
+                <FilterCell>
+                  <FilterInput
+                    aria-label="Filter by name"
+                    placeholder="contains…"
+                    value={filters.name}
+                    onChange={(v) => setFilters((f) => ({ ...f, name: v }))}
+                  />
+                </FilterCell>
+                <FilterCell className="hidden md:table-cell">
+                  <FilterInput
+                    aria-label="Filter by set"
+                    placeholder="contains…"
+                    value={filters.set}
+                    onChange={(v) => setFilters((f) => ({ ...f, set: v }))}
+                  />
+                </FilterCell>
+                <FilterCell className="hidden lg:table-cell">
+                  <FilterInput
+                    aria-label="Filter by rarity"
+                    placeholder="contains…"
+                    value={filters.rarity}
+                    onChange={(v) => setFilters((f) => ({ ...f, rarity: v }))}
+                  />
+                </FilterCell>
+                <FilterCell>
+                  <div className="flex gap-1">
+                    <FilterInput
+                      aria-label="Min market price"
+                      type="number"
+                      placeholder="min"
+                      value={filters.marketMin}
+                      onChange={(v) => setFilters((f) => ({ ...f, marketMin: v }))}
+                    />
+                    <FilterInput
+                      aria-label="Max market price"
+                      type="number"
+                      placeholder="max"
+                      value={filters.marketMax}
+                      onChange={(v) => setFilters((f) => ({ ...f, marketMax: v }))}
+                    />
+                  </div>
+                </FilterCell>
+                <th className="hidden xl:table-cell" />
+                <th className="hidden xl:table-cell" />
+                <th className="hidden xl:table-cell" />
+                <th className="hidden xl:table-cell" />
+                <FilterCell className="hidden sm:table-cell">
+                  <FilterInput
+                    aria-label="Filter by source"
+                    placeholder="contains…"
+                    value={filters.source}
+                    onChange={(v) => setFilters((f) => ({ ...f, source: v }))}
+                  />
+                </FilterCell>
+                <th />
+              </tr>
+            )}
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {displayedRows.map((row) => (
               <ResultRow
-                key={i}
+                key={rowKeys.get(row) ?? -1}
                 row={row}
                 showImage={!settings.noImages}
                 onRerunLine={onRerunLine}
@@ -88,10 +258,91 @@ export function ResultsTable({ onRerunLine }: Props) {
       </div>
 
       <p className="text-xs text-zinc-600 text-right">
-        {rows.filter((r) => r.matched).length} matched · {rows.filter((r) => !r.matched).length}{' '}
-        unmatched · {rows.length} total
+        {displayedRows.filter((r) => r.matched).length} matched ·{' '}
+        {displayedRows.filter((r) => !r.matched).length} unmatched ·{' '}
+        {displayedRows.length} shown
+        {displayedRows.length !== rows.length && (
+          <span className="text-zinc-500"> (of {rows.length})</span>
+        )}
       </p>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function SortableHeader({
+  label,
+  column,
+  active,
+  dir,
+  onClick,
+  className = '',
+  align = 'left',
+}: {
+  label: string
+  column: SortColumn
+  active: SortColumn | null
+  dir: SortDir | null
+  onClick: (c: SortColumn) => void
+  className?: string
+  align?: 'left' | 'right'
+}) {
+  const isActive = active === column
+  const Icon = isActive ? (dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+  return (
+    <th
+      className={`px-3 py-2 text-xs font-medium ${align === 'right' ? 'text-right' : ''} ${className}`}
+    >
+      <button
+        type="button"
+        onClick={() => onClick(column)}
+        className={`inline-flex items-center gap-1 ${
+          isActive ? 'text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
+        }`}
+        aria-label={`Sort by ${label}`}
+      >
+        {label}
+        <Icon size={11} className={isActive ? 'opacity-100' : 'opacity-40'} />
+      </button>
+    </th>
+  )
+}
+
+function FilterCell({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return <th className={`px-2 py-1.5 ${className}`}>{children}</th>
+}
+
+function FilterInput({
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  'aria-label': ariaLabel,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+  type?: 'text' | 'number'
+  'aria-label': string
+}) {
+  return (
+    <input
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+    />
   )
 }
 
