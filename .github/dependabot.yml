@@ -5,6 +5,7 @@
 #     out-of-sync lockfile would break the image)
 #   - Python under api/ (FastAPI service, separate pyproject, no lockfile)
 #   - npm under web/ (React SPA)
+#   - npm under site/ (Astro marketing site)
 #   - GitHub Actions used by our workflows
 #
 # Grouping minor + patch bumps into a single weekly PR cuts review churn;
@@ -51,6 +52,20 @@ updates:
       - "type:chore"
     groups:
       web-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/site"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "area:devops"
+      - "type:chore"
+    groups:
+      site-minor-and-patch:
         update-types:
           - "minor"
           - "patch"
