@@ -6,6 +6,52 @@ end-user installation and usage, see the [README](../README.md).
 > **AI agents** — see [AGENTS.md](../AGENTS.md) for the code conventions,
 > invariants, and commit rules that agents must follow.
 
+## Getting started
+
+New here? Welcome — contributions are explicitly invited, including
+AI-assisted ones. [AGENTS.md](../AGENTS.md) is there to make
+agent-driven contributions supportable, not exotic; humans benefit
+from the same conventions.
+
+The fastest way in:
+
+1. **Browse open issues** by label —
+   [`good first issue`](https://github.com/mgzwarrior/mgz-pkmn/labels/good%20first%20issue)
+   for the recommended starting point,
+   [`help wanted`](https://github.com/mgzwarrior/mgz-pkmn/labels/help%20wanted)
+   for anything where extra eyes are welcome, or filter by the
+   `area:*` label that matches the part of the codebase you want to
+   touch.
+2. **Skim [AGENTS.md](../AGENTS.md)** for the project's invariants
+   (single `Row` shape, pure-function writers, dataclass-driven
+   layouts, signed commits).
+3. **Open a PR** following the [branch naming](#branch-naming) and
+   [opening a PR](#opening-a-pr) sections below.
+
+Stuck on scope or design? Open a [GitHub
+Discussion](https://github.com/mgzwarrior/mgz-pkmn/discussions/new?category=general)
+before writing code — it's cheaper to align early than to redo a PR.
+
+## What makes a good starter issue
+
+When triaging, the `good first issue` label is appropriate for any of:
+
+- Adds a small CLI flag or subcommand that follows an existing
+  pattern (e.g., a new `pkmn cache *` subcommand modeled on
+  `pkmn cache stats`).
+- Mirrors an existing implementation onto a new source / output /
+  format (e.g., caching TCGdex responses the same way pokemontcg.io
+  responses are cached).
+- Documentation polish: filling a gap in `docs/` or correcting an
+  inaccuracy against the actual code.
+- Test coverage: adding missing tests against existing behavior.
+- Pure-function rendering tweaks (spreadsheet formatting, checklist
+  layout, PDF styling) that don't change the data shape.
+
+Avoid the label for issues that need a new ADR, touch parser grammar,
+introduce a new dependency, or coordinate across more than two
+modules — those benefit from a design discussion first.
+
 ## Project layout
 
 ```
