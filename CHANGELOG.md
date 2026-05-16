@@ -9,18 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Project logo SVG and 1280×640 social preview (rendered PNG checked in
-  for upload to GitHub repo settings). Logo appears at the top of the
-  README.
-
-### Added
-
 - Web: "Restore defaults" button in the settings drawer footer that resets
   all settings (API key, tag, sort, max price, dedupe, hide images) to
   their initial values.
 - Web: exports now honor the **Deduplicate by card ID** setting — toggling
   it before clicking an export button drops matched rows that share a card
   ID with an earlier row, matching the CLI's `--dedupe` behavior.
+- Project logo SVG and 1280×640 social preview (rendered PNG checked in
+  for upload to GitHub repo settings). Logo appears at the top of the
+  README.
 
 ## [0.1.0] - 2026-05-08
 
