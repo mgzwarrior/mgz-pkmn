@@ -63,6 +63,7 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "area:devops"
+      - "area:site"
       - "type:chore"
     groups:
       site-minor-and-patch:
