@@ -2,10 +2,14 @@
 
 ## Our Pledge
 
-We as contributors and maintainers pledge to make participation in this project a
-harassment-free experience for everyone, regardless of age, body size, disability,
-ethnicity, gender identity and expression, level of experience, nationality, personal
-appearance, race, religion, or sexual identity and orientation.
+We as members, contributors, and leaders pledge to make participation in our community
+a harassment-free experience for everyone, regardless of age, body size, visible or
+invisible disability, ethnicity, sex characteristics, gender identity and expression,
+level of experience, education, socio-economic status, nationality, personal appearance,
+race, caste, color, religion, or sexual identity and orientation.
+
+We pledge to act and interact in ways that promote an open, welcoming, diverse,
+inclusive, and healthy community.
 
 ## Our Standards
 

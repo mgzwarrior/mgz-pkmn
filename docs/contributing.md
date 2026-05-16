@@ -56,7 +56,7 @@ in the thread — it won't be reassigned without notice.
 | Level | How you get there |
 |---|---|
 | **Contributor** | Any merged PR. Your name is in the commit history. |
-| **Collaborator** | Invited by the maintainer after a merged PR — grants write access to branches and the ability to self-assign issues. |
+| **Collaborator** | Invited by the maintainer after a merged PR — grants write access to the repository (subject to branch protection rules) and the ability to self-assign issues. |
 
 No formal process — if you've shipped something and want to stay
 involved, say so and the invite will follow.
