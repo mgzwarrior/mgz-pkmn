@@ -17,7 +17,11 @@ Select the **single highest-value issue** using this priority order:
 2. Smaller, well-scoped issues before large ones
 3. Issues whose `area:*` label is consistent with the current milestone
 
-Skip anything labelled `wip`, `blocked`, or `needs-discussion`.
+Skip anything labelled:
+
+- [`wip`](https://github.com/mgzwarrior/mgz-pkmn/labels/wip) — already being worked on; don't pick up
+- [`blocked`](https://github.com/mgzwarrior/mgz-pkmn/labels/blocked) — waiting on an external dependency or decision
+- [`needs-discussion`](https://github.com/mgzwarrior/mgz-pkmn/labels/needs-discussion) — scope or design not yet aligned; raise the question in the issue or [Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions) rather than starting work
 
 If an issue is ambiguous and intent can't be inferred from context, **leave a clarifying
 comment and move to the next best issue**. Every change must be traceable to an issue — if
