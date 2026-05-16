@@ -7,12 +7,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-16
+
 ### Added
 
 - Release workflow now publishes the built sdist + wheel to
   [PyPI](https://pypi.org/project/mgz-pkmn/) on every `v*` tag using
   trusted publishing (OIDC, no stored token). The GitHub Release notes
-  link to the newly published PyPI version. One-time PyPI-side setup
+  link to the newly published PyPI version. Trusted-publisher wiring
   documented in [docs/contributing.md](docs/contributing.md#pypi-trusted-publisher-wiring).
 - Marketing site under `site/`: Astro 5 + Tailwind 4, single landing
   page (hero, features, how-it-works, roadmap teaser, footer),
@@ -134,6 +136,7 @@ UI, multi-source card lookup, all output formats, and release infrastructure.
 - Incomplete URL substring sanitization (CodeQL alerts).
 - Workflow permissions hardening (CodeQL alerts).
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/mgzwarrior/mgz-pkmn/releases/tag/v0.1.0
