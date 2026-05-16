@@ -32,6 +32,25 @@ Stuck on scope or design? Open a [GitHub
 Discussion](https://github.com/mgzwarrior/mgz-pkmn/discussions/new?category=general)
 before writing code — it's cheaper to align early than to redo a PR.
 
+## Curated starter issues
+
+The live label filters above are the always-current source of truth.
+Below is a smaller, hand-picked set designed specifically for a
+first-time contributor: each is small, atomic, doesn't require deep
+context, and ships as a complete PR (branch, code, tests where
+relevant, CHANGELOG decision).
+
+| Issue | What you'll do | Why it's a good starter |
+|---|---|---|
+| [#134](https://github.com/mgzwarrior/mgz-pkmn/issues/134) | Add `CITATION.cff` | One new file at the repo root. GitHub surfaces a "Cite this repository" button. Pure, atomic addition. |
+| [#135](https://github.com/mgzwarrior/mgz-pkmn/issues/135) | Add a Troubleshooting section to `docs/cli.md` | Pure docs work. Mirrors the existing table in `api/README.md`. Pattern to copy, content to extend. |
+| [#136](https://github.com/mgzwarrior/mgz-pkmn/issues/136) | Add a `py.typed` marker | One empty file + a packaging verify. Teaches you how the wheel build works without touching any runtime code. |
+| [#137](https://github.com/mgzwarrior/mgz-pkmn/issues/137) | Surface Discussions in README and docs | A few targeted doc edits. Touches three files, each by 1–3 lines. |
+
+Pick one, drop a comment on the issue saying you're picking it up, and
+follow the [branch naming](#branch-naming) / [opening a PR](#opening-a-pr)
+sections below.
+
 ## What makes a good starter issue
 
 When triaging, the `good first issue` label is appropriate for any of:
