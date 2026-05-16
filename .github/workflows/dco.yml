@@ -1,0 +1,43 @@
+name: DCO
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  dco:
+    name: DCO sign-off check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check Signed-off-by trailer on every commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          missing=0
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            author=$(git log -1 --format='%an <%ae>' "$sha")
+            if ! git log -1 --format='%B' "$sha" | grep -qE '^Signed-off-by: '; then
+              echo "::error::Commit $sha by $author is missing 'Signed-off-by:' trailer"
+              missing=$((missing + 1))
+            fi
+          done < <(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA")
+          if [ "$missing" -gt 0 ]; then
+            echo ""
+            echo "$missing commit(s) missing DCO sign-off."
+            echo "Fix the last commit with:  git commit --amend -s"
+            echo "Fix all PR commits with:   git rebase --signoff $BASE_SHA"
+            echo "Then force-push. See docs/contributing.md for the full guide."
+            exit 1
+          fi
+          echo "All commits carry Signed-off-by."

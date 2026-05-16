@@ -252,15 +252,57 @@ If you already hit that error, the fix is the same two commands above
 — `uv tool install pre-commit` then `pre-commit install` regenerates
 the hook with a stable Python path.
 
+## Signing off your commits
+
+Every commit on a PR needs a [DCO](https://developercertificate.org/)
+sign-off — a `Signed-off-by: Name <email>` trailer in the commit
+message that asserts you have the right to license your contribution
+under MIT. CI blocks merges where any PR commit is missing the trailer.
+See [ADR-0012](adr/0012-open-core-architecture.md) for the rationale.
+
+Add it automatically by passing `-s` to `git commit`:
+
+```bash
+git commit -s -m "your message"
+```
+
+The trailer uses the name and email from your `git config user.*` —
+no extra setup required, no cryptographic keys, no documents to sign.
+This is *not* the same as GPG/SSH commit signing (this project does
+not enforce signed commits — see [#153](https://github.com/mgzwarrior/mgz-pkmn/pull/153)).
+
+**Forgot `-s` on the last commit:**
+
+```bash
+git commit --amend --no-edit -s
+git push --force-with-lease
+```
+
+**Forgot `-s` on every commit of a PR:**
+
+```bash
+git rebase --signoff origin/main
+git push --force-with-lease
+```
+
+**Editing on github.com:** the web UI doesn't add the trailer
+automatically. After saving, pull the commit locally and amend it with
+`git commit --amend --no-edit -s` before pushing.
+
+Dependabot's commits include the sign-off automatically, so its PRs
+require no special handling.
+
 ## CI
 
-GitHub Actions runs two parallel jobs on every pull request and push
-to `main`:
+GitHub Actions runs three parallel jobs on every pull request and push
+to `main`, plus a DCO check on PRs:
 
 | Job | What it checks |
 |---|---|
 | `api` | ruff lint + format check + full test suite (`src/` and `api/`), across Python 3.11 / 3.12 / 3.13 |
 | `web` | ESLint + Vitest + TypeScript build (`tsc -b && vite build`) for `web/` |
+| `site` | Astro build for the marketing site (`site/`) |
+| `DCO` | Every PR commit carries a `Signed-off-by:` trailer (PRs only) |
 
 ## Changelog
 
