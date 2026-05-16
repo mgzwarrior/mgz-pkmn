@@ -84,6 +84,12 @@ export interface Settings {
   sort: SortMode
 }
 
+/** One input line tracked through the bulk lookup lifecycle. */
+export interface ProcessingLine {
+  line: string
+  status: 'pending' | 'resolved' | 'error'
+}
+
 export interface SetInfo {
   id: string
   name: string
