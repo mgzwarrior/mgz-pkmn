@@ -1,4 +1,6 @@
-# mgz-pkmn
+<h1>
+  <img src="assets/logo.svg" alt="mgz-pkmn" height="64">
+</h1>
 
 [![CI](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml/badge.svg)](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)

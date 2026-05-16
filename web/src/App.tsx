@@ -20,6 +20,7 @@ import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { useAppStore } from './store'
 import type { BulkEvent } from './types'
+import logoUrl from './assets/logo.svg'
 
 function App() {
   const {
@@ -139,11 +140,10 @@ function App() {
           <button
             type="button"
             onClick={handleBrandClick}
-            className="flex items-center gap-2 cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-zinc-700"
+            className="flex items-center gap-3 cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-zinc-700"
             aria-label="mgz-pkmn"
           >
-            <span className="text-xl" role="img" aria-label="pokéball">🃏</span>
-            <span className="font-bold text-zinc-100">mgz-pkmn</span>
+            <img src={logoUrl} alt="mgz-pkmn" className="h-8 w-auto" />
             <span className="text-xs text-zinc-500 hidden sm:inline">card lookup</span>
           </button>
           <div className="flex items-center gap-2">

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="320" height="80" role="img" aria-label="mgz-pkmn">
+  <title>mgz-pkmn</title>
+  <!-- Card icon: rounded rect with a top accent bar and a circular art window. -->
+  <g transform="translate(8, 8)">
+    <rect x="0" y="0" width="48" height="64" rx="6" ry="6" fill="#18181b" stroke="#3b82f6" stroke-width="2"/>
+    <rect x="4" y="4" width="40" height="8" rx="2" ry="2" fill="#3b82f6"/>
+    <circle cx="24" cy="34" r="11" fill="none" stroke="#71717a" stroke-width="1.5"/>
+    <rect x="6" y="50" width="36" height="3" rx="1" fill="#52525b"/>
+    <rect x="6" y="56" width="22" height="3" rx="1" fill="#52525b"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="72" y="50" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="700" fill="#e4e4e7">mgz-pkmn</text>
+</svg>
