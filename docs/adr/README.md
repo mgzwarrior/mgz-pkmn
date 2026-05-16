@@ -21,6 +21,7 @@ not just the shape.
 | [0008](0008-two-pass-stable-sort-for-row-ordering.md) | Two-pass stable sort for compound row ordering | Accepted | 2026-05-09 |
 | [0009](0009-docs-as-source-with-wiki-sync.md) | `docs/` is the source of truth; the GitHub Wiki is a mirror | Accepted | 2026-05-09 |
 | [0010](0010-unified-project-with-area-views.md) | Single unified GitHub Project with per-area views | Accepted | 2026-05-12 |
+| [0011](0011-marketing-site-stack.md) | Marketing site under `site/` (Astro + Tailwind, Cloudflare Pages) | Accepted | 2026-05-16 |
 
 ## Adding a new ADR
 

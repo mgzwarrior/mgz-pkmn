@@ -150,6 +150,6 @@ cache-clear:  ## Wipe the on-disk cache (~/.cache/mgz-pkmn) — including URL ov
 
 .PHONY: clean
 clean:  ## Remove build artifacts and installed dependencies (.venv, node_modules, dist).
-	rm -rf .venv web/node_modules web/dist .ruff_cache
+	rm -rf .venv web/node_modules web/dist site/node_modules site/dist site/.astro .ruff_cache
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
-	@echo "✓ removed .venv, web/node_modules, web/dist, .ruff_cache, __pycache__"
+	@echo "✓ removed .venv, web/node_modules, web/dist, site/node_modules, site/dist, site/.astro, .ruff_cache, __pycache__"
