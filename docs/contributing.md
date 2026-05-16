@@ -351,5 +351,35 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow builds the package, runs the test suite, and publishes a
-GitHub Release with the built distribution files attached.
+The workflow builds the package, runs the test suite, publishes the
+built distribution to [PyPI](https://pypi.org/project/mgz-pkmn/) via
+trusted publishing, and creates a GitHub Release with the same
+distribution files attached. The Release notes link to the new PyPI
+version.
+
+### One-time PyPI trusted publisher setup
+
+The `pypi-publish` job uses [PyPI Trusted
+Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) so the
+workflow can upload to PyPI without storing an API token. This needs to
+be configured once on the PyPI side:
+
+1. Sign in to PyPI as a maintainer of `mgz-pkmn` (or, for the very
+   first release, use the [pending publisher
+   flow](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
+   to claim the name).
+2. Open the project's **Publishing** settings and add a new GitHub
+   trusted publisher with these values:
+   - **Owner:** `mgzwarrior`
+   - **Repository:** `mgz-pkmn`
+   - **Workflow filename:** `release.yml`
+   - **Environment name:** `pypi`
+3. In this repo, create a GitHub Environment named `pypi`
+   (Settings → Environments → New environment). No secrets are needed;
+   the environment exists so PyPI's trusted-publisher binding has
+   something to match against, and so production deploys get the
+   environment's protection rules (required reviewers, branch/tag
+   filters) if you choose to add them.
+
+Once the binding is in place, every `v*` tag push will publish to PyPI
+automatically.

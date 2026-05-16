@@ -9,6 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Release workflow now publishes the built sdist + wheel to
+  [PyPI](https://pypi.org/project/mgz-pkmn/) on every `v*` tag using
+  trusted publishing (OIDC, no stored token). The GitHub Release notes
+  link to the newly published PyPI version. One-time PyPI-side setup
+  documented in [docs/contributing.md](docs/contributing.md#one-time-pypi-trusted-publisher-setup).
 - Marketing site under `site/`: Astro 5 + Tailwind 4, single landing
   page (hero, features, how-it-works, roadmap teaser, footer),
   designed to deploy to Cloudflare Pages on a custom domain. New
