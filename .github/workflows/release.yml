@@ -63,6 +63,12 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Re-enable once PyPI's attestation verifier accepts the
+          # release-on-version-bump.yml trusted-publisher binding
+          # (currently rejects with 400 "Verification failed: Build
+          # Config URI does not match expected Trusted Publisher").
+          attestations: false
 
   github-release:
     name: Publish GitHub Release
