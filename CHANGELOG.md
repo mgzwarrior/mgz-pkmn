@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: click any sortable column header (Name, Set, Rarity, Market,
+  Source) in the results table to cycle through ascending → descending
+  → off. A new **Filter** toggle reveals per-column inputs: substring
+  match for text columns and min/max range for Market. View-only —
+  exports continue to honor the sort mode in Settings.
+
+### Added
+
 - Web: "Restore defaults" button in the settings drawer footer that resets
   all settings (API key, tag, sort, max price, dedupe, hide images) to
   their initial values.
