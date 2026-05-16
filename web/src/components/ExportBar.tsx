@@ -46,6 +46,7 @@ export function ExportBar() {
         title: settings.tag || 'cards',
         sort: settings.sort,
         noImages: settings.noImages,
+        dedupe: settings.dedupe,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
