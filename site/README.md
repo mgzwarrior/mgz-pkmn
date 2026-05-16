@@ -1,8 +1,10 @@
 # mgz-pkmn marketing site
 
-Astro 5 + Tailwind 4 static site. Deployed to Cloudflare Pages on a custom
-domain. Lives alongside the source so site copy can ship atomically with
-the features it describes.
+Live at <https://mgz-pkmn.com>.
+
+Astro 5 + Tailwind 4 static site deployed to Cloudflare Pages. Lives
+alongside the source so site copy can ship atomically with the features
+it describes — a push to `main` that touches `site/**` triggers a redeploy.
 
 ## Dev
 
@@ -65,12 +67,15 @@ automatically.
 
 ## Custom domain
 
-Register one (e.g. via [Cloudflare
-Registrar](https://www.cloudflare.com/products/registrar/) at-cost or
-[Porkbun](https://porkbun.com)) and add it via the Cloudflare Pages
-project's Custom domains panel. Update `site.url` in
-[`astro.config.mjs`](astro.config.mjs) so canonical URLs and OG meta
-tags resolve correctly.
+Live at [`mgz-pkmn.com`](https://mgz-pkmn.com), registered through
+Cloudflare Registrar (at-cost) and wired to the Pages project via
+Custom domains. Canonical URL is set in
+[`astro.config.mjs`](astro.config.mjs) so OG meta tags and the
+generated sitemap resolve correctly.
+
+To change the domain later: update `site.url` in `astro.config.mjs`,
+swap the Custom domain in the Pages project, and update the references
+in `README.md`, `CITATION.cff`, and `pyproject.toml`.
 
 ## Assets
 

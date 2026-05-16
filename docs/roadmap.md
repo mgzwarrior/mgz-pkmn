@@ -10,6 +10,9 @@ Items live on GitHub as issues, labels, milestones, and projects — this
 document is the navigator. Every committed item below carries its issue
 number for one-click navigation; speculative items don't have issues yet.
 
+For the end-user-facing project overview (features, "how it works",
+live demo), see <https://mgz-pkmn.com>.
+
 ## Versioning policy
 
 - **V1** (`1.0.0`) — **shipped**. A defensible 1.0 with no obvious
