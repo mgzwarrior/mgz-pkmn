@@ -36,3 +36,5 @@ point — start there, then drill into a topic below.
 
 See [contributing.md](contributing.md) for project layout, dev workflow,
 pre-commit hooks, CI, and the release process.
+
+Questions before you open an issue or PR? Start a thread in [GitHub Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions) so the conversation is easy for future contributors to find.
