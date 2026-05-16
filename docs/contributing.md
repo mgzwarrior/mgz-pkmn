@@ -151,14 +151,13 @@ the hook with a stable Python path.
 
 ## CI
 
-GitHub Actions runs three parallel jobs on every pull request and push
+GitHub Actions runs two parallel jobs on every pull request and push
 to `main`:
 
 | Job | What it checks |
 |---|---|
-| `lint-and-test` | ruff lint + format check + full test suite, across Python 3.11 / 3.12 / 3.13 |
-| `api-lint` | ruff lint + format check for `api/` (with the `api` extras installed) |
-| `web-lint-and-build` | ESLint + TypeScript build (`tsc -b && vite build`) for `web/` |
+| `api` | ruff lint + format check + full test suite (`src/` and `api/`), across Python 3.11 / 3.12 / 3.13 |
+| `web` | ESLint + Vitest + TypeScript build (`tsc -b && vite build`) for `web/` |
 
 ## Changelog
 
