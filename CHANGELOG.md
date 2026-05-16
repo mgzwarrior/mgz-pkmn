@@ -12,6 +12,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Web: "Restore defaults" button in the settings drawer footer that resets
   all settings (API key, tag, sort, max price, dedupe, hide images) to
   their initial values.
+- Web: exports now honor the **Deduplicate by card ID** setting — toggling
+  it before clicking an export button drops matched rows that share a card
+  ID with an earlier row, matching the CLI's `--dedupe` behavior.
 
 ## [0.1.0] - 2026-05-08
 

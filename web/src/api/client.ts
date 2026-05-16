@@ -131,6 +131,24 @@ const DOWNLOAD_FILENAMES: Record<ExportFormat, string> = {
   checklist: 'checklist.pdf',
 }
 
+/**
+ * Drop matched rows that share a card ID with an earlier row. Unmatched rows
+ * and rows without a card ID are always preserved (we can't tell duplicates
+ * apart without an ID). Mirrors the CLI's `--dedupe` and the bulk-lookup
+ * client-side dedupe in `App.tsx`.
+ */
+export function dedupeRows(rows: Row[]): Row[] {
+  const seen = new Set<string>()
+  return rows.filter((row) => {
+    if (!row.matched) return true
+    const cid = (row.card?.id as string | undefined) ?? null
+    if (!cid) return true
+    if (seen.has(cid)) return false
+    seen.add(cid)
+    return true
+  })
+}
+
 export async function exportFile(
   rows: Row[],
   format: ExportFormat,
@@ -139,13 +157,15 @@ export async function exportFile(
     title?: string
     sort?: SortMode
     noImages?: boolean
+    dedupe?: boolean
   } = {},
 ): Promise<void> {
+  const effectiveRows = options.dedupe ? dedupeRows(rows) : rows
   const res = await fetch(`${BASE}/export`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      rows,
+      rows: effectiveRows,
       format,
       sort: options.sort ?? 'number',
       max_price: options.maxPrice ?? null,
