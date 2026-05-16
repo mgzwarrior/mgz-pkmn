@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Project logo SVG and 1280×640 social preview (rendered PNG checked in
+  for upload to GitHub repo settings). Logo appears at the top of the
+  README.
+
+### Added
+
 - Web: "Restore defaults" button in the settings drawer footer that resets
   all settings (API key, tag, sort, max price, dedupe, hide images) to
   their initial values.
