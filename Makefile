@@ -60,7 +60,7 @@ install-hooks:  ## Install pre-commit as a uv tool and register the git hooks (p
 
 .PHONY: dev
 dev: docker-build  ## Rebuild the Docker image and run it on :8000 (API + built SPA in one container). No hot reload — use `dev-api` + `dev-web` for the inner edit/reload loop.
-	docker run --rm -e POKEMONTCG_IO_API_KEY -p $(PORT_API):8000 mgz-pkmn
+	@$(MAKE) -s docker-run
 
 .PHONY: dev-api
 dev-api:  ## Start the FastAPI dev server with reload on :8000 (override: PORT_API=).
