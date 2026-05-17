@@ -12,6 +12,7 @@
 - [PDF binder](binder-pdf)
 - [Checklist PDF](checklist)
 - [Cache](cache)
+- [Accessibility](accessibility)
 - [Deployment](deployment)
 
 ### Project direction

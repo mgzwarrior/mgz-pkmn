@@ -27,7 +27,7 @@ export function ProcessingQueue() {
         <span className="text-xs font-medium text-zinc-400">
           Looking up cards…
         </span>
-        <span className="text-xs tabular-nums text-zinc-500">
+        <span className="text-xs tabular-nums text-zinc-400">
           {done} of {total} done
         </span>
       </div>
