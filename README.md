@@ -3,6 +3,7 @@
 </h1>
 
 [![CI](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml/badge.svg)](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/mgzwarrior/mgz-pkmn/branch/main/graph/badge.svg)](https://codecov.io/gh/mgzwarrior/mgz-pkmn)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
 🌐 **Project site:** <https://mgz-pkmn.com> · 🚀 **Live demo:** <https://mgz-pkmn.onrender.com>

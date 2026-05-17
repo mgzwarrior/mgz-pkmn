@@ -58,6 +58,7 @@ Documentation = "https://github.com/mgzwarrior/mgz-pkmn/tree/main/docs"
 
 [dependency-groups]
 dev = [
+    "coverage[toml]>=7.6",
     "httpx>=0.28.1",
     "ruff>=0.15.13",
 ]
@@ -91,3 +92,17 @@ ignore = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.coverage.run]
+branch = true
+source = ["src/mgz_pkmn", "api"]
+omit = ["tests/*", "api/tests/*"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "pragma: no cover",
+]
+show_missing = true
+skip_empty = true

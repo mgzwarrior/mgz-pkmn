@@ -35,8 +35,19 @@ jobs:
       - name: Format check (ruff format)
         run: uv run ruff format --check src/ api/
 
-      - name: Run tests
-        run: uv run python -m unittest discover -s tests
+      - name: Run tests with coverage
+        run: |
+          uv run coverage run -m unittest discover -s tests
+          uv run coverage xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.13'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: api
+          fail_ci_if_error: false
 
   web:
     name: web
