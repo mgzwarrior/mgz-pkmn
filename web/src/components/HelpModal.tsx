@@ -55,14 +55,14 @@ export function HelpModal({ onStartTour }: Props) {
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger asChild>
         <button
-          className={`relative flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors ${
+          className={`relative flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors sm:px-3 ${
             hint ? 'ring-2 ring-blue-500 animate-pulse' : ''
           }`}
           title="Help"
-          aria-label="Open help"
+          aria-label="Help"
         >
           <CircleHelp size={15} />
-          Help
+          <span className="hidden sm:inline">Help</span>
         </button>
       </Dialog.Trigger>
 

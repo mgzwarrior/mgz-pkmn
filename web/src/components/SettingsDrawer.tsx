@@ -24,17 +24,18 @@ export function SettingsDrawer() {
     <Dialog.Root>
       <Dialog.Trigger asChild>
         <button
-          className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors"
+          className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors sm:px-3"
           title="Settings"
+          aria-label="Settings"
         >
           <SettingsIcon size={15} />
-          Settings
+          <span className="hidden sm:inline">Settings</span>
         </button>
       </Dialog.Trigger>
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
-        <Dialog.Content className="fixed right-0 top-0 z-50 h-full w-80 bg-zinc-900 border-l border-zinc-700 shadow-2xl flex flex-col">
+        <Dialog.Content className="fixed right-0 top-0 z-50 h-full w-full sm:w-80 bg-zinc-900 border-l border-zinc-700 shadow-2xl flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-zinc-700 px-5 py-4">
             <Dialog.Title className="text-base font-semibold text-zinc-100">

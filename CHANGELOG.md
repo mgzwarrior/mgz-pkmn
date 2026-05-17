@@ -30,6 +30,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
   edit/reload loop. `make dev-api` and `make dev-web` continue to
   cover active development.
 
+### Changed
+
+- Web: header is now mobile-friendly. On screens below `sm` (640 px)
+  the five export buttons collapse into a single **Export** dropdown,
+  and the **Help** / **Settings** buttons render as icon-only. The
+  settings drawer takes the full viewport width on mobile so the
+  sort-order select and helper text no longer truncate. Desktop
+  layout is unchanged.
+
 ## [1.0.1] - 2026-05-16
 
 ### Added
