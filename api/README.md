@@ -63,6 +63,7 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET`  | `/health` | Liveness probe — returns `{"status": "ok"}` |
+| `GET`  | `/version` | Returns `{"version": "<current __version__>"}` |
 | `POST` | `/api/v1/parse` | Parse one card-list line → `CardQuery` |
 | `POST` | `/api/v1/lookup` | Resolve one card line → array of rows |
 | `POST` | `/api/v1/bulk` | Resolve many lines, streaming each row as SSE |

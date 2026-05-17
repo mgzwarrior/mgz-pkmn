@@ -18,6 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
+from mgz_pkmn import __version__
+
 from .routes import export, lookup, overrides, parse, set_cards, sets
 
 
@@ -75,6 +77,11 @@ app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/version")
+def version() -> dict[str, str]:
+    return {"version": __version__}
 
 
 # Serve the built SPA when present (single-unit production deploy). The mount
