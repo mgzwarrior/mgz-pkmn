@@ -201,6 +201,15 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertGreater(payload["override_bytes"], 0)
         self.assertEqual(payload["root"], str(Path(self._tmp.name) / "mgz-pkmn"))
 
+    def test_path_command_prints_bare_cache_root(self) -> None:
+        expected = Path(self._tmp.name) / "mgz-pkmn"
+
+        result = CliRunner().invoke(cli, ["cache", "path"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(result.output, f"{expected}\n")
+        self.assertNotRegex(result.output, r"\x1b\[")
+
 
 class WarnIfCacheLargeTests(unittest.TestCase):
     """The soft-warn helper invoked at `pkmn lookup` start. We drive it
