@@ -49,6 +49,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
   flake detection. New `make coverage` target reproduces the same flow
   locally with terminal + HTML reports (`htmlcov/index.html`). Codecov
   badge added to the README header.
+- CI: the `web` job now runs vitest with `@vitest/coverage-v8` and
+  uploads `coverage/lcov.info` + `junit.xml` to Codecov under the
+  `web` flag, mirroring the `api` job. The dashboard now tracks both
+  suites separately.
 - Web: header is now mobile-friendly. On screens below `sm` (640 px)
   the five export buttons collapse into a single **Export** dropdown,
   and the **Help** / **Settings** buttons render as icon-only. The
