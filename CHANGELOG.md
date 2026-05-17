@@ -10,12 +10,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Docker: container image now includes a `HEALTHCHECK` that probes the
-  `/health` endpoint every 30 seconds. Docker, Docker Compose, Render, and
-  other runtimes that read the OCI health field will surface the container
-  as `(healthy)` once the app is ready (Kubernetes ignores this field and
-  still requires explicit `readinessProbe`/`livenessProbe` entries). The
-  check respects the `$PORT` environment variable and uses inline Python
-  to avoid adding `curl` to the image.
+  `/health` endpoint every 30 seconds, so Render and other runtimes that
+  read the OCI health field surface the container as `(healthy)` once the
+  app is ready. The check respects the `$PORT` environment variable and
+  uses inline Python to avoid adding `curl` to the image.
 - CLI: `pkmn cache stats --json` now emits the cache health snapshot
   with snake_case keys for scripts and monitoring.
 - Web: onboarding help surface. A new **Help** button in the header
