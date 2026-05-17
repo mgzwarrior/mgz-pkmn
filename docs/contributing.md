@@ -342,11 +342,12 @@ config, internal refactors, and test-only changes.
 
 Releases are driven by `pyproject.toml`. A PR that bumps the version
 **is** the release — once it merges to `main`, the
-`release-on-version-bump` workflow tags the new commit, builds the
-package, runs the test suite, publishes to
-[PyPI](https://pypi.org/project/mgz-pkmn/) via trusted publishing, and
-creates a GitHub Release with the built distribution attached and
-notes linking to the new PyPI version.
+`release-on-version-bump` workflow tags the new commit. The tag push
+triggers `release.yml`, which builds the package, runs the test
+suite, publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via
+trusted publishing (with PEP 740 attestations), and creates a GitHub
+Release with the built distribution attached and notes linking to the
+new PyPI version.
 
 To cut a release, open a single PR that:
 
@@ -376,11 +377,35 @@ git push origin v0.2.0
 
 The `pypi-publish` job uses [PyPI Trusted
 Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) so the
-workflow uploads to PyPI without a stored API token. The binding —
-owner `mgzwarrior`, repo `mgz-pkmn`, workflow `release.yml`,
-environment `pypi` — and the matching `pypi` GitHub Environment
-(no secrets) are already in place. If either ever needs to be
-rebuilt (project re-owned, environment recreated, etc.), re-add the
-trusted publisher in the PyPI project's **Publishing** settings with
-those same four values and recreate the `pypi` Environment under
-repo Settings → Environments.
+workflow uploads to PyPI without a stored API token, and signs each
+artifact with a [PEP 740](https://peps.python.org/pep-0740/)
+attestation that PyPI verifies against the trusted-publisher binding.
+The binding — owner `mgzwarrior`, repo `mgz-pkmn`, workflow
+`release.yml`, environment `pypi` — and the matching `pypi` GitHub
+Environment (no secrets) are already in place. If either ever needs
+to be rebuilt (project re-owned, environment recreated, etc.), re-add
+the trusted publisher in the PyPI project's **Publishing** settings
+with those same four values and recreate the `pypi` Environment
+under repo Settings → Environments.
+
+Only **one** binding is required because both the auto-release path
+and a manually pushed `v*` tag converge on `release.yml` running as
+a top-level workflow. `release-on-version-bump.yml` deliberately
+pushes the tag (rather than calling `release.yml` via
+`workflow_call`) so the Sigstore certificate's Build Config URI
+matches the binding — attestation verification looks at the
+top-level workflow ref, which differs from the reusable workflow ref
+that OIDC trusted-publisher auth uses.
+
+### `RELEASE_PAT` secret
+
+`release-on-version-bump.yml` pushes the release tag with a
+fine-grained Personal Access Token stored as the repo secret
+`RELEASE_PAT`. A PAT is required because tags pushed with the
+default `GITHUB_TOKEN` do not trigger downstream workflows, and
+`release.yml` needs to fire on the tag push.
+
+Scope the PAT to this repository with **Contents: read and write**.
+Rotate it on the standard cadence and update the
+`RELEASE_PAT` secret under repo Settings → Secrets and variables →
+Actions.

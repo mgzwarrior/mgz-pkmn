@@ -4,12 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  workflow_call:
-    inputs:
-      tag:
-        description: "Tag to release (e.g. v1.0.1)"
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -19,8 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -63,12 +55,6 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # Re-enable once PyPI's attestation verifier accepts the
-          # release-on-version-bump.yml trusted-publisher binding
-          # (currently rejects with 400 "Verification failed: Build
-          # Config URI does not match expected Trusted Publisher").
-          attestations: false
 
   github-release:
     name: Publish GitHub Release
@@ -86,13 +72,12 @@ jobs:
       - name: Compute PyPI version
         id: pypi
         run: |
-          REF="${{ inputs.tag || github.ref_name }}"
-          echo "version=${REF#v}" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           files: dist/*
           generate_release_notes: true
           body: |
