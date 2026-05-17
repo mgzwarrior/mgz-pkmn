@@ -79,9 +79,9 @@ relevant, CHANGELOG decision).
 | Issue | What you'll do | Why it's a good starter |
 |---|---|---|
 | [#214](https://github.com/mgzwarrior/mgz-pkmn/issues/214) | Add a `make uninstall` target | One Makefile target, symmetric to `make install`. No production code touched. |
-| [#208](https://github.com/mgzwarrior/mgz-pkmn/issues/208) | Tests for `_format_bytes` / `_format_age` in `cli.py` | Pure helpers, deterministic boundaries, no fixtures or HTTP. Test-only PR. |
 | [#210](https://github.com/mgzwarrior/mgz-pkmn/issues/210) | README "Environment variables" section | Pure docs. One section, links out to `docs/cache.md` instead of duplicating content. |
-| [#211](https://github.com/mgzwarrior/mgz-pkmn/issues/211) | API `GET /version` endpoint | Two-line route mirroring the existing `/health`, one route test. Teaches the API + test pattern. |
+| [#230](https://github.com/mgzwarrior/mgz-pkmn/issues/230) | Test coverage: lookup sources (pokemontcg + TCGdex + base) | Mocked-HTTP tests against well-defined inputs/outputs. `pricecharting.py` (78% covered) is the model. Test-only PR. |
+| [#234](https://github.com/mgzwarrior/mgz-pkmn/issues/234) | Test coverage: interactive web components | Each component is a focused surface with a clear public API. `Tour.test.tsx` (98% covered) is the model for the React Testing Library + user-event pattern. Test-only PR. |
 
 Pick one, drop a comment on the issue saying you're picking it up, and
 follow the [branch naming](#branch-naming) / [opening a PR](#opening-a-pr)
