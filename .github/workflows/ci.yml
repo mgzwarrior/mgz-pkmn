@@ -37,7 +37,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          uv run coverage run -m unittest discover -s tests
+          uv run coverage run -m pytest tests/ --junitxml=junit.xml -o junit_family=legacy
           uv run coverage xml
 
       - name: Upload coverage to Codecov
@@ -48,6 +48,14 @@ jobs:
           files: ./coverage.xml
           flags: api
           fail_ci_if_error: false
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() && matrix.python-version == '3.13' }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./junit.xml
+          flags: api
 
   web:
     name: web

@@ -40,11 +40,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- CI: the `api` job now runs tests under `coverage` and uploads
-  `coverage.xml` to [Codecov](https://codecov.io/gh/mgzwarrior/mgz-pkmn)
-  once per run (gated on the 3.13 matrix entry). New `make coverage`
-  target reproduces the same flow locally with terminal + HTML reports
-  (`htmlcov/index.html`). Codecov badge added to the README header.
+- CI: the `api` job now runs tests under `coverage` (via `pytest`,
+  which discovers the existing `unittest.TestCase` suites unchanged)
+  and uploads both `coverage.xml` and `junit.xml` to
+  [Codecov](https://codecov.io/gh/mgzwarrior/mgz-pkmn) once per run
+  (gated on the 3.13 matrix entry) — coverage via `codecov-action@v5`,
+  test results via `test-results-action@v1` for failure analytics and
+  flake detection. New `make coverage` target reproduces the same flow
+  locally with terminal + HTML reports (`htmlcov/index.html`). Codecov
+  badge added to the README header.
 - Web: header is now mobile-friendly. On screens below `sm` (640 px)
   the five export buttons collapse into a single **Export** dropdown,
   and the **Help** / **Settings** buttons render as icon-only. The
