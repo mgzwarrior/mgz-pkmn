@@ -13,9 +13,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `/health` endpoint every 30 seconds. Orchestrators (Kubernetes, Docker
   Compose, Render, etc.) can now detect when the app is ready and healthy
   via the OCI health field. The check respects the `$PORT` environment
-  variable and uses inline Python to avoid adding `curl` to the image.
-- CLI: `pkmn cache stats --json` now emits the cache health snapshot
-  with snake_case keys for scripts and monitoring.  
+  variable and uses inline Python to avoid adding `curl` to the image. 
 - Web: onboarding help surface. A new **Help** button in the header
   opens a modal covering what the tool does, how to write queries
   (with copyable examples), each setting, each export format, and
