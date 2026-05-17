@@ -9,6 +9,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- CLI: `pkmn cache stats --json` now emits the cache health snapshot
+  with snake_case keys for scripts and monitoring.
 - Web: onboarding help surface. A new **Help** button in the header
   opens a modal covering what the tool does, how to write queries
   (with copyable examples), each setting, each export format, and

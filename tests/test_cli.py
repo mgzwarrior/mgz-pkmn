@@ -175,6 +175,32 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertIn("API responses: 0 entries", result.output)
         self.assertIn("oldest —", result.output)
 
+    def test_stats_command_can_emit_json(self) -> None:
+        cache.write_api("https://example.com/a", {"x": 1})
+        cache.record_url_override("Mew", None, "https://pc/mew")
+
+        result = CliRunner().invoke(cli, ["cache", "stats", "--json"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        payload = json.loads(result.output)
+        self.assertEqual(
+            set(payload),
+            {
+                "api_bytes",
+                "api_entry_count",
+                "api_oldest_mtime",
+                "override_bytes",
+                "override_count",
+                "root",
+            },
+        )
+        self.assertEqual(payload["api_entry_count"], 1)
+        self.assertGreater(payload["api_bytes"], 0)
+        self.assertIsInstance(payload["api_oldest_mtime"], float)
+        self.assertEqual(payload["override_count"], 1)
+        self.assertGreater(payload["override_bytes"], 0)
+        self.assertEqual(payload["root"], str(Path(self._tmp.name) / "mgz-pkmn"))
+
 
 class WarnIfCacheLargeTests(unittest.TestCase):
     """The soft-warn helper invoked at `pkmn lookup` start. We drive it
