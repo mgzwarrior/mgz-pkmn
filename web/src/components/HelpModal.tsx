@@ -123,7 +123,7 @@ export function HelpModal({ onStartTour }: Props) {
             <Section title="Shortcuts">
               <Definitions
                 rows={[
-                  [<Kbd key="run">⌘ Enter</Kbd>, 'Run the lookup'],
+                  [<Kbd key="run">Ctrl/Cmd + Enter</Kbd>, 'Run the lookup'],
                   [<Kbd key="brand">Brand × 5</Kbd>, 'Click the logo five times for a surprise'],
                 ]}
               />

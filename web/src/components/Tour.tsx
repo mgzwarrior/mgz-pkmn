@@ -9,7 +9,7 @@
  * Mounted only while running — the parent renders <Tour /> when the
  * user starts the tour, so step state resets cleanly on each open.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAppStore } from '../store'
 
@@ -30,7 +30,7 @@ const STEPS: Step[] = [
   {
     selector: '[data-tour="run"]',
     title: 'Look up',
-    body: 'Run the lookup. Results stream in as each line resolves — ⌘ Enter is the keyboard shortcut.',
+    body: 'Run the lookup. Results stream in as each line resolves — Ctrl/Cmd + Enter is the keyboard shortcut.',
   },
   {
     selector: '[data-tour="settings"]',
@@ -51,11 +51,21 @@ const STEPS: Step[] = [
 
 interface Props {
   onClose: () => void
+  onRun: (overrideText?: string) => void
 }
 
-export function Tour({ onClose }: Props) {
+// 0-indexed step that runs the lookup when the user advances past it.
+const RUN_STEP_INDEX = 1
+
+export function Tour({ onClose, onRun }: Props) {
   const [stepIndex, setStepIndex] = useState(0)
   const setInputText = useAppStore((s) => s.setInputText)
+  const hasRunRef = useRef(false)
+  const stepIndexRef = useRef(0)
+
+  useEffect(() => {
+    stepIndexRef.current = stepIndex
+  }, [stepIndex])
 
   // Seed the textarea with a sample line on first mount so disabled-only
   // elements (Look up button) have a meaningful highlight at step 2.
@@ -81,29 +91,52 @@ export function Tour({ onClose }: Props) {
     return () => el.classList.remove('tour-highlight')
   }, [stepIndex])
 
-  // Esc closes; arrows step.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-      else if (e.key === 'ArrowRight') setStepIndex((i) => Math.min(i + 1, STEPS.length - 1))
-      else if (e.key === 'ArrowLeft') setStepIndex((i) => Math.max(i - 1, 0))
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const step = STEPS[stepIndex]
   const isFirst = stepIndex === 0
   const isLast = stepIndex === STEPS.length - 1
 
-  function next() {
-    if (isLast) onClose()
-    else setStepIndex((i) => i + 1)
-  }
+  // Advance one step. The first time the user advances past the "Look up"
+  // step, kick off the lookup so the Results/Exports steps later in the tour
+  // have real streaming data to highlight.
+  const next = useCallback(() => {
+    if (stepIndexRef.current === STEPS.length - 1) {
+      onClose()
+      return
+    }
+    if (stepIndexRef.current === RUN_STEP_INDEX && !hasRunRef.current) {
+      hasRunRef.current = true
+      onRun(TOUR_SEED)
+    }
+    setStepIndex((i) => Math.min(i + 1, STEPS.length - 1))
+  }, [onClose, onRun])
 
-  function prev() {
+  const prev = useCallback(() => {
     setStepIndex((i) => Math.max(i - 1, 0))
-  }
+  }, [])
+
+  // Esc closes; arrows step — but only when the user is not typing in an
+  // input/textarea/contentEditable, so step 1 doesn't hijack cursor movement
+  // in the card-list textarea.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        next()
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        prev()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, next, prev])
 
   return (
     <div

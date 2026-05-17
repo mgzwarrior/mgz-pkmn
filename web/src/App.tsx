@@ -182,7 +182,7 @@ function App() {
         </section>
       </main>
 
-      {tourOpen && <Tour onClose={() => setTourOpen(false)} />}
+      {tourOpen && <Tour onClose={() => setTourOpen(false)} onRun={handleRun} />}
 
       {/* Easter egg overlay — see handleBrandClick. */}
       {showEgg && (
