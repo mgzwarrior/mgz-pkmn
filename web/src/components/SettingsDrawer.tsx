@@ -35,14 +35,20 @@ export function SettingsDrawer() {
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
-        <Dialog.Content className="fixed right-0 top-0 z-50 h-full w-full sm:w-80 bg-zinc-900 border-l border-zinc-700 shadow-2xl flex flex-col">
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed right-0 top-0 z-50 h-full w-full sm:w-80 bg-zinc-900 border-l border-zinc-700 shadow-2xl flex flex-col"
+        >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-zinc-700 px-5 py-4">
             <Dialog.Title className="text-base font-semibold text-zinc-100">
               Settings
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition-colors">
+              <button
+                aria-label="Close settings"
+                className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition-colors"
+              >
                 <X size={16} />
               </button>
             </Dialog.Close>
@@ -88,7 +94,7 @@ export function SettingsDrawer() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-zinc-400">
                 Applied to every export (xlsx, PDF binder, condensed PDF, checklist). Tag stays the
                 outermost group; this only changes order within each tag.
               </p>
@@ -110,7 +116,7 @@ export function SettingsDrawer() {
                 placeholder="No cap"
                 className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-zinc-400">
                 Bulk top-N results above this price are excluded. Single-card lookups are always
                 shown (flagged amber in the export).
               </p>
@@ -205,7 +211,7 @@ function Toggle({
       </div>
       <div>
         <p className="text-sm text-zinc-200 group-hover:text-zinc-100">{label}</p>
-        <p className="text-xs text-zinc-500">{description}</p>
+        <p className="text-xs text-zinc-400">{description}</p>
       </div>
     </label>
   )

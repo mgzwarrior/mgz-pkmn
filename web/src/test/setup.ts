@@ -1,6 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-import { afterEach, vi } from 'vitest'
+import { afterEach, expect, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
+import * as axeMatchers from 'vitest-axe/matchers'
+
+// vitest-axe's `extend-expect` entry is empty in the published dist; register
+// the matcher ourselves so `expect(results).toHaveNoViolations()` works.
+expect.extend(axeMatchers)
 
 // Zustand's persist middleware reaches for `localStorage` on every state
 // change. jsdom in Node 22 exposes an experimental `localStorage` global

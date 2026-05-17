@@ -38,6 +38,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
   settings drawer takes the full viewport width on mobile so the
   sort-order select and helper text no longer truncate. Desktop
   layout is unchanged.
+- Web: accessibility pass against axe-core. Closes the a11y half of
+  #62 — zero critical or serious violations across the idle page,
+  open Help modal, open Settings drawer, populated results table,
+  and expanded filter row. Bumped muted text from `text-zinc-500` /
+  `text-zinc-600` to `text-zinc-400` so helper copy, section
+  headings, and the footer meet WCAG AA contrast. Added an `<h1>`
+  inside the header so the page has a top-level heading. Gave the
+  Settings drawer close button an `aria-label`, the empty
+  results-table header cells `sr-only` labels, and the card-list
+  textarea an `aria-label`. Made the Help modal's scrollable body
+  keyboard-focusable so users can scroll without first tabbing
+  through every dialog control.
 
 ## [1.0.1] - 2026-05-16
 

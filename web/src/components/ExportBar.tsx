@@ -141,7 +141,7 @@ export function ExportBar() {
         {/* Status / error lives outside the dropdown menu so it stays
             visible after the user picks a format and the menu closes. */}
         {matchedRows.length > 0 && !disabled && !error && (
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-zinc-400">
             {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}
           </span>
         )}
@@ -170,7 +170,7 @@ export function ExportBar() {
         onClick={handleSetCards}
       />
       {matchedRows.length > 0 && !disabled && (
-        <span className="text-xs text-zinc-500 ml-1">
+        <span className="text-xs text-zinc-400 ml-1">
           {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}
         </span>
       )}

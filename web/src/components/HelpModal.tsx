@@ -68,7 +68,10 @@ export function HelpModal({ onStartTour }: Props) {
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl">
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl"
+        >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-zinc-700 px-5 py-4">
             <Dialog.Title className="text-base font-semibold text-zinc-100">
@@ -85,7 +88,10 @@ export function HelpModal({ onStartTour }: Props) {
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6 text-sm text-zinc-300">
+          <div
+            tabIndex={0}
+            className="flex-1 overflow-y-auto px-5 py-4 space-y-6 text-sm text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
             <Section title="What this does">
               <p>
                 Paste a list of Pokémon cards (one per line), click{' '}
@@ -151,7 +157,7 @@ export function HelpModal({ onStartTour }: Props) {
 
           {/* Footer */}
           <div className="flex items-center justify-between border-t border-zinc-700 px-5 py-4">
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-zinc-400">
               New here? Take the interactive tour.
             </span>
             <button
@@ -170,7 +176,7 @@ export function HelpModal({ onStartTour }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
         {title}
       </h3>
       {children}
@@ -194,7 +200,7 @@ function Examples({ rows }: { rows: [string, string][] }) {
           <code className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs text-zinc-100">
             {query}
           </code>
-          <span className="text-xs text-zinc-500">{desc}</span>
+          <span className="text-xs text-zinc-400">{desc}</span>
         </li>
       ))}
     </ul>

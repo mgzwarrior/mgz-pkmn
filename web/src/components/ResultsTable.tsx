@@ -66,7 +66,7 @@ export function ResultsTable({ onRerunLine }: Props) {
 
   if (rows.length === 0 && !isRunning) {
     return (
-      <div className="flex items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 py-16 text-zinc-500 text-sm">
+      <div className="flex items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 py-16 text-zinc-400 text-sm">
         Results will appear here after you run a lookup.
       </div>
     )
@@ -86,7 +86,7 @@ export function ResultsTable({ onRerunLine }: Props) {
             />
           </div>
           {progress && (
-            <span className="text-xs text-zinc-500 tabular-nums whitespace-nowrap">
+            <span className="text-xs text-zinc-400 tabular-nums whitespace-nowrap">
               {progress.done} / {progress.total}
             </span>
           )}
@@ -116,7 +116,7 @@ export function ResultsTable({ onRerunLine }: Props) {
               setSortDir(null)
               setFilters(EMPTY_FILTERS)
             }}
-            className="text-xs text-zinc-500 hover:text-zinc-300"
+            className="text-xs text-zinc-400 hover:text-zinc-300"
           >
             Clear sort &amp; filters
           </button>
@@ -174,11 +174,17 @@ export function ResultsTable({ onRerunLine }: Props) {
                 onClick={cycleSort}
                 className="hidden sm:table-cell"
               />
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 w-8" />
+              <th className="px-3 py-2 text-xs font-medium text-zinc-400 w-8">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
             {showFilters && (
               <tr className="border-b border-zinc-700 bg-zinc-900">
-                {!settings.noImages && <th />}
+                {!settings.noImages && (
+                  <th>
+                    <span className="sr-only">Image (no filter)</span>
+                  </th>
+                )}
                 <FilterCell>
                   <FilterInput
                     aria-label="Filter by name"
@@ -233,7 +239,9 @@ export function ResultsTable({ onRerunLine }: Props) {
                     onChange={(v) => setFilters((f) => ({ ...f, source: v }))}
                   />
                 </FilterCell>
-                <th />
+                <th>
+                  <span className="sr-only">Actions (no filter)</span>
+                </th>
               </tr>
             )}
           </thead>
@@ -257,12 +265,12 @@ export function ResultsTable({ onRerunLine }: Props) {
         </table>
       </div>
 
-      <p className="text-xs text-zinc-600 text-right">
+      <p className="text-xs text-zinc-400 text-right">
         {displayedRows.filter((r) => r.matched).length} matched ·{' '}
         {displayedRows.filter((r) => !r.matched).length} unmatched ·{' '}
         {displayedRows.length} shown
         {displayedRows.length !== rows.length && (
-          <span className="text-zinc-500"> (of {rows.length})</span>
+          <span className="text-zinc-400"> (of {rows.length})</span>
         )}
       </p>
     </div>
@@ -415,7 +423,7 @@ function ResultRow({
               />
             ) : (
               <div className="w-10 h-14 rounded bg-zinc-800 flex items-center justify-center">
-                <span className="text-zinc-600 text-xs">?</span>
+                <span className="text-zinc-400 text-xs">?</span>
               </div>
             )}
           </td>
@@ -426,7 +434,7 @@ function ResultRow({
           {row.matched ? (
             <div>
               <div className="font-medium text-zinc-100 truncate">{card?.name as string}</div>
-              <div className="text-xs text-zinc-500 truncate">{row.query.raw}</div>
+              <div className="text-xs text-zinc-400 truncate">{row.query.raw}</div>
             </div>
           ) : (
             <div>
@@ -448,19 +456,19 @@ function ResultRow({
         <td className="px-3 py-2 text-zinc-400 text-xs hidden md:table-cell max-w-[160px]">
           <div className="truncate">{setName ?? '—'}</div>
           {card?.number && (
-            <div className="text-zinc-600">#{card.number as string}</div>
+            <div className="text-zinc-400">#{card.number as string}</div>
           )}
         </td>
 
         {/* Rarity */}
-        <td className="px-3 py-2 text-xs text-zinc-500 hidden lg:table-cell max-w-[120px] truncate">
+        <td className="px-3 py-2 text-xs text-zinc-400 hidden lg:table-cell max-w-[120px] truncate">
           {(card?.rarity as string | undefined) ?? '—'}
         </td>
 
         {/* Market */}
         <td
           className={`px-3 py-2 text-right font-mono tabular-nums ${
-            isOverCap ? 'text-amber-400 font-bold' : p.market ? 'text-green-400' : 'text-zinc-600'
+            isOverCap ? 'text-amber-400 font-bold' : p.market ? 'text-green-400' : 'text-zinc-400'
           }`}
         >
           {fmt(p.market, p.currency)}
@@ -481,7 +489,7 @@ function ResultRow({
         </td>
 
         {/* Price source */}
-        <td className="px-3 py-2 text-xs text-zinc-500 hidden sm:table-cell">
+        <td className="px-3 py-2 text-xs text-zinc-400 hidden sm:table-cell">
           {p.source ?? '—'}
         </td>
 
@@ -492,7 +500,7 @@ function ResultRow({
               href={p.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-zinc-500 hover:text-blue-400 transition-colors"
+              className="text-zinc-400 hover:text-blue-400 transition-colors"
               title="Open listing"
             >
               <ExternalLink size={13} />
@@ -523,7 +531,7 @@ function ResultRow({
               </button>
               <button
                 onClick={() => setShowOverrideForm(false)}
-                className="text-zinc-500 hover:text-zinc-300 text-xs"
+                className="text-zinc-400 hover:text-zinc-300 text-xs"
               >
                 Cancel
               </button>
