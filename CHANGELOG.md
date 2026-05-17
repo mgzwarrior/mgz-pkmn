@@ -7,6 +7,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Web: header is now mobile-friendly. On screens below `sm` (640 px)
+  the five export buttons collapse into a single **Export** dropdown,
+  and the **Help** / **Settings** buttons render as icon-only. The
+  settings drawer takes the full viewport width on mobile so the
+  sort-order select and helper text no longer truncate. Desktop
+  layout is unchanged.
+
 ### Added
 
 - Web: onboarding help surface. A new **Help** button in the header

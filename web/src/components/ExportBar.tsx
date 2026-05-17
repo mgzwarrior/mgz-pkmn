@@ -6,6 +6,9 @@
  * until at least one matched row is available. The Set ID cards button
  * is always enabled — it fetches the full set catalog server-side and
  * doesn't require any input rows.
+ *
+ * On screens below `sm` (640px) the row collapses into a single
+ * "Export" dropdown to keep the header compact.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -16,7 +19,10 @@ import {
   ListChecks,
   Tags,
   Loader2,
+  Download,
+  ChevronDown,
 } from 'lucide-react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { downloadSetCardsPdf, exportFile } from '../api/client'
 import { useAppStore } from '../store'
 import type { ExportFormat } from '../types'
@@ -35,6 +41,7 @@ export function ExportBar() {
 
   const matchedRows = rows.filter((r) => r.matched)
   const disabled = matchedRows.length === 0
+  const anyLoading = loading !== null
 
   async function handleExport(format: ExportFormat) {
     if (disabled) return
@@ -68,31 +75,88 @@ export function ExportBar() {
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {BUTTONS.map((b) => (
+    <>
+      {/* Desktop: full button row */}
+      <div className="hidden sm:flex items-center gap-2 flex-wrap">
+        {BUTTONS.map((b) => (
+          <ExportButton
+            key={b.format}
+            label={b.label}
+            icon={b.icon}
+            loading={loading === b.format}
+            disabled={disabled || anyLoading}
+            onClick={() => handleExport(b.format)}
+          />
+        ))}
         <ExportButton
-          key={b.format}
-          label={b.label}
-          icon={b.icon}
-          loading={loading === b.format}
-          disabled={disabled || loading !== null}
-          onClick={() => handleExport(b.format)}
+          label="Set ID cards"
+          icon={<Tags size={14} />}
+          loading={loading === 'set-cards'}
+          disabled={anyLoading}
+          onClick={handleSetCards}
         />
-      ))}
-      <ExportButton
-        label="Set ID cards"
-        icon={<Tags size={14} />}
-        loading={loading === 'set-cards'}
-        disabled={loading !== null}
-        onClick={handleSetCards}
-      />
-      {matchedRows.length > 0 && !disabled && (
-        <span className="text-xs text-zinc-500 ml-1">
-          {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}
-        </span>
-      )}
-      {error && <span className="text-xs text-red-400 ml-1">{error}</span>}
-    </div>
+        {matchedRows.length > 0 && !disabled && (
+          <span className="text-xs text-zinc-500 ml-1">
+            {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}
+          </span>
+        )}
+        {error && <span className="text-xs text-red-400 ml-1">{error}</span>}
+      </div>
+
+      {/* Mobile: single dropdown */}
+      <div className="sm:hidden">
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={anyLoading}
+              aria-label="Export"
+            >
+              {anyLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              Export
+              <ChevronDown size={13} className="opacity-70" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              align="end"
+              sideOffset={6}
+              className="z-50 min-w-[200px] rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-xl"
+            >
+              {BUTTONS.map((b) => (
+                <DropdownMenu.Item
+                  key={b.format}
+                  disabled={disabled}
+                  onSelect={() => handleExport(b.format)}
+                  className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-zinc-200 outline-none data-[highlighted]:bg-zinc-800 data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed"
+                >
+                  {b.icon}
+                  {b.label}
+                </DropdownMenu.Item>
+              ))}
+              <DropdownMenu.Separator className="my-1 h-px bg-zinc-800" />
+              <DropdownMenu.Item
+                onSelect={handleSetCards}
+                className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-zinc-200 outline-none data-[highlighted]:bg-zinc-800"
+              >
+                <Tags size={14} />
+                Set ID cards
+              </DropdownMenu.Item>
+              {matchedRows.length > 0 && !disabled && (
+                <div className="border-t border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-500">
+                  {matchedRows.length} matched row{matchedRows.length !== 1 ? 's' : ''}
+                </div>
+              )}
+              {error && (
+                <div className="border-t border-zinc-800 px-2.5 py-1.5 text-xs text-red-400">
+                  {error}
+                </div>
+              )}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
+    </>
   )
 }
 
