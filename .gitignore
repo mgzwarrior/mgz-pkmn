@@ -5,6 +5,12 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# Coverage / test results
+.coverage
+coverage.xml
+htmlcov/
+junit.xml
+
 # Virtual envs
 .venv/
 venv/

@@ -80,6 +80,14 @@ dev-site:  ## Start the Astro dev server on :4321 for the marketing site.
 test:  ## Run the Python test suite.
 	uv run python -m unittest discover -s tests
 
+.PHONY: coverage
+coverage:  ## Run the Python test suite under coverage; emit terminal report + coverage.xml + junit.xml + htmlcov/.
+	uv run coverage run -m pytest tests/ --junitxml=junit.xml -o junit_family=legacy
+	uv run coverage report
+	uv run coverage xml
+	uv run coverage html
+	@echo "✓ HTML report: htmlcov/index.html"
+
 .PHONY: lint
 lint: lint-py lint-web  ## Lint everything (Python ruff + web ESLint).
 
@@ -155,6 +163,6 @@ cache-clear:  ## Wipe the on-disk cache (~/.cache/mgz-pkmn) — including URL ov
 
 .PHONY: clean
 clean:  ## Remove build artifacts and installed dependencies (.venv, node_modules, dist).
-	rm -rf .venv web/node_modules web/dist site/node_modules site/dist site/.astro .ruff_cache
+	rm -rf .venv web/node_modules web/dist site/node_modules site/dist site/.astro .ruff_cache .coverage coverage.xml htmlcov junit.xml
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
-	@echo "✓ removed .venv, web/node_modules, web/dist, site/node_modules, site/dist, site/.astro, .ruff_cache, __pycache__"
+	@echo "✓ removed .venv, web/node_modules, web/dist, site/node_modules, site/dist, site/.astro, .ruff_cache, .coverage, coverage.xml, htmlcov, junit.xml, __pycache__"
