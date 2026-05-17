@@ -90,12 +90,15 @@ Prefer the env var over `--api-key` — flags get saved to shell history.
 
 ```bash
 make install         # one-time setup
-make dev-api         # Terminal 1 — API on :8000
-make dev-web         # Terminal 2 — Vite dev server on :5173
+make dev             # API on :8000 + Vite dev server on :5173
 ```
 
-Open <http://localhost:5173>. The Vite dev server proxies `/api/*` to
-the FastAPI server. Swagger UI lives at <http://localhost:8000/docs>.
+Open <http://localhost:5173>. Press `Ctrl+C` once to stop both dev
+servers. The Vite dev server proxies `/api/*` to the FastAPI server.
+Swagger UI lives at <http://localhost:8000/docs>.
+
+If you only need one half of the stack, `make dev-api` and
+`make dev-web` still run the FastAPI and Vite dev servers separately.
 
 Prefer not to install anything? The same UI is hosted at
 <https://mgz-pkmn.onrender.com>.

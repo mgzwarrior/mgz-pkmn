@@ -197,6 +197,9 @@ The Makefile at the repo root wraps the common dev commands. Run
 
 ```bash
 make install            # one-shot: deps + pre-commit hook
+make dev                # API + web dev servers; Ctrl+C stops both
+make dev-api            # API dev server only
+make dev-web            # Vite dev server only
 make test               # python tests
 make lint               # ruff + eslint
 make format             # ruff format in-place

@@ -32,7 +32,7 @@ help:  ## Print this help. Default when `make` is run with no target.
 
 .PHONY: install
 install: install-api install-web install-hooks  ## Full dev setup: API + web + pre-commit hook.
-	@echo "✓ install complete — try \`make dev-api\` and \`make dev-web\` next."
+	@echo "✓ install complete — try \`make dev\` next."
 
 .PHONY: install-cli
 install-cli:  ## CLI dependencies only (no API, no web). Fastest install.
@@ -57,6 +57,20 @@ install-hooks:  ## Install pre-commit as a uv tool and register the git hooks (p
 	uv tool run pre-commit install --hook-type commit-msg
 
 ## Dev servers
+
+.PHONY: dev
+dev:  ## Start the API and web dev servers together. Ctrl+C stops both.
+	@api_pid=; web_pid=; \
+	cleanup() { \
+		trap - INT TERM EXIT; \
+		[ -z "$$api_pid" ] || kill "$$api_pid" 2>/dev/null || true; \
+		[ -z "$$web_pid" ] || kill "$$web_pid" 2>/dev/null || true; \
+		wait 2>/dev/null || true; \
+	}; \
+	trap cleanup INT TERM EXIT; \
+	$(MAKE) -s dev-api & api_pid=$$!; \
+	$(MAKE) -s dev-web & web_pid=$$!; \
+	wait
 
 .PHONY: dev-api
 dev-api:  ## Start the FastAPI dev server with reload on :8000 (override: PORT_API=).
