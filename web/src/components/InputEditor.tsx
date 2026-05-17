@@ -127,6 +127,7 @@ export function InputEditor({ onRun, onStop }: Props) {
             <button
               onClick={() => onRun()}
               disabled={lineCount === 0}
+              data-tour="run"
               className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Play size={13} fill="currentColor" />
