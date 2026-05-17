@@ -7,6 +7,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- New `make dev` target rebuilds the single-image Docker artifact
+  (API + built SPA) and runs it on `:8000`. One terminal, one
+  Ctrl+C, no two-window juggling — at the cost of no hot reload,
+  so it's intended for smoke runs and demos rather than the inner
+  edit/reload loop. `make dev-api` and `make dev-web` continue to
+  cover active development.
+
 ## [1.0.1] - 2026-05-16
 
 ### Added
