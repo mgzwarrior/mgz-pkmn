@@ -9,6 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Docker: container image now includes a `HEALTHCHECK` that probes the
+  `/health` endpoint every 30 seconds. Orchestrators (Kubernetes, Docker
+  Compose, Render, etc.) can now detect when the app is ready and healthy
+  via the OCI health field. The check respects the `$PORT` environment
+  variable and uses inline Python to avoid adding `curl` to the image.
 - Web: onboarding help surface. A new **Help** button in the header
   opens a modal covering what the tool does, how to write queries
   (with copyable examples), each setting, each export format, and

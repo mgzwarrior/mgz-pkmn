@@ -44,6 +44,23 @@ schema is at <http://localhost:8000/openapi.json>.
 > `curl -LsSf https://astral.sh/uv/install.sh | sh`). As a last resort you
 > can substitute `python -m uv …` for `uv …` after `python -m pip install --user uv`.
 
+## Docker
+
+The Dockerfile in the repository root builds a production image with the API
+and built SPA. The image includes a `HEALTHCHECK` that probes the `/health`
+endpoint every 30 seconds (with a 10-second startup grace period). This allows
+orchestrators (Kubernetes, Docker Compose, Render, etc.) to detect when the
+app is ready and healthy.
+
+```bash
+docker build -t mgz-pkmn .
+docker run -p 8000:8000 mgz-pkmn
+docker ps  # shows (healthy) after ~10 seconds
+```
+
+The healthcheck respects the `$PORT` environment variable (Render injects it;
+defaults to 8000).
+
 ## Running with the web frontend
 
 In a second terminal, start the Vite dev server:
