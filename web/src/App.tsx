@@ -140,6 +140,7 @@ function App() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
+        <h1 className="sr-only">mgz-pkmn — Pokemon card lookup</h1>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <button
             type="button"
@@ -165,14 +166,14 @@ function App() {
       {/* Main content */}
       <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
         <section data-tour="input">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
             Card list
           </h2>
           <InputEditor onRun={handleRun} onStop={handleStop} />
         </section>
 
         <section data-tour="results">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
             Results
           </h2>
           <div className="flex flex-col gap-3">
@@ -238,13 +239,13 @@ function App() {
         </div>
       )}
 
-      <footer className="border-t border-zinc-800 py-4 text-center text-xs text-zinc-700">
+      <footer className="border-t border-zinc-800 py-4 text-center text-xs text-zinc-400">
         mgz-pkmn · a personal card-show prep tool ·{' '}
         <a
           href="https://github.com/mgzwarrior/mgz-pkmn"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-zinc-500"
+          className="hover:text-zinc-200"
         >
           GitHub
         </a>

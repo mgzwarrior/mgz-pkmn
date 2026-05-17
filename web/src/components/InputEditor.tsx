@@ -100,7 +100,7 @@ export function InputEditor({ onRun, onStop }: Props) {
     <div className="flex flex-col gap-2">
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-500">
+        <span className="text-xs text-zinc-400">
           {lineCount > 0 ? `${lineCount} card line${lineCount !== 1 ? 's' : ''}` : 'Enter card lines below'}
         </span>
         <div className="flex items-center gap-2">
@@ -132,7 +132,7 @@ export function InputEditor({ onRun, onStop }: Props) {
             >
               <Play size={13} fill="currentColor" />
               Look up&nbsp;
-              <span className="opacity-70 text-xs">(⌘↵)</span>
+              <span className="text-xs text-white">(⌘↵)</span>
             </button>
           )}
         </div>
@@ -141,6 +141,7 @@ export function InputEditor({ onRun, onStop }: Props) {
       {/* Textarea */}
       <textarea
         ref={textareaRef}
+        aria-label="Card list — one card per line"
         value={inputText}
         onChange={(e) => setInputText(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -155,7 +156,7 @@ export function InputEditor({ onRun, onStop }: Props) {
       {/* Example query chips — guided empty-state */}
       {isEmpty && !isRunning && (
         <div className="flex flex-col gap-2 rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-3">
-          <span className="text-xs text-zinc-500">Try one of these</span>
+          <span className="text-xs text-zinc-400">Try one of these</span>
           <div className="flex flex-wrap gap-1.5">
             {EXAMPLE_QUERIES.map((example) => (
               <button

@@ -8,6 +8,7 @@ import re
 import shlex
 import sys
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 import click
@@ -936,13 +937,20 @@ def _format_age(mtime: float | None, *, now: float | None = None) -> str:
 
 
 @cache_group.command(name="stats", context_settings={"help_option_names": ["-h", "--help"]})
-def cache_stats_command() -> None:
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON instead of the human summary.")
+def cache_stats_command(as_json: bool) -> None:
     """Show on-disk cache health: total size, oldest entry, override count.
 
     Reports stats even when MGZ_PKMN_NO_CACHE is set — the user is asking
     about real on-disk state, not the effective behaviour of the current
     run."""
     s = disk_cache.stats()
+    if as_json:
+        payload = asdict(s)
+        payload["root"] = str(s.root)
+        click.echo(json.dumps(payload, indent=2))
+        return
+
     total_bytes = s.api_bytes + s.override_bytes
 
     _print_section("Cache stats")
