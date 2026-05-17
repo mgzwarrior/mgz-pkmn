@@ -198,6 +198,7 @@ The Makefile at the repo root wraps the common dev commands. Run
 ```bash
 make install            # one-shot: deps + pre-commit hook
 make test               # python tests
+make coverage           # python tests under coverage; emits htmlcov/ + coverage.xml + junit.xml
 make lint               # ruff + eslint
 make format             # ruff format in-place
 make fix                # ruff --fix + ruff format
@@ -336,10 +337,17 @@ to `main`, plus a DCO check on PRs:
 
 | Job | What it checks |
 |---|---|
-| `api` | ruff lint + format check + full test suite (`src/` and `api/`), across Python 3.11 / 3.12 / 3.13 |
-| `web` | ESLint + Vitest + TypeScript build (`tsc -b && vite build`) for `web/` |
+| `api` | ruff lint + format check + full test suite (`src/` and `api/`), across Python 3.11 / 3.12 / 3.13. Uploads coverage + junit to [Codecov](https://codecov.io/gh/mgzwarrior/mgz-pkmn) on the 3.13 entry. |
+| `web` | ESLint + Vitest (with v8 coverage) + TypeScript build (`tsc -b && vite build`) for `web/`. Uploads coverage + junit to Codecov. |
 | `site` | Astro build for the marketing site (`site/`) |
 | `DCO` | Every non-merge PR commit carries a well-formed `Signed-off-by:` trailer (PRs only; advisory until added to branch protection's required-checks list) |
+
+Codecov is configured via [`codecov.yml`](../codecov.yml). Both project
+and patch status checks run as `informational: true` — they post the
+delta on every PR but never fail the build. The PR comment shows
+project + patch coverage, the per-flag breakdown (`api`, `web`), and
+per-component numbers (lookup, outputs, CLI, cache, API routes, web
+SPA). Thresholds will be revisited once we have a stable baseline.
 
 ## Changelog
 

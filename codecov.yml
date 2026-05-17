@@ -1,0 +1,79 @@
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...90"
+
+  status:
+    project:
+      default:
+        target: auto
+        informational: true
+    patch:
+      default:
+        target: auto
+        informational: true
+
+comment:
+  layout: "header, diff, flags, components, files"
+  behavior: default
+  require_changes: false
+  show_carryforward_flags: true
+
+flags:
+  api:
+    paths:
+      - src/mgz_pkmn/
+      - api/
+    carryforward: true
+  web:
+    paths:
+      - web/src/
+    carryforward: true
+
+component_management:
+  individual_components:
+    - component_id: lookup
+      name: Lookup pipeline
+      paths:
+        - src/mgz_pkmn/lookup.py
+        - src/mgz_pkmn/sources/**
+        - src/mgz_pkmn/parser.py
+        - src/mgz_pkmn/pricing.py
+    - component_id: outputs
+      name: Outputs (xlsx / PDF / JSON)
+      paths:
+        - src/mgz_pkmn/binder.py
+        - src/mgz_pkmn/checklist.py
+        - src/mgz_pkmn/spreadsheet.py
+        - src/mgz_pkmn/set_cards.py
+        - src/mgz_pkmn/report.py
+    - component_id: cli
+      name: CLI
+      paths:
+        - src/mgz_pkmn/cli.py
+    - component_id: cache
+      name: Disk cache
+      paths:
+        - src/mgz_pkmn/cache.py
+    - component_id: api-routes
+      name: API routes
+      paths:
+        - api/**
+    - component_id: web-app
+      name: Web SPA
+      paths:
+        - web/src/**
+
+ignore:
+  - "tests/**"
+  - "web/src/test/**"
+  - "web/src/**/*.test.{ts,tsx}"
+  - "web/src/main.tsx"
+  - "web/src/vite-env.d.ts"
+  - "src/mgz_pkmn/__main__.py"
+  - "site/**"
