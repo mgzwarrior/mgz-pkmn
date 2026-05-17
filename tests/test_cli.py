@@ -117,22 +117,25 @@ class DedupeRowsTests(unittest.TestCase):
         self.assertEqual(removed, 1)
 
 
-class FormatHelpersTests(unittest.TestCase):
-    def test_format_bytes_renders_each_unit(self) -> None:
+class FormatBytesTests(unittest.TestCase):
+    def test_format_bytes_renders_boundary_units(self) -> None:
         self.assertEqual(_format_bytes(0), "0 B")
-        self.assertEqual(_format_bytes(512), "512 B")
-        self.assertEqual(_format_bytes(2048), "2.0 KB")
-        self.assertEqual(_format_bytes(5 * 1024 * 1024), "5.0 MB")
+        self.assertEqual(_format_bytes(1023), "1023 B")
+        self.assertEqual(_format_bytes(1024), "1.0 KB")
+        self.assertEqual(_format_bytes(1024 * 1024), "1.0 MB")
+        self.assertEqual(_format_bytes(10 * 1024**4), "10.0 TB")
 
+
+class FormatAgeTests(unittest.TestCase):
     def test_format_age_returns_dash_for_none(self) -> None:
         self.assertEqual(_format_age(None), "—")
 
-    def test_format_age_bucket_boundaries(self) -> None:
+    def test_format_age_renders_relative_buckets(self) -> None:
         now = 1_000_000.0
-        self.assertEqual(_format_age(now - 10, now=now), "just now")
-        self.assertEqual(_format_age(now - 5 * 60, now=now), "5m ago")
-        self.assertEqual(_format_age(now - 2 * 3600, now=now), "2h ago")
-        self.assertEqual(_format_age(now - 3 * 86400, now=now), "3d ago")
+        self.assertEqual(_format_age(now - 30, now=now), "just now")
+        self.assertEqual(_format_age(now - 120, now=now), "2m ago")
+        self.assertEqual(_format_age(now - 7200, now=now), "2h ago")
+        self.assertEqual(_format_age(now - 86400 * 3, now=now), "3d ago")
 
 
 class CacheStatsCommandTests(unittest.TestCase):
