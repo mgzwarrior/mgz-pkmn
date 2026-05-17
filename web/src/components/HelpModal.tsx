@@ -59,7 +59,7 @@ export function HelpModal({ onStartTour }: Props) {
             hint ? 'ring-2 ring-blue-500 animate-pulse' : ''
           }`}
           title="Help"
-          aria-label="Open help"
+          aria-label="Help"
         >
           <CircleHelp size={15} />
           <span className="hidden sm:inline">Help</span>

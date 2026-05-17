@@ -8,9 +8,12 @@
  * doesn't require any input rows.
  *
  * On screens below `sm` (640px) the row collapses into a single
- * "Export" dropdown to keep the header compact.
+ * "Export" dropdown to keep the header compact. Only one tree (desktop
+ * or mobile) is mounted at a time, driven by a matchMedia subscription,
+ * so tests and the dropdown Portal don't have to fight CSS visibility
+ * rules to know which copy of a label is "real".
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   FileSpreadsheet,
@@ -34,10 +37,28 @@ const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
   { format: 'checklist', label: 'Checklist', icon: <ListChecks size={14} /> },
 ]
 
+// Matches Tailwind's `sm` breakpoint (640px). Anything below is mobile.
+const MOBILE_QUERY = '(max-width: 639px)'
+
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia(MOBILE_QUERY).matches
+  })
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY)
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return isMobile
+}
+
 export function ExportBar() {
   const { rows, settings } = useAppStore()
   const [loading, setLoading] = useState<ExportFormat | 'set-cards' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const isMobile = useIsMobile()
 
   const matchedRows = rows.filter((r) => r.matched)
   const disabled = matchedRows.length === 0
@@ -74,37 +95,9 @@ export function ExportBar() {
     }
   }
 
-  return (
-    <>
-      {/* Desktop: full button row */}
-      <div className="hidden sm:flex items-center gap-2 flex-wrap">
-        {BUTTONS.map((b) => (
-          <ExportButton
-            key={b.format}
-            label={b.label}
-            icon={b.icon}
-            loading={loading === b.format}
-            disabled={disabled || anyLoading}
-            onClick={() => handleExport(b.format)}
-          />
-        ))}
-        <ExportButton
-          label="Set ID cards"
-          icon={<Tags size={14} />}
-          loading={loading === 'set-cards'}
-          disabled={anyLoading}
-          onClick={handleSetCards}
-        />
-        {matchedRows.length > 0 && !disabled && (
-          <span className="text-xs text-zinc-500 ml-1">
-            {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}
-          </span>
-        )}
-        {error && <span className="text-xs text-red-400 ml-1">{error}</span>}
-      </div>
-
-      {/* Mobile: single dropdown */}
-      <div className="sm:hidden">
+  if (isMobile) {
+    return (
+      <div className="flex flex-col items-end gap-1">
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
@@ -142,21 +135,47 @@ export function ExportBar() {
                 <Tags size={14} />
                 Set ID cards
               </DropdownMenu.Item>
-              {matchedRows.length > 0 && !disabled && (
-                <div className="border-t border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-500">
-                  {matchedRows.length} matched row{matchedRows.length !== 1 ? 's' : ''}
-                </div>
-              )}
-              {error && (
-                <div className="border-t border-zinc-800 px-2.5 py-1.5 text-xs text-red-400">
-                  {error}
-                </div>
-              )}
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
+        {/* Status / error lives outside the dropdown menu so it stays
+            visible after the user picks a format and the menu closes. */}
+        {matchedRows.length > 0 && !disabled && !error && (
+          <span className="text-xs text-zinc-500">
+            {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}
+          </span>
+        )}
+        {error && <span className="text-xs text-red-400">{error}</span>}
       </div>
-    </>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {BUTTONS.map((b) => (
+        <ExportButton
+          key={b.format}
+          label={b.label}
+          icon={b.icon}
+          loading={loading === b.format}
+          disabled={disabled || anyLoading}
+          onClick={() => handleExport(b.format)}
+        />
+      ))}
+      <ExportButton
+        label="Set ID cards"
+        icon={<Tags size={14} />}
+        loading={loading === 'set-cards'}
+        disabled={anyLoading}
+        onClick={handleSetCards}
+      />
+      {matchedRows.length > 0 && !disabled && (
+        <span className="text-xs text-zinc-500 ml-1">
+          {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}
+        </span>
+      )}
+      {error && <span className="text-xs text-red-400 ml-1">{error}</span>}
+    </div>
   )
 }
 

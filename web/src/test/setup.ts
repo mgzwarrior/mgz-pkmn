@@ -24,6 +24,25 @@ vi.stubGlobal('localStorage', {
   },
 })
 
+// jsdom doesn't implement matchMedia. Components that subscribe to
+// media-query changes (e.g. ExportBar's desktop/mobile switch) call
+// `window.matchMedia(...).addEventListener('change', ...)`. Stub it as a
+// "no match, no listeners" implementation so those components default to
+// the desktop branch in tests.
+vi.stubGlobal(
+  'matchMedia',
+  vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+)
+
 afterEach(() => {
   cleanup()
 })
