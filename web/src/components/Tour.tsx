@@ -11,6 +11,9 @@
  */
 import { useEffect, useState } from 'react'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useAppStore } from '../store'
+
+const TOUR_SEED = 'Pikachu | Jungle'
 
 interface Step {
   selector: string
@@ -52,6 +55,22 @@ interface Props {
 
 export function Tour({ onClose }: Props) {
   const [stepIndex, setStepIndex] = useState(0)
+  const setInputText = useAppStore((s) => s.setInputText)
+
+  // Seed the textarea with a sample line on first mount so disabled-only
+  // elements (Look up button) have a meaningful highlight at step 2.
+  // Restore on unmount only if the seed is still there untouched — never
+  // clobber the user's own input.
+  useEffect(() => {
+    const initial = useAppStore.getState().inputText
+    if (initial.trim() !== '') return
+    setInputText(TOUR_SEED)
+    return () => {
+      if (useAppStore.getState().inputText === TOUR_SEED) {
+        setInputText('')
+      }
+    }
+  }, [setInputText])
 
   // Scroll the target element into view and glow it while this step is active.
   useEffect(() => {
