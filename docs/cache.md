@@ -62,6 +62,20 @@ writes during normal lookups, but inspecting real files should still
 show what's there. Combine with [`--clear-cache`](#behavior) on the next
 `pkmn lookup` if the API cache has grown stale relative to the code.
 
+Use `pkmn cache stats --json` for scripts and monitoring. It emits the
+same snapshot with snake_case keys:
+
+```json
+{
+  "root": "/Users/you/.cache/mgz-pkmn",
+  "api_entry_count": 175,
+  "api_bytes": 9227468,
+  "api_oldest_mtime": 1789400000.0,
+  "override_count": 20,
+  "override_bytes": 2253
+}
+```
+
 ## Environment variables
 
 | Variable | Effect |
