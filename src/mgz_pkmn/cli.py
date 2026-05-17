@@ -936,6 +936,12 @@ def _format_age(mtime: float | None, *, now: float | None = None) -> str:
     return f"{int(delta // 86400)}d ago"
 
 
+@cache_group.command(name="path", context_settings={"help_option_names": ["-h", "--help"]})
+def cache_path_command() -> None:
+    """Print the cache root path for shell composition."""
+    click.echo(str(disk_cache.cache_root()))
+
+
 @cache_group.command(name="stats", context_settings={"help_option_names": ["-h", "--help"]})
 @click.option("--json", "as_json", is_flag=True, help="Emit JSON instead of the human summary.")
 def cache_stats_command(as_json: bool) -> None:

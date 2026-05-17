@@ -9,7 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- API: new `GET /version` endpoint returns `{"version": "<current __version__>"}` for deploy verification, monitoring, and SPA footer version display.
+- API: new `GET /version` endpoint returns
+  `{"version": "<current __version__>"}` for deploy verification,
+  monitoring, and SPA footer version display.
+- CLI: `pkmn cache path` prints the cache root as a bare path for shell
+  composition.
 - CLI: `pkmn cache stats --json` now emits the cache health snapshot
   with snake_case keys for scripts and monitoring.
 - Web: onboarding help surface. A new **Help** button in the header

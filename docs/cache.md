@@ -44,6 +44,14 @@ list don't keep re-spending API quota. Two stores live there:
 
 ## Inspecting the cache
 
+`pkmn cache path` prints the cache root as a single bare line for shell
+composition:
+
+```bash
+cd "$(pkmn cache path)"
+du -sh "$(pkmn cache path)"
+```
+
 `pkmn cache stats` prints a one-screen summary of on-disk usage —
 useful for spotting a runaway cache or a stale `url_overrides.json`
 without `du`-ing the directory by hand.
