@@ -52,12 +52,13 @@ const STEPS: Step[] = [
 interface Props {
   onClose: () => void
   onRun: (overrideText?: string) => void
+  onStop: () => void
 }
 
 // 0-indexed step that runs the lookup when the user advances past it.
 const RUN_STEP_INDEX = 1
 
-export function Tour({ onClose, onRun }: Props) {
+export function Tour({ onClose, onRun, onStop }: Props) {
   const [stepIndex, setStepIndex] = useState(0)
   const setInputText = useAppStore((s) => s.setInputText)
   const hasRunRef = useRef(false)
@@ -69,28 +70,31 @@ export function Tour({ onClose, onRun }: Props) {
 
   // Seed the textarea with a sample line on first mount so disabled-only
   // elements (Look up button) have a meaningful highlight at step 2.
-  // On unmount, undo everything the tour put in place — clear the seeded
-  // input (only if it's still untouched), and if the tour kicked off its
-  // own lookup, clear the rows / processing queue / progress state too so
-  // the user lands back on the same empty-state experience they started
-  // with. User-typed input and user-run results are never touched.
+  // On unmount, undo everything the tour put in place: clear the seeded
+  // input (only if it's still untouched), and — only if the seed is *still*
+  // the input text and the tour kicked off its own lookup — abort any
+  // in-flight tour request and clear the rows / processing queue / progress
+  // state too. The seed check is the key guard: if the user typed over the
+  // seed and ran their own query, their results stay put.
   useEffect(() => {
     const initial = useAppStore.getState().inputText
     if (initial.trim() !== '') return
     setInputText(TOUR_SEED)
     return () => {
       const store = useAppStore.getState()
-      if (store.inputText === TOUR_SEED) {
+      const seedIntact = store.inputText === TOUR_SEED
+      if (seedIntact) {
         store.setInputText('')
       }
-      if (hasRunRef.current) {
+      if (hasRunRef.current && seedIntact) {
+        onStop() // aborts the underlying request so streaming events stop
         store.clearRows()
         store.setProcessingLines([])
         store.setProgress(null)
         store.setIsRunning(false)
       }
     }
-  }, [setInputText])
+  }, [setInputText, onStop])
 
   // Scroll the target element into view and glow it while this step is active.
   useEffect(() => {
