@@ -23,6 +23,7 @@ import { InputEditor } from './InputEditor'
 import { ProcessingQueue } from './ProcessingQueue'
 import { ResultsTable } from './ResultsTable'
 import { SettingsDrawer } from './SettingsDrawer'
+import type { Row } from '../types'
 
 vi.mock('../api/client', () => ({
   exportFile: vi.fn(),
@@ -33,7 +34,7 @@ vi.mock('../api/client', () => ({
 
 const { storeState, storeApi } = vi.hoisted(() => {
   const state = {
-    rows: [] as unknown[],
+    rows: [] as Row[],
     inputText: '',
     isRunning: false,
     progress: null as { done: number; total: number } | null,
@@ -145,6 +146,36 @@ describe('a11y: ProcessingQueue (mid-run)', () => {
 describe('a11y: ResultsTable (empty state)', () => {
   it('empty-state has no violations', async () => {
     await expectNoViolations(<ResultsTable />)
+  })
+})
+
+// Populated-state coverage — empty-state never mounts the actual <table>,
+// so the sr-only labels on empty <th /> header cells, the SortableHeader
+// buttons, and the filter-row inputs all go unexercised unless we seed
+// rows and expand the filter row. Without this, axe regressions in the
+// real table markup would slip past the empty-state coverage above.
+describe('a11y: ResultsTable (populated + filters expanded)', () => {
+  it('table with rows and visible filter row has no violations', async () => {
+    storeState.rows = [
+      {
+        query: { raw: 'Pikachu | Jungle', name: 'Pikachu' },
+        card: {
+          id: 'jungle-60',
+          name: 'Pikachu',
+          number: '60',
+          rarity: 'Common',
+          set: { id: 'jungle', name: 'Jungle', series: 'Original' },
+        },
+        pricing: { market: 5.12, currency: 'USD', variant: 'normal', source: 'TCGPlayer', url: null },
+        tag: 'demo',
+        matched: true,
+        reason: '',
+      } as Row,
+    ]
+    const { container } = render(<ResultsTable />)
+    fireEvent.click(screen.getByRole('button', { name: /^filter$/i }))
+    const results = await axe(container)
+    expect(results).toHaveNoViolations()
   })
 })
 

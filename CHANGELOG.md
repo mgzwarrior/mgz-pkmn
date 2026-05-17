@@ -29,6 +29,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
   so it's intended for smoke runs and demos rather than the inner
   edit/reload loop. `make dev-api` and `make dev-web` continue to
   cover active development.
+- [`docs/accessibility.md`](docs/accessibility.md) — single home for
+  what the project commits to (no critical/serious axe violations,
+  WCAG AA contrast, full keyboard reach), how it's enforced
+  (vitest-axe in CI + a live-browser scan snippet), the keyboard
+  shortcut table, and how to add new UI without regressing.
 
 ### Changed
 
@@ -45,11 +50,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `text-zinc-600` to `text-zinc-400` so helper copy, section
   headings, and the footer meet WCAG AA contrast. Added an `<h1>`
   inside the header so the page has a top-level heading. Gave the
-  Settings drawer close button an `aria-label`, the empty
-  results-table header cells `sr-only` labels, and the card-list
-  textarea an `aria-label`. Made the Help modal's scrollable body
-  keyboard-focusable so users can scroll without first tabbing
-  through every dialog control.
+  Settings drawer close button an `aria-label`, every empty
+  results-table header cell `sr-only` labels (column header row +
+  filter row, including the four comp-tier columns), and the
+  card-list textarea an `aria-label`. Made the Help modal's
+  scrollable body keyboard-focusable so users can scroll without
+  first tabbing through every dialog control.
 
 ## [1.0.1] - 2026-05-16
 

@@ -227,10 +227,20 @@ export function ResultsTable({ onRerunLine }: Props) {
                     />
                   </div>
                 </FilterCell>
-                <th className="hidden xl:table-cell" />
-                <th className="hidden xl:table-cell" />
-                <th className="hidden xl:table-cell" />
-                <th className="hidden xl:table-cell" />
+                {/* Comp-tier columns have no filter — sr-only labels keep axe
+                    happy without adding visible noise. */}
+                <th className="hidden xl:table-cell">
+                  <span className="sr-only">80% (no filter)</span>
+                </th>
+                <th className="hidden xl:table-cell">
+                  <span className="sr-only">85% (no filter)</span>
+                </th>
+                <th className="hidden xl:table-cell">
+                  <span className="sr-only">90% (no filter)</span>
+                </th>
+                <th className="hidden xl:table-cell">
+                  <span className="sr-only">95% (no filter)</span>
+                </th>
                 <FilterCell className="hidden sm:table-cell">
                   <FilterInput
                     aria-label="Filter by source"
