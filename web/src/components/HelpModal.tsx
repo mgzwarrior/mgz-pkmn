@@ -89,7 +89,7 @@ export function HelpModal({ onStartTour }: Props) {
                   ['Mew ex', 'Name only — best match wins'],
                   ['Charizard [holo]', 'Variant hint in brackets'],
                   ['top:5 Charizard cards', 'Bulk: top N by price'],
-                  ['All Energy Removal cards | Base Set', 'Bulk: every match in a set'],
+                  ['All Charizard cards | Base Set', 'Bulk: every match in a set'],
                   ['Pikachu >=20 <=50', 'Price-bound filter'],
                 ]}
               />

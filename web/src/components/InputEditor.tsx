@@ -25,7 +25,7 @@ const EXAMPLE_QUERIES = [
   'Mew ex',
   'Charizard [holo]',
   'top:5 Charizard cards',
-  'All Energy Removal cards | Base Set',
+  'All Charizard cards | Base Set',
   'Pikachu >=20 <=50',
 ]
 
