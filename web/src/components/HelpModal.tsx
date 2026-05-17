@@ -9,21 +9,40 @@ import { useState } from 'react'
 
 const FIRST_VISIT_KEY = 'mgz-pkmn:seen-help'
 
+// localStorage access can throw in some browsers/contexts (Safari private
+// mode, embedded webviews with storage disabled, quota exhaustion). Wrap so
+// the onboarding hint quietly degrades to "no hint" instead of crashing the
+// SPA on first render.
+function readSeenHelp(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    return !!window.localStorage.getItem(FIRST_VISIT_KEY)
+  } catch {
+    return true
+  }
+}
+
+function markSeenHelp(): void {
+  try {
+    window.localStorage.setItem(FIRST_VISIT_KEY, '1')
+  } catch {
+    // ignore — losing the hint dismissal is a fine fallback
+  }
+}
+
 interface Props {
   onStartTour: () => void
 }
 
 export function HelpModal({ onStartTour }: Props) {
   const [open, setOpen] = useState(false)
-  const [hint, setHint] = useState(
-    () => typeof window !== 'undefined' && !window.localStorage.getItem(FIRST_VISIT_KEY),
-  )
+  const [hint, setHint] = useState(() => !readSeenHelp())
 
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (next && hint) {
       setHint(false)
-      window.localStorage.setItem(FIRST_VISIT_KEY, '1')
+      markSeenHelp()
     }
   }
 
