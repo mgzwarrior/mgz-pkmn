@@ -19,9 +19,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 
 from api.main import app
-from mgz_pkmn import cache
+from mgz_pkmn import __version__, cache
 
 client = TestClient(app)
+
+
+# ---------------------------------------------------------------------------
+# /version
+# ---------------------------------------------------------------------------
+
+
+class VersionRouteTests(unittest.TestCase):
+    def test_version_returns_package_version(self) -> None:
+        resp = client.get("/version")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"version": __version__})
 
 
 # ---------------------------------------------------------------------------
