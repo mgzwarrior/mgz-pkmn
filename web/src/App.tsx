@@ -18,6 +18,8 @@ import { ResultsTable } from './components/ResultsTable'
 import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
+import { HelpModal } from './components/HelpModal'
+import { Tour } from './components/Tour'
 import { useAppStore } from './store'
 import type { BulkEvent } from './types'
 import logoUrl from './assets/logo.svg'
@@ -36,6 +38,7 @@ function App() {
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
+  const [tourOpen, setTourOpen] = useState(false)
 
   // Easter egg: 5 clicks on the brand reveals Exeggutor + claim code
   // EGG-EXEGGCUTE (referencing the six-egg pre-evolution). Reset on
@@ -52,9 +55,10 @@ function App() {
     }
   }, [])
 
-  const handleRun = useCallback(async () => {
+  const handleRun = useCallback(async (overrideText?: string) => {
     if (isRunning) return
-    const lines = inputText.split('\n')
+    const text = overrideText ?? inputText
+    const lines = text.split('\n')
     const nonEmpty = lines.filter((l) => l.trim() && !l.trim().startsWith('#'))
     if (nonEmpty.length === 0) return
 
@@ -147,22 +151,27 @@ function App() {
             <span className="text-xs text-zinc-500 hidden sm:inline">card lookup</span>
           </button>
           <div className="flex items-center gap-2">
-            <ExportBar />
-            <SettingsDrawer />
+            <div data-tour="exports">
+              <ExportBar />
+            </div>
+            <HelpModal onStartTour={() => setTourOpen(true)} />
+            <div data-tour="settings">
+              <SettingsDrawer />
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main content */}
       <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
-        <section>
+        <section data-tour="input">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Card list
           </h2>
           <InputEditor onRun={handleRun} onStop={handleStop} />
         </section>
 
-        <section>
+        <section data-tour="results">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Results
           </h2>
@@ -172,6 +181,10 @@ function App() {
           </div>
         </section>
       </main>
+
+      {tourOpen && (
+        <Tour onClose={() => setTourOpen(false)} onRun={handleRun} onStop={handleStop} />
+      )}
 
       {/* Easter egg overlay — see handleBrandClick. */}
       {showEgg && (

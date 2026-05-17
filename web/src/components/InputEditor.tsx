@@ -14,9 +14,20 @@ import { useAppStore } from '../store'
 import type { CardQuery } from '../types'
 
 interface Props {
-  onRun: () => void
+  onRun: (overrideText?: string) => void
   onStop: () => void
 }
+
+const EXAMPLE_QUERIES = [
+  'Charizard | Base Set | 4/102',
+  'Pikachu | Jungle',
+  'Squirtle | 7/102',
+  'Mew ex',
+  'Charizard [holo]',
+  'top:5 Charizard cards',
+  'All Charizard cards | Base Set',
+  'Pikachu >=20 <=50',
+]
 
 // Very simple parse-preview: call /api/v1/parse for the currently focused line.
 function useLineParse(line: string) {
@@ -74,6 +85,16 @@ export function InputEditor({ onRun, onStop }: Props) {
   }, [])
 
   const lineCount = inputText.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#')).length
+  const isEmpty = inputText.trim() === ''
+
+  const handleChipClick = useCallback(
+    (example: string) => {
+      if (isRunning) return
+      setInputText(example)
+      onRun(example)
+    },
+    [isRunning, setInputText, onRun],
+  )
 
   return (
     <div className="flex flex-col gap-2">
@@ -104,8 +125,9 @@ export function InputEditor({ onRun, onStop }: Props) {
             </button>
           ) : (
             <button
-              onClick={onRun}
+              onClick={() => onRun()}
               disabled={lineCount === 0}
+              data-tour="run"
               className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Play size={13} fill="currentColor" />
@@ -129,6 +151,24 @@ export function InputEditor({ onRun, onStop }: Props) {
         placeholder={`One card per line, e.g.:\nCharizard | Base Set | 4/102\nPikachu | Jungle\ntop:5 Charizard cards\nMew ex | Scarlet & Violet`}
         className="w-full resize-y rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2.5 font-mono text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
+
+      {/* Example query chips — guided empty-state */}
+      {isEmpty && !isRunning && (
+        <div className="flex flex-col gap-2 rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-3">
+          <span className="text-xs text-zinc-500">Try one of these</span>
+          <div className="flex flex-wrap gap-1.5">
+            {EXAMPLE_QUERIES.map((example) => (
+              <button
+                key={example}
+                onClick={() => handleChipClick(example)}
+                className="rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 font-mono text-xs text-zinc-300 hover:border-blue-500 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Parse preview for the active line */}
       {parsedPreview && (

@@ -9,6 +9,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: onboarding help surface. A new **Help** button in the header
+  opens a modal covering what the tool does, how to write queries
+  (with copyable examples), each setting, each export format, and
+  keyboard shortcuts. First-time visitors see a subtle pulse on the
+  button, dismissed once the modal is opened. The modal also offers
+  an optional interactive **tour** that walks through the five main
+  UI sections (card list, look-up button, settings, results, exports)
+  with a glowing ring on each step's target.
+- Web: empty-state under the card-list input now shows a row of
+  example query chips covering the parser's main formats (explicit
+  set + number, name + set, bulk `top:N`, `All …` bulk, variant
+  hint, price bounds, etc.). Clicking a chip inserts the example
+  and runs the lookup so first-time users get an immediate
+  on-ramp.
 - New `make dev` target rebuilds the single-image Docker artifact
   (API + built SPA) and runs it on `:8000`. One terminal, one
   Ctrl+C, no two-window juggling — at the cost of no hot reload,
