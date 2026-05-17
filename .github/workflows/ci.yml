@@ -79,8 +79,24 @@ jobs:
       - name: Lint (eslint)
         run: npm run lint
 
-      - name: Test (vitest)
-        run: npm test
+      - name: Test (vitest) with coverage
+        run: npx vitest run --coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./web/coverage/lcov.info
+          flags: web
+          fail_ci_if_error: false
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./web/junit.xml
+          flags: web
 
       - name: Typecheck and build
         run: npm run build

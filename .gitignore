@@ -10,6 +10,8 @@ __pycache__/
 coverage.xml
 htmlcov/
 junit.xml
+web/coverage/
+web/junit.xml
 
 # Virtual envs
 .venv/
