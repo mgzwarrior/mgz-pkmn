@@ -48,9 +48,9 @@ schema is at <http://localhost:8000/openapi.json>.
 
 The Dockerfile in the repository root builds a production image with the API
 and built SPA. The image includes a `HEALTHCHECK` that probes the `/health`
-endpoint every 30 seconds (with a 10-second startup grace period). This allows
-orchestrators (Kubernetes, Docker Compose, Render, etc.) to detect when the
-app is ready and healthy.
+endpoint every 30 seconds (with a 10-second startup grace period). Docker,
+Docker Compose, Render, and other runtimes that consume the OCI health field
+will surface the container's status as `(healthy)` once the app is ready.
 
 ```bash
 docker build -t mgz-pkmn .
@@ -60,6 +60,10 @@ docker ps  # shows (healthy) after ~10 seconds
 
 The healthcheck respects the `$PORT` environment variable (Render injects it;
 defaults to 8000).
+
+> Kubernetes ignores Dockerfile `HEALTHCHECK` instructions — to get
+> readiness/liveness signals there, define explicit `readinessProbe` and
+> `livenessProbe` entries against `/health` in your pod spec.
 
 ## Running with the web frontend
 
