@@ -7,6 +7,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Web: empty-state under the card-list input now shows a row of
+  example query chips covering the parser's main formats (explicit
+  set + number, name + set, bulk `top:N`, `All …` bulk, variant
+  hint, price bounds, etc.). Clicking a chip inserts the example
+  and runs the lookup so first-time users get an immediate
+  on-ramp.
+
 ## [1.0.1] - 2026-05-16
 
 ### Added

@@ -52,9 +52,10 @@ function App() {
     }
   }, [])
 
-  const handleRun = useCallback(async () => {
+  const handleRun = useCallback(async (overrideText?: string) => {
     if (isRunning) return
-    const lines = inputText.split('\n')
+    const text = overrideText ?? inputText
+    const lines = text.split('\n')
     const nonEmpty = lines.filter((l) => l.trim() && !l.trim().startsWith('#'))
     if (nonEmpty.length === 0) return
 
