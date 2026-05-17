@@ -99,17 +99,23 @@ beforeEach(() => {
 
 describe('a11y: ErrorBoundary (error state)', () => {
   it('rendered fallback has no violations', async () => {
-    // Suppress React's expected "caught error" stderr noise.
+    // Suppress React's expected "caught error" stderr noise. try/finally
+    // so a regression in the assertion doesn't leave the spy installed —
+    // a leaked stub would swallow legitimate console.error output in
+    // every subsequent test in the run.
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     function Boom(): ReactElement {
       throw new Error('boom')
     }
-    await expectNoViolations(
-      <ErrorBoundary>
-        <Boom />
-      </ErrorBoundary>,
-    )
-    spy.mockRestore()
+    try {
+      await expectNoViolations(
+        <ErrorBoundary>
+          <Boom />
+        </ErrorBoundary>,
+      )
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 
