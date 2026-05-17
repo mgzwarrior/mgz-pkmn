@@ -78,10 +78,10 @@ relevant, CHANGELOG decision).
 
 | Issue | What you'll do | Why it's a good starter |
 |---|---|---|
-| [#134](https://github.com/mgzwarrior/mgz-pkmn/issues/134) | Add `CITATION.cff` | One new file at the repo root. GitHub surfaces a "Cite this repository" button. Pure, atomic addition. |
-| [#135](https://github.com/mgzwarrior/mgz-pkmn/issues/135) | Add a Troubleshooting section to `docs/cli.md` | Pure docs work. Mirrors the existing table in `api/README.md`. Pattern to copy, content to extend. |
-| [#136](https://github.com/mgzwarrior/mgz-pkmn/issues/136) | Add a `py.typed` marker | One empty file + a packaging verify. Teaches you how the wheel build works without touching any runtime code. |
-| [#137](https://github.com/mgzwarrior/mgz-pkmn/issues/137) | Surface Discussions in README and docs | A few targeted doc edits. Touches three files, each by 1–3 lines. |
+| [#214](https://github.com/mgzwarrior/mgz-pkmn/issues/214) | Add a `make uninstall` target | One Makefile target, symmetric to `make install`. No production code touched. |
+| [#208](https://github.com/mgzwarrior/mgz-pkmn/issues/208) | Tests for `_format_bytes` / `_format_age` in `cli.py` | Pure helpers, deterministic boundaries, no fixtures or HTTP. Test-only PR. |
+| [#210](https://github.com/mgzwarrior/mgz-pkmn/issues/210) | README "Environment variables" section | Pure docs. One section, links out to `docs/cache.md` instead of duplicating content. |
+| [#211](https://github.com/mgzwarrior/mgz-pkmn/issues/211) | API `GET /version` endpoint | Two-line route mirroring the existing `/health`, one route test. Teaches the API + test pattern. |
 
 Pick one, drop a comment on the issue saying you're picking it up, and
 follow the [branch naming](#branch-naming) / [opening a PR](#opening-a-pr)
