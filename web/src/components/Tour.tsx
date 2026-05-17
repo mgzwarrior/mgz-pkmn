@@ -69,15 +69,25 @@ export function Tour({ onClose, onRun }: Props) {
 
   // Seed the textarea with a sample line on first mount so disabled-only
   // elements (Look up button) have a meaningful highlight at step 2.
-  // Restore on unmount only if the seed is still there untouched — never
-  // clobber the user's own input.
+  // On unmount, undo everything the tour put in place — clear the seeded
+  // input (only if it's still untouched), and if the tour kicked off its
+  // own lookup, clear the rows / processing queue / progress state too so
+  // the user lands back on the same empty-state experience they started
+  // with. User-typed input and user-run results are never touched.
   useEffect(() => {
     const initial = useAppStore.getState().inputText
     if (initial.trim() !== '') return
     setInputText(TOUR_SEED)
     return () => {
-      if (useAppStore.getState().inputText === TOUR_SEED) {
-        setInputText('')
+      const store = useAppStore.getState()
+      if (store.inputText === TOUR_SEED) {
+        store.setInputText('')
+      }
+      if (hasRunRef.current) {
+        store.clearRows()
+        store.setProcessingLines([])
+        store.setProgress(null)
+        store.setIsRunning(false)
       }
     }
   }, [setInputText])
