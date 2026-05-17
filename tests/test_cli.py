@@ -15,7 +15,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import click
 
 from mgz_pkmn import cache
-from mgz_pkmn.cli import _dedupe_rows, _format_age, _format_bytes, _warn_if_cache_large, cli
+from mgz_pkmn.cli import (
+    _dedupe_rows,
+    _format_age,
+    _format_bytes,
+    _format_price,
+    _warn_if_cache_large,
+    cli,
+)
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
 from mgz_pkmn.report import build_json_report
@@ -34,15 +41,6 @@ def _make_row(card_id: str | None, market: float | None = None) -> Row:
 
 
 class CliHelpersTests(unittest.TestCase):
-    def test_dedupe_rows_removes_duplicate_card_ids(self) -> None:
-        rows = [_make_row("a", 10), _make_row("a", 12), _make_row("b", 8), _make_row(None, None)]
-        deduped, removed = _dedupe_rows(rows)
-        self.assertEqual(removed, 1)
-        self.assertEqual(len(deduped), 3)
-        self.assertEqual((deduped[0].card or {}).get("id"), "a")
-        self.assertEqual((deduped[1].card or {}).get("id"), "b")
-        self.assertIsNone(deduped[2].card)
-
     def test_json_report_includes_rows_deduped(self) -> None:
         rows = [_make_row("a", 10)]
         payload = build_json_report(
@@ -66,6 +64,57 @@ class CliHelpersTests(unittest.TestCase):
             sort_mode="price-desc",
         )
         self.assertEqual(payload["summary"]["sort_mode"], "price-desc")
+
+
+class FormatPriceTests(unittest.TestCase):
+    def test_none_renders_plain_dash_without_currency_symbol(self) -> None:
+        text = click.unstyle(_format_price(None, "USD"))
+        self.assertEqual(text, "—")
+        self.assertNotIn("$", text)
+        self.assertNotIn("€", text)
+
+    def test_usd_renders_dollar_amount(self) -> None:
+        self.assertEqual(click.unstyle(_format_price(12.5, "USD")), "$12.50")
+
+    def test_eur_renders_euro_amount(self) -> None:
+        self.assertEqual(click.unstyle(_format_price(12.5, "EUR")), "€12.50")
+
+    def test_unknown_currency_falls_back_to_dollar_amount(self) -> None:
+        self.assertEqual(click.unstyle(_format_price(12.5, "GBP")), "$12.50")
+
+
+class DedupeRowsTests(unittest.TestCase):
+    def test_empty_input_returns_empty_rows_and_zero_removed(self) -> None:
+        self.assertEqual(_dedupe_rows([]), ([], 0))
+
+    def test_duplicate_card_ids_keep_first_row(self) -> None:
+        first = _make_row("a", 10)
+        duplicate = _make_row("a", 12)
+
+        deduped, removed = _dedupe_rows([first, duplicate])
+
+        self.assertEqual(deduped, [first])
+        self.assertEqual(removed, 1)
+
+    def test_rows_without_cards_are_all_kept(self) -> None:
+        first = _make_row(None)
+        second = _make_row(None)
+
+        deduped, removed = _dedupe_rows([first, second])
+
+        self.assertEqual(deduped, [first, second])
+        self.assertEqual(removed, 0)
+
+    def test_mixed_matched_and_unmatched_only_collapses_matched_duplicates(self) -> None:
+        first = _make_row("a", 10)
+        unmatched = _make_row(None)
+        duplicate = _make_row("a", 12)
+        other = _make_row("b", 8)
+
+        deduped, removed = _dedupe_rows([first, unmatched, duplicate, other])
+
+        self.assertEqual(deduped, [first, unmatched, other])
+        self.assertEqual(removed, 1)
 
 
 class FormatHelpersTests(unittest.TestCase):
