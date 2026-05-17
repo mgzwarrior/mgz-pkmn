@@ -44,6 +44,27 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- CI: the `api` job now runs tests under `coverage` (via `pytest`,
+  which discovers the existing `unittest.TestCase` suites unchanged)
+  and uploads both `coverage.xml` and `junit.xml` to
+  [Codecov](https://codecov.io/gh/mgzwarrior/mgz-pkmn) once per run
+  (gated on the 3.13 matrix entry) — coverage via `codecov-action@v5`,
+  test results via `test-results-action@v1` for failure analytics and
+  flake detection. New `make coverage` target reproduces the same flow
+  locally with terminal + HTML reports (`htmlcov/index.html`). Codecov
+  badge added to the README header.
+- CI: the `web` job now runs vitest with `@vitest/coverage-v8` and
+  uploads `coverage/lcov.info` + `junit.xml` to Codecov under the
+  `web` flag, mirroring the `api` job. The dashboard now tracks both
+  suites separately.
+- CI: Codecov config landed at [`codecov.yml`](codecov.yml). PRs now
+  get a richer comment (project + patch coverage, flag and component
+  breakdowns) and `codecov/project` + `codecov/patch` status checks,
+  all set to `informational: true` — they post coverage deltas on
+  every PR but never block merging. Six components are tracked
+  individually (lookup, outputs, CLI, cache, API routes, web SPA) so
+  the dashboard surfaces where coverage shifts are happening. Hard
+  thresholds intentionally deferred until baseline stabilizes.
 - Web: header is now mobile-friendly. On screens below `sm` (640 px)
   the five export buttons collapse into a single **Export** dropdown,
   and the **Help** / **Settings** buttons render as icon-only. The
