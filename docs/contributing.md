@@ -205,6 +205,21 @@ make check              # CI-equivalent: lint + format-check + tests + web lint
 make precommit          # run all pre-commit hooks against every file
 ```
 
+For running the app locally:
+
+```bash
+make dev-api            # FastAPI on :8000 with reload (active dev, terminal 1)
+make dev-web            # Vite on :5173 proxying /api → :8000 (active dev, terminal 2)
+make dev                # build + run the Docker image on :8000 (single terminal,
+                        # no hot reload — for quick smoke runs and demos)
+```
+
+Use `dev-api` + `dev-web` for the edit-save-reload loop. `make dev` rebuilds
+the production Docker image and serves the API plus the prebuilt SPA from a
+single container — handy for previewing the production bundle or showing
+someone the app without running two terminals, but every code change requires
+a full rebuild.
+
 Direct invocations still work if you'd rather skip Make:
 
 ```bash
