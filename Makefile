@@ -56,6 +56,13 @@ install-hooks:  ## Install pre-commit as a uv tool and register the git hooks (p
 	uv tool run pre-commit install
 	uv tool run pre-commit install --hook-type commit-msg
 
+.PHONY: uninstall
+uninstall:  ## Remove the local venv and uninstall the pre-commit git hooks (inverse of `make install`). Leaves the user cache (~/.cache/mgz-pkmn) untouched.
+	-uv tool run pre-commit uninstall --hook-type commit-msg 2>/dev/null
+	-uv tool run pre-commit uninstall 2>/dev/null
+	rm -rf .venv
+	@echo "✓ removed .venv and uninstalled pre-commit git hooks"
+
 ## Dev servers
 
 .PHONY: dev
