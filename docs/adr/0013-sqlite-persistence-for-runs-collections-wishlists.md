@@ -55,9 +55,9 @@ they describe.
 
 | Table | Holds |
 |---|---|
-| `users` | One row per logical user. v1 ships a single sentinel row (`id=1`, `name="default"`); the column exists to make #61 a migration-free turn-on. |
+| `users` | One row per logical user. v1 ships a single sentinel row (`id=1`, `name="default"`). The `user_id` FK is already present on every per-user table so #61 (auth) becomes a contained backfill — no wire-format rewrite, no rows-moved-between-tables dance — though the auth feature itself will of course add its own auth-specific columns (email, etc.) via Alembic. |
 | `runs` | One row per completed lookup pipeline: `id`, `user_id`, `created_at`, `elapsed_seconds`, `input_text`, `summary_json` (the `build_json_report` document minus the `rows` array — kept for cheap sidebar listing). |
-| `run_rows` | One row per resolved `Row`: `id`, `run_id`, `position`, `query_json` (parsed `CardQuery`), `card_json` (matched pokemontcg/TCGdex/PriceCharting payload, NULL on miss), `pricing_json` (market, currency, variant, url), `image_path`, `tag`. Splitting the `Row` into its three sub-objects keeps the queryable surface explicit — listing every run-row priced over $50 or filtered by tag is a real SQL query, not a JSON1 traversal — while leaving the sub-payloads themselves opaque so source-side shape drift doesn't force a schema change. |
+| `run_rows` | One row per resolved `Row`: `id`, `run_id`, `position`, `tag`, `market_price` (NUMERIC, NULL on miss), `currency` (TEXT, NULL on miss), `image_path`, plus opaque sub-payloads `query_json` (parsed `CardQuery`), `card_json` (matched pokemontcg/TCGdex/PriceCharting payload, NULL on miss), and `pricing_json` (variant, url, raw provider response). `market_price` and `currency` are promoted out of `pricing_json` because they're the only fields likely to drive list filters (the existing `--max-price` flag, future "above-cap" highlighting); everything else stays in the JSON columns so source-side shape drift doesn't force schema changes. |
 | `collections` | `id`, `user_id`, `name`, `description`, `created_at`. A user-named bucket of cards. |
 | `collection_items` | `id`, `collection_id`, `card_json`, `notes`, `added_at`. Pinned card identity is stored verbatim from the matched payload — that's the only stable handle across re-lookups. |
 | `wishlists` | Same shape as `collections`. Separate table so list semantics ("I own these" vs "I want these") stay distinct; sharing a polymorphic `lists` table buys us nothing. |
@@ -82,10 +82,33 @@ data in a single backfill migration.
   remembering to migrate. `make migrate` exists for the explicit case
   (CI smoke checks, manual repair, downgrade rehearsals via
   `alembic downgrade`).
-- DB URL defaults to `sqlite:///$XDG_CACHE_HOME/mgz-pkmn/mgz-pkmn.db`
-  and is overridable via `MGZ_PKMN_DATABASE_URL` — same env-var
-  convention as the existing cache knobs, and makes Postgres a
-  drop-in replacement for hosted instances later.
+- **Concurrent migrations across workers** (`gunicorn -w N` /
+  `uvicorn --workers N`) are gated by a cross-process lock so only
+  one worker actually runs the upgrade:
+  - **SQLite** (default): a `fcntl.flock` on a sibling lockfile
+    (`<db-path>.migrate.lock`). Trivially portable; the lock is
+    held only for the duration of `alembic upgrade head`, which is
+    a no-op on already-current schemas, so the overhead is bounded
+    by one stat + one version-table read per worker boot.
+  - **Postgres**: a `pg_try_advisory_lock(<fixed bigint>)` taken
+    inside the upgrade transaction. Standard pattern; the lock is
+    automatically released when the connection closes.
+  - Either way, a stricter deployment is welcome to disable
+    auto-migrate (`MGZ_PKMN_AUTOMIGRATE=0`) and run `make migrate`
+    as a prestart step — Kubernetes init-container, Render
+    pre-deploy command, etc. The flag exists for exactly this
+    "I want migrations out of the hot path" preference.
+- The default DB URL is built at app-start by resolving the cache
+  root through the same `cache_root()` helper today's disk cache
+  uses (it honours `XDG_CACHE_HOME`, falls back to `~/.cache`), then
+  prepending `sqlite:///` to the absolute path — e.g.
+  `sqlite:////home/mgz/.cache/mgz-pkmn/mgz-pkmn.db`. SQLAlchemy
+  receives a fully-resolved path; the env var is never embedded
+  literally in the URL. `MGZ_PKMN_DATABASE_URL` overrides the
+  computed default end-to-end — same env-var convention as the
+  existing cache knobs, and makes Postgres a drop-in replacement
+  for hosted instances later (e.g.
+  `postgresql+psycopg://user:pw@host/db`).
 
 **Behavior surface:**
 
@@ -116,19 +139,27 @@ data in a single backfill migration.
 - Collections + wishlists give #57 its full surface, gated on a
   single anonymous tenant until #61 lands. The schema is auth-ready;
   we don't have to ship auth to start writing user data.
-- `Row` shape changes (ADR-0006) become migration concerns. The three
-  sub-payloads (`query_json`, `card_json`, `pricing_json`) are stored
-  as opaque JSON, so adding or removing a field inside any of them is
-  read-tolerant — no migration. Promoting a sub-field to a top-level
-  column (e.g. extracting `market_price` for indexing) is a real
-  migration, handled by Alembic. Documented as the cost of a
-  queryable history.
+- `Row` shape changes (ADR-0006) become migration concerns. The
+  opaque sub-payloads (`query_json`, `card_json`, `pricing_json`) are
+  stored as JSON, so adding or removing a field inside any of them
+  is read-tolerant — no migration. Promoting a sub-field to a
+  top-level column (as v1 already does for `market_price` and
+  `currency`) is a real migration, handled by Alembic. Documented as
+  the cost of a queryable history.
 - Auto-migrate on API startup means a fresh checkout has a working
   DB after the first `uv run uvicorn …` — no separate setup step.
-  Trade-off: a broken migration on a deployed instance fails the
-  startup probe instead of running stale schema. Mitigated by
-  CI-side `alembic upgrade head` on every PR and explicit
-  `make migrate` for rehearsal.
+  Trade-offs:
+  - A broken migration on a deployed instance fails the startup
+    probe instead of running stale schema. Mitigated by CI-side
+    `alembic upgrade head` on every PR.
+  - Concurrent workers won't race: the SQLite-flock /
+    Postgres-advisory-lock gate ensures exactly one worker
+    actually runs the upgrade; the rest see schema-current and
+    proceed.
+  - Operators who want migrations out of the request path
+    entirely can set `MGZ_PKMN_AUTOMIGRATE=0` and run
+    `make migrate` as a prestart step (init container, Render
+    pre-deploy, etc.).
 - One new file alongside the existing cache: contributors who already
   reach for `rm -rf ~/.cache/mgz-pkmn` to "start fresh" get the same
   semantics for free; the DB is recreated on next API start.
