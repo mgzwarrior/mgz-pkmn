@@ -23,6 +23,7 @@ not just the shape.
 | [0010](0010-unified-project-with-area-views.md) | Single unified GitHub Project with per-area views | Accepted | 2026-05-12 |
 | [0011](0011-marketing-site-stack.md) | Marketing site under `site/` (Astro + Tailwind, Cloudflare Pages) | Accepted | 2026-05-16 |
 | [0012](0012-open-core-architecture.md) | Open-core architecture for a paid Vendor tier | Proposed | 2026-05-16 |
+| [0013](0013-sqlite-persistence-for-runs-collections-wishlists.md) | SQLite + Alembic persistent store for runs, collections, and wishlists | Proposed | 2026-05-20 |
 
 ## Adding a new ADR
 
