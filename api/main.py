@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +27,12 @@ from mgz_pkmn import cache as disk_cache
 from mgz_pkmn.lookup import warm_concepts, warm_set_cards
 from mgz_pkmn.sources import TCGClient, TCGDexClient
 
-from .routes import changelog, export, lookup, overrides, parse, set_cards, sets
+# Import the module (not the names) so tests can monkeypatch
+# `migrate.run_migrations_with_lock` / `migrate.automigrate_enabled` and
+# have the lifespan see the patched values.
+from .db import migrate
+from .db.session import get_engine
+from .routes import changelog, export, lookup, overrides, parse, runs, set_cards, sets
 
 _log = logging.getLogger(__name__)
 
@@ -123,10 +130,31 @@ class SPAStaticFiles(StaticFiles):
         return response
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Startup/shutdown hook.
+
+    On startup, runs `alembic upgrade head` against the configured DB under
+    a cross-worker lock (see ADR-0013 and `api.db.migrate`). Set
+    `MGZ_PKMN_AUTOMIGRATE=0` to skip — useful when migrations are run as a
+    prestart step instead (init containers, Render pre-deploy, etc.).
+    """
+    if migrate.automigrate_enabled():
+        try:
+            migrate.run_migrations_with_lock(get_engine())
+        except Exception:
+            _log.exception("Alembic upgrade failed during startup")
+            raise
+    else:
+        _log.info("MGZ_PKMN_AUTOMIGRATE=0 — skipping startup migrations")
+    yield
+
+
 app = FastAPI(
     title="mgz-pkmn API",
     description="Browser-accessible API for the mgz-pkmn Pokémon card lookup tool.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Allow the Vite dev server (and any localhost port) to call the API.
@@ -164,6 +192,7 @@ app.include_router(sets.router, prefix="/api/v1", tags=["sets"])
 app.include_router(set_cards.router, prefix="/api/v1", tags=["set-cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
+app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
 
 
 @app.get("/health")

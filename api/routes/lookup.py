@@ -1,9 +1,16 @@
-"""POST /api/v1/lookup and POST /api/v1/bulk (SSE) — card lookup routes."""
+"""POST /api/v1/lookup and POST /api/v1/bulk (SSE) — card lookup routes.
+
+`/bulk` also persists a `Run` row + N `RunRow`s when the stream completes
+successfully (see ADR-0013 and `api.db`). Client disconnects mid-stream
+do not write — the persistence call is the last thing in the generator,
+so an early close stops the iteration before commit."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -18,6 +25,12 @@ from mgz_pkmn.parser import CardQuery, parse_line
 from mgz_pkmn.pricing import Pricing, extract_pricing
 from mgz_pkmn.sources import PriceChartingClient, TCGClient, TCGDexClient
 from mgz_pkmn.spreadsheet import Row
+
+from ..db.models import Run
+from ..db.serialize import build_run_summary, row_to_run_row
+from ..db.session import get_session_factory
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -258,10 +271,17 @@ async def bulk(req: BulkRequest) -> StreamingResponse:
 
     async def event_stream():
         loop = asyncio.get_running_loop()
+        # Accumulate the Rows we yield so we can persist them after the
+        # stream completes. ADR-0013: failures-during-stream don't write —
+        # the persistence call is the last thing in the generator, so a
+        # client disconnect stops iteration before the commit.
+        resolved: list[Row] = []
+        started = time.monotonic()
         for stream_idx, (_orig_idx, line) in enumerate(indexed):
             q = parse_line(line)
             if q is None:
                 row = _unparseable_row(line, req.settings.tag)
+                resolved.append(row)
                 payload = {
                     "index": stream_idx,
                     "total": total,
@@ -295,12 +315,20 @@ async def bulk(req: BulkRequest) -> StreamingResponse:
                 yield _stage_frame(stream_idx, total, item)
 
             for row, reason in task.result():
+                resolved.append(row)
                 payload = {
                     "index": stream_idx,
                     "total": total,
                     **_row_to_dict(row, reason),
                 }
                 yield f"data: {json.dumps(payload)}\n\n"
+
+        elapsed = time.monotonic() - started
+        try:
+            _persist_run(req.lines, resolved, elapsed)
+        except Exception:  # pragma: no cover — defensive, persistence is best-effort
+            logger.exception("Failed to persist run after /bulk completion")
+
         yield f"data: {json.dumps({'done': True, 'total': total})}\n\n"
 
     return StreamingResponse(
@@ -311,3 +339,32 @@ async def bulk(req: BulkRequest) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Persistence
+# ---------------------------------------------------------------------------
+
+
+def _persist_run(lines: list[str], rows: list[Row], elapsed_seconds: float) -> int | None:
+    """Write a `runs` record + N `run_rows` for a completed /bulk stream.
+
+    Returns the new run id, or None if persistence fell through (engine
+    not built, table missing, etc. — persistence is best-effort and never
+    fails the request)."""
+    session = get_session_factory()()
+    try:
+        run = Run(
+            input_text="\n".join(lines),
+            elapsed_seconds=elapsed_seconds,
+            summary_json=build_run_summary(rows),
+            rows=[row_to_run_row(r, position=i) for i, r in enumerate(rows)],
+        )
+        session.add(run)
+        session.commit()
+        return run.id
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

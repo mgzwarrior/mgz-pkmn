@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- API: persistence layer for run history backed by SQLite + Alembic
+  (see [ADR-0013](docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
+  `POST /api/v1/bulk` now writes a `runs` + `run_rows` record on
+  successful stream completion. New endpoints `GET /api/v1/runs`,
+  `GET /api/v1/runs/{id}`, and `POST /api/v1/runs/{id}/export` let
+  clients list, load, and re-export prior runs without re-fetching from
+  pokemontcg.io. Database lives at `$XDG_CACHE_HOME/mgz-pkmn/mgz-pkmn.db`
+  by default; override with `MGZ_PKMN_DATABASE_URL` (e.g.
+  `postgresql+psycopg://…`). The API runs `alembic upgrade head` on
+  startup under a cross-worker lock; set `MGZ_PKMN_AUTOMIGRATE=0` to skip
+  and run `make migrate` as a prestart step instead.
 - Web: **color-coded search progress** — while a bulk lookup runs, each
   input line's chip in the progress panel now reflects the exact pipeline
   stage it's in (parsed → looking up → fallback / URL hint → pricing →

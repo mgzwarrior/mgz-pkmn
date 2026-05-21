@@ -61,6 +61,27 @@ include your frontend origin.
 |---|---|---|
 | `POKEMONTCG_IO_API_KEY` | API process env | Raises rate limit to 20k req/day |
 | `VITE_API_BASE` | Frontend build-time | Override API URL (default: empty → same origin) |
+| `MGZ_PKMN_DATABASE_URL` | API process env | SQLAlchemy URL for the persistence layer. Defaults to `sqlite:///<cache-root>/mgz-pkmn.db` (e.g. `sqlite:////home/me/.cache/mgz-pkmn/mgz-pkmn.db`). Set to a `postgresql+psycopg://…` URL to back the API with Postgres instead. See [ADR-0013](adr/0013-sqlite-persistence-for-runs-collections-wishlists.md). |
+| `MGZ_PKMN_AUTOMIGRATE` | API process env | Set to `0` (or `false`) to skip the automatic `alembic upgrade head` on API startup. Useful when migrations are run as a prestart step (init container, Render pre-deploy command, etc.). Default: enabled. |
+
+## Database & migrations
+
+The API persists run history (and, in follow-up slices, collections + wishlists) to a SQLite file at `$XDG_CACHE_HOME/mgz-pkmn/mgz-pkmn.db` by default — same cache root as the existing disk cache, so `rm -rf ~/.cache/mgz-pkmn` wipes both stores together. The schema is managed by Alembic; configuration lives in [`api/alembic.ini`](../api/alembic.ini) and migrations in [`api/migrations/`](../api/migrations/).
+
+On startup, the API runs `alembic upgrade head` automatically, gated by a cross-worker lock (`fcntl.flock` on SQLite, `pg_advisory_lock` on Postgres) so multiple `uvicorn --workers N` processes don't race the upgrade. Set `MGZ_PKMN_AUTOMIGRATE=0` to skip the auto-run and migrate explicitly:
+
+```bash
+make migrate                           # apply pending migrations against MGZ_PKMN_DATABASE_URL
+# or:
+uv run alembic -c api/alembic.ini upgrade head
+```
+
+To downgrade (during rehearsal or rollback), use Alembic directly:
+
+```bash
+uv run alembic -c api/alembic.ini downgrade -1     # one revision back
+uv run alembic -c api/alembic.ini downgrade base   # back to empty
+```
 
 ## Docker (single-unit)
 
