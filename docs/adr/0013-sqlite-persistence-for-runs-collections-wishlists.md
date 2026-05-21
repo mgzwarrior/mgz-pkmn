@@ -45,7 +45,11 @@ Constraints worth naming up front:
 Add a single SQLite database file at
 `$XDG_CACHE_HOME/mgz-pkmn/mgz-pkmn.db` (default
 `~/.cache/mgz-pkmn/mgz-pkmn.db`), managed by SQLAlchemy 2.x ORM with
-schema migrations under `migrations/` driven by Alembic.
+schema migrations under `api/migrations/` driven by Alembic. The
+persistence layer is an API-only concern — the CLI is local-only and
+stays on its filesystem flow — so the Alembic config (`api/alembic.ini`)
+and migrations tree live under `api/` alongside the routes and models
+they describe.
 
 **Tables (v1 schema):**
 
@@ -53,7 +57,7 @@ schema migrations under `migrations/` driven by Alembic.
 |---|---|
 | `users` | One row per logical user. v1 ships a single sentinel row (`id=1`, `name="default"`); the column exists to make #61 a migration-free turn-on. |
 | `runs` | One row per completed lookup pipeline: `id`, `user_id`, `created_at`, `elapsed_seconds`, `input_text`, `summary_json` (the `build_json_report` document minus the `rows` array — kept for cheap sidebar listing). |
-| `run_rows` | One row per resolved `Row`: `id`, `run_id`, `position`, `row_json` (the serialized `Row` payload). Stored as JSON1 documents — queries that need structured access can use SQLite's JSON operators; everything else round-trips through `Row.from_json`. |
+| `run_rows` | One row per resolved `Row`: `id`, `run_id`, `position`, `query_json` (parsed `CardQuery`), `card_json` (matched pokemontcg/TCGdex/PriceCharting payload, NULL on miss), `pricing_json` (market, currency, variant, url), `image_path`, `tag`. Splitting the `Row` into its three sub-objects keeps the queryable surface explicit — listing every run-row priced over $50 or filtered by tag is a real SQL query, not a JSON1 traversal — while leaving the sub-payloads themselves opaque so source-side shape drift doesn't force a schema change. |
 | `collections` | `id`, `user_id`, `name`, `description`, `created_at`. A user-named bucket of cards. |
 | `collection_items` | `id`, `collection_id`, `card_json`, `notes`, `added_at`. Pinned card identity is stored verbatim from the matched payload — that's the only stable handle across re-lookups. |
 | `wishlists` | Same shape as `collections`. Separate table so list semantics ("I own these" vs "I want these") stay distinct; sharing a polymorphic `lists` table buys us nothing. |
@@ -66,12 +70,18 @@ data in a single backfill migration.
 
 **Tooling:**
 
-- `sqlalchemy>=2.0` and `alembic` are added under the `[api]` optional
+- `sqlalchemy>=2.0` and `alembic` will land under the `[api]` optional
   dependency group. The CLI install (`uv sync` / `make install-cli`)
   picks up nothing.
-- `migrations/` lives at the repo root with the standard Alembic
-  layout (`env.py`, `versions/`, `alembic.ini`). `make migrate`
-  applies pending migrations against the configured DB URL.
+- `api/migrations/` will hold the standard Alembic layout (`env.py`,
+  `versions/`), with `api/alembic.ini` next to it. A new `make migrate`
+  target will apply pending migrations against the configured DB URL
+  for ad-hoc use.
+- The API will run `alembic upgrade head` automatically on startup so
+  every contributor and every deploy gets a schema-current DB without
+  remembering to migrate. `make migrate` exists for the explicit case
+  (CI smoke checks, manual repair, downgrade rehearsals via
+  `alembic downgrade`).
 - DB URL defaults to `sqlite:///$XDG_CACHE_HOME/mgz-pkmn/mgz-pkmn.db`
   and is overridable via `MGZ_PKMN_DATABASE_URL` — same env-var
   convention as the existing cache knobs, and makes Postgres a
@@ -106,10 +116,19 @@ data in a single backfill migration.
 - Collections + wishlists give #57 its full surface, gated on a
   single anonymous tenant until #61 lands. The schema is auth-ready;
   we don't have to ship auth to start writing user data.
-- `Row` shape changes (ADR-0006) become migration concerns —
-  `run_rows.row_json` is a versioned snapshot of the contract at
-  write time. Adding a field is read-tolerant; removing one needs a
-  migration. Documented as the cost of a queryable history.
+- `Row` shape changes (ADR-0006) become migration concerns. The three
+  sub-payloads (`query_json`, `card_json`, `pricing_json`) are stored
+  as opaque JSON, so adding or removing a field inside any of them is
+  read-tolerant — no migration. Promoting a sub-field to a top-level
+  column (e.g. extracting `market_price` for indexing) is a real
+  migration, handled by Alembic. Documented as the cost of a
+  queryable history.
+- Auto-migrate on API startup means a fresh checkout has a working
+  DB after the first `uv run uvicorn …` — no separate setup step.
+  Trade-off: a broken migration on a deployed instance fails the
+  startup probe instead of running stale schema. Mitigated by
+  CI-side `alembic upgrade head` on every PR and explicit
+  `make migrate` for rehearsal.
 - One new file alongside the existing cache: contributors who already
   reach for `rm -rf ~/.cache/mgz-pkmn` to "start fresh" get the same
   semantics for free; the DB is recreated on next API start.
