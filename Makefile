@@ -56,6 +56,13 @@ install-hooks:  ## Install pre-commit as a uv tool and register the git hooks (p
 	uv tool run pre-commit install
 	uv tool run pre-commit install --hook-type commit-msg
 
+.PHONY: uninstall
+uninstall:  ## Remove the local Python venv and uninstall the pre-commit git hooks. Use `make clean` for the broader nuke (also removes web/node_modules, site/node_modules, build artifacts). Leaves the user cache ($XDG_CACHE_HOME/mgz-pkmn, default ~/.cache/mgz-pkmn) alone — wipe that with `pkmn cache clear`.
+	uv tool run pre-commit uninstall --hook-type commit-msg >/dev/null 2>&1 || true
+	uv tool run pre-commit uninstall >/dev/null 2>&1 || true
+	rm -rf .venv
+	@echo "✓ removed .venv and uninstalled pre-commit git hooks"
+
 ## Dev servers
 
 .PHONY: dev

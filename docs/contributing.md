@@ -197,6 +197,7 @@ The Makefile at the repo root wraps the common dev commands. Run
 
 ```bash
 make install            # one-shot: deps + pre-commit hook
+make uninstall          # remove .venv + pre-commit hooks (use `make clean` for the broader nuke incl. node_modules)
 make test               # python tests
 make coverage           # python tests under coverage; emits htmlcov/ + coverage.xml + junit.xml
 make lint               # ruff + eslint
