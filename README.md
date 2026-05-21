@@ -87,6 +87,19 @@ echo 'export POKEMONTCG_IO_API_KEY=your-key-here' >> ~/.zshrc   # persistent
 
 Prefer the env var over `--api-key` — flags get saved to shell history.
 
+## Environment variables
+
+Every variable the tool reads, in one place:
+
+| Variable | Purpose |
+|---|---|
+| `POKEMONTCG_IO_API_KEY` | Raises pokemontcg.io rate limits from 1k/day to 20k/day. Free key at <https://dev.pokemontcg.io>. |
+| `MGZ_PKMN_NO_CACHE` | Disables the disk cache for the current process. The CLI's `--no-cache` flag sets this internally. |
+| `MGZ_PKMN_CACHE_WARN_BYTES` | Threshold for the cache-size soft-warn at startup (default 50 MB, `0` disables). |
+| `XDG_CACHE_HOME` | Overrides the cache root (`$XDG_CACHE_HOME/mgz-pkmn`). Standard XDG semantics. |
+
+See [docs/cache.md → Environment variables](docs/cache.md#environment-variables) for the full behavior of the cache-related vars.
+
 ## Web UI
 
 ```bash
