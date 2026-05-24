@@ -20,7 +20,15 @@
  * <img> so the row still looks intentional.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { Check, ImageOff, Loader2, Tags, X } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ImageOff,
+  Loader2,
+  Tags,
+  X,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { downloadSetCardsPdf, fetchSets, setLogoUrl } from '../api/client'
@@ -39,12 +47,20 @@ interface SeriesGroup {
 }
 
 function groupBySeries(sets: SetInfo[]): SeriesGroup[] {
-  // Preserve catalog order within each group (the API returns oldest →
-  // newest), but emit groups in first-encounter order so familiar series
-  // (Base, Jungle, Fossil) appear at the top for users who scan by era.
+  // The catalog comes from `/api/v1/sets` in oldest → newest order.
+  // We render the picker newest-first because the typical prep workflow
+  // biases toward modern sets (Scarlet & Violet, Mega Evolution); having
+  // them at the top means a typical user picks 2–3 boxes without ever
+  // scrolling. Within each series, rows stay newest-first too — within
+  // S&V, Surging Sparks beats the 2023 set that opened the block.
+  //
+  // Implementation: walk the catalog in reverse, bucket by series in
+  // first-encounter order (which is now newest-encounter), and reverse
+  // each bucket so its members come out newest-first.
   const order: string[] = []
   const buckets = new Map<string, SetInfo[]>()
-  for (const s of sets) {
+  for (let i = sets.length - 1; i >= 0; i--) {
+    const s = sets[i]
     const key = s.series || 'Other'
     if (!buckets.has(key)) {
       buckets.set(key, [])
@@ -74,6 +90,12 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   // the no-setState-in-effect rule and matches the parent's controlled
   // semantics.
   const [draft, setDraft] = useState<Set<string>>(() => new Set(selectedSetIds))
+
+  // Series whose set list is collapsed. Default = all collapsed except
+  // the first group (newest series). Keeps the modal short on open —
+  // 173 sets is a lot of vertical scroll otherwise — and lets the user
+  // expand only what they're interested in.
+  const [collapsedSeries, setCollapsedSeries] = useState<Set<string>>(() => new Set())
 
   function handleOpenChange(next: boolean) {
     if (next) {
@@ -134,6 +156,23 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
     })
   }
 
+  function toggleSeriesCollapsed(series: string) {
+    setCollapsedSeries((prev) => {
+      const next = new Set(prev)
+      if (next.has(series)) next.delete(series)
+      else next.add(series)
+      return next
+    })
+  }
+
+  function expandAllSeries() {
+    setCollapsedSeries(new Set())
+  }
+
+  function collapseAllSeries() {
+    setCollapsedSeries(new Set(groups.map((g) => g.series)))
+  }
+
   async function handleSubmit() {
     if (draft.size === 0) {
       setSubmitError('Pick at least one set before downloading.')
@@ -191,6 +230,8 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
             <div className="flex flex-wrap gap-2 px-5 pt-3">
               <BulkButton onClick={selectAll}>Select all</BulkButton>
               <BulkButton onClick={selectNone}>Select none</BulkButton>
+              <BulkButton onClick={expandAllSeries}>Expand all</BulkButton>
+              <BulkButton onClick={collapseAllSeries}>Collapse all</BulkButton>
             </div>
           )}
 
@@ -212,35 +253,59 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
             )}
             {sets && (
               <ul className="space-y-4">
-                {groups.map((group) => (
-                  <li key={group.series}>
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                        {group.series}{' '}
-                        <span className="font-normal text-zinc-500">
-                          ({group.sets.length})
-                        </span>
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => selectSeries(group.series)}
-                        className="text-xs text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline"
-                      >
-                        Select series
-                      </button>
-                    </div>
-                    <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                      {group.sets.map((s) => (
-                        <SetRow
-                          key={s.id}
-                          set={s}
-                          checked={draft.has(s.id)}
-                          onToggle={() => toggle(s.id)}
-                        />
-                      ))}
-                    </ul>
-                  </li>
-                ))}
+                {groups.map((group) => {
+                  const collapsed = collapsedSeries.has(group.series)
+                  const seriesIds = group.sets.map((s) => s.id)
+                  const selectedInSeries = seriesIds.filter((id) => draft.has(id)).length
+                  const headerId = `set-picker-series-${group.series.replace(/[^a-z0-9]+/gi, '-')}`
+                  return (
+                    <li key={group.series}>
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          aria-expanded={!collapsed}
+                          aria-controls={headerId}
+                          onClick={() => toggleSeriesCollapsed(group.series)}
+                          className="flex items-center gap-1.5 rounded text-left text-xs font-semibold uppercase tracking-wider text-zinc-300 hover:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-700"
+                        >
+                          {collapsed ? (
+                            <ChevronRight size={14} aria-hidden className="text-zinc-500" />
+                          ) : (
+                            <ChevronDown size={14} aria-hidden className="text-zinc-500" />
+                          )}
+                          {group.series}{' '}
+                          <span className="font-normal normal-case tracking-normal text-zinc-500">
+                            {selectedInSeries > 0
+                              ? `(${selectedInSeries}/${group.sets.length})`
+                              : `(${group.sets.length})`}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => selectSeries(group.series)}
+                          className="text-xs text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline"
+                        >
+                          Select series
+                        </button>
+                      </div>
+                      {!collapsed && (
+                        <ul
+                          id={headerId}
+                          className="grid grid-cols-1 gap-1 sm:grid-cols-2"
+                        >
+                          {group.sets.map((s) => (
+                            <SetRow
+                              key={s.id}
+                              set={s}
+                              checked={draft.has(s.id)}
+                              onToggle={() => toggle(s.id)}
+                            />
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

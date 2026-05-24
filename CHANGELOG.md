@@ -11,14 +11,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - Web: **Set picker modal** for the Set ID cards export. Clicking
   **Set ID cards…** in the Export dropdown now opens a picker that
-  groups every set by series (Base → Mega Evolution), shows each set's
-  cached logo + name + year + total, and lets the user multi-select
-  with **Select all / Select none / Select series** buttons. Selection
-  persists across reloads (Zustand). Submitting the modal downloads a
-  PDF containing only the chosen sets — exactly the same path the new
-  CLI flag uses on the backend. Logo thumbnails come from the new
-  `GET /api/v1/sets/{set_id}/logo` endpoint, which streams images out
-  of the unified disk cache populated by `pkmn cache warm-sets`.
+  groups every set by series **newest first** (Mega Evolution → Base),
+  shows each set's cached logo + name + year + total, and lets the
+  user multi-select with **Select all / Select none / Expand all /
+  Collapse all / Select series** buttons. Each series is a collapsible
+  section so the 173-entry catalog stays scannable; the header shows a
+  per-series selection count (`(2/18)`) once anything in it is picked.
+  Selection persists across reloads (Zustand). Submitting the modal
+  downloads a PDF containing only the chosen sets — exactly the same
+  path the new CLI flag uses on the backend. Logo thumbnails come from
+  the new `GET /api/v1/sets/{set_id}/logo` endpoint, which streams
+  images out of the unified disk cache populated by `pkmn cache warm-sets`.
 - API: new `GET /api/v1/sets/{set_id}/logo` endpoint serves cached set
   logos with a 30-day immutable browser cache. 404 with a "run
   `pkmn cache warm-sets`" hint when the set hasn't been warmed yet, so

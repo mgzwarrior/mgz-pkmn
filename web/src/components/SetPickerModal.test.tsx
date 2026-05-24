@@ -59,17 +59,21 @@ describe('SetPickerModal', () => {
     return { onOpenChange, ...result }
   }
 
-  it('loads the catalog when opened and groups rows by series', async () => {
+  it('loads the catalog when opened and renders series newest-first', async () => {
     renderOpen()
 
     await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
     expect(screen.getByText('Base Set')).toBeInTheDocument()
     expect(screen.getByText('Jungle')).toBeInTheDocument()
     expect(screen.getByText('Surging Sparks')).toBeInTheDocument()
-    // Series headings are visible in catalog order (first-encounter wins).
-    const headings = screen.getAllByRole('heading', { level: 3 })
-    expect(headings[0]).toHaveTextContent('Base')
-    expect(headings[1]).toHaveTextContent('Scarlet & Violet')
+    // Series headers are now collapse toggles (buttons with
+    // aria-expanded). Modern sets come first since most prep biases
+    // toward current blocks, so Scarlet & Violet sits above Base.
+    const headers = screen
+      .getAllByRole('button')
+      .filter((el) => el.hasAttribute('aria-expanded'))
+    expect(headers[0]).toHaveTextContent('Scarlet & Violet')
+    expect(headers[1]).toHaveTextContent('Base')
   })
 
   it('does not download when nothing is selected — surfaces a warning', async () => {
@@ -114,10 +118,11 @@ describe('SetPickerModal', () => {
     renderOpen()
     await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
 
-    // Two "Select series" buttons — one per series. Click the first
-    // (Base).
+    // With newest-first ordering, the second "Select series" button is
+    // the Base group (Scarlet & Violet is index 0). Picking it should
+    // check both Base-era sets and leave Surging Sparks untouched.
     const seriesButtons = screen.getAllByRole('button', { name: 'Select series' })
-    fireEvent.click(seriesButtons[0])
+    fireEvent.click(seriesButtons[1])
     fireEvent.click(screen.getByRole('button', { name: 'Download PDF' }))
 
     await waitFor(() => expect(mockDownload).toHaveBeenCalledTimes(1))
@@ -170,6 +175,62 @@ describe('SetPickerModal', () => {
     // The failure path must NOT close the modal — the user should be
     // able to retry without re-checking everything.
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it('collapsing a series hides its rows; expanding restores them', async () => {
+    renderOpen()
+    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+
+    // The "Base" series header (newest-first ordering puts S&V first,
+    // Base second).
+    const baseHeader = screen
+      .getAllByRole('button')
+      .filter((el) => el.hasAttribute('aria-expanded'))[1]
+    expect(baseHeader).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Base Set')).toBeInTheDocument()
+    expect(screen.getByText('Jungle')).toBeInTheDocument()
+
+    fireEvent.click(baseHeader)
+    expect(baseHeader).toHaveAttribute('aria-expanded', 'false')
+    // Set rows are gone from the DOM.
+    expect(screen.queryByText('Base Set')).not.toBeInTheDocument()
+    expect(screen.queryByText('Jungle')).not.toBeInTheDocument()
+    // But Surging Sparks (in the other series) is still visible.
+    expect(screen.getByText('Surging Sparks')).toBeInTheDocument()
+
+    fireEvent.click(baseHeader)
+    expect(baseHeader).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Base Set')).toBeInTheDocument()
+  })
+
+  it('Collapse all hides every series; Expand all restores them', async () => {
+    renderOpen()
+    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    expect(screen.queryByText('Surging Sparks')).not.toBeInTheDocument()
+    expect(screen.queryByText('Base Set')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
+    expect(screen.getByText('Surging Sparks')).toBeInTheDocument()
+    expect(screen.getByText('Base Set')).toBeInTheDocument()
+  })
+
+  it('series header shows N/total counter when at least one set is selected', async () => {
+    renderOpen()
+    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include Jungle' }))
+    // The Base series (2 sets) now shows "(1/2)" in its header; the
+    // unselected S&V series still shows the plain "(1)" count.
+    const baseHeader = screen
+      .getAllByRole('button')
+      .filter((el) => el.hasAttribute('aria-expanded'))[1]
+    expect(baseHeader).toHaveTextContent('(1/2)')
+    const svHeader = screen
+      .getAllByRole('button')
+      .filter((el) => el.hasAttribute('aria-expanded'))[0]
+    expect(svHeader).toHaveTextContent('(1)')
   })
 
   it('logo thumbnails fall back to an icon when the image errors', async () => {
