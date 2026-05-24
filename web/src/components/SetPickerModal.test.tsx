@@ -76,17 +76,15 @@ describe('SetPickerModal', () => {
     expect(headers[1]).toHaveTextContent('Base')
   })
 
-  it('does not download when nothing is selected — surfaces a warning', async () => {
+  it('Download PDF stays disabled while nothing is selected', async () => {
+    // Empty-selection safety rail. The disabled state is the single
+    // source of truth — no warning UI to assert because the user can't
+    // reach `handleSubmit` from an empty draft in the first place.
     renderOpen()
     await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Download PDF' }))
-    expect(mockDownload).not.toHaveBeenCalled()
-    // The disabled-button state is the safety rail; the warning text
-    // only appears when the user clicks despite that, which we can't
-    // simulate cleanly because the button is disabled. Verify the
-    // disabled state is in place.
     expect(screen.getByRole('button', { name: 'Download PDF' })).toBeDisabled()
+    expect(mockDownload).not.toHaveBeenCalled()
   })
 
   it('select-all checks every box and Download PDF posts every id', async () => {

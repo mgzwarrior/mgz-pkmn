@@ -41,9 +41,14 @@ interface AppState {
   resetSettings: () => void
 
   /**
-   * Set ids selected in the Set ID cards picker modal. Persisted so a
-   * reload preserves the user's last selection. Empty array = "every set"
-   * (matches the backend's omit-the-filter default).
+   * Set ids the user last successfully submitted from the picker modal.
+   * Persisted so reopening the picker restores the prior selection.
+   *
+   * An empty array means "nothing has been chosen yet" — the picker
+   * disables its Download PDF button in that state. (The backend would
+   * happily accept an empty `set_ids` and render every set, but the UI
+   * intentionally never sends that request because hitting Set ID
+   * cards… and immediately submitting shouldn't dump a 173-page PDF.)
    */
   selectedSetIds: string[]
   setSelectedSetIds: (ids: string[]) => void

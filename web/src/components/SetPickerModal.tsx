@@ -9,9 +9,11 @@
  * buttons collapse the common cases.
  *
  * Submitting the modal calls `downloadSetCardsPdf` with the selected
- * `set_ids`; the backend filter restricts the PDF to those sets.
- * Picking nothing surfaces a small inline warning rather than firing
- * a doomed request (the API would 404 in that case).
+ * `set_ids`; the backend filter restricts the PDF to those sets. The
+ * Download button is intentionally disabled when nothing is selected:
+ * the backend would happily accept an empty filter as "every set" and
+ * render a 173-page PDF, but that's almost never what someone hitting
+ * "Set ID cards…" wants right after opening the modal.
  *
  * Logo thumbnails come from the new `/api/v1/sets/{id}/logo` endpoint,
  * which serves images out of the unified disk cache populated by
@@ -174,10 +176,10 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   }
 
   async function handleSubmit() {
-    if (draft.size === 0) {
-      setSubmitError('Pick at least one set before downloading.')
-      return
-    }
+    // The Download button is disabled when `draft.size === 0`, so this
+    // function should only be reached with a non-empty selection. No
+    // empty-draft guard here on purpose — the disabled state is the
+    // single source of truth for "can't submit yet."
     setSubmitting(true)
     setSubmitError(null)
     try {

@@ -114,8 +114,13 @@ async def get_set_logo(set_id: str) -> FileResponse:
     return FileResponse(
         path,
         media_type=media_type or "application/octet-stream",
-        # 30-day immutable cache: set logos don't change once a set ships,
-        # so the browser can hold onto each one indefinitely. The cache key
-        # is the set id, which never collides on its own.
+        # 30-day immutable browser cache: set logos don't change once a
+        # set ships, so a long client-side TTL keeps the picker snappy on
+        # repeat opens. The `immutable` directive tells the browser not
+        # to revalidate while the entry is fresh. 30 days is the practical
+        # ceiling — long enough that day-of-show flows never re-fetch,
+        # short enough that any future re-skinning of a logo still
+        # propagates within a month without the user clearing cookies.
+        # The cache key is the set id, which never collides on its own.
         headers={"Cache-Control": "public, max-age=2592000, immutable"},
     )
