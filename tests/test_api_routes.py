@@ -191,6 +191,45 @@ class SetsRouteTests(unittest.TestCase):
         self.assertEqual(resp.json()["sets"], fetched_sets)
 
 
+class SetLogoRouteTests(unittest.TestCase):
+    """`GET /api/v1/sets/{set_id}/logo` serves cached images, 404s on miss."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        self._tmp.cleanup()
+
+    def test_serves_cached_logo(self) -> None:
+        # A real PNG header so FileResponse's content-type guess is sensible.
+        png_bytes = b"\x89PNG\r\n\x1a\n" + b"fakeimagedata" * 8
+        cache.write_image("sets/logo", "base1", png_bytes, ext=".png")
+
+        resp = client.get("/api/v1/sets/base1/logo")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content, png_bytes)
+        self.assertEqual(resp.headers["content-type"], "image/png")
+        # 30-day immutable cache so the SPA can keep the asset as long as
+        # the set id is stable.
+        self.assertIn("immutable", resp.headers.get("cache-control", ""))
+        self.assertIn("max-age=2592000", resp.headers.get("cache-control", ""))
+
+    def test_404_when_not_in_cache_suggests_warm_sets(self) -> None:
+        resp = client.get("/api/v1/sets/zzz-not-warmed/logo")
+        self.assertEqual(resp.status_code, 404)
+        # The error body should point the user at the warm-sets command.
+        detail = resp.json()["detail"]
+        self.assertIn("zzz-not-warmed", detail)
+        self.assertIn("warm-sets", detail)
+
+
 # ---------------------------------------------------------------------------
 # /overrides
 # ---------------------------------------------------------------------------

@@ -204,10 +204,21 @@ export async function exportFile(
  * Download the printable set-identification-cards PDF. Triggers a save in
  * the browser; no rows or settings are required — the server fetches the
  * full set catalog itself.
+ *
+ * Pass `setIds` to restrict the PDF to a subset of sets (the picker modal
+ * uses this). Omit / pass an empty array for the historical "every set"
+ * behavior.
  */
-export async function downloadSetCardsPdf(apiKey?: string): Promise<void> {
-  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
-  const res = await fetch(`${BASE}/set-cards.pdf${params}`)
+export async function downloadSetCardsPdf(apiKey?: string, setIds?: string[]): Promise<void> {
+  const params = new URLSearchParams()
+  if (apiKey) params.set('api_key', apiKey)
+  if (setIds && setIds.length > 0) {
+    // Repeatable query param: ?set_ids=sv8&set_ids=sv7 maps onto FastAPI's
+    // `list[str] = Query()` binding on the backend.
+    for (const id of setIds) params.append('set_ids', id)
+  }
+  const qs = params.toString()
+  const res = await fetch(`${BASE}/set-cards.pdf${qs ? `?${qs}` : ''}`)
   if (!res.ok) {
     let detail = `set-cards failed: ${res.status}`
     try {
@@ -225,6 +236,15 @@ export async function downloadSetCardsPdf(apiKey?: string): Promise<void> {
   a.download = 'set-cards.pdf'
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+/**
+ * Resolve the cached-logo URL for a given set id. The endpoint serves the
+ * image straight out of the unified disk cache; missing entries return 404,
+ * which the SPA renders as a soft fallback (text-only chip).
+ */
+export function setLogoUrl(setId: string): string {
+  return `${BASE}/sets/${encodeURIComponent(setId)}/logo`
 }
 
 // ---------------------------------------------------------------------------

@@ -25,9 +25,10 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { downloadSetCardsPdf, exportFile } from '../api/client'
+import { exportFile } from '../api/client'
 import { useAppStore } from '../store'
 import type { ExportFormat } from '../types'
+import { SetPickerModal } from './SetPickerModal'
 
 const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
   { format: 'xlsx', label: 'Download .xlsx', icon: <FileSpreadsheet size={14} /> },
@@ -38,8 +39,12 @@ const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
 
 export function ExportBar() {
   const { rows, settings } = useAppStore()
-  const [loading, setLoading] = useState<ExportFormat | 'set-cards' | null>(null)
+  const [loading, setLoading] = useState<ExportFormat | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Set ID cards now opens the picker modal rather than firing an
+  // immediate download — the modal owns its own loading + error state
+  // (including the cross-fetch to /api/v1/sets).
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const matchedRows = rows.filter((r) => r.matched)
   const disabled = matchedRows.length === 0
@@ -57,18 +62,6 @@ export function ExportBar() {
         noImages: settings.noImages,
         dedupe: settings.dedupe,
       })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setLoading(null)
-    }
-  }
-
-  async function handleSetCards() {
-    setLoading('set-cards')
-    setError(null)
-    try {
-      await downloadSetCardsPdf(settings.apiKey || undefined)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -109,11 +102,11 @@ export function ExportBar() {
             ))}
             <DropdownMenu.Separator className="my-1 h-px bg-zinc-800" />
             <DropdownMenu.Item
-              onSelect={handleSetCards}
+              onSelect={() => setPickerOpen(true)}
               className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-zinc-200 outline-none data-[highlighted]:bg-zinc-800"
             >
               <Tags size={14} />
-              Set ID cards
+              Set ID cards…
             </DropdownMenu.Item>
             {matchedRows.length > 0 && (
               <>
@@ -129,6 +122,7 @@ export function ExportBar() {
       {/* Errors live outside the dropdown so they stay visible after the
           user picks a format and the menu closes. */}
       {error && <span className="text-xs text-red-400">{error}</span>}
+      <SetPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
     </div>
   )
 }

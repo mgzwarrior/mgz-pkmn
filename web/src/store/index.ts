@@ -39,6 +39,14 @@ interface AppState {
   settings: Settings
   updateSettings: (partial: Partial<Settings>) => void
   resetSettings: () => void
+
+  /**
+   * Set ids selected in the Set ID cards picker modal. Persisted so a
+   * reload preserves the user's last selection. Empty array = "every set"
+   * (matches the backend's omit-the-filter default).
+   */
+  selectedSetIds: string[]
+  setSelectedSetIds: (ids: string[]) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -73,6 +81,9 @@ export const useAppStore = create<AppState>()(
       updateSettings: (partial) =>
         set((state) => ({ settings: { ...state.settings, ...partial } })),
       resetSettings: () => set({ settings: { ...DEFAULT_SETTINGS } }),
+
+      selectedSetIds: [],
+      setSelectedSetIds: (ids) => set({ selectedSetIds: ids }),
     }),
     {
       name: 'mgz-pkmn-settings',
@@ -80,6 +91,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         inputText: state.inputText,
         settings: state.settings,
+        selectedSetIds: state.selectedSetIds,
       }),
       // Merge persisted state with defaults so new settings fields (e.g.
       // `sort`, added later) fall back to the initial value rather than
