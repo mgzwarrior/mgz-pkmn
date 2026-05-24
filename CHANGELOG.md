@@ -85,6 +85,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
   scrollable body keyboard-focusable so users can scroll without
   first tabbing through every dialog control.
 
+### Fixed
+
+- Web: the export controls now always render as a single "Export"
+  dropdown, with the matched-row count shown at the bottom of the
+  menu. Previously the row count appeared beneath a row of buttons
+  after a successful run, which pushed the Export controls out of
+  alignment with the other header buttons.
+
 ## [1.0.1] - 2026-05-16
 
 ### Added
