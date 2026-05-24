@@ -255,6 +255,87 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertIsNotNone(cache.read_image("sets/symbol", "sv8"))
         self.assertIsNone(cache.read_image("sets/symbol", "sv7"))
 
+    def test_warm_sets_verbose_prints_per_set_progress(self) -> None:
+        # `-v` should fire the on_progress callback so each set's id lands
+        # in the output. Covers the verbose branch of cache_warm_sets_command.
+        from unittest.mock import patch as _patch
+
+        sets = [
+            {"id": "sv8", "name": "Surging Sparks", "images": {"logo": "u"}},
+            {"id": "sv7", "name": "Stellar Crown", "images": {"logo": "u"}},
+        ]
+
+        def _fake_download(category, key, url, session, *, timeout=30):
+            return cache.write_image(category, key, b"warm", ext=url)
+
+        with (
+            _patch("mgz_pkmn.set_cards.fetch_all_sets", return_value=sets),
+            _patch(
+                "mgz_pkmn.set_cards.disk_cache.download_and_cache_image",
+                side_effect=_fake_download,
+            ),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets", "-v"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        # Both set ids appear with [n/total] prefixes.
+        self.assertIn("[1/2]", result.output)
+        self.assertIn("sv8", result.output)
+        self.assertIn("[2/2]", result.output)
+        self.assertIn("sv7", result.output)
+
+    def test_warm_sets_surfaces_upstream_request_failures(self) -> None:
+        # A network failure during `fetch_all_sets` should surface as a
+        # ClickException with the underlying error message — not a bare
+        # traceback.
+        from unittest.mock import patch as _patch
+
+        import requests as _requests
+
+        with _patch(
+            "mgz_pkmn.set_cards.fetch_all_sets",
+            side_effect=_requests.ConnectionError("network down"),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("set fetch failed", result.output)
+        self.assertIn("network down", result.output)
+
+    def test_warm_sets_reports_failures_in_summary(self) -> None:
+        # When some images fail to download, the summary line should
+        # surface the failure count in yellow rather than hiding it.
+        from unittest.mock import patch as _patch
+
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {
+                    "logo": "https://example/sv8-logo.png",
+                    "symbol": "https://example/sv8-symbol.png",
+                },
+            },
+        ]
+
+        def _half_failing(category, key, url, session, *, timeout=30):
+            # Logo succeeds, symbol fails.
+            if "logo" in category:
+                return cache.write_image(category, key, b"warm", ext=url)
+            return None
+
+        with (
+            _patch("mgz_pkmn.set_cards.fetch_all_sets", return_value=sets),
+            _patch(
+                "mgz_pkmn.set_cards.disk_cache.download_and_cache_image",
+                side_effect=_half_failing,
+            ),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("1 failures", result.output)
+
     def test_warm_sets_clickfails_when_catalog_is_empty(self) -> None:
         # An empty catalog should surface as a ClickException, not a silent
         # success — the user installing fresh would otherwise have no

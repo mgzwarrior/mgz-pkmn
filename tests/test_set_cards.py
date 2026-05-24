@@ -264,6 +264,144 @@ class WritePdfUsesImageCacheTests(_IsolatedCacheMixin):
             self.assertTrue(out.exists())
         session.get.assert_not_called()
 
+    def test_logos_dir_sidecar_mirrors_cached_file(self) -> None:
+        # When `logos_dir` is provided alongside an active cache, the cached
+        # file should be copied into the sidecar directory for archival.
+        # This is the legacy back-compat path for the CLI's --logos-dir flag.
+        disk_cache.write_image("sets/logo", "sv8", b"PNGCACHE", ext=".png")
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {"logo": "https://example/sv8-logo.png"},
+            }
+        ]
+        session = MagicMock()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            sidecar_dir = Path(tmp) / "set-logos"
+            out = Path(tmp) / "set-cards.pdf"
+            write_set_cards_pdf(sets, out, logos_dir=sidecar_dir, session=session)
+            # The cache file was copied into the sidecar dir.
+            self.assertTrue(sidecar_dir.exists())
+            sidecar_files = list(sidecar_dir.iterdir())
+            self.assertEqual(len(sidecar_files), 1)
+            self.assertEqual(sidecar_files[0].read_bytes(), b"PNGCACHE")
+        # Cache short-circuited the session, sidecar mirror copied the bytes.
+        session.get.assert_not_called()
+
+    def test_no_cache_and_no_logos_dir_returns_none(self) -> None:
+        # With both the cache disabled AND no logos_dir, there's nowhere to
+        # put the image — `_fetch_logo` should bail to None cleanly rather
+        # than trying to write somewhere it shouldn't.
+        os.environ[disk_cache._NO_CACHE_ENV] = "1"
+        try:
+            from mgz_pkmn.set_cards import _fetch_logo
+
+            session = MagicMock()
+            self.assertIsNone(_fetch_logo("https://example/logo.png", "sv8", None, session))
+            # We never even reached the download path.
+            session.get.assert_not_called()
+        finally:
+            os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+
+    def test_no_cache_falls_back_to_legacy_logos_dir_path(self) -> None:
+        # With MGZ_PKMN_NO_CACHE=1, the cache is bypassed entirely and
+        # `_fetch_logo` falls back to writing into `logos_dir` directly via
+        # `download_image`. The session must still be called.
+        os.environ[disk_cache._NO_CACHE_ENV] = "1"
+        try:
+            sets = [
+                {
+                    "id": "sv8",
+                    "name": "Surging Sparks",
+                    "images": {"logo": "https://example/sv8-logo.png"},
+                }
+            ]
+            session = MagicMock()
+            resp = MagicMock()
+            resp.content = b"FALLBACK"
+            resp.raise_for_status.return_value = None
+            session.get.return_value = resp
+
+            with tempfile.TemporaryDirectory() as tmp:
+                sidecar_dir = Path(tmp) / "logos"
+                out = Path(tmp) / "set-cards.pdf"
+                write_set_cards_pdf(sets, out, logos_dir=sidecar_dir, session=session)
+                # The fallback path wrote directly to sidecar_dir.
+                files = list(sidecar_dir.iterdir())
+                self.assertEqual(len(files), 1)
+                self.assertEqual(files[0].read_bytes(), b"FALLBACK")
+            session.get.assert_called_once()
+        finally:
+            os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+
+
+class FetchAllSetsCacheTests(_IsolatedCacheMixin):
+    def test_cold_fetch_writes_to_api_cache(self) -> None:
+        # First call goes over the wire and writes the response into the
+        # API disk cache.
+        payload = {
+            "data": [
+                {"id": "sv8", "name": "Surging Sparks", "images": {"logo": "x"}},
+            ]
+        }
+        client = MagicMock()
+        resp = MagicMock()
+        resp.json.return_value = payload
+        resp.raise_for_status.return_value = None
+        client.session.get.return_value = resp
+
+        sets = fetch_all_sets(client)
+        self.assertEqual(len(sets), 1)
+        client.session.get.assert_called_once()
+        # Second call should hit the cache and skip the session entirely.
+        client.session.get.reset_mock()
+        sets2 = fetch_all_sets(client)
+        self.assertEqual(sets2, sets)
+        client.session.get.assert_not_called()
+
+
+class WarmSetImagesFailureTests(_IsolatedCacheMixin):
+    def test_counts_failures_when_download_returns_none(self) -> None:
+        # A session whose get() raises for both URLs forces
+        # download_and_cache_image to return None for each — failures
+        # should tick up rather than being silently absorbed.
+        import requests
+
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {
+                    "logo": "https://example/sv8-logo.png",
+                    "symbol": "https://example/sv8-symbol.png",
+                },
+            }
+        ]
+        client = MagicMock()
+        client.session.get.side_effect = requests.ConnectionError("down")
+
+        result = warm_set_images(client, sets=sets)
+        self.assertEqual(result.sets, 1)
+        self.assertEqual(result.logos_cached, 0)
+        self.assertEqual(result.symbols_cached, 0)
+        self.assertEqual(result.failures, 2)
+
+    def test_skips_sets_with_no_id(self) -> None:
+        # A bogus set with no id and no name must not crash the walk.
+        sets = [{"name": ""}, {"id": "sv8", "images": {"logo": "u"}}]
+        client = MagicMock()
+        resp = MagicMock()
+        resp.content = b"img"
+        resp.raise_for_status.return_value = None
+        client.session.get.return_value = resp
+
+        result = warm_set_images(client, sets=sets)
+        # First entry (no id, no name) is skipped — only the second counts.
+        self.assertEqual(result.sets, 2)  # `total` is the raw length
+        self.assertEqual(result.logos_cached, 1)
+
 
 class DrawLogoTests(unittest.TestCase):
     def test_corrupt_file_logs_and_draws_placeholder(self) -> None:

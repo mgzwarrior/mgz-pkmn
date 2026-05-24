@@ -477,6 +477,62 @@ class DownloadAndCacheImageTests(_IsolatedCacheDirMixin):
         self.assertIsNone(cache.read_image("sets/logo", "sv8"))
 
 
+class ImageCacheEdgeCaseTests(_IsolatedCacheDirMixin):
+    def test_safe_image_key_empty_falls_back_to_default(self) -> None:
+        # An empty (or whitespace-only) key collapses to "image" rather than
+        # producing a hidden dot-prefixed file like `.png`. Non-empty but
+        # all-punctuation keys collapse to `_` via the regex sub.
+        path_blank = cache.write_image("sets/logo", "   ", b"data")
+        self.assertIsNotNone(path_blank)
+        self.assertTrue(path_blank.name.startswith("image"))  # type: ignore[union-attr]
+        path_punct = cache.write_image("sets/logo", "!!!", b"other")
+        self.assertIsNotNone(path_punct)
+        self.assertEqual(path_punct.name, "_.png")  # type: ignore[union-attr]
+
+    def test_read_image_returns_none_when_dir_missing(self) -> None:
+        # Cache root exists (touched by setUp via overrides path) but the
+        # `images/` subdir was never created — read should short-circuit.
+        self.assertIsNone(cache.read_image("sets/logo", "anything"))
+
+    def test_zero_byte_file_is_treated_as_missing(self) -> None:
+        # An interrupted write that left a zero-byte file shouldn't poison
+        # the cache — the next read must fall through to a fresh fetch.
+        target = cache._image_dir("sets/logo") / "ghost.png"
+        target.write_bytes(b"")
+        self.assertIsNone(cache.read_image("sets/logo", "ghost"))
+
+    def test_write_returns_none_when_filesystem_errors(self) -> None:
+        # Simulate a transient OS write error during the rename step. The
+        # function should swallow it and return None rather than crash the
+        # caller, and no half-written temp should be left behind.
+        from unittest.mock import patch as _patch
+
+        with _patch("pathlib.Path.replace", side_effect=OSError("disk full")):
+            self.assertIsNone(cache.write_image("sets/logo", "x", b"bytes"))
+        # And the temp file is cleaned up so the next attempt sees an empty
+        # category dir.
+        leftovers = list((cache.cache_root() / "images").rglob("*"))
+        self.assertEqual([p.name for p in leftovers if p.is_file()], [])
+
+
+class ClearImageCacheEdgeCaseTests(_IsolatedCacheDirMixin):
+    def test_clear_returns_zero_when_no_image_dir(self) -> None:
+        # Fresh cache with no `images/` subdir — clear is a no-op, not an
+        # error.
+        self.assertEqual(cache.clear_image_cache(), 0)
+
+    def test_clear_removes_nested_category_dirs(self) -> None:
+        # After clear, the category subdirectories should be pruned so
+        # subsequent `stats()` doesn't show ghost entries.
+        cache.write_image("sets/logo", "a", b"x")
+        cache.write_image("sets/symbol", "b", b"y")
+        cache.clear_image_cache()
+        images_dir = cache.cache_root() / "images"
+        # The leaf categories should be gone.
+        self.assertFalse((images_dir / "sets" / "logo").exists())
+        self.assertFalse((images_dir / "sets" / "symbol").exists())
+
+
 class ImageCacheStatsAndClearTests(_IsolatedCacheDirMixin):
     def test_size_and_count_reflect_writes(self) -> None:
         cache.write_image("sets/logo", "a", b"abcdef")
