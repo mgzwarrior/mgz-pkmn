@@ -142,10 +142,13 @@ describe('SetPickerModal', () => {
   it('seeds the draft from selectedSetIds when reopening', async () => {
     useAppStore.setState({ selectedSetIds: ['jungle'] })
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
-
+    // Wait on the rendered DOM, not just the mock call. `waitFor` on the
+    // call count resolves as soon as the fetch promise begins; the
+    // resulting setState→re-render lands on a later tick. Slower CI
+    // machines lose that race and observe the dialog chrome without
+    // its rows.
     expect(
-      screen.getByRole('checkbox', { name: 'Include Jungle' })
+      await screen.findByRole('checkbox', { name: 'Include Jungle' })
     ).toBeChecked()
     expect(
       screen.getByRole('checkbox', { name: 'Include Base Set' })
