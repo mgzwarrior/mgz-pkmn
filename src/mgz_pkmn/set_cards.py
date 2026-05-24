@@ -8,13 +8,22 @@ binder is self-labelling.
 The CLI subcommand `pkmn set-cards` fetches the full set catalog from
 pokemontcg.io and emits a cutout for every one of them. The API route
 `GET /api/v1/set-cards.pdf` uses the same code path.
+
+Set images (logos + symbols) flow through the unified disk image cache
+(`mgz_pkmn.cache.download_and_cache_image`) under category `sets/logo` /
+`sets/symbol`. They have no TTL — set art doesn't change once a set ships
+and re-downloading 200+ logos every time someone hits this endpoint is the
+single most painful path in the tool. `pkmn cache warm-sets` primes the
+cache in one pass so the first export request after install is fast.
 """
 
 from __future__ import annotations
 
 import datetime as _dt
 import re
+import shutil
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,8 +33,16 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
+from . import cache as disk_cache
 from .images import download_image
 from .sources import TCGClient
+
+# Unified cache categories for set art. Two slots per set — the logo is the
+# big wordmark used in cutouts and the picker UI; the symbol is the tiny
+# corner glyph reserved for future surfaces (e.g. the per-row set chip in
+# the results table).
+_LOGO_CATEGORY = "sets/logo"
+_SYMBOL_CATEGORY = "sets/symbol"
 
 PAGE_W, PAGE_H = letter  # 612 x 792 pt
 CARD_W = 2.5 * inch
@@ -43,15 +60,39 @@ LOGO_BOX_RATIO = 0.50  # share of cell height reserved for logo art
 TEXT_BLOCK_GAP = 8
 
 
+@dataclass(frozen=True)
+class WarmResult:
+    """Outcome of a `warm_set_images` run.
+
+    `sets` is the number of sets walked; `logos_cached` / `symbols_cached`
+    are the per-kind success counts (already-cached entries count as
+    successes — they did not need a new fetch); `failures` is the number
+    of image URLs the warm pass could not download (logged to stderr by
+    `download_and_cache_image`). Returned by the CLI's `pkmn cache warm-sets`
+    for the summary line."""
+
+    sets: int
+    logos_cached: int
+    symbols_cached: int
+    failures: int
+
+
 def fetch_all_sets(client: TCGClient) -> list[dict[str, Any]]:
     """Return every Pokémon TCG set on pokemontcg.io, sorted oldest → newest.
 
     Each dict has at minimum: id, name. Optionally: series, total,
-    printedTotal, releaseDate, images.{logo,symbol}."""
+    printedTotal, releaseDate, images.{logo,symbol}.
+
+    The raw response is routed through the API disk cache (same path the
+    per-card lookup uses), so repeated `pkmn set-cards` invocations within
+    a week reuse the cached catalog instead of re-fetching the full list."""
     url = "https://api.pokemontcg.io/v2/sets?orderBy=releaseDate&pageSize=250"
-    resp = client.session.get(url, timeout=30)
-    resp.raise_for_status()
-    raw = resp.json().get("data", [])
+    raw = disk_cache.read_api(url)
+    if raw is None:
+        resp = client.session.get(url, timeout=30)
+        resp.raise_for_status()
+        raw = resp.json().get("data", [])
+        disk_cache.write_api(url, raw)
     return [
         {
             "id": s.get("id"),
@@ -86,7 +127,12 @@ def write_set_cards_pdf(
     today = today or _dt.date.today()
     cutouts = [_normalize(s, today) for s in sets]
 
-    if logos_dir is not None and session is not None:
+    # `session is not None` is the canonical "fetch images" switch — the
+    # unified disk cache covers the storage half, so a caller can drop
+    # `logos_dir` entirely and still get cache-hit images. `logos_dir` is
+    # kept as an optional sidecar mirror for users who want a writable
+    # directory of logos alongside the PDF.
+    if session is not None:
         for co in cutouts:
             co["logo_path"] = _fetch_logo(co["logo_url"], co["set_id"], logos_dir, session)
 
@@ -132,16 +178,97 @@ def _release_year(release_date: str | None) -> str | None:
 
 
 def _fetch_logo(
-    url: str | None, set_id: str, logos_dir: Path, session: requests.Session
+    url: str | None,
+    set_id: str,
+    logos_dir: Path | None,
+    session: requests.Session,
 ) -> Path | None:
+    """Resolve a usable on-disk path for the set's logo image.
+
+    Cache-aside: the canonical store is the unified image cache
+    (`cache/images/sets/logo/<set_id>.<ext>`). On a hit we return the
+    cached path; on a miss we download once and persist there.
+
+    `logos_dir` is kept for back-compat with the CLI's `--logos-dir`
+    option (and a few existing tests that expect a writable sidecar
+    directory): when callers pass one, we copy the cached file into it
+    after the cache resolves. That keeps `output/images/set-logos/` a
+    usable artifact for archival without making it the source of truth."""
     if not url:
         return None
-    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", set_id) or "set"
-    ext = Path(url).suffix or ".png"
-    dest = logos_dir / f"{safe}{ext}"
-    if download_image(url, dest, session):
-        return dest
-    return None
+    cached = disk_cache.download_and_cache_image(_LOGO_CATEGORY, set_id, url, session)
+    if cached is None:
+        # Cache is disabled (MGZ_PKMN_NO_CACHE=1) or the download itself
+        # failed. Fall back to the legacy per-output `logos_dir` path so
+        # `--no-cache` runs still produce art when they can.
+        if logos_dir is None:
+            return None
+        safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", set_id) or "set"
+        ext = Path(url).suffix or ".png"
+        dest = logos_dir / f"{safe}{ext}"
+        return dest if download_image(url, dest, session) else None
+    if logos_dir is not None:
+        try:
+            logos_dir.mkdir(parents=True, exist_ok=True)
+            sidecar = logos_dir / cached.name
+            if not sidecar.exists() or sidecar.stat().st_size == 0:
+                shutil.copyfile(cached, sidecar)
+        except OSError as exc:
+            print(f"  ! logos_dir mirror failed for {set_id}: {exc}", file=sys.stderr)
+    return cached
+
+
+def warm_set_images(
+    client: TCGClient,
+    *,
+    sets: list[dict[str, Any]] | None = None,
+    on_progress: Any | None = None,
+) -> WarmResult:
+    """Pre-download every set's logo + symbol into the unified image cache.
+
+    Walks `pokemontcg.io`'s set catalog (or the supplied `sets` list, useful
+    for tests) and fetches every available image into the cache under
+    `sets/logo` and `sets/symbol`. Already-cached entries are short-circuited
+    by `download_and_cache_image` so a second warm pass is effectively free.
+
+    `on_progress`, when provided, is invoked once per set with
+    `(index, total, set_id)` for callers that want to render a progress
+    bar. The function is otherwise quiet (the underlying download helper
+    logs failures to stderr)."""
+    sets_list = sets if sets is not None else fetch_all_sets(client)
+    total = len(sets_list)
+    logos_cached = 0
+    symbols_cached = 0
+    failures = 0
+    for index, s in enumerate(sets_list, start=1):
+        set_id = s.get("id") or s.get("name") or ""
+        if not set_id:
+            continue
+        if on_progress is not None:
+            on_progress(index, total, set_id)
+        images = s.get("images") or {}
+        logo_url = images.get("logo")
+        symbol_url = images.get("symbol")
+        if logo_url:
+            if disk_cache.download_and_cache_image(
+                _LOGO_CATEGORY, set_id, logo_url, client.session
+            ):
+                logos_cached += 1
+            else:
+                failures += 1
+        if symbol_url:
+            if disk_cache.download_and_cache_image(
+                _SYMBOL_CATEGORY, set_id, symbol_url, client.session
+            ):
+                symbols_cached += 1
+            else:
+                failures += 1
+    return WarmResult(
+        sets=total,
+        logos_cached=logos_cached,
+        symbols_cached=symbols_cached,
+        failures=failures,
+    )
 
 
 def _draw_cutout(c: canvas.Canvas, x: float, y: float, co: dict[str, Any]) -> None:

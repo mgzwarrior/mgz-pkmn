@@ -9,6 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- CLI: new `pkmn cache warm-sets` subcommand walks every Pokémon TCG set
+  and pre-downloads each set's logo + symbol into the unified disk image
+  cache. Cold warm is a single up-front cost (~30 s on a fresh install,
+  173 sets / 346 images / ~19 MB); subsequent `pkmn set-cards` runs and
+  every `/api/v1/set-cards.pdf` request serve images from cache instead of
+  the network. Second warm pass is 0.2 s — already-cached entries
+  short-circuit.
+- Cache: new indefinite-TTL image slice under `cache/images/<category>/`
+  (today: `sets/logo`, `sets/symbol`; tomorrow: card art). Survives
+  `clear_api_cache()` so wiping stale API payloads no longer re-downloads
+  tens of megabytes of stable artwork. `pkmn cache stats` surfaces the
+  slice on its own line so the on-disk cost is always visible.
 - API: new `GET /version` endpoint returns
   `{"version": "<current __version__>"}` for deploy verification,
   monitoring, and SPA footer version display.
@@ -44,6 +56,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Outputs: `pkmn set-cards` and `/api/v1/set-cards.pdf` now resolve set
+  logo images through the unified disk image cache instead of a bespoke
+  per-output `logos_dir`. The CLI's `--logos-dir` flag still works as a
+  sidecar mirror for users who want a writable directory alongside the
+  PDF, but the cache itself (under `cache/images/sets/`) is now the
+  source of truth. The API route's hard-coded `~/.cache/mgz-pkmn/set-logos`
+  path is gone — both surfaces share the same cache.
+- Outputs: `fetch_all_sets()` now routes the pokemontcg.io set catalog
+  through the existing API disk cache, so repeated `pkmn set-cards`
+  invocations within a week reuse the cached catalog (~61 KB) instead of
+  re-fetching the full list.
 - CI: the `api` job now runs tests under `coverage` (via `pytest`,
   which discovers the existing `unittest.TestCase` suites unchanged)
   and uploads both `coverage.xml` and `junit.xml` to

@@ -23,7 +23,7 @@ from .lookup import find_card, find_top_cards
 from .parser import CardQuery, read_input
 from .pricing import Pricing, extract_pricing
 from .report import build_json_report
-from .set_cards import fetch_all_sets, write_set_cards_pdf
+from .set_cards import fetch_all_sets, warm_set_images, write_set_cards_pdf
 from .sorting import DEFAULT_SORT, SORT_MODES, sort_rows
 from .sources import PriceChartingClient, TCGClient, TCGDexClient
 from .sources.base import MatchResult
@@ -957,7 +957,7 @@ def cache_stats_command(as_json: bool) -> None:
         click.echo(json.dumps(payload, indent=2))
         return
 
-    total_bytes = s.api_bytes + s.override_bytes
+    total_bytes = s.api_bytes + s.override_bytes + s.image_bytes
 
     _print_section("Cache stats")
     click.echo("  " + click.style("Location:      ", fg="bright_black") + str(s.root))
@@ -977,6 +977,73 @@ def cache_stats_command(as_json: bool) -> None:
         + click.style("URL overrides: ", fg="bright_black")
         + f"{s.override_count} entries · {_format_bytes(s.override_bytes)}"
     )
+    # Indefinite-TTL slice (set logos, set symbols, future card art). Lives
+    # in its own line so it's visible even when zero — when it's non-zero
+    # it tends to dominate the total and the user should see why.
+    click.echo(
+        "  "
+        + click.style("Images:        ", fg="bright_black")
+        + f"{s.image_entry_count} entries · {_format_bytes(s.image_bytes)} · indefinite TTL"
+    )
+
+
+@cache_group.command(name="warm-sets", context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "--api-key",
+    envvar="POKEMONTCG_IO_API_KEY",
+    default=None,
+    help="pokemontcg.io API key (or set POKEMONTCG_IO_API_KEY).",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print each set as it warms.")
+def cache_warm_sets_command(api_key: str | None, verbose: bool) -> None:
+    """Pre-download every set's logo + symbol into the unified image cache.
+
+    Walks the pokemontcg.io set catalog (~200+ sets) and persists each
+    logo + symbol into `cache/images/sets/` with no TTL — so the first
+    `pkmn set-cards` (or web Set ID cards) run after a fresh install
+    serves every image from disk instead of the network. Re-running is
+    cheap: already-cached entries short-circuit on hit.
+
+    Pairs with `pkmn cache stats`, which surfaces the indefinite-TTL
+    image slice on its own line."""
+    _print_banner(__version__)
+
+    _print_section("Warming set image cache")
+    client = TCGClient(api_key=api_key, verbose=verbose)
+
+    def _progress(index: int, total: int, set_id: str) -> None:
+        if not verbose:
+            return
+        click.echo(
+            click.style(f"  [{index}/{total}] ", fg="bright_black") + set_id,
+            err=False,
+        )
+
+    try:
+        result = warm_set_images(client, on_progress=_progress)
+    except requests.RequestException as exc:
+        raise click.ClickException(f"set fetch failed: {exc}") from exc
+
+    if result.sets == 0:
+        raise click.ClickException("pokemontcg.io returned no sets")
+
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(
+        f"{result.sets} sets · "
+        + click.style(f"{result.logos_cached} logos", fg="cyan")
+        + " · "
+        + click.style(f"{result.symbols_cached} symbols", fg="cyan")
+        + (click.style(f" · {result.failures} failures", fg="yellow") if result.failures else "")
+    )
+
+    # Render the post-warm stats inline so the user can see the on-disk cost
+    # immediately without running `pkmn cache stats` separately.
+    count, total_bytes = disk_cache.image_cache_size()
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(f"image cache now {count} entries · {_format_bytes(total_bytes)}")
+
+    click.echo()
+    click.secho("Done!", fg="green", bold=True)
 
 
 if __name__ == "__main__":

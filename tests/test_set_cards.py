@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import io
+import os
 import sys
 import tempfile
 import unittest
@@ -14,10 +15,12 @@ from reportlab.pdfgen import canvas
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from mgz_pkmn import cache as disk_cache
 from mgz_pkmn.set_cards import (
     _draw_logo,
     _release_year,
     fetch_all_sets,
+    warm_set_images,
     write_set_cards_pdf,
 )
 
@@ -128,6 +131,138 @@ class WritePdfTests(unittest.TestCase):
             out = Path(tmp) / "set-cards.pdf"
             written = write_set_cards_pdf(sets, out, today=_dt.date(2026, 5, 10))
             self.assertEqual(written, 1)
+
+
+class _IsolatedCacheMixin(unittest.TestCase):
+    """Point cache_root() at a tempdir so the image cache stays test-local."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        self._tmp.cleanup()
+        super().tearDown()
+
+
+def _client_with_responses(responses: dict[str, bytes]) -> MagicMock:
+    """Build a TCGClient stand-in whose session returns the mapped bytes."""
+    client = MagicMock()
+
+    def _get(url: str, timeout: float | None = None) -> MagicMock:
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = responses.get(url, b"")
+        resp.raise_for_status.return_value = None
+        return resp
+
+    client.session.get.side_effect = _get
+    return client
+
+
+class WarmSetImagesTests(_IsolatedCacheMixin):
+    def test_warms_logo_and_symbol_for_every_set(self) -> None:
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {
+                    "logo": "https://example/sv8-logo.png",
+                    "symbol": "https://example/sv8-symbol.png",
+                },
+            },
+            {
+                "id": "sv7",
+                "name": "Stellar Crown",
+                "images": {
+                    "logo": "https://example/sv7-logo.png",
+                    "symbol": "https://example/sv7-symbol.png",
+                },
+            },
+        ]
+        client = _client_with_responses(
+            {
+                "https://example/sv8-logo.png": b"sv8-logo",
+                "https://example/sv8-symbol.png": b"sv8-symbol",
+                "https://example/sv7-logo.png": b"sv7-logo",
+                "https://example/sv7-symbol.png": b"sv7-symbol",
+            }
+        )
+
+        result = warm_set_images(client, sets=sets)
+
+        self.assertEqual(result.sets, 2)
+        self.assertEqual(result.logos_cached, 2)
+        self.assertEqual(result.symbols_cached, 2)
+        self.assertEqual(result.failures, 0)
+        # Verify each artifact landed in the right cache slot.
+        for sid in ("sv8", "sv7"):
+            self.assertIsNotNone(disk_cache.read_image("sets/logo", sid))
+            self.assertIsNotNone(disk_cache.read_image("sets/symbol", sid))
+
+    def test_second_warm_pass_is_cache_only(self) -> None:
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {"logo": "https://example/sv8-logo.png"},
+            }
+        ]
+        client = _client_with_responses({"https://example/sv8-logo.png": b"sv8-logo"})
+
+        warm_set_images(client, sets=sets)
+        first_calls = client.session.get.call_count
+        warm_set_images(client, sets=sets)
+
+        # First pass downloaded; second pass should not have touched the network.
+        self.assertEqual(client.session.get.call_count, first_calls)
+
+    def test_skips_sets_without_images(self) -> None:
+        sets = [
+            {"id": "old1", "name": "No Images"},
+            {
+                "id": "old2",
+                "name": "Only Logo",
+                "images": {"logo": "https://example/old2-logo.png"},
+            },
+        ]
+        client = _client_with_responses({"https://example/old2-logo.png": b"old2-logo"})
+
+        result = warm_set_images(client, sets=sets)
+
+        self.assertEqual(result.sets, 2)
+        self.assertEqual(result.logos_cached, 1)
+        self.assertEqual(result.symbols_cached, 0)
+        self.assertEqual(result.failures, 0)
+
+
+class WritePdfUsesImageCacheTests(_IsolatedCacheMixin):
+    def test_uses_cached_logo_when_present(self) -> None:
+        # Pre-seed the cache and confirm write_set_cards_pdf reads from it
+        # instead of calling the session.
+        disk_cache.write_image("sets/logo", "sv8", b"\x89PNG\r\n\x1a\n" + b"fake")
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {"logo": "https://example/sv8-logo.png"},
+            }
+        ]
+        session = MagicMock()  # Should never be invoked.
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "set-cards.pdf"
+            written = write_set_cards_pdf(sets, out, session=session)
+            self.assertEqual(written, 1)
+            self.assertTrue(out.exists())
+        session.get.assert_not_called()
 
 
 class DrawLogoTests(unittest.TestCase):

@@ -161,12 +161,15 @@ class CacheStatsCommandTests(unittest.TestCase):
         cache.write_api("https://example.com/a", {"x": 1})
         cache.write_api("https://example.com/b", {"y": 2})
         cache.record_url_override("Mew", None, "https://pc/mew")
+        cache.write_image("sets/logo", "sv8", b"img-bytes")
 
         result = CliRunner().invoke(cli, ["cache", "stats"])
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("Cache stats", result.output)
         self.assertIn("API responses: 2 entries", result.output)
         self.assertIn("URL overrides: 1 entries", result.output)
+        self.assertIn("Images:        1 entries", result.output)
+        self.assertIn("indefinite TTL", result.output)
         self.assertIn(self._tmp.name, result.output)
 
     def test_stats_command_on_empty_cache(self) -> None:
@@ -191,6 +194,8 @@ class CacheStatsCommandTests(unittest.TestCase):
                 "api_oldest_mtime",
                 "override_bytes",
                 "override_count",
+                "image_bytes",
+                "image_entry_count",
                 "root",
             },
         )
@@ -199,7 +204,68 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertIsInstance(payload["api_oldest_mtime"], float)
         self.assertEqual(payload["override_count"], 1)
         self.assertGreater(payload["override_bytes"], 0)
+        # New indefinite-TTL image slice. Defaults to zero on a fresh cache;
+        # exercised end-to-end by the warm-sets test.
+        self.assertEqual(payload["image_entry_count"], 0)
+        self.assertEqual(payload["image_bytes"], 0)
         self.assertEqual(payload["root"], str(Path(self._tmp.name) / "mgz-pkmn"))
+
+    def test_warm_sets_primes_cache_and_summarises(self) -> None:
+        # The CLI subcommand should walk the catalog (mocked here) and
+        # populate `cache/images/sets/{logo,symbol}` with one entry per set,
+        # then print a summary line that reflects the per-kind counts.
+        from unittest.mock import patch as _patch
+
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {
+                    "logo": "https://ex/sv8-logo.png",
+                    "symbol": "https://ex/sv8-symbol.png",
+                },
+            },
+            {
+                "id": "sv7",
+                "name": "Stellar Crown",
+                "images": {"logo": "https://ex/sv7-logo.png"},
+            },
+        ]
+
+        def _fake_download(category, key, url, session, *, timeout=30):
+            # Persist a sentinel byte so image_cache_size reports >0.
+            return cache.write_image(category, key, b"warm", ext=url)
+
+        with (
+            _patch("mgz_pkmn.set_cards.fetch_all_sets", return_value=sets),
+            _patch(
+                "mgz_pkmn.set_cards.disk_cache.download_and_cache_image",
+                side_effect=_fake_download,
+            ),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("2 sets", result.output)
+        self.assertIn("2 logos", result.output)
+        self.assertIn("1 symbols", result.output)
+        # On-disk: a logo for each set, plus the one symbol.
+        self.assertIsNotNone(cache.read_image("sets/logo", "sv8"))
+        self.assertIsNotNone(cache.read_image("sets/logo", "sv7"))
+        self.assertIsNotNone(cache.read_image("sets/symbol", "sv8"))
+        self.assertIsNone(cache.read_image("sets/symbol", "sv7"))
+
+    def test_warm_sets_clickfails_when_catalog_is_empty(self) -> None:
+        # An empty catalog should surface as a ClickException, not a silent
+        # success — the user installing fresh would otherwise have no
+        # signal that the warm pass did nothing.
+        from unittest.mock import patch as _patch
+
+        with _patch("mgz_pkmn.set_cards.fetch_all_sets", return_value=[]):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("no sets", result.output.lower())
 
     def test_path_command_prints_bare_cache_root(self) -> None:
         expected = Path(self._tmp.name) / "mgz-pkmn"

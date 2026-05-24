@@ -20,12 +20,6 @@ from mgz_pkmn.sources import TCGClient
 
 router = APIRouter()
 
-# Logos are cached on disk across requests so we don't re-download the entire
-# set catalog every time someone hits this endpoint. Shared with the CLI's
-# default `--logos-dir` only when the API runs as the same user — otherwise
-# each gets its own cache, which is fine.
-_LOGOS_CACHE_DIR = Path("~/.cache/mgz-pkmn/set-logos").expanduser()
-
 
 @router.get("/set-cards.pdf")
 async def get_set_cards_pdf(
@@ -54,9 +48,12 @@ def _render(api_key: str | None, no_images: bool) -> bytes:
         raise HTTPException(status_code=502, detail=f"upstream fetch failed: {exc}") from exc
     if not sets:
         raise HTTPException(status_code=502, detail="pokemontcg.io returned no sets")
-    logos_dir = None if no_images else _LOGOS_CACHE_DIR
+    # Logo storage now flows entirely through the unified disk image cache
+    # under `cache/images/sets/`, shared with the CLI. We pass `session` so
+    # the writer can fetch on a miss; no `logos_dir` is needed (the cache
+    # path is fixed and resolved internally).
     session = None if no_images else client.session
     with tempfile.TemporaryDirectory() as tmpdir:
         out_path = Path(tmpdir) / "set-cards.pdf"
-        write_set_cards_pdf(sets, out_path, logos_dir=logos_dir, session=session)
+        write_set_cards_pdf(sets, out_path, session=session)
         return out_path.read_bytes()
