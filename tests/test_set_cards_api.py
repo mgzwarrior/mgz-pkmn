@@ -72,13 +72,17 @@ class SetCardsEndpointTests(unittest.TestCase):
         self.assertIsNone(captured["logos_dir"])
         self.assertIsNone(captured["session"])
 
-    def test_default_uses_persistent_logo_cache(self) -> None:
-        # Default request must pass a persistent on-disk cache dir (not a
-        # per-request TemporaryDirectory) so logos survive across calls.
+    def test_default_passes_session_for_unified_image_cache(self) -> None:
+        # Logo storage now flows through the unified disk image cache
+        # (cache/images/sets/), so the route no longer needs to thread a
+        # custom `logos_dir`. It just passes `session` and lets the cache
+        # resolve the on-disk path internally — this is the contract that
+        # makes the cache survive across requests without a sidecar dir.
         captured: dict = {}
 
         def _fake_writer(sets, out_path, *, logos_dir=None, session=None, today=None):
             captured["logos_dir"] = logos_dir
+            captured["session"] = session
             out_path.write_bytes(b"%PDF-1.4\n%fake\n")
             return len(sets)
 
@@ -88,8 +92,8 @@ class SetCardsEndpointTests(unittest.TestCase):
         ):
             resp = client.get("/api/v1/set-cards.pdf")
         self.assertEqual(resp.status_code, 200)
-        self.assertIsNotNone(captured["logos_dir"])
-        self.assertIn(".cache/mgz-pkmn", str(captured["logos_dir"]))
+        self.assertIsNone(captured["logos_dir"])
+        self.assertIsNotNone(captured["session"])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """Disk-backed caches for mgz-pkmn.
 
-Two stores live under `$XDG_CACHE_HOME/mgz-pkmn` (or `~/.cache/mgz-pkmn`):
+Three stores live under `$XDG_CACHE_HOME/mgz-pkmn` (or `~/.cache/mgz-pkmn`):
 
 - **api/<sha1>.json** — one file per upstream API request URL. TTL is enforced
   via mtime; reads older than `DEFAULT_API_TTL_SECONDS` miss and force a
@@ -13,9 +13,17 @@ Two stores live under `$XDG_CACHE_HOME/mgz-pkmn` (or `~/.cache/mgz-pkmn`):
   up the previously-recorded one automatically. Lets the user paste a URL
   once and forget it.
 
+- **images/<category>/<key>.<ext>** — binary image blobs (set logos, set
+  symbols, card art). **No TTL.** Set images don't change once a set ships,
+  so the cost of an occasional stale image is far below the cost of
+  re-downloading the catalog every show. Cleared explicitly via
+  `clear_image_cache()`; survives `clear_api_cache()` so a "wipe stale API
+  payloads" never re-downloads tens of megabytes of stable artwork.
+
 Disk persistence is opt-out via `MGZ_PKMN_NO_CACHE=1` (the CLI's `--no-cache`
-flag sets this) so a clean run skips both stores entirely. There is no LRU
-eviction — the cache is small (KB per query) and clearing is a manual
+flag sets this) so a clean run skips every store entirely. There is no LRU
+eviction — the cache is small (KB per query for API; a few MB per warmed
+set catalog for images) and clearing is a manual
 `rm -rf ~/.cache/mgz-pkmn` away."""
 
 from __future__ import annotations
@@ -24,10 +32,15 @@ import contextlib
 import hashlib
 import json
 import os
+import re
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import requests
 
 DEFAULT_API_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
 DEFAULT_CACHE_WARN_BYTES = 50 * 1024 * 1024  # 50 MB
@@ -35,6 +48,11 @@ _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
 _WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
 OVERRIDES_SCHEMA_VERSION = 1
+_IMAGES_SUBDIR = "images"
+# Allowed image extensions for read-side discovery; write-side derives the
+# extension from the source URL but normalises it through this list so an
+# unexpected suffix doesn't end up on disk.
+_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".svg")
 
 # Per-run counters for the API response cache: hits = served from disk,
 # fetches = written after a successful network call. Reset at the start of
@@ -48,7 +66,12 @@ class CacheStats:
     """Snapshot of disk-cache usage. Returned by `stats()` for the CLI to render.
 
     `api_oldest_mtime` is None when the API cache holds no entries — callers
-    should treat that as "no oldest" rather than an unfilled field."""
+    should treat that as "no oldest" rather than an unfilled field.
+
+    `image_entry_count` / `image_bytes` cover the indefinite-TTL image slice
+    (set logos, set symbols, card art). They live in their own bucket because
+    they survive `clear_api_cache()` and tend to dominate the total once a
+    set catalog has been warmed."""
 
     root: Path
     api_entry_count: int
@@ -56,6 +79,8 @@ class CacheStats:
     api_oldest_mtime: float | None
     override_count: int
     override_bytes: int
+    image_entry_count: int
+    image_bytes: int
 
 
 def _disabled() -> bool:
@@ -102,7 +127,7 @@ def cache_warn_threshold() -> int:
 
 
 def cache_size_bytes() -> int:
-    """Total on-disk cache size in bytes (API responses + URL overrides file).
+    """Total on-disk cache size in bytes (API + URL overrides + images).
 
     Stat-only — no payload reads, no JSON parsing, and no side effects: the
     cache directory is not created if it doesn't exist yet. Safe to call at
@@ -126,6 +151,18 @@ def cache_size_bytes() -> int:
     overrides = root / _OVERRIDES_FILE
     with contextlib.suppress(OSError):
         total += overrides.stat().st_size
+    images_dir = root / _IMAGES_SUBDIR
+    if images_dir.exists():
+        # Image cache is one level deeper than `api/`: `images/<category>/...`.
+        # `rglob("*")` is fine here because the dir tree is shallow (categories
+        # + leaf files) and the stat-only walk costs O(entries).
+        try:
+            entries = [p for p in images_dir.rglob("*") if p.is_file()]
+        except OSError:
+            entries = []
+        for entry in entries:
+            with contextlib.suppress(OSError):
+                total += entry.stat().st_size
     return total
 
 
@@ -334,6 +371,198 @@ def list_url_overrides() -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Image cache (indefinite TTL — set logos, set symbols, card art).
+# ---------------------------------------------------------------------------
+
+
+def _safe_image_key(key: str) -> str:
+    """Sanitise an arbitrary key (e.g. a set id like `sv8`) into a filename.
+
+    Set ids from the upstream sources are already mostly safe, but a handful
+    use slashes or punctuation; we collapse anything outside `[A-Za-z0-9_-]`
+    to a single underscore so the filesystem layout stays predictable."""
+    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", key.strip())
+    return safe or "image"
+
+
+def _normalise_image_extension(url_or_ext: str) -> str:
+    """Return an allowed extension (`.png` by default) for a URL or raw ext.
+
+    The cache only stores formats we can serve back as-is to the writers
+    (PIL + reportlab). Anything outside `_IMAGE_EXTENSIONS` falls back to
+    `.png` — the writers handle PNG universally and the original bytes
+    survive intact, so a wrong extension just hurts content-type guessing,
+    not correctness."""
+    candidate = url_or_ext.strip().lower()
+    if "?" in candidate:
+        candidate = candidate.split("?", 1)[0]
+    if "/" in candidate:
+        candidate = Path(candidate).suffix
+    if not candidate.startswith("."):
+        candidate = f".{candidate}" if candidate else ".png"
+    return candidate if candidate in _IMAGE_EXTENSIONS else ".png"
+
+
+def _image_dir(category: str) -> Path:
+    """Return the directory holding cached images for `category`, creating it.
+
+    `category` is a slash-delimited category path: each `/`-separated
+    segment becomes a subdirectory under `cache/images/`. So `"sets/logo"`
+    maps onto `cache/images/sets/logo/` and `"sets/symbol"` onto
+    `cache/images/sets/symbol/`. Empty segments (leading/trailing/double
+    slashes) are dropped, and a single-segment category like `"avatars"`
+    is just as valid as a nested one."""
+    parts = [p for p in category.split("/") if p]
+    target = cache_root().joinpath(_IMAGES_SUBDIR, *parts)
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def read_image(category: str, key: str) -> Path | None:
+    """Return the path of a cached image for `(category, key)` if present.
+
+    No TTL check: presence on disk is sufficient. Discovers any allowed
+    extension so callers don't have to know whether the original was PNG
+    vs. JPG — the first match wins. Returns None when the cache is disabled
+    via `MGZ_PKMN_NO_CACHE`, when the directory doesn't exist yet, or when
+    no file matches.
+
+    TOCTOU-safe: the file may be deleted between the existence check and
+    the size check (concurrent `clear_image_cache`, external cleanup,
+    network filesystem hiccup), so we swallow `OSError` from the stat and
+    treat a vanished file the same as a missing one."""
+    if _disabled():
+        return None
+    parts = [p for p in category.split("/") if p]
+    target_dir = _cache_root_path().joinpath(_IMAGES_SUBDIR, *parts)
+    if not target_dir.exists():
+        return None
+    safe = _safe_image_key(key)
+    for ext in _IMAGE_EXTENSIONS:
+        candidate = target_dir / f"{safe}{ext}"
+        try:
+            if candidate.is_file() and candidate.stat().st_size > 0:
+                return candidate
+        except OSError:
+            # File vanished between the check and the stat (or stat itself
+            # failed transiently). Treat as miss and try the next extension.
+            continue
+    return None
+
+
+def write_image(category: str, key: str, content: bytes, *, ext: str = ".png") -> Path | None:
+    """Persist `content` bytes for `(category, key)` and return the written path.
+
+    Atomic write: bytes go to a sibling `.tmp` file and rename into place,
+    so a partial download never produces a half-written cache entry. A
+    failing write is silently dropped (returns None) — the caller treats
+    the cache as best-effort.
+
+    `ext` is the file extension; pass the original URL extension when
+    available so the on-disk layout mirrors the source format. Unknown
+    extensions are normalised to `.png` (see `_normalise_image_extension`).
+    """
+    if _disabled() or not content:
+        return None
+    safe = _safe_image_key(key)
+    safe_ext = _normalise_image_extension(ext)
+    target = _image_dir(category) / f"{safe}{safe_ext}"
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    try:
+        tmp.write_bytes(content)
+        tmp.replace(target)
+    except OSError:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        return None
+    return target
+
+
+def download_and_cache_image(
+    category: str,
+    key: str,
+    url: str,
+    session: requests.Session,
+    *,
+    timeout: float = 30.0,
+) -> Path | None:
+    """Return a cached image path, downloading via `session` on a miss.
+
+    Cache-aside: a hit returns immediately without touching the network;
+    a miss fetches the URL, persists the bytes through `write_image`, and
+    returns the new path. A network failure logs to stderr (consistent
+    with `images.download_image`) and returns None, leaving the cache
+    untouched. The extension is derived from the URL so PNGs stay PNGs."""
+    cached = read_image(category, key)
+    if cached is not None:
+        return cached
+    if _disabled():
+        return None
+    # Local import to keep `requests` out of the cache module's import-time
+    # surface — callers already depend on it, and tests can mock it out.
+    import requests as _requests
+
+    try:
+        resp = session.get(url, timeout=timeout)
+        resp.raise_for_status()
+    except _requests.RequestException as exc:
+        print(f"  ! image download failed for {url}: {exc}", file=sys.stderr)
+        return None
+    return write_image(category, key, resp.content, ext=url)
+
+
+def clear_image_cache() -> int:
+    """Remove every cached image. Returns the number of files deleted.
+
+    Honoured even when `MGZ_PKMN_NO_CACHE=1` is set — same rationale as
+    `clear_api_cache`: the user explicitly asked for a wipe.
+
+    Distinct from `clear_api_cache` on purpose. Image entries are indefinite
+    and tend to dominate disk usage once a catalog has been warmed; the user
+    should opt into evicting them rather than losing them every time stale
+    API payloads need clearing."""
+    images_dir = _cache_root_path() / _IMAGES_SUBDIR
+    if not images_dir.exists():
+        return 0
+    count = 0
+    for entry in images_dir.rglob("*"):
+        if not entry.is_file():
+            continue
+        try:
+            entry.unlink()
+            count += 1
+        except OSError:
+            continue
+    # Best-effort prune of now-empty category directories so subsequent
+    # `stats()` doesn't show ghost entries.
+    for sub in sorted(images_dir.rglob("*"), reverse=True):
+        if sub.is_dir():
+            with contextlib.suppress(OSError):
+                sub.rmdir()
+    return count
+
+
+def image_cache_size() -> tuple[int, int]:
+    """Return `(entry_count, total_bytes)` for the image cache.
+
+    Stat-only walk, mirrors `cache_size_bytes` for the API slice. Used by
+    `stats()` to populate the dataclass and by `cache warm-sets` to report
+    how much the warm pass cost on disk."""
+    images_dir = _cache_root_path() / _IMAGES_SUBDIR
+    if not images_dir.exists():
+        return 0, 0
+    count = 0
+    total = 0
+    for entry in images_dir.rglob("*"):
+        if not entry.is_file():
+            continue
+        with contextlib.suppress(OSError):
+            total += entry.stat().st_size
+            count += 1
+    return count, total
+
+
+# ---------------------------------------------------------------------------
 # Stats — health snapshot for `pkmn cache stats`.
 # ---------------------------------------------------------------------------
 
@@ -378,6 +607,8 @@ def stats() -> CacheStats:
             # Malformed file — report bytes (if we got them) but no entries.
             pass
 
+    image_count, image_bytes = image_cache_size()
+
     return CacheStats(
         root=root,
         api_entry_count=api_count,
@@ -385,4 +616,6 @@ def stats() -> CacheStats:
         api_oldest_mtime=api_oldest,
         override_count=override_count,
         override_bytes=override_bytes,
+        image_entry_count=image_count,
+        image_bytes=image_bytes,
     )
