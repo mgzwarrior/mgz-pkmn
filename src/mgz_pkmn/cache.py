@@ -406,8 +406,12 @@ def _normalise_image_extension(url_or_ext: str) -> str:
 def _image_dir(category: str) -> Path:
     """Return the directory holding cached images for `category`, creating it.
 
-    `category` is a slash-free string like `"sets/logo"` or `"sets/symbol"`.
-    Nested categories are allowed; the slash drives the on-disk layout."""
+    `category` is a slash-delimited category path: each `/`-separated
+    segment becomes a subdirectory under `cache/images/`. So `"sets/logo"`
+    maps onto `cache/images/sets/logo/` and `"sets/symbol"` onto
+    `cache/images/sets/symbol/`. Empty segments (leading/trailing/double
+    slashes) are dropped, and a single-segment category like `"avatars"`
+    is just as valid as a nested one."""
     parts = [p for p in category.split("/") if p]
     target = cache_root().joinpath(_IMAGES_SUBDIR, *parts)
     target.mkdir(parents=True, exist_ok=True)
@@ -421,7 +425,12 @@ def read_image(category: str, key: str) -> Path | None:
     extension so callers don't have to know whether the original was PNG
     vs. JPG — the first match wins. Returns None when the cache is disabled
     via `MGZ_PKMN_NO_CACHE`, when the directory doesn't exist yet, or when
-    no file matches."""
+    no file matches.
+
+    TOCTOU-safe: the file may be deleted between the existence check and
+    the size check (concurrent `clear_image_cache`, external cleanup,
+    network filesystem hiccup), so we swallow `OSError` from the stat and
+    treat a vanished file the same as a missing one."""
     if _disabled():
         return None
     parts = [p for p in category.split("/") if p]
@@ -431,8 +440,13 @@ def read_image(category: str, key: str) -> Path | None:
     safe = _safe_image_key(key)
     for ext in _IMAGE_EXTENSIONS:
         candidate = target_dir / f"{safe}{ext}"
-        if candidate.exists() and candidate.stat().st_size > 0:
-            return candidate
+        try:
+            if candidate.is_file() and candidate.stat().st_size > 0:
+                return candidate
+        except OSError:
+            # File vanished between the check and the stat (or stat itself
+            # failed transiently). Treat as miss and try the next extension.
+            continue
     return None
 
 

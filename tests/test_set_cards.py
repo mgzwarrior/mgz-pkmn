@@ -134,12 +134,18 @@ class WritePdfTests(unittest.TestCase):
 
 
 class _IsolatedCacheMixin(unittest.TestCase):
-    """Point cache_root() at a tempdir so the image cache stays test-local."""
+    """Point cache_root() at a tempdir so the image cache stays test-local.
+
+    Saves and restores both `XDG_CACHE_HOME` and `MGZ_PKMN_NO_CACHE` so
+    a test that toggles `MGZ_PKMN_NO_CACHE=1` mid-run can't leak state
+    into the next test (matches the contract on `_IsolatedCacheDirMixin`
+    in `tests/test_cache.py`)."""
 
     def setUp(self) -> None:
         super().setUp()
         self._tmp = tempfile.TemporaryDirectory()
         self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(disk_cache._NO_CACHE_ENV)
         os.environ["XDG_CACHE_HOME"] = self._tmp.name
         os.environ.pop(disk_cache._NO_CACHE_ENV, None)
 
@@ -148,6 +154,10 @@ class _IsolatedCacheMixin(unittest.TestCase):
             os.environ.pop("XDG_CACHE_HOME", None)
         else:
             os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[disk_cache._NO_CACHE_ENV] = self._old_no_cache
         self._tmp.cleanup()
         super().tearDown()
 
