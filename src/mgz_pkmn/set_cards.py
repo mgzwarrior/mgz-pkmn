@@ -26,6 +26,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import requests
 from reportlab.lib.pagesizes import letter
@@ -118,9 +119,20 @@ def write_set_cards_pdf(
 ) -> int:
     """Render one cutout per set to a PDF. Returns the count written.
 
-    `logos_dir` + `session` enable set-logo downloading & caching to disk.
-    Pass both as None to render the cutouts text-only (used in tests, and
-    by the CLI's `--no-images` mode)."""
+    `session` is the canonical "fetch images" switch. When provided, the
+    writer resolves each set's logo through the unified disk image cache
+    (`cache/images/sets/logo/<id>.<ext>`) — already-cached logos are
+    served from disk; misses fetch via `session` and persist there.
+
+    `logos_dir` is optional. When passed alongside `session`, the cached
+    logo is mirrored into that directory as a writable sidecar (legacy
+    back-compat with the CLI's `--logos-dir` flag). When omitted, the
+    cache is the only on-disk store, which is what the FastAPI route
+    wants.
+
+    Passing `session=None` renders the cutouts text-only (no logo
+    fetches, no cache writes) — used by tests and by the CLI's
+    `--no-images` mode."""
     if not sets:
         return 0
 
@@ -204,7 +216,10 @@ def _fetch_logo(
         if logos_dir is None:
             return None
         safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", set_id) or "set"
-        ext = Path(url).suffix or ".png"
+        # Strip the query string before deriving the extension — a URL
+        # like `…/logo.png?x=1` otherwise yields a `.png?x=1` suffix and
+        # an unusable filename in `logos_dir`.
+        ext = Path(urlsplit(url).path).suffix or ".png"
         dest = logos_dir / f"{safe}{ext}"
         return dest if download_image(url, dest, session) else None
     if logos_dir is not None:
@@ -247,8 +262,13 @@ def warm_set_images(
         if on_progress is not None:
             on_progress(index, total, set_id)
         images = s.get("images") or {}
-        logo_url = images.get("logo")
         symbol_url = images.get("symbol")
+        # Mirror `_normalize`'s logo→symbol fallback so the writer's
+        # `_fetch_logo` lookup against `sets/logo` lands a cache hit for
+        # sets that only ship a symbol image. Without this fallback, a
+        # warmed cache could still trigger a re-download in
+        # `write_set_cards_pdf` for those sets.
+        logo_url = images.get("logo") or symbol_url
         if logo_url:
             if disk_cache.download_and_cache_image(
                 _LOGO_CATEGORY, set_id, logo_url, client.session

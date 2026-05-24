@@ -60,7 +60,55 @@ class ReleaseYearTests(unittest.TestCase):
         self.assertIsNone(_release_year(""))
 
 
-class FetchAllSetsTests(unittest.TestCase):
+class _IsolatedCacheMixin(unittest.TestCase):
+    """Point cache_root() at a tempdir so the image cache stays test-local.
+
+    Saves and restores both `XDG_CACHE_HOME` and `MGZ_PKMN_NO_CACHE` so
+    a test that toggles `MGZ_PKMN_NO_CACHE=1` mid-run can't leak state
+    into the next test (matches the contract on `_IsolatedCacheDirMixin`
+    in `tests/test_cache.py`)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(disk_cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[disk_cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+        super().tearDown()
+
+
+def _client_with_responses(responses: dict[str, bytes]) -> MagicMock:
+    """Build a TCGClient stand-in whose session returns the mapped bytes."""
+    client = MagicMock()
+
+    def _get(url: str, timeout: float | None = None) -> MagicMock:
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = responses.get(url, b"")
+        resp.raise_for_status.return_value = None
+        return resp
+
+    client.session.get.side_effect = _get
+    return client
+
+
+class FetchAllSetsTests(_IsolatedCacheMixin):
+    # `fetch_all_sets` now routes the catalog response through the API
+    # disk cache. Inheriting the isolation mixin keeps the test from
+    # reading a real cached payload out of $HOME/.cache/mgz-pkmn (which
+    # would otherwise mask the mocked session response).
     def test_normalizes_pokemontcg_payload(self) -> None:
         client = MagicMock()
         response = MagicMock()
@@ -131,50 +179,6 @@ class WritePdfTests(unittest.TestCase):
             out = Path(tmp) / "set-cards.pdf"
             written = write_set_cards_pdf(sets, out, today=_dt.date(2026, 5, 10))
             self.assertEqual(written, 1)
-
-
-class _IsolatedCacheMixin(unittest.TestCase):
-    """Point cache_root() at a tempdir so the image cache stays test-local.
-
-    Saves and restores both `XDG_CACHE_HOME` and `MGZ_PKMN_NO_CACHE` so
-    a test that toggles `MGZ_PKMN_NO_CACHE=1` mid-run can't leak state
-    into the next test (matches the contract on `_IsolatedCacheDirMixin`
-    in `tests/test_cache.py`)."""
-
-    def setUp(self) -> None:
-        super().setUp()
-        self._tmp = tempfile.TemporaryDirectory()
-        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
-        self._old_no_cache = os.environ.get(disk_cache._NO_CACHE_ENV)
-        os.environ["XDG_CACHE_HOME"] = self._tmp.name
-        os.environ.pop(disk_cache._NO_CACHE_ENV, None)
-
-    def tearDown(self) -> None:
-        if self._old_xdg is None:
-            os.environ.pop("XDG_CACHE_HOME", None)
-        else:
-            os.environ["XDG_CACHE_HOME"] = self._old_xdg
-        if self._old_no_cache is None:
-            os.environ.pop(disk_cache._NO_CACHE_ENV, None)
-        else:
-            os.environ[disk_cache._NO_CACHE_ENV] = self._old_no_cache
-        self._tmp.cleanup()
-        super().tearDown()
-
-
-def _client_with_responses(responses: dict[str, bytes]) -> MagicMock:
-    """Build a TCGClient stand-in whose session returns the mapped bytes."""
-    client = MagicMock()
-
-    def _get(url: str, timeout: float | None = None) -> MagicMock:
-        resp = MagicMock()
-        resp.status_code = 200
-        resp.content = responses.get(url, b"")
-        resp.raise_for_status.return_value = None
-        return resp
-
-    client.session.get.side_effect = _get
-    return client
 
 
 class WarmSetImagesTests(_IsolatedCacheMixin):
@@ -398,8 +402,10 @@ class WarmSetImagesFailureTests(_IsolatedCacheMixin):
         self.assertEqual(result.symbols_cached, 0)
         self.assertEqual(result.failures, 2)
 
-    def test_skips_sets_with_no_id(self) -> None:
-        # A bogus set with no id and no name must not crash the walk.
+    def test_skips_sets_with_no_id_and_no_name(self) -> None:
+        # `warm_set_images` falls back to `s.get("name")` when `id` is
+        # missing, so the only entries it actually skips are ones where
+        # BOTH are empty. A bogus set like that must not crash the walk.
         sets = [{"name": ""}, {"id": "sv8", "images": {"logo": "u"}}]
         client = MagicMock()
         resp = MagicMock()
