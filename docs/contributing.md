@@ -188,6 +188,38 @@ The PR body must still include a closing keyword (`Fixes #N`, `Closes
 #N`, `Resolves #N`) — that's what GitHub uses for the issue/PR link
 and for auto-closing the issue on merge.
 
+### Verification artifacts
+
+PRs that are observable in the browser preview, or that fix a
+user-reported bug (even a backend one), need a **verification
+artifact** in the body — a screenshot, a [Jam](https://jam.dev)
+recording, or a `curl` / log snippet — so reviewers can see the
+change without reproducing it locally. Drop it under **How to verify**
+or in a dedicated **Proof** subsection. Pick the form that matches the
+change:
+
+- **UI change** — paste a screenshot, or a before/after pair for
+  positional and layout fixes. Use the GitHub PR-body image picker so
+  the asset lives on `user-images.githubusercontent.com`.
+- **Multi-step interaction** (dropdown, drawer, tour, streaming
+  results) — record a short Jam clip and paste the link.
+- **Backend bug fix** that closes a user-reported issue — paste a
+  `curl` or log snippet showing the fixed response, or a screenshot
+  of the corrected surface in the SPA.
+
+Exempt: dependency bumps, internal refactors with no behavior change,
+test-only or docs-only PRs.
+
+**Required for merge.** Both checks below have to clear before a PR
+can be merged:
+
+1. All [CI checks](#ci) (`api`, `web`, `site`, `DCO`, CodeQL) are
+   green.
+2. For any in-scope PR (see above), a verification artifact is in the
+   PR body. This is reviewer-enforced, not gated by CI — reviewers
+   should withhold approval and re-request changes on any in-scope PR
+   that lacks one.
+
 If you have a question before you open the PR, use [GitHub Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions) for that first-pass conversation — it keeps exploratory design talk out of the issue tracker until there is a concrete change to make.
 
 ## Development

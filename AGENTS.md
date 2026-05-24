@@ -94,6 +94,35 @@ make check
 
 ---
 
+## PR verification artifacts
+
+Every PR that is observable in the browser preview, or that fixes a
+user-reported bug (even a backend one), must include a **verification
+artifact** in the PR body — a screenshot, a [Jam](https://jam.dev)
+recording, or a `curl` / log snippet — so reviewers can see the
+change without reproducing it locally. Pick the form that matches the
+change:
+
+- **UI change** — drop a screenshot (or a before/after pair for
+  positional or layout fixes) under **How to verify**, or under a
+  dedicated **Proof** subsection. Upload via the GitHub PR-body image
+  picker so the asset lives on `user-images.githubusercontent.com`.
+- **Multi-step interaction** (dropdown, drawer, tour, streaming
+  results) — record a short Jam clip and paste the link.
+- **Backend bug fix** that closes a user-reported issue — paste a
+  `curl` or log artifact showing the fixed response, or a screenshot
+  of the corrected surface in the SPA.
+
+Exempt: dependency bumps, internal refactors with no behavior change,
+test-only or docs-only PRs.
+
+**Required for merge.** All [CI checks](docs/contributing.md#ci) must
+be green before a PR is merged. The verification artifact requirement
+is enforced by reviewers, not by CI — a reviewer should withhold
+approval (and re-request changes) on any in-scope PR that lacks one.
+
+---
+
 ## Doc cross-link conventions
 
 When adding or changing a public-facing behaviour:
