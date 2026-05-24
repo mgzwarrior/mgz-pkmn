@@ -94,6 +94,28 @@ make check
 
 ---
 
+## PR verification artifacts
+
+Every PR that is observable in the browser preview, or that fixes a
+user-reported bug (even a backend one), must include a screenshot or
+[Jam](https://jam.dev) recording in the PR body so reviewers can see
+the change without reproducing it locally.
+
+- **UI change** — drop a screenshot (or a before/after pair for
+  positional or layout fixes) under **How to verify**, or under a
+  dedicated **Proof** subsection. Upload via the GitHub PR-body image
+  picker so the asset lives on `user-images.githubusercontent.com`.
+- **Multi-step interaction** (dropdown, drawer, tour, streaming
+  results) — record a short Jam clip and paste the link.
+- **Backend bug fix** that closes a user-reported issue — paste a
+  `curl` or log artifact showing the fixed response, or a screenshot
+  of the corrected surface in the SPA.
+
+Exempt: dependency bumps, internal refactors with no behavior change,
+test-only or docs-only PRs.
+
+---
+
 ## Doc cross-link conventions
 
 When adding or changing a public-facing behaviour:

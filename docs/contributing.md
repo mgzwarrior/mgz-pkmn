@@ -188,6 +188,26 @@ The PR body must still include a closing keyword (`Fixes #N`, `Closes
 #N`, `Resolves #N`) — that's what GitHub uses for the issue/PR link
 and for auto-closing the issue on merge.
 
+### Verification artifacts
+
+PRs that are observable in the browser preview, or that fix a
+user-reported bug (even a backend one), need a screenshot or
+[Jam](https://jam.dev) recording in the body so reviewers can see the
+change without reproducing it locally. Drop it under **How to verify**
+or in a dedicated **Proof** subsection:
+
+- **UI change** — paste a screenshot, or a before/after pair for
+  positional and layout fixes. Use the GitHub PR-body image picker so
+  the asset lives on `user-images.githubusercontent.com`.
+- **Multi-step interaction** (dropdown, drawer, tour, streaming
+  results) — record a short Jam clip and paste the link.
+- **Backend bug fix** that closes a user-reported issue — paste a
+  `curl` or log snippet showing the fixed response, or a screenshot
+  of the corrected surface in the SPA.
+
+Exempt: dependency bumps, internal refactors with no behavior change,
+test-only or docs-only PRs.
+
 If you have a question before you open the PR, use [GitHub Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions) for that first-pass conversation — it keeps exploratory design talk out of the issue tracker until there is a concrete change to make.
 
 ## Development
