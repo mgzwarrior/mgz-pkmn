@@ -275,4 +275,170 @@ describe('CardDetailModal', () => {
     const link = screen.getByRole('link', { name: /View on/ }) as HTMLAnchorElement
     expect(link.href).toBe('https://pokemontcg.io/cards/base1-4')
   })
+
+  it('prefers card.tcgplayer.url over the pokemontcg.io fallback', () => {
+    const row = buildRow({
+      pricing: { url: null },
+      card: {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        rarity: 'Rare Holo',
+        set: { name: 'Base Set' },
+        tcgplayer: { url: 'https://www.tcgplayer.com/product/from-card' },
+      },
+    })
+    render(
+      <CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />,
+    )
+    const link = screen.getByRole('link', { name: /View on/ }) as HTMLAnchorElement
+    expect(link.href).toBe('https://www.tcgplayer.com/product/from-card')
+  })
+
+  it('falls through to card.cardmarket.url when TCGPlayer is absent', () => {
+    const row = buildRow({
+      pricing: { url: null },
+      card: {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        rarity: 'Rare Holo',
+        set: { name: 'Base Set' },
+        cardmarket: { url: 'https://www.cardmarket.com/en/Pokemon/Products/123' },
+      },
+    })
+    render(
+      <CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />,
+    )
+    const link = screen.getByRole('link', { name: /View on/ }) as HTMLAnchorElement
+    expect(link.href).toBe(
+      'https://www.cardmarket.com/en/Pokemon/Products/123',
+    )
+  })
+
+  it('hides the source link when no URL is available anywhere', () => {
+    // No pricing.url, no tcgplayer/cardmarket, no card.id — every branch of
+    // deriveSourceUrl returns null. We explicitly clear the spread-merged
+    // defaults with `undefined` so the test really hits the no-link path.
+    const row = buildRow({
+      pricing: { url: null },
+      card: {
+        name: 'GhostMon',
+        id: undefined,
+        tcgplayer: undefined,
+        cardmarket: undefined,
+      },
+    })
+    render(
+      <CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />,
+    )
+    expect(screen.queryByRole('link', { name: /View on/ })).toBeNull()
+  })
+
+  it('renders resistances, retreat, dex, and flavor text branches', () => {
+    const row = buildRow({
+      card: {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        rarity: 'Rare Holo',
+        set: { name: 'Base Set' },
+        resistances: [{ type: 'Fighting', value: '-30' }],
+        retreatCost: ['Colorless', 'Colorless'],
+        nationalPokedexNumbers: [6],
+        flavorText: 'Spits fire that is hot enough to melt boulders.',
+      },
+    })
+    render(
+      <CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />,
+    )
+    expect(screen.getByText('Fighting -30')).toBeInTheDocument()
+    expect(screen.getByText('Colorless · Colorless')).toBeInTheDocument()
+    expect(screen.getByText('6')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Spits fire that is hot enough to melt boulders/),
+    ).toBeInTheDocument()
+  })
+
+  it('skips identity-list rows whose value is missing', () => {
+    // No series, no rarity, no variant — those <dt>/<dd> pairs should be
+    // filtered out entirely (not rendered as "Series: —").
+    const row = buildRow({
+      card: {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        set: { name: 'Base Set' }, // no series
+        rarity: undefined,
+      },
+      pricing: { variant: null },
+    })
+    render(
+      <CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />,
+    )
+    // None of these labels appear because every value was null/missing.
+    expect(screen.queryByText('Series')).toBeNull()
+    expect(screen.queryByText('Rarity')).toBeNull()
+    expect(screen.queryByText('Variant')).toBeNull()
+    // But the rows that DO have values still render.
+    expect(screen.getByText('Set')).toBeInTheDocument()
+    expect(screen.getByText('Base Set')).toBeInTheDocument()
+  })
+
+  it('shows "—" for the market price line when pricing is unavailable', () => {
+    const row = buildRow({
+      pricing: { market: null, source: null, url: null },
+    })
+    render(
+      <CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />,
+    )
+    // Every comp line and the market price line should fall back to the
+    // em-dash sentinel; sanity check by asserting we see the dash and not
+    // a dollar value.
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(5)
+    expect(screen.queryByText(/^\$/)).toBeNull()
+  })
+
+  it('header navigation buttons advance the modal', () => {
+    const rows = [
+      buildRow({ card: { name: 'Charizard', id: 'a', set: { name: 'Base' } } }),
+      buildRow({ card: { name: 'Blastoise', id: 'b', set: { name: 'Base' } } }),
+    ]
+    const onChange = vi.fn()
+    render(<CardDetailModal rows={rows} index={0} onChangeIndex={onChange} />)
+    fireEvent.click(screen.getByLabelText('Next card'))
+    expect(onChange).toHaveBeenCalledWith(1)
+  })
+
+  it('header navigation buttons are disabled at the ends of the row set', () => {
+    const rows = [
+      buildRow({ card: { name: 'Charizard', id: 'a', set: { name: 'Base' } } }),
+      buildRow({ card: { name: 'Blastoise', id: 'b', set: { name: 'Base' } } }),
+    ]
+    const { rerender } = render(
+      <CardDetailModal rows={rows} index={0} onChangeIndex={() => {}} />,
+    )
+    expect(screen.getByLabelText('Previous card')).toBeDisabled()
+    expect(screen.getByLabelText('Next card')).not.toBeDisabled()
+    rerender(<CardDetailModal rows={rows} index={1} onChangeIndex={() => {}} />)
+    expect(screen.getByLabelText('Previous card')).not.toBeDisabled()
+    expect(screen.getByLabelText('Next card')).toBeDisabled()
+  })
+
+  it('uses the query name as a fallback when card.name is missing', () => {
+    const row = buildRow({
+      query: { name: 'MissingMon', raw: 'MissingMon' } as Row['query'],
+      card: {
+        // no name field — Dialog.Title and image alt should fall back to query.name
+        id: 'unknown',
+        set: { name: 'Unknown Set' },
+        name: undefined,
+      },
+    })
+    render(
+      <CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />,
+    )
+    // The title and the identity Name row both render the fallback.
+    expect(screen.getAllByText('MissingMon').length).toBeGreaterThanOrEqual(1)
+  })
 })
