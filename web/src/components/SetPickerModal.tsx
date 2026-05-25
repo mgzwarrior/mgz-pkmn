@@ -98,10 +98,13 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   // Edit-in-place working copy so the user can cancel without persisting
-  // changes. Seeded from the store on open via `handleOpenChange`, not in
-  // an effect — keeping the open-transition reset event-driven satisfies
-  // the no-setState-in-effect rule and matches the parent's controlled
-  // semantics.
+  // changes. Reseeded on every closed → open transition by the effect
+  // below, not in `handleOpenChange`: Radix only fires `onOpenChange`
+  // for its own state-change requests (Escape, outside click, close
+  // button). A parent-driven open like `ExportBar`'s
+  // `setPickerOpen(true)` flips the `open` prop without going through
+  // that callback, so an effect that watches the prop is the only
+  // place that catches every entry into the modal.
   const [draft, setDraft] = useState<Set<string>>(() => new Set(selectedSetIds))
 
   // Series whose set list is collapsed. All groups start expanded; the
@@ -109,14 +112,21 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   // 173-set list when the user only wants one or two series.
   const [collapsedSeries, setCollapsedSeries] = useState<Set<string>>(() => new Set())
 
-  function handleOpenChange(next: boolean) {
-    if (next) {
-      setDraft(new Set(selectedSetIds))
-      setLoadError(null)
-      setSubmitError(null)
-    }
-    onOpenChange(next)
-  }
+  // Reseed draft + clear transient errors whenever the modal becomes
+  // visible. `selectedSetIds` is intentionally excluded from deps:
+  // we only want to reset on the open transition, not on every store
+  // update that lands while the modal is already open (which would
+  // clobber the user's in-flight edits). The setState-in-effect rule
+  // is suppressed because reacting to a prop transition is exactly
+  // this rule's documented escape hatch.
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  useEffect(() => {
+    if (!open) return
+    setDraft(new Set(selectedSetIds))
+    setLoadError(null)
+    setSubmitError(null)
+  }, [open])
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   // Lazy-load the catalog once, the first time the modal opens. We keep
   // the result mounted across open/close so a re-open is free.
@@ -213,7 +223,7 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
         <Dialog.Content

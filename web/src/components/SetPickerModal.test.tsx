@@ -219,6 +219,33 @@ describe('SetPickerModal', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
+  it('parent-driven reopen reseeds draft and clears stale submit error', async () => {
+    mockDownload.mockRejectedValueOnce(new Error('rate-limited'))
+    const onOpenChange = vi.fn()
+    const { rerender } = render(
+      <SetPickerModal open={true} onOpenChange={onOpenChange} />
+    )
+    await waitForCatalog()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include Base Set' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Download PDF' }))
+    expect(await screen.findByText('rate-limited')).toBeInTheDocument()
+
+    // Close + reopen via parent prop flip — Radix never fires
+    // onOpenChange for this path, so the effect is the only thing
+    // that can reset state.
+    rerender(<SetPickerModal open={false} onOpenChange={onOpenChange} />)
+    rerender(<SetPickerModal open={true} onOpenChange={onOpenChange} />)
+    await waitForCatalog()
+
+    expect(screen.queryByText('rate-limited')).not.toBeInTheDocument()
+    // Draft was reseeded from the store (still empty), so the previously
+    // checked box is back to unchecked.
+    expect(
+      screen.getByRole('checkbox', { name: 'Include Base Set' }),
+    ).not.toBeChecked()
+  })
+
   it('collapsing a series hides its rows; expanding restores them', async () => {
     renderOpen()
     await waitForCatalog()
