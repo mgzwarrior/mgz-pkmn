@@ -41,7 +41,7 @@ boundary.
 | `--images-dir PATH` | `output/images/` | Where to save downloaded card images. |
 | `--api-key TEXT` | `$POKEMONTCG_IO_API_KEY` | pokemontcg.io API key (raises rate limits). |
 | `--no-images` | off | Skip image downloads + embedding. |
-| `--max-price FLOAT` | (none) | Per-card budget cap. **Bulk** `top:N` / `All …` lookups respect it strictly — candidates above the cap are excluded *before* the top-N cut, so an "affordable top 10" still returns 10. **Single-card** lookups always appear in every artifact even when above the cap, but get a visual flag (amber-fill on the Market cell in xlsx, red `! MP $X` line in the PDF, `over_max_price: true` in JSON). See the currency-blindness warning below. |
+| `--max-price FLOAT` | (none) | Per-card budget cap. **Bulk** `top:N` / `All …` lookups respect it strictly — candidates above the cap are excluded *before* the top-N cut, so an "affordable top 10" still returns 10. **Single-card** lookups always appear in every artifact even when above the cap, but get a visual flag (amber-fill on the Market + comp cells in xlsx — see [over-cap highlighting](outputs.md#over-cap-highlighting), red `! MP $X` line in the PDF, `over_max_price: true` in JSON). See the currency-blindness warning below. |
 | `--dedupe` | off | Remove duplicate matched cards across all queries (keyed by card id), keeping the first occurrence in xlsx / PDF / JSON. |
 | `--report-json PATH` | (none) | Also dump a structured JSON report. See [Outputs](outputs.md#json-report). |
 | `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF (9 cards/page) — image-forward, sized to print and slip into 9-pocket pages as physical placeholders. See [PDF binder](binder-pdf.md). |
