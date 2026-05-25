@@ -20,6 +20,7 @@ from mgz_pkmn.set_cards import (
     _draw_logo,
     _release_year,
     fetch_all_sets,
+    filter_sets_by_ids,
     warm_set_images,
     write_set_cards_pdf,
 )
@@ -417,6 +418,44 @@ class WarmSetImagesFailureTests(_IsolatedCacheMixin):
         # First entry (no id, no name) is skipped — only the second counts.
         self.assertEqual(result.sets, 2)  # `total` is the raw length
         self.assertEqual(result.logos_cached, 1)
+
+
+class FilterSetsByIdsTests(unittest.TestCase):
+    def _sets(self) -> list[dict]:
+        return [
+            {"id": "base1", "name": "Base"},
+            {"id": "jungle", "name": "Jungle"},
+            {"id": "fossil", "name": "Fossil"},
+        ]
+
+    def test_none_passes_through(self) -> None:
+        sets = self._sets()
+        self.assertIs(filter_sets_by_ids(sets, None), sets)
+
+    def test_empty_iterable_passes_through(self) -> None:
+        sets = self._sets()
+        self.assertIs(filter_sets_by_ids(sets, []), sets)
+        self.assertIs(filter_sets_by_ids(sets, ()), sets)
+
+    def test_filters_to_matching_ids(self) -> None:
+        out = filter_sets_by_ids(self._sets(), ["jungle", "fossil"])
+        self.assertEqual([s["id"] for s in out], ["jungle", "fossil"])
+
+    def test_preserves_input_order(self) -> None:
+        # `set_ids` ordering must not change the catalog ordering — the
+        # PDF should still render oldest → newest regardless of how the
+        # SPA passes the ids.
+        out = filter_sets_by_ids(self._sets(), ["fossil", "base1"])
+        self.assertEqual([s["id"] for s in out], ["base1", "fossil"])
+
+    def test_unknown_ids_return_empty(self) -> None:
+        # Typos / stale set ids must produce an empty list rather than a
+        # fuzzy match — callers turn empty into a 404 / ClickException.
+        self.assertEqual(filter_sets_by_ids(self._sets(), ["does-not-exist"]), [])
+
+    def test_match_is_case_sensitive(self) -> None:
+        # pokemontcg.io set ids are lowercase; uppercase typos should miss.
+        self.assertEqual(filter_sets_by_ids(self._sets(), ["BASE1"]), [])
 
 
 class DrawLogoTests(unittest.TestCase):

@@ -23,7 +23,12 @@ from .lookup import find_card, find_top_cards
 from .parser import CardQuery, read_input
 from .pricing import Pricing, extract_pricing
 from .report import build_json_report
-from .set_cards import fetch_all_sets, warm_set_images, write_set_cards_pdf
+from .set_cards import (
+    fetch_all_sets,
+    filter_sets_by_ids,
+    warm_set_images,
+    write_set_cards_pdf,
+)
 from .sorting import DEFAULT_SORT, SORT_MODES, sort_rows
 from .sources import PriceChartingClient, TCGClient, TCGDexClient
 from .sources.base import MatchResult
@@ -825,12 +830,24 @@ def _expand_inputs(paths: tuple[Path, ...]) -> list[Path]:
     is_flag=True,
     help="Skip logo downloads and render text-only cutouts.",
 )
+@click.option(
+    "-s",
+    "--set",
+    "set_ids",
+    multiple=True,
+    metavar="SET_ID",
+    help=(
+        "Restrict output to one or more set ids (repeatable; e.g. "
+        "`-s sv8 -s sv7`). Omit to render every set."
+    ),
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def set_cards_command(
     output: Path,
     api_key: str | None,
     logos_dir: Path,
     no_images: bool,
+    set_ids: tuple[str, ...],
     verbose: bool,
 ) -> None:
     """Generate printable set ID cards for binder section dividers.
@@ -838,7 +855,11 @@ def set_cards_command(
     Fetches every Pokémon TCG set from pokemontcg.io and emits one
     card-sized cutout per set, laid out 3x3 on Letter so a printed page
     drops straight into a 9-pocket binder sheet. Takes no positional
-    arguments."""
+    arguments.
+
+    Pass `--set <id>` (repeatable) to restrict the output to specific
+    sets — the SPA's set picker modal uses the same filter under the
+    hood, so anything you can pick there is reachable from the CLI."""
     _print_banner(__version__)
 
     _print_section("Fetching set catalog from pokemontcg.io")
@@ -851,6 +872,16 @@ def set_cards_command(
         raise click.ClickException("pokemontcg.io returned no sets")
     click.secho("  ✓ ", fg="green", nl=False)
     click.echo(f"{len(sets)} set{'s' if len(sets) != 1 else ''}")
+
+    if set_ids:
+        sets = filter_sets_by_ids(sets, set_ids)
+        if not sets:
+            raise click.ClickException(f"no sets matched the requested ids: {', '.join(set_ids)}")
+        click.secho("  ✓ ", fg="green", nl=False)
+        click.echo(
+            f"filtered to {len(sets)} set{'s' if len(sets) != 1 else ''} "
+            + click.style(f"({', '.join(set_ids)})", fg="bright_black")
+        )
 
     _print_section("Writing outputs")
     logos = None if no_images else logos_dir

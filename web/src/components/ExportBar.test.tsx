@@ -3,15 +3,24 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { ExportBar } from './ExportBar'
 import { useAppStore } from '../store'
 import type { Row } from '../types'
-import { exportFile, downloadSetCardsPdf } from '../api/client'
+import { exportFile } from '../api/client'
 
 vi.mock('../api/client', () => ({
   exportFile: vi.fn(),
   downloadSetCardsPdf: vi.fn(),
+  fetchSets: vi.fn().mockResolvedValue([]),
+  setLogoUrl: vi.fn((id: string) => `/api/v1/sets/${id}/logo`),
+}))
+
+// Stub the picker modal so these tests stay focused on the ExportBar
+// surface — clicking "Set ID cards…" just toggles the stub. The modal
+// itself has its own test file (SetPickerModal.test.tsx).
+vi.mock('./SetPickerModal', () => ({
+  SetPickerModal: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="set-picker-stub">picker open</div> : null,
 }))
 
 const mockExportFile = vi.mocked(exportFile)
-const mockDownloadSetCardsPdf = vi.mocked(downloadSetCardsPdf)
 
 /**
  * Radix DropdownMenu opens on `pointerdown`, not on `click`, so the plain
@@ -64,9 +73,7 @@ describe('ExportBar', () => {
       },
     })
     mockExportFile.mockReset()
-    mockDownloadSetCardsPdf.mockReset()
     mockExportFile.mockResolvedValue(undefined)
-    mockDownloadSetCardsPdf.mockResolvedValue(undefined)
   })
 
   it('renders an Export trigger', () => {
@@ -81,7 +88,9 @@ describe('ExportBar', () => {
     expect(screen.getByText('PDF binder')).toBeInTheDocument()
     expect(screen.getByText('Condensed PDF')).toBeInTheDocument()
     expect(screen.getByText('Checklist')).toBeInTheDocument()
-    expect(screen.getByText('Set ID cards')).toBeInTheDocument()
+    // The Set ID cards item now opens the picker modal — the ellipsis
+    // signals "more options before you commit."
+    expect(screen.getByText('Set ID cards…')).toBeInTheDocument()
   })
 
   it('disables row-dependent items when no rows are matched, but keeps Set ID cards enabled', () => {
@@ -92,7 +101,7 @@ describe('ExportBar', () => {
       const item = screen.getByText(label).closest('[role="menuitem"]')!
       expect(item).toHaveAttribute('data-disabled')
     }
-    const setCards = screen.getByText('Set ID cards').closest('[role="menuitem"]')!
+    const setCards = screen.getByText('Set ID cards…').closest('[role="menuitem"]')!
     expect(setCards).not.toHaveAttribute('data-disabled')
 
     // Row count label is only shown when there are matched rows.
@@ -172,36 +181,26 @@ describe('ExportBar', () => {
     expect(mockExportFile).not.toHaveBeenCalled()
   })
 
-  it('calls downloadSetCardsPdf when Set ID cards is picked, even without matched rows', async () => {
-    useAppStore.setState({
-      rows: [],
-      settings: {
-        apiKey: 'secret-key',
-        maxPrice: null,
-        noImages: true,
-        tag: '',
-        dedupe: false,
-        sort: 'number',
-      },
-    })
-
+  it('Set ID cards menu item opens the picker modal', async () => {
     render(<ExportBar />)
     openDropdown()
-    fireEvent.click(screen.getByText('Set ID cards'))
+    expect(screen.queryByTestId('set-picker-stub')).not.toBeInTheDocument()
 
-    await waitFor(() => expect(mockDownloadSetCardsPdf).toHaveBeenCalledTimes(1))
-    expect(mockDownloadSetCardsPdf).toHaveBeenCalledWith('secret-key')
+    fireEvent.click(screen.getByText('Set ID cards…'))
+
+    expect(await screen.findByTestId('set-picker-stub')).toBeInTheDocument()
   })
 
-  it('passes undefined to downloadSetCardsPdf when no API key is configured', async () => {
+  it('Set ID cards menu item works even with no matched rows', async () => {
+    // The modal still opens with zero rows in the store — it doesn't
+    // require any lookup state to function.
     useAppStore.setState({ rows: [] })
 
     render(<ExportBar />)
     openDropdown()
-    fireEvent.click(screen.getByText('Set ID cards'))
+    fireEvent.click(screen.getByText('Set ID cards…'))
 
-    await waitFor(() => expect(mockDownloadSetCardsPdf).toHaveBeenCalledTimes(1))
-    expect(mockDownloadSetCardsPdf).toHaveBeenCalledWith(undefined)
+    expect(await screen.findByTestId('set-picker-stub')).toBeInTheDocument()
   })
 
   it('surfaces export errors in the bar', async () => {
@@ -224,16 +223,5 @@ describe('ExportBar', () => {
     fireEvent.click(screen.getByText('Condensed PDF'))
 
     expect(await screen.findByText('rate-limited')).toBeInTheDocument()
-  })
-
-  it('surfaces Set ID cards errors in the bar', async () => {
-    mockDownloadSetCardsPdf.mockRejectedValueOnce(new Error('catalog down'))
-    useAppStore.setState({ rows: [] })
-
-    render(<ExportBar />)
-    openDropdown()
-    fireEvent.click(screen.getByText('Set ID cards'))
-
-    expect(await screen.findByText('catalog down')).toBeInTheDocument()
   })
 })

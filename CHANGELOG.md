@@ -9,6 +9,31 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: **Set picker modal** for the Set ID cards export. Clicking
+  **Set ID cards…** in the Export dropdown now opens a picker that
+  groups every set by series **newest → oldest** (modern blocks like
+  Scarlet & Violet sit at the top; the original Base set is at the bottom),
+  shows each set's cached logo + name + year + total, and lets the
+  user multi-select with **Select all / Select none / Expand all /
+  Collapse all / Select series** buttons. Each series is a collapsible
+  section so the 173-entry catalog stays scannable; the header shows a
+  per-series selection count (`(2/18)`) once anything in it is picked.
+  Selection persists across reloads (Zustand). Submitting the modal
+  downloads a PDF containing only the chosen sets — exactly the same
+  path the new CLI flag uses on the backend. Logo thumbnails come from
+  the new `GET /api/v1/sets/{set_id}/logo` endpoint, which streams
+  images out of the unified disk cache populated by `pkmn cache warm-sets`.
+- API: new `GET /api/v1/sets/{set_id}/logo` endpoint serves cached set
+  logos with a 30-day immutable browser cache. 404 with a "run
+  `pkmn cache warm-sets`" hint when the set hasn't been warmed yet, so
+  the SPA can fall back gracefully and tell the user how to fix it.
+- API: `GET /api/v1/set-cards.pdf` accepts a repeatable `set_ids` query
+  param to restrict the output to specific sets. Unknown ids return
+  404 instead of an empty PDF so the SPA surfaces a clear error.
+- CLI: new `pkmn set-cards --set <id>` flag (repeatable, also `-s`) —
+  the same picker filter is reachable from the terminal. Unknown ids
+  fail loudly as a `ClickException` rather than producing an empty
+  PDF.
 - CLI: new `pkmn cache warm-sets` subcommand walks every Pokémon TCG set
   and pre-downloads each set's logo + symbol into the unified disk image
   cache. Cold warm is a single up-front cost (~30 s on a fresh install,

@@ -336,6 +336,56 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("1 failures", result.output)
 
+    def test_set_cards_set_flag_filters_writer(self) -> None:
+        # `pkmn set-cards --set sv8 --set sv7` should reach
+        # write_set_cards_pdf with only those two entries.
+        from unittest.mock import patch as _patch
+
+        sets = [
+            {"id": "sv8", "name": "Surging Sparks", "images": {}},
+            {"id": "sv7", "name": "Stellar Crown", "images": {}},
+            {"id": "sv6", "name": "Twilight Masquerade", "images": {}},
+        ]
+        captured: dict = {}
+
+        def _fake_writer(rows, out_path, *, logos_dir=None, session=None, today=None):
+            captured["sets"] = rows
+            out_path.write_bytes(b"%PDF\n")
+            return len(rows)
+
+        with (
+            _patch("mgz_pkmn.cli.fetch_all_sets", return_value=sets),
+            _patch("mgz_pkmn.cli.write_set_cards_pdf", side_effect=_fake_writer),
+            tempfile.TemporaryDirectory() as tmp,
+        ):
+            out = Path(tmp) / "out.pdf"
+            result = CliRunner().invoke(
+                cli, ["set-cards", "-o", str(out), "--set", "sv8", "--set", "sv7"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("filtered to 2 sets", result.output)
+        self.assertEqual([s["id"] for s in captured["sets"]], ["sv8", "sv7"])
+
+    def test_set_cards_set_flag_with_unknown_id_fails(self) -> None:
+        # An id that doesn't match any catalog entry should surface as a
+        # ClickException — not silently produce an empty PDF.
+        from unittest.mock import patch as _patch
+
+        sets = [{"id": "sv8", "name": "Surging Sparks", "images": {}}]
+
+        with (
+            _patch("mgz_pkmn.cli.fetch_all_sets", return_value=sets),
+            tempfile.TemporaryDirectory() as tmp,
+        ):
+            out = Path(tmp) / "out.pdf"
+            result = CliRunner().invoke(
+                cli, ["set-cards", "-o", str(out), "--set", "does-not-exist"]
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("does-not-exist", result.output)
+
     def test_warm_sets_clickfails_when_catalog_is_empty(self) -> None:
         # An empty catalog should surface as a ClickException, not a silent
         # success — the user installing fresh would otherwise have no

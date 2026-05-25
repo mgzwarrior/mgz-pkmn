@@ -72,6 +72,33 @@ class SetCardsEndpointTests(unittest.TestCase):
         self.assertIsNone(captured["logos_dir"])
         self.assertIsNone(captured["session"])
 
+    def test_set_ids_query_param_filters_catalog(self) -> None:
+        # Repeated `?set_ids=sv8&set_ids=sv7` must reach the writer with
+        # only those entries — the SPA picker depends on this contract.
+        captured: dict = {}
+
+        def _fake_writer(sets, out_path, *, logos_dir=None, session=None, today=None):
+            captured["sets"] = sets
+            out_path.write_bytes(b"%PDF-1.4\n%fake\n")
+            return len(sets)
+
+        with (
+            patch("api.routes.set_cards.fetch_all_sets", return_value=SAMPLE_SETS),
+            patch("api.routes.set_cards.write_set_cards_pdf", side_effect=_fake_writer),
+        ):
+            resp = client.get("/api/v1/set-cards.pdf?set_ids=sv8")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([s["id"] for s in captured["sets"]], ["sv8"])
+
+    def test_set_ids_with_no_matches_returns_404(self) -> None:
+        # An unknown filter is the only way the user can produce zero sets
+        # at the writer; an empty PDF would be confusing. The 404 detail
+        # echoes the requested ids so the SPA can render a clear message.
+        with patch("api.routes.set_cards.fetch_all_sets", return_value=SAMPLE_SETS):
+            resp = client.get("/api/v1/set-cards.pdf?set_ids=zzz-missing")
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn("zzz-missing", resp.json()["detail"])
+
     def test_default_passes_session_for_unified_image_cache(self) -> None:
         # Logo storage now flows through the unified disk image cache
         # (cache/images/sets/), so the route no longer needs to thread a
