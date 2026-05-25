@@ -7,6 +7,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-25
+
+### Fixed
+
+- README: the project logo now renders on the
+  [PyPI description tab](https://pypi.org/project/mgz-pkmn/#description).
+  The prior `<img src="assets/logo.svg">` relative path 404'd on PyPI
+  (the README is rendered standalone, with no repo-relative context);
+  switched to an absolute `raw.githubusercontent.com` URL.
+
 ## [1.1.0] - 2026-05-25
 
 ### Added
@@ -278,7 +288,8 @@ UI, multi-source card lookup, all output formats, and release infrastructure.
 - Incomplete URL substring sanitization (CodeQL alerts).
 - Workflow permissions hardening (CodeQL alerts).
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v0.1.0...v1.0.0
