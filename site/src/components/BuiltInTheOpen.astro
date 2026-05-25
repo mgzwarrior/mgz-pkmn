@@ -1,0 +1,57 @@
+---
+const cards = [
+  {
+    title: "Good first issues",
+    body: "A curated list of small, well-scoped tasks for first-time contributors. Labels for the area you want to touch — lookup, outputs, cache, web, site.",
+    cta: "Browse starter issues",
+    href: "https://github.com/mgzwarrior/mgz-pkmn/labels/good%20first%20issue",
+  },
+  {
+    title: "Discussions",
+    body: "Open questions, design proposals, and announcements live here. The right place to float an idea before it's an issue — or just say hi.",
+    cta: "Open Discussions",
+    href: "https://github.com/mgzwarrior/mgz-pkmn/discussions",
+  },
+  {
+    title: "Contributing guide",
+    body: "The full workflow from issue to merged PR: branch naming, sign-off, the local gate, PR conventions. Everything you need to land your first change.",
+    cta: "Read the guide",
+    href: "https://github.com/mgzwarrior/mgz-pkmn/blob/main/docs/contributing.md",
+  },
+];
+---
+
+<section id="contribute" class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+  <div class="mx-auto max-w-6xl">
+    <div class="max-w-2xl">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+        Built in the open.
+      </h2>
+      <p class="mt-4 text-lg text-zinc-400">
+        MIT-licensed, public roadmap, first-time contributors welcome. The same
+        tool you're trying — shaped by anyone who wants to help.
+      </p>
+    </div>
+
+    <ul class="mt-12 grid gap-6 md:grid-cols-3">
+      {
+        cards.map((card) => (
+          <li>
+            <a
+              href={card.href}
+              class="flex h-full flex-col rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 hover:border-zinc-700 transition"
+            >
+              <h3 class="text-lg font-semibold text-white">{card.title}</h3>
+              <p class="mt-3 text-sm leading-relaxed text-zinc-400 flex-1">
+                {card.body}
+              </p>
+              <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-brand-400">
+                {card.cta} →
+              </span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
