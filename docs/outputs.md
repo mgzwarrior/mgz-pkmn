@@ -30,11 +30,13 @@ the matched card id).
 ### Over-cap highlighting
 
 When [`--max-price`](cli.md#pkmn-lookup-options) is set, rows whose
-**Market** price exceeds the cap get the **Market** cell (and its
-matching comps + listing URL) tinted soft amber (`#FFE9A8`). The row
-is still included in the output — single-card lookups always appear
-even when above the cap — and the fill is a visual flag so you can
-decide what to do with it at the table.
+**Market** price exceeds the cap get the **Market** cell and the
+**80% / 85% / 90% / 95%** comp cells tinted soft amber (`#FFE9A8`);
+the Market cell additionally renders in bold amber type. The Listing
+URL keeps its standard blue underline. The row is still included in
+the output — single-card lookups always appear even when above the
+cap — and the fill is a visual flag so you can decide what to do
+with it at the table.
 
 Bulk lookups (`top:N` / `All …`) cull above-cap candidates before the
 top-N cut instead of flagging them, so the highlight only fires for
