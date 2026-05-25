@@ -16,6 +16,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, AlertCircle, Filter } fr
 import { addOverride } from '../api/client'
 import { useAppStore } from '../store'
 import type { Row } from '../types'
+import { CardDetailModal } from './CardDetailModal'
 import {
   applyFilters,
   applySort,
@@ -36,6 +37,10 @@ export function ResultsTable({ onRerunLine }: Props) {
   const [sortDir, setSortDir] = useState<SortDir | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+  // Index into `displayedRows` for the row whose detail modal is open;
+  // `null` keeps the modal closed. Tracking the index (not the row) lets
+  // ←/→ navigation in the modal stay synced with the live filter+sort.
+  const [detailIndex, setDetailIndex] = useState<number | null>(null)
 
   function cycleSort(column: SortColumn) {
     if (sortColumn !== column) {
@@ -256,12 +261,13 @@ export function ResultsTable({ onRerunLine }: Props) {
             )}
           </thead>
           <tbody>
-            {displayedRows.map((row) => (
+            {displayedRows.map((row, displayedIdx) => (
               <ResultRow
                 key={rowKeys.get(row) ?? -1}
                 row={row}
                 showImage={!settings.noImages}
                 onRerunLine={onRerunLine}
+                onOpenDetail={() => setDetailIndex(displayedIdx)}
               />
             ))}
             {isRunning && (
@@ -283,6 +289,12 @@ export function ResultsTable({ onRerunLine }: Props) {
           <span className="text-zinc-400"> (of {rows.length})</span>
         )}
       </p>
+
+      <CardDetailModal
+        rows={displayedRows}
+        index={detailIndex}
+        onChangeIndex={setDetailIndex}
+      />
     </div>
   )
 }
@@ -382,10 +394,12 @@ function ResultRow({
   row,
   showImage,
   onRerunLine,
+  onOpenDetail,
 }: {
   row: Row
   showImage: boolean
   onRerunLine?: (line: string) => void
+  onOpenDetail?: () => void
 }) {
   const card = row.card
   const p = row.pricing
@@ -414,12 +428,45 @@ function ResultRow({
     }
   }
 
+  // Only matched rows open the detail modal. Unmatched rows have nothing
+  // to show (no card data, no image) and already carry their own inline
+  // affordance (the "+ Add PriceCharting URL" button).
+  const canOpenDetail = row.matched && !!onOpenDetail
+  function handleRowClick(e: React.MouseEvent<HTMLTableRowElement>) {
+    if (!canOpenDetail) return
+    // Skip clicks on inner interactive elements — links, buttons, inputs,
+    // and the override-form panel below the row. Without this, clicking
+    // the "open listing" external-link icon would *also* open the modal.
+    const target = e.target as HTMLElement
+    if (target.closest('a, button, input, [role="button"]')) return
+    onOpenDetail!()
+  }
+  function handleRowKey(e: React.KeyboardEvent<HTMLTableRowElement>) {
+    if (!canOpenDetail) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      // Ignore activations that originated inside an inner control —
+      // pressing Enter on the "open listing" anchor should follow the link.
+      const target = e.target as HTMLElement
+      if (target.closest('a, button, input')) return
+      e.preventDefault()
+      onOpenDetail!()
+    }
+  }
+
   return (
     <>
       <tr
         className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors motion-safe:animate-[fadeInRow_220ms_ease-out] ${
           !row.matched ? 'opacity-60' : ''
-        } ${isOverCap ? 'bg-amber-950/30' : ''}`}
+        } ${isOverCap ? 'bg-amber-950/30' : ''} ${canOpenDetail ? 'cursor-pointer' : ''}`}
+        onClick={canOpenDetail ? handleRowClick : undefined}
+        onKeyDown={canOpenDetail ? handleRowKey : undefined}
+        tabIndex={canOpenDetail ? 0 : undefined}
+        aria-label={
+          canOpenDetail
+            ? `View details for ${(card?.name as string) ?? row.query.name}`
+            : undefined
+        }
       >
         {/* Thumbnail */}
         {showImage && (
