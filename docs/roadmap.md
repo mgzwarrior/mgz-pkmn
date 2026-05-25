@@ -513,12 +513,16 @@ lands.
 Each item under V1 / V1.1 / V1.2 / V2 is filed as a GitHub issue with
 two labels: an **area** label (`area:lookup` / `area:outputs` /
 `area:cache` / `area:web` / `area:site` / `area:devops`) and a
-**version** label (`version:v1` / `version:v1.x` / `version:v2`).
-Committed items additionally sit on the matching milestone:
+coarse **version** label — only three exist today: `version:v1`,
+`version:v1.x`, `version:v2`. V1.1 and V1.2 both share
+`version:v1.x`; **milestone** is what splits them apart.
+Committed items sit on the matching milestone:
 [v1.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/1) (shipped),
 [v1.1](https://github.com/mgzwarrior/mgz-pkmn/milestone/2) (shipped),
 [v1.2](https://github.com/mgzwarrior/mgz-pkmn/milestone/4), and
-[v2.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/3).
+[v2.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/3). A
+`version:v2.x` label gets created when the monetization items
+above graduate from text-only proposals to filed issues.
 
 V2.x and V3+ items stay in this document as text-only proposals until
 they get promoted to committed work. The "proposed" tag is
