@@ -2,8 +2,26 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
+import {
+  fetchContributors,
+  fetchGoodFirstIssues,
+  fetchRecentMergedPRs,
+  relativeTime,
+} from "../lib/github.ts";
 
 const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
+
+// Live OSS signals — pulled at build time so the SPA stays client-side-free.
+// Each helper returns `[]` if the API call fails (network blip, rate limit,
+// no token); the template treats an empty array as "skip this slice" so the
+// page still builds when GitHub is unreachable.
+const [goodFirstIssues, recentPRs, contributors] = await Promise.all([
+  fetchGoodFirstIssues(6),
+  fetchRecentMergedPRs(5),
+  fetchContributors(12),
+]);
+const hasLiveSignals =
+  goodFirstIssues.length > 0 || recentPRs.length > 0 || contributors.length > 0;
 
 const shapes = [
   {
@@ -204,6 +222,144 @@ const ctas = [
         </div>
       </div>
     </section>
+
+    <!-- Live activity — built-time GitHub data. Renders nothing if every
+         API call failed (empty arrays); the surrounding sections still flow
+         correctly because we condition the whole <section> on `hasLiveSignals`. -->
+    {
+      hasLiveSignals && (
+        <section class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+          <div class="mx-auto max-w-6xl">
+            <div class="max-w-2xl">
+              <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+                What's happening right now.
+              </h2>
+              <p class="mt-4 text-lg text-zinc-400">
+                Pulled at build time from GitHub — refreshes whenever the site
+                redeploys.
+              </p>
+            </div>
+
+            <div class="mt-12 grid gap-8 lg:grid-cols-2">
+              {goodFirstIssues.length > 0 && (
+                <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+                  <div class="flex items-baseline justify-between gap-4">
+                    <h3 class="text-lg font-semibold text-white">
+                      Open starter issues
+                    </h3>
+                    <a
+                      href={`${repoUrl}/labels/good%20first%20issue`}
+                      class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                    >
+                      see all →
+                    </a>
+                  </div>
+                  <ul class="mt-4 space-y-3">
+                    {goodFirstIssues.map((i) => (
+                      <li class="text-sm">
+                        <a
+                          href={i.url}
+                          class="group flex items-start gap-3 rounded-md px-2 py-1.5 -mx-2 hover:bg-zinc-900/60 transition"
+                        >
+                          <span class="font-mono text-xs text-zinc-500 mt-0.5">
+                            #{i.number}
+                          </span>
+                          <span class="flex-1 text-zinc-200 group-hover:text-white leading-snug">
+                            {i.title}
+                          </span>
+                          {i.area && (
+                            <span class="text-xs rounded-full border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-zinc-400 self-center">
+                              {i.area}
+                            </span>
+                          )}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {recentPRs.length > 0 && (
+                <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+                  <div class="flex items-baseline justify-between gap-4">
+                    <h3 class="text-lg font-semibold text-white">
+                      Recently merged
+                    </h3>
+                    <a
+                      href={`${repoUrl}/pulls?q=is%3Apr+is%3Amerged`}
+                      class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                    >
+                      see all →
+                    </a>
+                  </div>
+                  <ul class="mt-4 space-y-3">
+                    {recentPRs.map((pr) => (
+                      <li class="text-sm">
+                        <a
+                          href={pr.url}
+                          class="group flex items-start gap-3 rounded-md px-2 py-1.5 -mx-2 hover:bg-zinc-900/60 transition"
+                        >
+                          <img
+                            src={pr.authorAvatarUrl}
+                            alt=""
+                            width="20"
+                            height="20"
+                            class="h-5 w-5 rounded-full mt-0.5"
+                          />
+                          <span class="flex-1 text-zinc-200 group-hover:text-white leading-snug">
+                            {pr.title}
+                          </span>
+                          <span class="text-xs text-zinc-500 self-center">
+                            {relativeTime(pr.mergedAt)}
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {contributors.length > 0 && (
+              <div class="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+                <div class="flex items-baseline justify-between gap-4">
+                  <h3 class="text-lg font-semibold text-white">Contributors</h3>
+                  <a
+                    href={`${repoUrl}/graphs/contributors`}
+                    class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                  >
+                    see all →
+                  </a>
+                </div>
+                <p class="mt-2 text-sm text-zinc-400">
+                  Everyone who's landed a commit. Your face goes here when your
+                  first PR merges.
+                </p>
+                <ul class="mt-5 flex flex-wrap gap-3">
+                  {contributors.map((c) => (
+                    <li>
+                      <a
+                        href={c.url}
+                        title={`@${c.login} — ${c.contributions} commit${c.contributions === 1 ? "" : "s"}`}
+                        class="block"
+                      >
+                        <img
+                          src={c.avatarUrl}
+                          alt={`@${c.login}`}
+                          width="44"
+                          height="44"
+                          class="h-11 w-11 rounded-full border-2 border-zinc-800 hover:border-brand-500 transition"
+                        />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      )
+    }
 
     <!-- Get started -->
     <section class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
