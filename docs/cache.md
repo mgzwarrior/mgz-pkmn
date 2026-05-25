@@ -70,6 +70,23 @@ writes during normal lookups, but inspecting real files should still
 show what's there. Combine with [`--clear-cache`](#behavior) on the next
 `pkmn lookup` if the API cache has grown stale relative to the code.
 
+`pkmn cache clear` wipes the API response cache without forcing you to
+run a lookup. URL overrides and the indefinite-TTL image cache are left
+in place — the same trade-off the in-line `--clear-cache` flag makes:
+
+```text
+▸ Clearing API response cache
+  ✓ 175 entries cleared · 8.8 MB freed (overrides + images preserved)
+```
+
+The command runs even when `MGZ_PKMN_NO_CACHE=1` is set — the explicit
+wipe wins over the implicit skip, same as
+[`--clear-cache`](#behavior). There's no confirmation prompt: the wipe
+is recoverable (the next lookup re-fetches) and a prompt would
+complicate scripted use. Wipe images explicitly with
+`rm -rf "$(pkmn cache path)/images"` when you want to evict warmed
+artwork too.
+
 Use `pkmn cache stats --json` for scripts and monitoring. It emits the
 same snapshot with snake_case keys:
 

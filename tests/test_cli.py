@@ -407,6 +407,58 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertEqual(result.output, f"{expected}\n")
         self.assertNotRegex(result.output, r"\x1b\[")
 
+    def test_clear_command_on_empty_cache_reports_zero(self) -> None:
+        # Fresh cache: nothing to wipe, but the command should still exit
+        # cleanly and report a coherent summary rather than blowing up on
+        # the missing `api/` directory.
+        result = CliRunner().invoke(cli, ["cache", "clear"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Clearing API response cache", result.output)
+        self.assertIn("0 entries cleared", result.output)
+        self.assertIn("0 B freed", result.output)
+
+    def test_clear_command_wipes_api_entries_and_preserves_overrides(self) -> None:
+        cache.write_api("https://example.com/a", {"x": 1})
+        cache.write_api("https://example.com/b", {"y": 2})
+        cache.record_url_override("Mew", None, "https://pc/mew")
+        cache.write_image("sets/logo", "sv8", b"img-bytes")
+        api_bytes_before = cache.stats().api_bytes
+        self.assertGreater(api_bytes_before, 0)
+
+        result = CliRunner().invoke(cli, ["cache", "clear"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("2 entries cleared", result.output)
+        # Bytes-freed reflects the pre-wipe API slice — humanised via
+        # `_format_bytes`, so we just assert the unit suffix is present
+        # rather than pinning a precise byte count that changes with
+        # JSON formatting.
+        self.assertRegex(result.output, r"\d+ B freed|\d+\.\d+ KB freed")
+        # API slice is gone; overrides + images stay put.
+        after = cache.stats()
+        self.assertEqual(after.api_entry_count, 0)
+        self.assertEqual(after.api_bytes, 0)
+        self.assertEqual(after.override_count, 1)
+        self.assertEqual(after.image_entry_count, 1)
+        # Overrides remain usable after the wipe (not just on disk — the
+        # full read path still resolves).
+        self.assertEqual(cache.find_url_override("Mew", None), "https://pc/mew")
+
+    def test_clear_command_runs_even_when_no_cache_env_set(self) -> None:
+        # `--clear-cache` / `clear_api_cache()` are documented as honoured
+        # even under `MGZ_PKMN_NO_CACHE=1` — the user's explicit wipe wins
+        # over the implicit skip. The subcommand has to honour the same
+        # contract so scripts that set the env still get a working wipe.
+        cache.write_api("https://example.com/a", {"x": 1})
+        os.environ[cache._NO_CACHE_ENV] = "1"
+
+        result = CliRunner().invoke(cli, ["cache", "clear"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("1 entry cleared", result.output)
+        self.assertEqual(cache.stats().api_entry_count, 0)
+
 
 class WarnIfCacheLargeTests(unittest.TestCase):
     """The soft-warn helper invoked at `pkmn lookup` start. We drive it
