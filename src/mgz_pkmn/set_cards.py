@@ -23,7 +23,7 @@ import datetime as _dt
 import re
 import shutil
 import sys
-from collections.abc import Iterable
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -112,16 +112,19 @@ def fetch_all_sets(client: TCGClient) -> list[dict[str, Any]]:
 
 def filter_sets_by_ids(
     sets: list[dict[str, Any]],
-    set_ids: Iterable[str] | None,
+    set_ids: Sequence[str] | None,
 ) -> list[dict[str, Any]]:
     """Restrict `sets` to entries whose `id` appears in `set_ids`.
 
     Returns `sets` unchanged when `set_ids` is `None` or empty — "no filter"
-    is the default. The match is case-sensitive (pokemontcg.io set ids are
-    lowercase by convention, and an unintended typo should produce an empty
-    selection rather than a too-clever fuzzy match the user can't reason
-    about). The input order is preserved so the rendered PDF tracks the
-    catalog's oldest → newest ordering."""
+    is the default. `set_ids` is typed `Sequence` rather than `Iterable` so
+    the emptiness check is well-defined (a one-shot generator would be
+    truthy-but-empty and silently filter everything out). The match is
+    case-sensitive (pokemontcg.io set ids are lowercase by convention, and
+    an unintended typo should produce an empty selection rather than a
+    too-clever fuzzy match the user can't reason about). The input order
+    is preserved so the rendered PDF tracks the catalog's oldest → newest
+    ordering."""
     if not set_ids:
         return sets
     wanted = set(set_ids)

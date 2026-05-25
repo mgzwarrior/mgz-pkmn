@@ -1,8 +1,8 @@
 """Set-catalog HTTP surface — list of every set, plus their cached logos.
 
 `GET /api/v1/sets` returns the full pokemontcg.io catalog (id, name,
-series, total, release date, image URLs). Used by the SPA's set picker
-modal to populate the grouped multi-select.
+series, total, release date). Used by the SPA's set picker modal to
+populate the grouped multi-select.
 
 `GET /api/v1/sets/{set_id}/logo` streams the cached logo image for a set
 out of the unified disk image cache (see `mgz_pkmn.cache.read_image`).
@@ -17,8 +17,10 @@ import json
 import mimetypes
 import time
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException
+from fastapi import Path as PathParam
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
@@ -27,28 +29,42 @@ from mgz_pkmn.sources import TCGClient
 
 router = APIRouter()
 
-_SETS_CACHE_PATH = Path("~/.cache/mgz-pkmn/sets.json").expanduser()
+# Pokemon TCG set ids are short alphanumeric strings (e.g. `sv8`, `base1`,
+# `swsh4`). FastAPI rejects anything outside the pattern with a 422 before
+# the handler runs; `max_length=64` is well above any real id (longest in
+# the current catalog is 8 chars) while still bounding pathological inputs.
+_SET_ID_PATH = PathParam(pattern=r"^[A-Za-z0-9_-]{1,64}$", max_length=64)
+
 _SETS_TTL = 7 * 24 * 60 * 60  # refresh weekly
 
 
+def _sets_cache_path() -> Path:
+    # Lazy lookup so we go through `disk_cache.cache_root()` and honour
+    # `XDG_CACHE_HOME` instead of hardcoding `~/.cache`. Resolving at call
+    # time also avoids creating the cache dir at import time.
+    return disk_cache.cache_root() / "sets.json"
+
+
 def _load_sets_cache() -> list[dict] | None:
-    if not _SETS_CACHE_PATH.exists():
+    path = _sets_cache_path()
+    if not path.exists():
         return None
-    if time.time() - _SETS_CACHE_PATH.stat().st_mtime > _SETS_TTL:
+    if time.time() - path.stat().st_mtime > _SETS_TTL:
         return None
     try:
-        data = json.loads(_SETS_CACHE_PATH.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, list) else None
     except (OSError, json.JSONDecodeError):
         return None
 
 
 def _save_sets_cache(sets: list[dict]) -> None:
+    path = _sets_cache_path()
     try:
-        _SETS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _SETS_CACHE_PATH.with_suffix(".tmp")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(sets, indent=2), encoding="utf-8")
-        tmp.replace(_SETS_CACHE_PATH)
+        tmp.replace(path)
     except (OSError, TypeError, ValueError):
         pass
 
@@ -89,7 +105,9 @@ async def get_sets(api_key: str | None = None) -> dict:
 
 
 @router.get("/sets/{set_id}/logo")
-async def get_set_logo(set_id: str) -> FileResponse:
+async def get_set_logo(
+    set_id: Annotated[str, _SET_ID_PATH],
+) -> FileResponse:
     """Stream the cached logo image for a set, or 404 if not cached.
 
     Reads from the unified disk image cache populated by
@@ -116,11 +134,8 @@ async def get_set_logo(set_id: str) -> FileResponse:
         media_type=media_type or "application/octet-stream",
         # 30-day immutable browser cache: set logos don't change once a
         # set ships, so a long client-side TTL keeps the picker snappy on
-        # repeat opens. The `immutable` directive tells the browser not
-        # to revalidate while the entry is fresh. 30 days is the practical
-        # ceiling — long enough that day-of-show flows never re-fetch,
-        # short enough that any future re-skinning of a logo still
-        # propagates within a month without the user clearing cookies.
-        # The cache key is the set id, which never collides on its own.
+        # repeat opens. 30 days is the practical ceiling — long enough
+        # that day-of-show flows never re-fetch, short enough that any
+        # future re-skinning of a logo still propagates within a month.
         headers={"Cache-Control": "public, max-age=2592000, immutable"},
     )

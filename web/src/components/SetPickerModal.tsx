@@ -48,6 +48,16 @@ interface SeriesGroup {
   sets: SetInfo[]
 }
 
+// Display key for sets whose `series` field is missing or empty. Kept
+// as a module-level constant so `selectSeries` and `groupBySeries` can
+// match the same value — otherwise the bucket name wouldn't line up
+// with the predicate the bulk-select button uses.
+const OTHER_SERIES = 'Other'
+
+function seriesKey(set: SetInfo): string {
+  return set.series || OTHER_SERIES
+}
+
 function groupBySeries(sets: SetInfo[]): SeriesGroup[] {
   // The catalog comes from `/api/v1/sets` in oldest → newest order.
   // We render the picker newest-first because the typical prep workflow
@@ -56,14 +66,15 @@ function groupBySeries(sets: SetInfo[]): SeriesGroup[] {
   // scrolling. Within each series, rows stay newest-first too — within
   // S&V, Surging Sparks beats the 2023 set that opened the block.
   //
-  // Implementation: walk the catalog in reverse, bucket by series in
-  // first-encounter order (which is now newest-encounter), and reverse
-  // each bucket so its members come out newest-first.
+  // Implementation: walk the catalog in reverse and push each set into
+  // its series bucket. Because we iterate newest → oldest, both the
+  // group order (first-encounter wins) and each bucket's contents come
+  // out newest-first — no per-bucket reverse needed.
   const order: string[] = []
   const buckets = new Map<string, SetInfo[]>()
   for (let i = sets.length - 1; i >= 0; i--) {
     const s = sets[i]
-    const key = s.series || 'Other'
+    const key = seriesKey(s)
     if (!buckets.has(key)) {
       buckets.set(key, [])
       order.push(key)
@@ -93,10 +104,9 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   // semantics.
   const [draft, setDraft] = useState<Set<string>>(() => new Set(selectedSetIds))
 
-  // Series whose set list is collapsed. Default = all collapsed except
-  // the first group (newest series). Keeps the modal short on open —
-  // 173 sets is a lot of vertical scroll otherwise — and lets the user
-  // expand only what they're interested in.
+  // Series whose set list is collapsed. All groups start expanded; the
+  // "Collapse all" toolbar button is the one-click way to shorten the
+  // 173-set list when the user only wants one or two series.
   const [collapsedSeries, setCollapsedSeries] = useState<Set<string>>(() => new Set())
 
   function handleOpenChange(next: boolean) {
@@ -156,7 +166,12 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
     if (!sets) return
     setDraft((prev) => {
       const next = new Set(prev)
-      for (const s of sets) if (s.series === series) next.add(s.id)
+      // Use the same keying as `groupBySeries` so the "Other" bucket
+      // (sets with an empty / missing `series` field) actually picks
+      // its members. A naive `s.series === series` check would miss
+      // every member of "Other" because their underlying value is `''`,
+      // not the literal "Other".
+      for (const s of sets) if (seriesKey(s) === series) next.add(s.id)
       return next
     })
   }

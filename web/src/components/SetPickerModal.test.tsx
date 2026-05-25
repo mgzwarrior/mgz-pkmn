@@ -59,10 +59,19 @@ describe('SetPickerModal', () => {
     return { onOpenChange, ...result }
   }
 
+  // Block until the catalog has fetched AND the result has re-rendered.
+  // Plain `waitFor(mockFetchSets called)` resolves at the start of the
+  // promise, so the resulting setState→render lands on a later tick and
+  // slower runners (CI) lose the race. Querying for a known catalog row
+  // forces the wait through the actual re-render.
+  async function waitForCatalog() {
+    await screen.findByText('Surging Sparks')
+  }
+
   it('loads the catalog when opened and renders series newest-first', async () => {
     renderOpen()
 
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
     expect(screen.getByText('Base Set')).toBeInTheDocument()
     expect(screen.getByText('Jungle')).toBeInTheDocument()
     expect(screen.getByText('Surging Sparks')).toBeInTheDocument()
@@ -81,7 +90,7 @@ describe('SetPickerModal', () => {
     // source of truth — no warning UI to assert because the user can't
     // reach `handleSubmit` from an empty draft in the first place.
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     expect(screen.getByRole('button', { name: 'Download PDF' })).toBeDisabled()
     expect(mockDownload).not.toHaveBeenCalled()
@@ -89,7 +98,7 @@ describe('SetPickerModal', () => {
 
   it('select-all checks every box and Download PDF posts every id', async () => {
     const { onOpenChange } = renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
     fireEvent.click(screen.getByRole('button', { name: 'Download PDF' }))
@@ -105,7 +114,7 @@ describe('SetPickerModal', () => {
 
   it('select-none clears the draft after a select-all', async () => {
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select none' }))
@@ -114,7 +123,7 @@ describe('SetPickerModal', () => {
 
   it('select-series picks every set in that series only', async () => {
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     // With newest-first ordering, the second "Select series" button is
     // the Base group (Scarlet & Violet is index 0). Picking it should
@@ -130,9 +139,12 @@ describe('SetPickerModal', () => {
 
   it('toggling a row checkbox flips its selection', async () => {
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
-
-    const checkbox = screen.getByRole('checkbox', { name: 'Include Surging Sparks' })
+    // `findByRole` waits for the catalog rows to render (the fetch
+    // setState→re-render lands on a tick after the mock counter ticks,
+    // so a plain `getByRole` races CI).
+    const checkbox = await screen.findByRole('checkbox', {
+      name: 'Include Surging Sparks',
+    })
     fireEvent.click(checkbox)
     expect(checkbox).toBeChecked()
     fireEvent.click(checkbox)
@@ -196,7 +208,7 @@ describe('SetPickerModal', () => {
   it('surfaces a submit error and keeps the modal open', async () => {
     mockDownload.mockRejectedValueOnce(new Error('rate-limited'))
     const { onOpenChange } = renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
     fireEvent.click(screen.getByRole('button', { name: 'Download PDF' }))
@@ -209,7 +221,7 @@ describe('SetPickerModal', () => {
 
   it('collapsing a series hides its rows; expanding restores them', async () => {
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     // The "Base" series header (newest-first ordering puts S&V first,
     // Base second).
@@ -235,7 +247,7 @@ describe('SetPickerModal', () => {
 
   it('Collapse all hides every series; Expand all restores them', async () => {
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
     expect(screen.queryByText('Surging Sparks')).not.toBeInTheDocument()
@@ -248,7 +260,7 @@ describe('SetPickerModal', () => {
 
   it('series header shows N/total counter when at least one set is selected', async () => {
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Include Jungle' }))
     // The Base series (2 sets) now shows "(1/2)" in its header; the
@@ -265,7 +277,7 @@ describe('SetPickerModal', () => {
 
   it('logo thumbnails fall back to an icon when the image errors', async () => {
     renderOpen()
-    await waitFor(() => expect(mockFetchSets).toHaveBeenCalledTimes(1))
+    await waitForCatalog()
 
     // The thumbnail is an `<img>` with empty alt (decorative — the row's
     // accessible name lives on the checkbox), so query by tag inside the

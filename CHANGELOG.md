@@ -11,7 +11,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - Web: **Set picker modal** for the Set ID cards export. Clicking
   **Set ID cards…** in the Export dropdown now opens a picker that
-  groups every set by series **newest first** (Mega Evolution → Base),
+  groups every set by series **newest → oldest** (modern blocks like
+  Scarlet & Violet sit at the top; the original Base set is at the bottom),
   shows each set's cached logo + name + year + total, and lets the
   user multi-select with **Select all / Select none / Expand all /
   Collapse all / Select series** buttons. Each series is a collapsible

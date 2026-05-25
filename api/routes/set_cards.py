@@ -58,10 +58,14 @@ def _render(api_key: str | None, no_images: bool, set_ids: tuple[str, ...]) -> b
     if set_ids:
         sets = filter_sets_by_ids(sets, set_ids)
         if not sets:
-            # 404 — the catalog exists, but nothing matched the user's filter.
-            # Returning a zero-page PDF would be confusing; a clear error
-            # gets surfaced in the SPA as the picker's "nothing selected"
-            # safety rail and in the CLI as a ClickException.
+            # 404 — every requested id was unknown or stale (typo, set
+            # removed from the upstream catalog, etc.). Note that this
+            # is NOT the picker's "nothing selected" state: the SPA
+            # blocks empty selection client-side, so an empty filter
+            # never reaches this branch. Returning a zero-page PDF for
+            # unknown ids would be confusing; the 404 lets the CLI fail
+            # loudly as a ClickException and lets the SPA surface the
+            # detail message verbatim.
             raise HTTPException(
                 status_code=404,
                 detail=f"no sets matched the requested ids: {', '.join(set_ids)}",

@@ -161,7 +161,7 @@ class SetsRouteTests(unittest.TestCase):
         cache_path = self._seed_cache(known_sets)
 
         with (
-            patch("api.routes.sets._SETS_CACHE_PATH", cache_path),
+            patch("api.routes.sets._sets_cache_path", return_value=cache_path),
             patch("api.routes.sets._SETS_TTL", 999_999_999),
         ):
             resp = client.get("/api/v1/sets")
@@ -228,6 +228,44 @@ class SetLogoRouteTests(unittest.TestCase):
         detail = resp.json()["detail"]
         self.assertIn("zzz-not-warmed", detail)
         self.assertIn("warm-sets", detail)
+
+    def test_rejects_malformed_set_ids_at_route_boundary(self) -> None:
+        # Defense-in-depth: the route's `Path(pattern=...)` validator
+        # rejects anything outside `[A-Za-z0-9_-]` with a 422 before
+        # `read_image` runs. The cache module's `_safe_image_key` also
+        # sanitises (slashes collapse to underscores), but stopping the
+        # value at the HTTP boundary keeps the CodeQL taint tracer happy
+        # and makes the contract explicit.
+        #
+        # Path-traversal-style inputs like `../etc/passwd` and
+        # `sv8/../x` never reach this handler at all — the ASGI URL
+        # normaliser rewrites them before routing — so we only assert
+        # 422 against bad characters that *do* survive routing.
+        for bad in (
+            "sv8;rm",
+            "sv8%20with%20space",  # decodes to a literal space
+            "x" * 200,  # over max_length=64
+            "sv8&foo",
+            "sv8*",
+        ):
+            with self.subTest(set_id=bad):
+                resp = client.get(f"/api/v1/sets/{bad}/logo")
+                self.assertEqual(
+                    resp.status_code,
+                    422,
+                    f"expected 422 for malformed set_id={bad!r}, got {resp.status_code}",
+                )
+
+    def test_path_traversal_attempts_dont_resolve_to_this_route(self) -> None:
+        # ASGI URL normalisation collapses `..` segments before routing,
+        # so `/api/v1/sets/../etc/passwd/logo` becomes
+        # `/api/v1/etc/passwd/logo` — a route that doesn't exist (404).
+        # This is the first line of defense; the regex validator catches
+        # whatever survives.
+        for bad in ("..", "../etc/passwd", "sets/../etc"):
+            with self.subTest(set_id=bad):
+                resp = client.get(f"/api/v1/sets/{bad}/logo")
+                self.assertEqual(resp.status_code, 404)
 
 
 # ---------------------------------------------------------------------------
