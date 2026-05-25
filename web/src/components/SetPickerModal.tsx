@@ -113,20 +113,18 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   useEffect(() => {
     if (!open || sets !== null) return
     let cancelled = false
-    Promise.resolve().then(() => {
-      if (cancelled) return
+    const load = async () => {
       setLoadError(null)
-    })
-    fetchSets(settings.apiKey || undefined)
-      .then((data) => {
+      try {
+        const data = await fetchSets(settings.apiKey || undefined)
         if (cancelled) return
         setSets(data)
-        setLoadError(null)
-      })
-      .catch((err) => {
+      } catch (err) {
         if (cancelled) return
         setLoadError(err instanceof Error ? err.message : String(err))
-      })
+      }
+    }
+    void load()
     return () => {
       cancelled = true
     }
