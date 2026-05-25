@@ -8,5 +8,10 @@ services:
     autoDeploy: true
     healthCheckPath: /health
     envVars:
+      # Used at both build time (the Dockerfile's `pkmn cache warm-sets`
+      # step bakes set logos+symbols into the image) and runtime (the API
+      # uses it for live lookups). Render automatically passes envVars to
+      # the Docker build as build args when the Dockerfile declares them
+      # via `ARG`, so a single entry covers both.
       - key: POKEMONTCG_IO_API_KEY
         sync: false
