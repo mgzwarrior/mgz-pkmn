@@ -3,9 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { CardDetailModal } from './CardDetailModal'
 import type { Row } from '../types'
 
-// Fabricate a minimal Row with the slots the modal reads. Tests then deep-merge
-// additional fields onto the underlying card so each one only states what it
-// actually cares about.
+// Fabricate a minimal Row with the slots the modal reads. Tests shallow-merge
+// (via spread) additional fields onto the underlying card so each one only
+// states what it actually cares about. Note: nested objects like `set` and
+// `images` are *replaced*, not merged — pass `undefined` to clear a default,
+// or specify the full nested object when you need it.
 function buildRow(
   overrides: {
     card?: Record<string, unknown> | null
@@ -258,6 +260,49 @@ describe('CardDetailModal', () => {
     expect(link.rel).toContain('noopener')
   })
 
+  it('labels the source link by the actual URL host, not card._database', () => {
+    // Regression: a pokemontcg.io card with a TCGPlayer pricing URL used
+    // to render "View on pokemontcg.io" pointing at tcgplayer.com. The
+    // label must agree with the URL.
+    const row = buildRow({
+      pricing: { url: 'https://www.tcgplayer.com/product/123' },
+      card: {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        set: { name: 'Base Set' },
+        _database: 'pokemontcg.io',
+      },
+    })
+    render(
+      <CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />,
+    )
+    const link = screen.getByRole('link', { name: /View on/ }) as HTMLAnchorElement
+    expect(link.textContent).toContain('TCGPlayer')
+    expect(link.textContent).not.toContain('pokemontcg.io')
+    expect(link.href).toContain('tcgplayer.com')
+  })
+
+  it('labels each well-known host correctly', () => {
+    const hosts: [string, string][] = [
+      ['https://www.tcgplayer.com/product/1', 'TCGPlayer'],
+      ['https://www.cardmarket.com/en/Pokemon/Products/1', 'Cardmarket'],
+      ['https://www.pricecharting.com/game/pokemon-base-set/charizard', 'PriceCharting'],
+    ]
+    for (const [url, label] of hosts) {
+      const { unmount } = render(
+        <CardDetailModal
+          rows={[buildRow({ pricing: { url } })]}
+          index={0}
+          onChangeIndex={() => {}}
+        />,
+      )
+      const link = screen.getByRole('link', { name: /View on/ }) as HTMLAnchorElement
+      expect(link.textContent).toContain(label)
+      unmount()
+    }
+  })
+
   it('falls back to a pokemontcg.io card URL when no pricing.url exists', () => {
     const row = buildRow({
       pricing: { url: null },
@@ -423,6 +468,30 @@ describe('CardDetailModal', () => {
     rerender(<CardDetailModal rows={rows} index={1} onChangeIndex={() => {}} />)
     expect(screen.getByLabelText('Previous card')).not.toBeDisabled()
     expect(screen.getByLabelText('Next card')).toBeDisabled()
+  })
+
+  it('resets to null when the parent row set shrinks below the current index', async () => {
+    // The bug this guards against: user opens the modal on row 5, then
+    // applies a filter that drops the row set to 2 entries. The stale
+    // index would visually close the modal but stay set in state — and
+    // if rows.length later grew back past index, the modal would silently
+    // reopen. The reset effect must force `onChangeIndex(null)`.
+    const rows = [
+      buildRow({ card: { name: 'Charizard', id: 'a', set: { name: 'Base' } } }),
+      buildRow({ card: { name: 'Blastoise', id: 'b', set: { name: 'Base' } } }),
+      buildRow({ card: { name: 'Venusaur', id: 'c', set: { name: 'Base' } } }),
+    ]
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <CardDetailModal rows={rows} index={2} onChangeIndex={onChange} />,
+    )
+    // Sanity check: modal is open at index 2.
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // Now the parent filters to 1 row — index 2 is out of bounds.
+    rerender(
+      <CardDetailModal rows={rows.slice(0, 1)} index={2} onChangeIndex={onChange} />,
+    )
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(null))
   })
 
   it('uses the query name as a fallback when card.name is missing', () => {

@@ -16,6 +16,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, AlertCircle, Filter } fr
 import { addOverride } from '../api/client'
 import { useAppStore } from '../store'
 import type { Row } from '../types'
+import { formatComp, formatMoney } from '../utils/format'
 import { CardDetailModal } from './CardDetailModal'
 import {
   applyFilters,
@@ -380,16 +381,6 @@ function FilterInput({
 // Single row
 // ---------------------------------------------------------------------------
 
-function fmt(amount: number | null, currency = 'USD'): string {
-  if (amount == null) return '—'
-  const sym = currency === 'EUR' ? '€' : '$'
-  return `${sym}${amount.toFixed(2)}`
-}
-
-function comp(market: number | null, pct: number): string {
-  return market != null ? fmt((market * pct) / 100) : '—'
-}
-
 function ResultRow({
   row,
   showImage,
@@ -528,21 +519,21 @@ function ResultRow({
             isOverCap ? 'text-amber-400 font-bold' : p.market ? 'text-green-400' : 'text-zinc-400'
           }`}
         >
-          {fmt(p.market, p.currency)}
+          {formatMoney(p.market, p.currency)}
         </td>
 
         {/* Comp tiers */}
         <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-400 text-xs hidden xl:table-cell">
-          {comp(p.market, 80)}
+          {formatComp(p.market, 80, p.currency)}
         </td>
         <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-400 text-xs hidden xl:table-cell">
-          {comp(p.market, 85)}
+          {formatComp(p.market, 85, p.currency)}
         </td>
         <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-400 text-xs hidden xl:table-cell">
-          {comp(p.market, 90)}
+          {formatComp(p.market, 90, p.currency)}
         </td>
         <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-400 text-xs hidden xl:table-cell">
-          {comp(p.market, 95)}
+          {formatComp(p.market, 95, p.currency)}
         </td>
 
         {/* Price source */}

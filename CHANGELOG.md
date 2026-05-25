@@ -11,7 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - Web: **Card detail modal** — tapping any matched row in the results table
   opens a modal with the large card art, a two-column identity + pricing
-  block (market + 80/85/90/95 % comps), and a "card data" section that
+  block (market + 80/85/90/95% comps), and a "card data" section that
   surfaces whatever optional fields the source returned (subtype, HP,
   attacks with cost/damage/text, weaknesses, resistances, retreat,
   regulation mark, artist, dex numbers, flavor text). Missing fields are

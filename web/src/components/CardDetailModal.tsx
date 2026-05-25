@@ -19,6 +19,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react'
 import { useEffect } from 'react'
 import type { CardData, Row } from '../types'
+import { formatComp, formatMoney } from '../utils/format'
 
 interface Props {
   /** The already filtered + sorted row set the parent table is showing. */
@@ -32,6 +33,17 @@ interface Props {
 export function CardDetailModal({ rows, index, onChangeIndex }: Props) {
   const isOpen = index !== null && index >= 0 && index < rows.length
   const row = isOpen ? rows[index] : null
+
+  // Reset to null when the parent's row set shifts so the modal no longer
+  // points at a valid entry — e.g. a filter is applied while the modal is
+  // open, or a new lookup clears the list. Without this, `index` would
+  // remain set (just out-of-bounds) and the modal would silently reopen
+  // later if `rows.length` grew back past the stale index.
+  useEffect(() => {
+    if (index !== null && (index < 0 || index >= rows.length)) {
+      onChangeIndex(null)
+    }
+  }, [index, rows.length, onChangeIndex])
 
   // ←/→ keyboard navigation. Bound to window so the listener works whether
   // focus is on the dialog frame, the image, or inside one of the metadata
@@ -107,7 +119,7 @@ function CardDetailBody({
   const imgUrl =
     (card?.images?.large as string | undefined) ??
     (card?.images?.small as string | undefined)
-  const sourceUrl = deriveSourceUrl(row)
+  const source = deriveSource(row)
 
   const setObj = (card?.set ?? {}) as Record<string, unknown>
   const setName = setObj.name as string | undefined
@@ -192,25 +204,25 @@ function CardDetailBody({
                 <div className="rounded-md border border-zinc-700 bg-zinc-950 p-3 space-y-1">
                   <PriceLine
                     label="Market"
-                    value={fmt(pricing.market, pricing.currency)}
+                    value={formatMoney(pricing.market, pricing.currency)}
                     bold
                     highlight
                   />
                   <PriceLine
                     label="95%"
-                    value={comp(pricing.market, 95, pricing.currency)}
+                    value={formatComp(pricing.market, 95, pricing.currency)}
                   />
                   <PriceLine
                     label="90%"
-                    value={comp(pricing.market, 90, pricing.currency)}
+                    value={formatComp(pricing.market, 90, pricing.currency)}
                   />
                   <PriceLine
                     label="85%"
-                    value={comp(pricing.market, 85, pricing.currency)}
+                    value={formatComp(pricing.market, 85, pricing.currency)}
                   />
                   <PriceLine
                     label="80%"
-                    value={comp(pricing.market, 80, pricing.currency)}
+                    value={formatComp(pricing.market, 80, pricing.currency)}
                   />
                 </div>
                 {pricing.source && (
@@ -218,15 +230,14 @@ function CardDetailBody({
                     Source: <span className="text-zinc-300">{pricing.source}</span>
                   </p>
                 )}
-                {sourceUrl && (
+                {source && (
                   <a
-                    href={sourceUrl}
+                    href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300"
                   >
-                    View on {sourceLabel(row)}{' '}
-                    <ExternalLink size={11} />
+                    View on {source.label} <ExternalLink size={11} />
                   </a>
                 )}
               </div>
@@ -459,44 +470,65 @@ function PriceLine({
   )
 }
 
-function fmt(amount: number | null, currency = 'USD'): string {
-  if (amount == null) return '—'
-  const sym = currency === 'EUR' ? '€' : '$'
-  return `${sym}${amount.toFixed(2)}`
-}
-
-function comp(market: number | null, pct: number, currency = 'USD'): string {
-  if (market == null) return '—'
-  return fmt((market * pct) / 100, currency)
-}
-
-function sourceLabel(row: Row): string {
-  const db = row.card?._database as string | undefined
-  if (db) return db
-  if (row.pricing.source) return row.pricing.source
-  return 'source'
-}
-
 /**
- * Best available link out to the card's canonical source page. Preference order:
- * 1. `pricing.url` — already set by the lookup when there's a real listing
- *    (PriceCharting, TCGPlayer, Cardmarket).
- * 2. `card.tcgplayer.url` / `card.cardmarket.url` — pokemontcg.io carries
- *    these on every card it knows.
- * 3. A pokemontcg.io card-page URL derived from `card.id`.
- * Returns null when nothing usable is available — the link is then hidden.
+ * Best available link out to the card's canonical source page, paired
+ * with a label that names the *same* site the URL points at.
+ *
+ * Splitting the URL and the label across two helpers (as the earlier
+ * version did) created a real bug: a card from pokemontcg.io often
+ * carries a TCGPlayer listing URL on `pricing.url`, so the link would
+ * say "View on pokemontcg.io" while pointing at tcgplayer.com. The
+ * unified decision tree below guarantees label and URL agree.
+ *
+ * Preference order:
+ *   1. `pricing.url` — already set by the lookup when there's a real
+ *      listing. The label is inferred from the host so PriceCharting,
+ *      TCGPlayer, and Cardmarket each get the right name even when
+ *      `_database` is "pokemontcg.io".
+ *   2. `card.tcgplayer.url` / `card.cardmarket.url` — pokemontcg.io
+ *      carries these on cards it knows.
+ *   3. A pokemontcg.io card-page URL derived from `card.id`.
+ * Returns null when nothing usable is available — the link is hidden.
  */
-function deriveSourceUrl(row: Row): string | null {
-  if (row.pricing.url) return row.pricing.url
+function deriveSource(row: Row): { url: string; label: string } | null {
+  if (row.pricing.url) {
+    return { url: row.pricing.url, label: labelForUrl(row.pricing.url, row) }
+  }
   const card = row.card
   if (!card) return null
   const tcgplayer = card.tcgplayer as { url?: string } | undefined
-  if (tcgplayer?.url) return tcgplayer.url
+  if (tcgplayer?.url) {
+    return { url: tcgplayer.url, label: 'TCGPlayer' }
+  }
   const cardmarket = card.cardmarket as { url?: string } | undefined
-  if (cardmarket?.url) return cardmarket.url
+  if (cardmarket?.url) {
+    return { url: cardmarket.url, label: 'Cardmarket' }
+  }
   if (card.id) {
     // pokemontcg.io card IDs are stable; the public web app uses this shape.
-    return `https://pokemontcg.io/cards/${card.id}`
+    return {
+      url: `https://pokemontcg.io/cards/${card.id}`,
+      label: 'pokemontcg.io',
+    }
   }
   return null
+}
+
+/**
+ * Infer a human label from a listing URL. Falls back to `pricing.source`
+ * (set by the lookup pipeline based on the matched URL) and finally to
+ * a generic word so the link still renders something readable.
+ */
+function labelForUrl(url: string, row: Row): string {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host.includes('tcgplayer')) return 'TCGPlayer'
+    if (host.includes('cardmarket')) return 'Cardmarket'
+    if (host.includes('pricecharting')) return 'PriceCharting'
+    if (host.includes('pokemontcg')) return 'pokemontcg.io'
+  } catch {
+    // URL parsing can throw on malformed input — fall through to the
+    // pricing.source label rather than crashing the modal.
+  }
+  return row.pricing.source ?? 'source'
 }
