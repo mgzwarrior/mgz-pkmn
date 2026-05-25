@@ -1136,7 +1136,13 @@ def cache_warm_sets_command(api_key: str | None, verbose: bool) -> None:
     type=click.Choice(WARM_SOURCES, case_sensitive=False),
     default="all",
     show_default=True,
-    help="Restrict the warm pass to a single source. 'all' walks pokemontcg.io first and falls back to TCGdex on miss.",
+    help=(
+        "Restrict the warm pass to a single source. 'all' walks pokemontcg.io "
+        "first and falls back to TCGdex on miss. Note: only the pokemontcg.io "
+        "path writes through to the disk cache — TCGdex caches in-memory only, "
+        "so its branch is useful within a long-lived process (e.g. the FastAPI "
+        "service) but a no-op across separate CLI runs."
+    ),
 )
 @click.option("-v", "--verbose", is_flag=True, help="Print each name as it warms.")
 def cache_warm_concepts_command(api_key: str | None, source: str, verbose: bool) -> None:

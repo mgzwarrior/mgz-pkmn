@@ -553,11 +553,19 @@ def find_top_cards(
 # `_CONCEPT_KEYWORDS` so that subsequent concept lookups (`top 9 puppy`,
 # `all eeveelution cards`, …) resolve from cache with zero upstream calls.
 #
-# Reusing `search_pokemontcg` / `search_tcgdex` (instead of full `find_card`)
-# means the warm pass writes through the same per-source `disk_cache.read_api`
-# / `write_api` paths the user-facing lookup hits — so a cache hit during
-# warming is also a cache hit at lookup time. PriceCharting isn't relevant
-# here (concept names never come with URL hints).
+# The warm pass MUST issue the exact query shapes the lookup path issues, or
+# the cache keys won't line up. Concept queries go through `find_top_cards`,
+# which calls `pkmn.search_all(name_clause(name))` directly (pageSize=50, all
+# pages). We mirror that — calling `search_pokemontcg` here would prime the
+# *wrong* cache key (`search()` / pageSize=12) and the user-facing lookup
+# would still fan out to upstream.
+#
+# TCGdex caveat: `TCGDexClient` keeps an in-memory dict cache only, with no
+# disk persistence. The TCGdex branch below is therefore useful within a
+# single long-lived process (e.g. the FastAPI service with
+# `MGZ_PKMN_WARM_ON_STARTUP=1`) but a no-op across separate CLI invocations.
+# Adding a disk layer to TCGdex is tracked separately; until then the
+# `--source tcgdex|all` flag's TCGdex pass is best-effort, not durable.
 # ---------------------------------------------------------------------------
 
 
@@ -597,13 +605,20 @@ def warm_concepts(
     source: str = "all",
     on_progress: Callable[[int, int, str], None] | None = None,
 ) -> WarmConceptsResult:
-    """Walk every distinct name in `_CONCEPT_KEYWORDS` and prime the disk
-    cache for each one.
+    """Walk every distinct name in `_CONCEPT_KEYWORDS` and prime the cache
+    for each one.
 
     `source` selects which database(s) to walk:
-        * ``"pokemontcg"`` — pokemontcg.io only
-        * ``"tcgdex"`` — TCGdex (English) only
-        * ``"all"`` — pokemontcg.io first; fall back to TCGdex on miss
+        * ``"pokemontcg"`` — pokemontcg.io only (writes through the disk
+          cache; persists across runs)
+        * ``"tcgdex"`` — TCGdex only (English; in-memory cache only —
+          useful within a single long-lived process, not across CLI runs)
+        * ``"all"`` — pokemontcg.io first; on miss, fall back to TCGdex
+
+    The pokemontcg.io pass issues exactly `pkmn.search_all(name_clause(name))`
+    — the same query `find_top_cards` issues for unconstrained concept
+    lookups — so the cache keys line up and the user-facing concept query
+    becomes a true cache hit.
 
     `on_progress`, when provided, is invoked once per name with
     `(index, total, name)` so callers can render a progress bar.
@@ -620,14 +635,18 @@ def warm_concepts(
     for index, name in enumerate(names, start=1):
         if on_progress is not None:
             on_progress(index, total, name)
-        q = CardQuery(raw=name, name=name)
         hit = False
         if source in ("pokemontcg", "all"):
-            primary = search_pokemontcg(pkmn, q)
-            if primary.card is not None:
+            # MUST mirror `find_top_cards`' query shape so the cache keys
+            # line up. See the section comment above.
+            query = name_clause(name)
+            results = pkmn.search_all(query)
+            if results:
                 hit = True
         # Fall through to TCGdex on miss (or always, when source="tcgdex").
+        # In-memory only — see TCGdex caveat in the section comment above.
         if not hit and source in ("tcgdex", "all"):
+            q = CardQuery(raw=name, name=name)
             tcgdex_result = search_tcgdex(tcgdex, q, "en")
             if tcgdex_result.card is not None:
                 hit = True

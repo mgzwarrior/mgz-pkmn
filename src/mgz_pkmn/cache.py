@@ -631,8 +631,15 @@ def write_concept_warm(
 
 
 def concept_warm_is_fresh(*, now: float | None = None) -> bool:
-    """True when a manifest exists and its timestamp is within the staleness
-    window (default 24 h, configurable via `CONCEPT_WARM_STALE_SECONDS`).
+    """True when a manifest exists, its timestamp is within the staleness
+    window (default 24 h, configurable via `CONCEPT_WARM_STALE_SECONDS`),
+    AND it recorded at least one successful name warm.
+
+    The `names_warmed > 0` guard exists because `write_concept_warm` is
+    called unconditionally after every warm pass — including ones that
+    failed every name (a transient upstream outage, for example). Without
+    this guard a single failed run would suppress the startup retry for a
+    full 24 h while the cache stays cold.
 
     Used by the FastAPI startup hook to decide whether to re-warm. `now`
     parameter is for tests — production callers omit it and use wall time."""
@@ -641,6 +648,9 @@ def concept_warm_is_fresh(*, now: float | None = None) -> bool:
         return False
     ts = manifest.get("timestamp")
     if not isinstance(ts, int | float):
+        return False
+    names_warmed = manifest.get("names_warmed")
+    if not isinstance(names_warmed, int) or names_warmed <= 0:
         return False
     current = now if now is not None else time.time()
     return (current - ts) < CONCEPT_WARM_STALE_SECONDS

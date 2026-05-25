@@ -140,10 +140,12 @@ class WarmConceptsTests(unittest.TestCase):
         self.assertEqual(result.names_attempted, expected)
         self.assertEqual(result.names_warmed, expected)
         self.assertEqual(result.names_failed, [])
-        # pokemontcg.io was queried once per distinct name (search_pokemontcg
-        # may issue more than one Lucene query in its fallback chain, so we
-        # check ≥, not ==).
-        self.assertGreaterEqual(len(pkmn.queries), expected)
+        # Exactly one query per distinct name — `warm_concepts` calls
+        # `pkmn.search_all(name_clause(name))` directly to mirror
+        # `find_top_cards`' unconstrained query shape (so cache keys line up).
+        self.assertEqual(len(pkmn.queries), expected)
+        # Every query is a `name:"..."` clause (no set/series fallbacks).
+        self.assertTrue(all(q.startswith("name:") for q in pkmn.queries))
         # TCGdex was not touched in source="pokemontcg" mode.
         self.assertEqual(tcgdex.calls, [])
 
@@ -272,6 +274,16 @@ class ConceptWarmFreshnessTests(_IsolatedCacheMixin):
         # Pretend we're checking 25 h in the future.
         future = time.time() + (25 * 60 * 60)
         self.assertFalse(disk_cache.concept_warm_is_fresh(now=future))
+
+    def test_zero_warmed_manifest_is_not_fresh(self) -> None:
+        # A warm pass that managed to write a manifest but didn't actually
+        # warm anything (every upstream call failed) must NOT count as
+        # fresh — otherwise a transient outage would suppress the startup
+        # retry for a full 24 h while the cache stayed cold.
+        disk_cache.write_concept_warm(
+            names_warmed=0, names_failed=["Charmander", "Eevee"], source="all"
+        )
+        self.assertFalse(disk_cache.concept_warm_is_fresh())
 
 
 class StatsIncludesConceptWarmTests(_IsolatedCacheMixin):
