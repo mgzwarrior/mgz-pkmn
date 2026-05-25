@@ -1,5 +1,5 @@
 <h1>
-  <img src="assets/logo.svg" alt="mgz-pkmn" height="64">
+  <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/logo.svg" alt="mgz-pkmn" height="64">
 </h1>
 
 [![CI](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml/badge.svg)](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml)
