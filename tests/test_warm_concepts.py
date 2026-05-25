@@ -297,5 +297,292 @@ class WarmSourcesConstantTests(unittest.TestCase):
         self.assertEqual(set(WARM_SOURCES), {"pokemontcg", "tcgdex", "all"})
 
 
+# ---------------------------------------------------------------------------
+# CLI — `pkmn cache warm-concepts` end-to-end via Click's CliRunner.
+# These cover the user-facing branches (verbose progress, source filter,
+# upstream failure, empty-dictionary error, post-run manifest persistence)
+# that the pure-function tests above leave uncovered.
+# ---------------------------------------------------------------------------
+
+
+class CacheWarmConceptsCLITests(_IsolatedCacheMixin):
+    def _invoke(self, *args: str):  # type: ignore[no-untyped-def]
+        from click.testing import CliRunner
+
+        from mgz_pkmn.cli import cli
+
+        return CliRunner().invoke(cli, ["cache", "warm-concepts", *args])
+
+    def _stub_warm(
+        self,
+        *,
+        attempted: int | None = None,
+        warmed: int | None = None,
+        failed: list[str] | None = None,
+    ):
+        """Return a fake `warm_concepts` that records its kwargs and returns
+        a synthetic WarmConceptsResult. Patched in for each test so the CLI
+        runs without making real network calls."""
+        from mgz_pkmn.lookup import WarmConceptsResult
+
+        calls: dict[str, object] = {}
+
+        def _fake(pkmn, tcgdex, *, source="all", on_progress=None):  # type: ignore[no-untyped-def]
+            calls["source"] = source
+            calls["on_progress"] = on_progress
+            total = attempted if attempted is not None else 3
+            # Fire the progress callback if one was supplied so the verbose
+            # branch's output is exercised.
+            if on_progress is not None:
+                for i, name in enumerate(["Mew", "Eevee", "Pikachu"][:total], start=1):
+                    on_progress(i, total, name)
+            return WarmConceptsResult(
+                names_attempted=total,
+                names_warmed=warmed if warmed is not None else total,
+                names_failed=failed or [],
+            )
+
+        return _fake, calls
+
+    def test_happy_path_writes_manifest_and_prints_summary(self) -> None:
+        from unittest.mock import patch as _patch
+
+        fake, calls = self._stub_warm(attempted=5, warmed=5)
+        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+            result = self._invoke()
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        # Section heading + summary line both appear.
+        self.assertIn("Warming concept cache", result.output)
+        self.assertIn("5 names", result.output)
+        self.assertIn("5 warmed", result.output)
+        # Default --source is 'all'.
+        self.assertEqual(calls["source"], "all")
+        # Manifest persisted to disk.
+        manifest = disk_cache.read_concept_warm()
+        self.assertIsNotNone(manifest)
+        assert manifest is not None
+        self.assertEqual(manifest["names_warmed"], 5)
+        self.assertEqual(manifest["source"], "all")
+
+    def test_source_flag_passes_through_to_warm_concepts(self) -> None:
+        from unittest.mock import patch as _patch
+
+        fake, calls = self._stub_warm()
+        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+            result = self._invoke("--source", "pokemontcg")
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(calls["source"], "pokemontcg")
+        # The manifest records the source the operator chose.
+        manifest = disk_cache.read_concept_warm()
+        assert manifest is not None
+        self.assertEqual(manifest["source"], "pokemontcg")
+
+    def test_verbose_progress_lands_in_output(self) -> None:
+        from unittest.mock import patch as _patch
+
+        fake, _calls = self._stub_warm(attempted=3, warmed=3)
+        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+            result = self._invoke("-v")
+        self.assertEqual(result.exit_code, 0, result.output)
+        # Each [i/total] line plus its name renders to the stream.
+        self.assertIn("[1/3]", result.output)
+        self.assertIn("[3/3]", result.output)
+        self.assertIn("Pikachu", result.output)
+
+    def test_verbose_lists_missed_names(self) -> None:
+        from unittest.mock import patch as _patch
+
+        fake, _calls = self._stub_warm(attempted=3, warmed=2, failed=["Eevee"])
+        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+            result = self._invoke("-v")
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("1 missed", result.output)
+        # The verbose branch also prints the literal failed names.
+        self.assertIn("missed: ", result.output)
+        self.assertIn("Eevee", result.output)
+
+    def test_upstream_request_failure_surfaces_as_click_exception(self) -> None:
+        from unittest.mock import patch as _patch
+
+        import requests as _requests
+
+        with _patch(
+            "mgz_pkmn.cli.warm_concepts",
+            side_effect=_requests.ConnectionError("network down"),
+        ):
+            result = self._invoke()
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("concept warm failed", result.output)
+        self.assertIn("network down", result.output)
+        # No manifest should land when the warm pass aborted.
+        self.assertIsNone(disk_cache.read_concept_warm())
+
+    def test_empty_dictionary_raises_click_exception(self) -> None:
+        from unittest.mock import patch as _patch
+
+        fake, _calls = self._stub_warm(attempted=0, warmed=0)
+        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+            result = self._invoke()
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("_CONCEPT_KEYWORDS produced no names", result.output)
+
+
+class CacheStatsConceptLineTests(_IsolatedCacheMixin):
+    """Cover the two branches of the `pkmn cache stats` Concepts line:
+    "not warmed" (no manifest) vs. "N names · warmed <age>" (manifest present).
+    The pure-function stats() coverage is in StatsIncludesConceptWarmTests
+    above; this exercises the CLI's rendering specifically."""
+
+    def _invoke(self):  # type: ignore[no-untyped-def]
+        from click.testing import CliRunner
+
+        from mgz_pkmn.cli import cli
+
+        return CliRunner().invoke(cli, ["cache", "stats"])
+
+    def test_renders_not_warmed_when_no_manifest(self) -> None:
+        result = self._invoke()
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("not warmed", result.output)
+        self.assertIn("warm-concepts", result.output)
+
+    def test_renders_warmed_age_when_manifest_present(self) -> None:
+        disk_cache.write_concept_warm(names_warmed=42, names_failed=[], source="all")
+        result = self._invoke()
+        self.assertEqual(result.exit_code, 0, result.output)
+        # Branch covered: includes the count + "warmed" with a relative age.
+        self.assertIn("42 names", result.output)
+        self.assertIn("warmed", result.output)
+        # "not warmed" text from the other branch must NOT appear here.
+        self.assertNotIn("not warmed", result.output)
+
+
+# ---------------------------------------------------------------------------
+# API startup hook — `_warm_concepts_in_background` short-circuits when the
+# manifest is fresh, otherwise spawns a daemon thread that runs the warm
+# pass and writes the manifest. We test both branches without involving
+# the real FastAPI app or real HTTP.
+# ---------------------------------------------------------------------------
+
+
+class WarmConceptsBackgroundHookTests(_IsolatedCacheMixin):
+    def test_skips_when_cache_is_fresh(self) -> None:
+        from unittest.mock import patch as _patch
+
+        from api.main import _warm_concepts_in_background
+
+        # Plant a fresh manifest so the freshness gate short-circuits.
+        disk_cache.write_concept_warm(names_warmed=10, names_failed=[], source="all")
+        with _patch("api.main.warm_concepts") as warm_mock:
+            _warm_concepts_in_background()
+            # The freshness short-circuit must keep us out of the thread path.
+            warm_mock.assert_not_called()
+
+    def test_runs_warm_and_persists_manifest_when_stale(self) -> None:
+        import threading
+        from unittest.mock import patch as _patch
+
+        from api.main import _warm_concepts_in_background
+        from mgz_pkmn.lookup import WarmConceptsResult
+
+        # No prior manifest → the gate returns False and we expect a real
+        # background run. We mock warm_concepts itself so no HTTP fires, then
+        # block until the daemon thread completes.
+        done = threading.Event()
+
+        def _fake_warm(pkmn, tcgdex, *, source="all"):
+            try:
+                return WarmConceptsResult(names_attempted=4, names_warmed=4, names_failed=[])
+            finally:
+                done.set()
+
+        with (
+            _patch("api.main.warm_concepts", side_effect=_fake_warm),
+            _patch("api.main.TCGClient"),
+            _patch("api.main.TCGDexClient"),
+        ):
+            _warm_concepts_in_background()
+            self.assertTrue(done.wait(timeout=5.0), "background thread did not finish")
+            # Give the writer a tick to land the manifest after warm returns.
+            for _ in range(50):
+                if disk_cache.read_concept_warm() is not None:
+                    break
+                time.sleep(0.02)
+
+        manifest = disk_cache.read_concept_warm()
+        self.assertIsNotNone(manifest)
+        assert manifest is not None
+        self.assertEqual(manifest["names_warmed"], 4)
+
+    def test_swallows_exceptions_so_service_keeps_running(self) -> None:
+        import threading
+        from unittest.mock import patch as _patch
+
+        from api.main import _warm_concepts_in_background
+
+        done = threading.Event()
+
+        def _boom(*_args, **_kwargs):
+            try:
+                raise RuntimeError("upstream down")
+            finally:
+                done.set()
+
+        # Even when warm_concepts raises, the hook must not propagate (the
+        # daemon thread should log + swallow). No manifest is written.
+        with (
+            _patch("api.main.warm_concepts", side_effect=_boom),
+            _patch("api.main.TCGClient"),
+            _patch("api.main.TCGDexClient"),
+        ):
+            _warm_concepts_in_background()  # must return without raising
+            self.assertTrue(done.wait(timeout=5.0))
+
+        self.assertIsNone(disk_cache.read_concept_warm())
+
+
+# ---------------------------------------------------------------------------
+# Cache edges — covers the few remaining lines codecov flagged in cache.py:
+# write_concept_warm's OSError suppression and behaviour under
+# MGZ_PKMN_NO_CACHE=1 (the manifest is meant to be honoured anyway, per the
+# stats-is-real-state contract).
+# ---------------------------------------------------------------------------
+
+
+class ConceptWarmManifestEdgeCasesTests(_IsolatedCacheMixin):
+    def test_write_swallows_oserror(self) -> None:
+        from unittest.mock import patch as _patch
+
+        # Force the underlying file write to raise; the helper must absorb
+        # it silently so a read-only filesystem doesn't crash a successful
+        # warm run.
+        with _patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+            disk_cache.write_concept_warm(names_warmed=1, names_failed=[], source="all")
+        # Nothing landed on disk, but the call returned normally.
+        self.assertIsNone(disk_cache.read_concept_warm())
+
+    def test_manifest_honoured_when_no_cache_env_is_set(self) -> None:
+        # Operators reading `pkmn cache stats` want real on-disk state even
+        # when MGZ_PKMN_NO_CACHE=1 is set for the current run. The manifest
+        # helpers must not short-circuit on that env var.
+        disk_cache.write_concept_warm(names_warmed=7, names_failed=[], source="all")
+        try:
+            os.environ[disk_cache._NO_CACHE_ENV] = "1"
+            data = disk_cache.read_concept_warm()
+            self.assertIsNotNone(data)
+            assert data is not None
+            self.assertEqual(data["names_warmed"], 7)
+            self.assertTrue(disk_cache.concept_warm_is_fresh())
+            s = disk_cache.stats()
+            self.assertEqual(s.concept_warm_names, 7)
+        finally:
+            # _IsolatedCacheMixin.tearDown restores the env var to its
+            # original state; this is just defensive in case the test
+            # body raises mid-way.
+            os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+
+
 if __name__ == "__main__":
     unittest.main()
