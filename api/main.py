@@ -9,7 +9,9 @@ Or from inside the api/ directory:
 
 from __future__ import annotations
 
+import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -19,8 +21,49 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
 from mgz_pkmn import __version__
+from mgz_pkmn import cache as disk_cache
+from mgz_pkmn.lookup import warm_concepts
+from mgz_pkmn.sources import TCGClient, TCGDexClient
 
 from .routes import export, lookup, overrides, parse, set_cards, sets
+
+_log = logging.getLogger(__name__)
+
+_WARM_ON_STARTUP_ENV = "MGZ_PKMN_WARM_ON_STARTUP"
+
+
+def _warm_concepts_in_background() -> None:
+    """Run the concept warm pass on a daemon thread so FastAPI startup
+    isn't blocked by ~200 upstream HTTP requests.
+
+    Gated by the on-disk freshness manifest — if a warm pass landed within
+    the last 24 h, skip and log "already fresh". Errors are logged and
+    swallowed: a failed warm should not crash the service, only leave the
+    cache cold for this run."""
+    if disk_cache.concept_warm_is_fresh():
+        _log.info("concept cache fresh; skipping startup warm")
+        return
+
+    def _run() -> None:
+        try:
+            pkmn = TCGClient(api_key=os.environ.get("POKEMONTCG_IO_API_KEY"))
+            tcgdex = TCGDexClient()
+            result = warm_concepts(pkmn, tcgdex, source="all")
+            disk_cache.write_concept_warm(
+                names_warmed=result.names_warmed,
+                names_failed=result.names_failed,
+                source="all",
+            )
+            _log.info(
+                "concept warm complete: %d names attempted, %d warmed, %d missed",
+                result.names_attempted,
+                result.names_warmed,
+                len(result.names_failed),
+            )
+        except Exception:
+            _log.exception("concept warm failed; service running with cold cache")
+
+    threading.Thread(target=_run, name="concept-warm", daemon=True).start()
 
 
 class SPAStaticFiles(StaticFiles):
@@ -65,6 +108,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Opt-in startup hook: when MGZ_PKMN_WARM_ON_STARTUP=1, kick off a concept
+# warm pass in the background so the first concept lookup served by this
+# process is a cache hit. The manifest's once-per-day gate keeps reloads
+# from thrashing (a `uvicorn --reload` cycle won't re-warm if a warm pass
+# landed within the last 24 h).
+if os.environ.get(_WARM_ON_STARTUP_ENV, "").strip() in ("1", "true", "True"):
+
+    @app.on_event("startup")
+    def _startup_warm_concepts() -> None:
+        _warm_concepts_in_background()
+
 
 app.include_router(parse.router, prefix="/api/v1", tags=["parse"])
 app.include_router(lookup.router, prefix="/api/v1", tags=["lookup"])

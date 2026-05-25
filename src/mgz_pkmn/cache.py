@@ -44,10 +44,13 @@ if TYPE_CHECKING:
 
 DEFAULT_API_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
 DEFAULT_CACHE_WARN_BYTES = 50 * 1024 * 1024  # 50 MB
+CONCEPT_WARM_STALE_SECONDS = 24 * 60 * 60  # one day — once-per-day startup gate
 _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
 _WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
+_CONCEPT_WARM_FILE = "concept_warm.json"
 OVERRIDES_SCHEMA_VERSION = 1
+CONCEPT_WARM_SCHEMA_VERSION = 1
 _IMAGES_SUBDIR = "images"
 # Allowed image extensions for read-side discovery; write-side derives the
 # extension from the source URL but normalises it through this list so an
@@ -81,6 +84,12 @@ class CacheStats:
     override_bytes: int
     image_entry_count: int
     image_bytes: int
+    # Concept-warm slice — populated from the `concept_warm.json` manifest
+    # written by `pkmn cache warm-concepts`. `concept_warm_timestamp` is
+    # None when no warm pass has been recorded yet; the CLI renders that as
+    # "concept cache: not warmed" so the operator knows the state at a glance.
+    concept_warm_timestamp: float | None
+    concept_warm_names: int
 
 
 def _disabled() -> bool:
@@ -563,6 +572,81 @@ def image_cache_size() -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
+# Concept-warm manifest — small JSON file that records when `warm-concepts`
+# last ran and how many names it warmed. Powers both the once-per-day
+# startup gate (`MGZ_PKMN_WARM_ON_STARTUP=1`) and the concept-warm slice in
+# `pkmn cache stats`. Honoured even when `MGZ_PKMN_NO_CACHE=1` is set:
+# operators reading stats want real on-disk state, not a silent zero.
+# ---------------------------------------------------------------------------
+
+
+def _concept_warm_path() -> Path:
+    return _cache_root_path() / _CONCEPT_WARM_FILE
+
+
+def read_concept_warm() -> dict[str, Any] | None:
+    """Return the parsed concept-warm manifest, or None when absent/malformed.
+
+    Schema (v1):
+        {
+            "version": 1,
+            "timestamp": <unix float>,
+            "names_warmed": <int>,
+            "names_failed": [<str>, ...],
+            "source": "pokemontcg" | "tcgdex" | "all"
+        }
+
+    Treats a malformed/legacy file as "no manifest" so a corrupted write
+    doesn't poison the freshness gate."""
+    path = _concept_warm_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or data.get("version") != CONCEPT_WARM_SCHEMA_VERSION:
+        return None
+    return data
+
+
+def write_concept_warm(
+    *,
+    names_warmed: int,
+    names_failed: list[str],
+    source: str,
+) -> None:
+    """Persist the concept-warm manifest. Best-effort — failures are silent
+    so a read-only filesystem doesn't crash a successful warm pass."""
+    payload = {
+        "version": CONCEPT_WARM_SCHEMA_VERSION,
+        "timestamp": time.time(),
+        "names_warmed": names_warmed,
+        "names_failed": names_failed,
+        "source": source,
+    }
+    root = cache_root()
+    with contextlib.suppress(OSError):
+        (root / _CONCEPT_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def concept_warm_is_fresh(*, now: float | None = None) -> bool:
+    """True when a manifest exists and its timestamp is within the staleness
+    window (default 24 h, configurable via `CONCEPT_WARM_STALE_SECONDS`).
+
+    Used by the FastAPI startup hook to decide whether to re-warm. `now`
+    parameter is for tests — production callers omit it and use wall time."""
+    manifest = read_concept_warm()
+    if manifest is None:
+        return False
+    ts = manifest.get("timestamp")
+    if not isinstance(ts, int | float):
+        return False
+    current = now if now is not None else time.time()
+    return (current - ts) < CONCEPT_WARM_STALE_SECONDS
+
+
+# ---------------------------------------------------------------------------
 # Stats — health snapshot for `pkmn cache stats`.
 # ---------------------------------------------------------------------------
 
@@ -609,6 +693,17 @@ def stats() -> CacheStats:
 
     image_count, image_bytes = image_cache_size()
 
+    concept_warm_timestamp: float | None = None
+    concept_warm_names = 0
+    manifest = read_concept_warm()
+    if manifest is not None:
+        ts = manifest.get("timestamp")
+        if isinstance(ts, int | float):
+            concept_warm_timestamp = float(ts)
+        n = manifest.get("names_warmed")
+        if isinstance(n, int):
+            concept_warm_names = n
+
     return CacheStats(
         root=root,
         api_entry_count=api_count,
@@ -618,4 +713,6 @@ def stats() -> CacheStats:
         override_bytes=override_bytes,
         image_entry_count=image_count,
         image_bytes=image_bytes,
+        concept_warm_timestamp=concept_warm_timestamp,
+        concept_warm_names=concept_warm_names,
     )

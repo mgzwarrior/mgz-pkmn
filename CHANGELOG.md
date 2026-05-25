@@ -7,6 +7,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- CLI: `pkmn cache warm-concepts` subcommand walks every distinct name
+  referenced by the curated `_CONCEPT_KEYWORDS` dictionary and primes the
+  API response cache for each one, so concept lookups (`top 9 puppy`,
+  `all eeveelution cards`, …) resolve from cache on subsequent runs
+  instead of fanning out to N upstream calls. Accepts `--source
+  pokemontcg|tcgdex|all` (default `all`: walk pokemontcg.io first and fall
+  back to TCGdex on miss) and `--verbose` to print each name as it warms.
+  Writes a manifest at `concept_warm.json` in the cache root with a
+  timestamp + count.
+- API: opt-in `MGZ_PKMN_WARM_ON_STARTUP=1` env var triggers the same warm
+  pass on FastAPI startup, running on a background daemon thread so
+  startup isn't blocked. Gated by the manifest's 24-hour freshness window
+  so `uvicorn --reload` cycles and tight redeploys don't thrash.
+- Stats: `pkmn cache stats` surfaces a new **Concepts** line — "N names ·
+  warmed <age>" when a warm pass has landed, "not warmed" otherwise.
+
 ## [1.1.1] - 2026-05-25
 
 ### Fixed

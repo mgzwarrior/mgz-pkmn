@@ -19,7 +19,7 @@ from . import cache as disk_cache
 from .binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from .checklist import write_checklist_pdf
 from .images import download_image
-from .lookup import find_card, find_top_cards
+from .lookup import WARM_SOURCES, find_card, find_top_cards, warm_concepts
 from .parser import CardQuery, read_input
 from .pricing import Pricing, extract_pricing
 from .report import build_json_report
@@ -1016,6 +1016,23 @@ def cache_stats_command(as_json: bool) -> None:
         + click.style("Images:        ", fg="bright_black")
         + f"{s.image_entry_count} entries · {_format_bytes(s.image_bytes)} · indefinite TTL"
     )
+    # Concept-warm slice — surfaced from the on-disk manifest written by
+    # `pkmn cache warm-concepts`. Shows "not warmed" when no manifest exists
+    # so an operator can tell at a glance whether concept lookups will pay
+    # network cost on first use.
+    if s.concept_warm_timestamp is None:
+        click.echo(
+            "  "
+            + click.style("Concepts:      ", fg="bright_black")
+            + click.style("not warmed", fg="yellow")
+            + " · run `pkmn cache warm-concepts` to prime"
+        )
+    else:
+        click.echo(
+            "  "
+            + click.style("Concepts:      ", fg="bright_black")
+            + f"{s.concept_warm_names} names · warmed {_format_age(s.concept_warm_timestamp)}"
+        )
 
 
 @cache_group.command(name="clear", context_settings={"help_option_names": ["-h", "--help"]})
@@ -1102,6 +1119,82 @@ def cache_warm_sets_command(api_key: str | None, verbose: bool) -> None:
     count, total_bytes = disk_cache.image_cache_size()
     click.secho("  ✓ ", fg="green", nl=False)
     click.echo(f"image cache now {count} entries · {_format_bytes(total_bytes)}")
+
+    click.echo()
+    click.secho("Done!", fg="green", bold=True)
+
+
+@cache_group.command(name="warm-concepts", context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "--api-key",
+    envvar="POKEMONTCG_IO_API_KEY",
+    default=None,
+    help="pokemontcg.io API key (or set POKEMONTCG_IO_API_KEY).",
+)
+@click.option(
+    "--source",
+    type=click.Choice(WARM_SOURCES, case_sensitive=False),
+    default="all",
+    show_default=True,
+    help="Restrict the warm pass to a single source. 'all' walks pokemontcg.io first and falls back to TCGdex on miss.",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print each name as it warms.")
+def cache_warm_concepts_command(api_key: str | None, source: str, verbose: bool) -> None:
+    """Pre-prime the API cache for every name referenced by `_CONCEPT_KEYWORDS`.
+
+    Concept lookups (`top 9 puppy`, `all eeveelution cards`, …) expand to N
+    underlying name searches. On a cold cache that's N upstream calls per
+    concept query; this command walks the curated dictionary up front so
+    subsequent concept lookups resolve as cache hits.
+
+    Writes a manifest at `concept_warm.json` in the cache root with a
+    timestamp + count so `pkmn cache stats` can report freshness and the
+    FastAPI startup hook (`MGZ_PKMN_WARM_ON_STARTUP=1`) can gate itself to
+    run at most once per day."""
+    _print_banner(__version__)
+
+    _print_section(f"Warming concept cache · source={source}")
+    pkmn = TCGClient(api_key=api_key, verbose=verbose)
+    tcgdex = TCGDexClient(verbose=verbose)
+
+    def _progress(index: int, total: int, name: str) -> None:
+        if not verbose:
+            return
+        click.echo(
+            click.style(f"  [{index}/{total}] ", fg="bright_black") + name,
+            err=False,
+        )
+
+    try:
+        result = warm_concepts(pkmn, tcgdex, source=source, on_progress=_progress)
+    except requests.RequestException as exc:
+        raise click.ClickException(f"concept warm failed: {exc}") from exc
+
+    if result.names_attempted == 0:
+        raise click.ClickException("_CONCEPT_KEYWORDS produced no names — check the dictionary")
+
+    # Persist the manifest so `pkmn cache stats` and the API startup gate
+    # see a record of this run.
+    disk_cache.write_concept_warm(
+        names_warmed=result.names_warmed,
+        names_failed=result.names_failed,
+        source=source,
+    )
+
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(
+        f"{result.names_attempted} names · "
+        + click.style(f"{result.names_warmed} warmed", fg="cyan")
+        + (
+            click.style(f" · {len(result.names_failed)} missed", fg="yellow")
+            if result.names_failed
+            else ""
+        )
+    )
+    if result.names_failed and verbose:
+        click.echo(
+            "  " + click.style("missed: ", fg="bright_black") + ", ".join(result.names_failed)
+        )
 
     click.echo()
     click.secho("Done!", fg="green", bold=True)

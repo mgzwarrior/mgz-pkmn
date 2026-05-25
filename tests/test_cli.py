@@ -196,6 +196,8 @@ class CacheStatsCommandTests(unittest.TestCase):
                 "override_count",
                 "image_bytes",
                 "image_entry_count",
+                "concept_warm_timestamp",
+                "concept_warm_names",
                 "root",
             },
         )

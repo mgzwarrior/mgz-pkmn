@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
@@ -17,6 +19,11 @@ from .sources import (
     search_tcgdex,
 )
 from .sources.base import MatchResult, name_clause
+
+# Source filters accepted by `warm_concepts()` and the `--source` flag on
+# `pkmn cache warm-concepts`. Kept as a tuple so the CLI can advertise the
+# full set in help text without re-declaring it.
+WARM_SOURCES = ("pokemontcg", "tcgdex", "all")
 
 # Bulk subjects that aren't Pokemon names but card subtypes. When the user
 # writes `top 4 tag team` they want cards whose subtype is "TAG TEAM" (cards
@@ -539,3 +546,97 @@ def find_top_cards(
     enriched.sort(key=lambda pair: pair[0], reverse=True)
     ranked = enriched if limit is None else enriched[:limit]
     return [card for _, card in ranked]
+
+
+# ---------------------------------------------------------------------------
+# Concept warming — pre-prime the disk cache for every distinct name in
+# `_CONCEPT_KEYWORDS` so that subsequent concept lookups (`top 9 puppy`,
+# `all eeveelution cards`, …) resolve from cache with zero upstream calls.
+#
+# Reusing `search_pokemontcg` / `search_tcgdex` (instead of full `find_card`)
+# means the warm pass writes through the same per-source `disk_cache.read_api`
+# / `write_api` paths the user-facing lookup hits — so a cache hit during
+# warming is also a cache hit at lookup time. PriceCharting isn't relevant
+# here (concept names never come with URL hints).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class WarmConceptsResult:
+    """Outcome of a `warm_concepts` run.
+
+    `names_attempted` is the deduplicated count of names walked from
+    `_CONCEPT_KEYWORDS`. `names_warmed` counts the names where at least one
+    source returned a card (and therefore wrote through the disk cache).
+    `names_failed` lists the names where every enabled source missed — useful
+    for the operator to scan after the run and decide whether the curated
+    dictionary has drifted from upstream catalogs (e.g. a typo in a
+    `_CONCEPT_KEYWORDS` entry, or a name retired by the database)."""
+
+    names_attempted: int
+    names_warmed: int
+    names_failed: list[str] = field(default_factory=list)
+
+
+def iter_concept_names() -> set[str]:
+    """Return the deduplicated set of distinct Pokemon names referenced by
+    `_CONCEPT_KEYWORDS`.
+
+    Splits every `/`-separated value, trims whitespace, drops empties, and
+    folds duplicates — names like `Riolu` (appearing in both `puppy` and
+    `baby`) only need to be warmed once."""
+    return {
+        n.strip() for value in _CONCEPT_KEYWORDS.values() for n in value.split("/") if n.strip()
+    }
+
+
+def warm_concepts(
+    pkmn: TCGClient,
+    tcgdex: TCGDexClient,
+    *,
+    source: str = "all",
+    on_progress: Callable[[int, int, str], None] | None = None,
+) -> WarmConceptsResult:
+    """Walk every distinct name in `_CONCEPT_KEYWORDS` and prime the disk
+    cache for each one.
+
+    `source` selects which database(s) to walk:
+        * ``"pokemontcg"`` — pokemontcg.io only
+        * ``"tcgdex"`` — TCGdex (English) only
+        * ``"all"`` — pokemontcg.io first; fall back to TCGdex on miss
+
+    `on_progress`, when provided, is invoked once per name with
+    `(index, total, name)` so callers can render a progress bar.
+
+    Returns a `WarmConceptsResult` so the CLI / API can render a summary
+    and write the on-disk manifest that `pkmn cache stats` reports against."""
+    if source not in WARM_SOURCES:
+        raise ValueError(f"unknown source {source!r}; expected one of {WARM_SOURCES}")
+
+    names = sorted(iter_concept_names())
+    total = len(names)
+    warmed = 0
+    failed: list[str] = []
+    for index, name in enumerate(names, start=1):
+        if on_progress is not None:
+            on_progress(index, total, name)
+        q = CardQuery(raw=name, name=name)
+        hit = False
+        if source in ("pokemontcg", "all"):
+            primary = search_pokemontcg(pkmn, q)
+            if primary.card is not None:
+                hit = True
+        # Fall through to TCGdex on miss (or always, when source="tcgdex").
+        if not hit and source in ("tcgdex", "all"):
+            tcgdex_result = search_tcgdex(tcgdex, q, "en")
+            if tcgdex_result.card is not None:
+                hit = True
+        if hit:
+            warmed += 1
+        else:
+            failed.append(name)
+    return WarmConceptsResult(
+        names_attempted=total,
+        names_warmed=warmed,
+        names_failed=failed,
+    )
