@@ -1018,6 +1018,36 @@ def cache_stats_command(as_json: bool) -> None:
     )
 
 
+@cache_group.command(name="clear", context_settings={"help_option_names": ["-h", "--help"]})
+def cache_clear_command() -> None:
+    """Wipe cached API responses; preserve URL overrides and images.
+
+    Standalone counterpart to `pkmn lookup --clear-cache` — same wipe, no
+    lookup required. Reclaims the regenerable API slice (`cache/api/*.json`)
+    while leaving the user-supplied `url_overrides.json` and the
+    indefinite-TTL image cache (`cache/images/`) untouched, since those
+    take real effort to populate.
+
+    Runs even when `MGZ_PKMN_NO_CACHE=1` is set: the user explicitly asked
+    for a wipe, and a no-op surprise would defeat the purpose. No
+    confirmation prompt — the action is recoverable (next run re-fetches)
+    and prompts complicate scripting; the `clear` name is intent enough."""
+    # Snapshot API-slice size before the wipe so the summary can report how
+    # much disk we freed. Reads the same `stats()` snapshot the stats command
+    # renders, but only the api_bytes field is surfaced — overrides and
+    # images aren't touched by this command.
+    before = disk_cache.stats()
+    count = disk_cache.clear_api_cache()
+
+    _print_section("Clearing API response cache")
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(
+        f"{count} entr{'y' if count == 1 else 'ies'} cleared · "
+        + click.style(f"{_format_bytes(before.api_bytes)} freed", bold=True)
+        + click.style(" (overrides + images preserved)", fg="bright_black")
+    )
+
+
 @cache_group.command(name="warm-sets", context_settings={"help_option_names": ["-h", "--help"]})
 @click.option(
     "--api-key",

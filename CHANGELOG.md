@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- CLI: `pkmn cache clear` subcommand wipes the API response cache
+  without forcing you to run a lookup. URL overrides and the
+  indefinite-TTL image cache are preserved (they take real effort to
+  populate); the on-disk wipe is the same one `pkmn lookup --clear-cache`
+  performs. Honoured even when `MGZ_PKMN_NO_CACHE=1` is set — explicit
+  wipe wins over implicit skip.
 - Web: **Set picker modal** for the Set ID cards export. Clicking
   **Set ID cards…** in the Export dropdown now opens a picker that
   groups every set by series **newest → oldest** (modern blocks like
