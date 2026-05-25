@@ -102,6 +102,7 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   function handleOpenChange(next: boolean) {
     if (next) {
       setDraft(new Set(selectedSetIds))
+      setLoadError(null)
       setSubmitError(null)
     }
     onOpenChange(next)
@@ -112,6 +113,10 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   useEffect(() => {
     if (!open || sets !== null) return
     let cancelled = false
+    Promise.resolve().then(() => {
+      if (cancelled) return
+      setLoadError(null)
+    })
     fetchSets(settings.apiKey || undefined)
       .then((data) => {
         if (cancelled) return

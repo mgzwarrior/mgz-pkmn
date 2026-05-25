@@ -164,6 +164,35 @@ describe('SetPickerModal', () => {
     ).toBeInTheDocument()
   })
 
+  it('clears stale load errors while retrying after reopening', async () => {
+    let resolveRetry!: (value: SetInfo[]) => void
+    const retryPromise = new Promise<SetInfo[]>((resolve) => {
+      resolveRetry = resolve
+    })
+    mockFetchSets
+      .mockRejectedValueOnce(new Error('upstream down'))
+      .mockReturnValueOnce(retryPromise)
+    const onOpenChange = vi.fn()
+    const { rerender } = render(
+      <SetPickerModal open={true} onOpenChange={onOpenChange} />
+    )
+
+    expect(
+      await screen.findByText(/Couldn’t load sets: upstream down/)
+    ).toBeInTheDocument()
+
+    rerender(<SetPickerModal open={false} onOpenChange={onOpenChange} />)
+    rerender(<SetPickerModal open={true} onOpenChange={onOpenChange} />)
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Couldn’t load sets:/)).not.toBeInTheDocument()
+    })
+    expect(screen.getByText(/Loading set catalog/)).toBeInTheDocument()
+
+    resolveRetry(SETS)
+    expect(await screen.findByText('Surging Sparks')).toBeInTheDocument()
+  })
+
   it('surfaces a submit error and keeps the modal open', async () => {
     mockDownload.mockRejectedValueOnce(new Error('rate-limited'))
     const { onOpenChange } = renderOpen()
