@@ -1,0 +1,398 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import {
+  fetchContributors,
+  fetchGoodFirstIssues,
+  fetchRecentMergedPRs,
+  relativeTime,
+} from "../lib/github.ts";
+
+const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
+
+// Live OSS signals — pulled at build time so the SPA stays client-side-free.
+// Each helper returns `[]` if the API call fails (network blip, rate limit,
+// no token); the template treats an empty array as "skip this slice" so the
+// page still builds when GitHub is unreachable.
+const [goodFirstIssues, recentPRs, contributors] = await Promise.all([
+  fetchGoodFirstIssues(6),
+  fetchRecentMergedPRs(5),
+  fetchContributors(12),
+]);
+const hasLiveSignals =
+  goodFirstIssues.length > 0 || recentPRs.length > 0 || contributors.length > 0;
+
+const shapes = [
+  {
+    title: "Bugs",
+    body: "Hit something weird? File an issue with a reproducible example. Bug fixes ship faster than features and get prioritized accordingly.",
+  },
+  {
+    title: "Features",
+    body: "Got an idea? Float it in Discussions first — saves design churn. Then an issue, then a PR. Small, well-scoped wins.",
+  },
+  {
+    title: "Docs",
+    body: "README, the contributing guide, ADRs, code comments, error messages. Writing matters as much as the code; if something tripped you up, it'll trip the next person too.",
+  },
+  {
+    title: "Lookup sources",
+    body: "Adapters for new data sources — eBay sold listings, Cardmarket variants, regional indexes. The lookup pipeline is built around source interfaces; adding one is a self-contained PR.",
+  },
+  {
+    title: "Web & SPA",
+    body: "FastAPI + React + Tailwind. The web client mirrors the CLI; UI work and accessibility polish are always welcome.",
+  },
+  {
+    title: "Tests",
+    body: "Edge cases, parser fixtures, integration coverage. The test suite is the safety net everyone else relies on — every contribution here punches above its weight.",
+  },
+];
+
+const steps = [
+  {
+    n: "01",
+    title: "Pick (or open) an issue",
+    body: "Every change is traceable to an issue. Browse the curated good-first-issue list, or open one yourself and tag the area. Comment to claim it before you start.",
+  },
+  {
+    n: "02",
+    title: "Branch and implement",
+    body: "Branch name format: <issueNumber>-<short-description>. Match existing patterns. Run make fix before committing — pre-commit hooks handle the rest.",
+  },
+  {
+    n: "03",
+    title: "Open the PR",
+    body: "Sign off with -s. Mirror the issue's labels and milestone on the PR. The local gate (make check) and CI must be green; first-time contributors get a celebration on the contributors thread when their PR merges.",
+  },
+];
+
+const ctas = [
+  {
+    title: "Browse starter issues",
+    body: "Curated, well-scoped, ready to claim.",
+    href: `${repoUrl}/labels/good%20first%20issue`,
+  },
+  {
+    title: "Open a Discussion",
+    body: "Float an idea, ask a question, say hi.",
+    href: `${repoUrl}/discussions`,
+  },
+  {
+    title: "Read the full guide",
+    body: "Branch conventions, sign-off, CI, the works.",
+    href: `${repoUrl}/blob/main/docs/contributing.md`,
+  },
+];
+---
+
+<BaseLayout
+  title="Contribute to mgz-pkmn — open-source Pokemon TCG prep tool"
+  description="How to contribute to mgz-pkmn: pick an issue, open a PR, get your first change merged. Bugs, features, docs, data sources, web, tests — all welcome."
+>
+  <Header />
+  <main>
+    <!-- Hero -->
+    <section class="relative overflow-hidden border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]"
+      >
+        <div
+          class="absolute inset-x-0 top-0 mx-auto h-[30rem] w-[30rem] -translate-y-1/3 rounded-full bg-brand-600/15 blur-3xl"
+        >
+        </div>
+      </div>
+
+      <div class="mx-auto max-w-3xl text-center">
+        <p
+          class="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/60 px-3 py-1 text-xs font-medium text-zinc-300"
+        >
+          <span class="h-1.5 w-1.5 rounded-full bg-brand-400"></span>
+          First-time contributors welcome
+        </p>
+
+        <h1
+          class="mt-6 text-4xl sm:text-5xl font-bold tracking-tight text-white text-balance"
+        >
+          Help build the prep tool we all wish existed.
+        </h1>
+
+        <p class="mt-6 text-lg text-zinc-300 text-balance max-w-2xl mx-auto">
+          Open-source, MIT-licensed, public roadmap. Whether you're fixing a typo, adding a
+          data source, or designing a new export — there's a way in.
+        </p>
+      </div>
+    </section>
+
+    <!-- Ways to contribute -->
+    <section class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+      <div class="mx-auto max-w-6xl">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            Ways in.
+          </h2>
+          <p class="mt-4 text-lg text-zinc-400">
+            Six shapes of contribution. Pick the one that matches what you'd rather spend
+            an afternoon on.
+          </p>
+        </div>
+
+        <ul class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {
+            shapes.map((s) => (
+              <li class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 hover:border-zinc-700 transition">
+                <h3 class="text-lg font-semibold text-white">{s.title}</h3>
+                <p class="mt-3 text-sm leading-relaxed text-zinc-400">{s.body}</p>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+      <div class="mx-auto max-w-6xl">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            How it works.
+          </h2>
+          <p class="mt-4 text-lg text-zinc-400">
+            Three steps from "I'd like to help" to a merged PR. The full reference lives
+            in <a
+              href={`${repoUrl}/blob/main/docs/contributing.md`}
+              class="text-brand-400 hover:text-brand-300 underline-offset-4 hover:underline"
+              >docs/contributing.md</a
+            >.
+          </p>
+        </div>
+
+        <ol class="mt-12 grid gap-8 md:grid-cols-3">
+          {
+            steps.map((step) => (
+              <li class="relative rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+                <span class="absolute -top-3 -left-3 inline-flex h-10 w-10 items-center justify-center rounded-md bg-brand-500 text-sm font-bold text-white shadow-lg shadow-brand-500/30">
+                  {step.n}
+                </span>
+                <h3 class="mt-2 text-lg font-semibold text-white">{step.title}</h3>
+                <p class="mt-3 text-sm leading-relaxed text-zinc-400">{step.body}</p>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+    </section>
+
+    <!-- Recognition -->
+    <section class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+      <div class="mx-auto max-w-6xl">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            Recognition.
+          </h2>
+          <p class="mt-4 text-lg text-zinc-400">
+            What you get for showing up.
+          </p>
+        </div>
+
+        <div class="mt-12 grid gap-6 md:grid-cols-2">
+          <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+            <h3 class="text-lg font-semibold text-white">First PR celebration</h3>
+            <p class="mt-3 text-sm leading-relaxed text-zinc-400">
+              When your first PR merges, we post a welcome on the <a
+                href={`${repoUrl}/discussions/141`}
+                class="text-brand-400 hover:text-brand-300 underline-offset-4 hover:underline"
+                >contributors thread</a
+              >. Small thing; matters anyway.
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+            <h3 class="text-lg font-semibold text-white">Citable</h3>
+            <p class="mt-3 text-sm leading-relaxed text-zinc-400">
+              Writing a blog post, paper, or talk that uses mgz-pkmn? The repo ships a <a
+                href={`${repoUrl}/blob/main/CITATION.cff`}
+                class="text-brand-400 hover:text-brand-300 underline-offset-4 hover:underline"
+                >CITATION.cff</a
+              > so a one-click citation is always available.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live activity — built-time GitHub data. Renders nothing if every
+         API call failed (empty arrays); the surrounding sections still flow
+         correctly because we condition the whole <section> on `hasLiveSignals`. -->
+    {
+      hasLiveSignals && (
+        <section class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+          <div class="mx-auto max-w-6xl">
+            <div class="max-w-2xl">
+              <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+                What's happening right now.
+              </h2>
+              <p class="mt-4 text-lg text-zinc-400">
+                Pulled at build time from GitHub — refreshes whenever the site
+                redeploys.
+              </p>
+            </div>
+
+            <div class="mt-12 grid gap-8 lg:grid-cols-2">
+              {goodFirstIssues.length > 0 && (
+                <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+                  <div class="flex items-baseline justify-between gap-4">
+                    <h3 class="text-lg font-semibold text-white">
+                      Open starter issues
+                    </h3>
+                    <a
+                      href={`${repoUrl}/labels/good%20first%20issue`}
+                      class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                    >
+                      see all →
+                    </a>
+                  </div>
+                  <ul class="mt-4 space-y-3">
+                    {goodFirstIssues.map((i) => (
+                      <li class="text-sm">
+                        <a
+                          href={i.url}
+                          class="group flex items-start gap-3 rounded-md px-2 py-1.5 -mx-2 hover:bg-zinc-900/60 transition"
+                        >
+                          <span class="font-mono text-xs text-zinc-500 mt-0.5">
+                            #{i.number}
+                          </span>
+                          <span class="flex-1 text-zinc-200 group-hover:text-white leading-snug">
+                            {i.title}
+                          </span>
+                          {i.area && (
+                            <span class="text-xs rounded-full border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-zinc-400 self-center">
+                              {i.area}
+                            </span>
+                          )}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {recentPRs.length > 0 && (
+                <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+                  <div class="flex items-baseline justify-between gap-4">
+                    <h3 class="text-lg font-semibold text-white">
+                      Recently merged
+                    </h3>
+                    <a
+                      href={`${repoUrl}/pulls?q=is%3Apr+is%3Amerged`}
+                      class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                    >
+                      see all →
+                    </a>
+                  </div>
+                  <ul class="mt-4 space-y-3">
+                    {recentPRs.map((pr) => (
+                      <li class="text-sm">
+                        <a
+                          href={pr.url}
+                          class="group flex items-start gap-3 rounded-md px-2 py-1.5 -mx-2 hover:bg-zinc-900/60 transition"
+                        >
+                          <img
+                            src={pr.authorAvatarUrl}
+                            alt=""
+                            width="20"
+                            height="20"
+                            class="h-5 w-5 rounded-full mt-0.5"
+                          />
+                          <span class="flex-1 text-zinc-200 group-hover:text-white leading-snug">
+                            {pr.title}
+                          </span>
+                          <span class="text-xs text-zinc-500 self-center">
+                            {relativeTime(pr.mergedAt)}
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {contributors.length > 0 && (
+              <div class="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+                <div class="flex items-baseline justify-between gap-4">
+                  <h3 class="text-lg font-semibold text-white">Contributors</h3>
+                  <a
+                    href={`${repoUrl}/graphs/contributors`}
+                    class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                  >
+                    see all →
+                  </a>
+                </div>
+                <p class="mt-2 text-sm text-zinc-400">
+                  Everyone who's landed a commit. Your face goes here when your
+                  first PR merges.
+                </p>
+                <ul class="mt-5 flex flex-wrap gap-3">
+                  {contributors.map((c) => (
+                    <li>
+                      <a
+                        href={c.url}
+                        title={`@${c.login} — ${c.contributions} commit${c.contributions === 1 ? "" : "s"}`}
+                        class="block"
+                      >
+                        <img
+                          src={c.avatarUrl}
+                          alt={`@${c.login}`}
+                          width="44"
+                          height="44"
+                          class="h-11 w-11 rounded-full border-2 border-zinc-800 hover:border-brand-500 transition"
+                        />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      )
+    }
+
+    <!-- Get started -->
+    <section class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+      <div class="mx-auto max-w-6xl">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            Get started.
+          </h2>
+          <p class="mt-4 text-lg text-zinc-400">
+            Three doors — pick whichever you'd rather walk through first.
+          </p>
+        </div>
+
+        <ul class="mt-12 grid gap-6 md:grid-cols-3">
+          {
+            ctas.map((cta) => (
+              <li>
+                <a
+                  href={cta.href}
+                  class="flex h-full flex-col rounded-xl border border-brand-500/40 bg-brand-500/5 p-6 hover:border-brand-500/70 hover:bg-brand-500/10 transition"
+                >
+                  <h3 class="text-lg font-semibold text-white">{cta.title}</h3>
+                  <p class="mt-3 text-sm leading-relaxed text-zinc-300 flex-1">{cta.body}</p>
+                  <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-brand-400">
+                    Go →
+                  </span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>
