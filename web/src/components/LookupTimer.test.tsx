@@ -54,6 +54,15 @@ describe('formatElapsed', () => {
     expect(formatElapsed(125_000)).toBe('2m05s')
   })
 
+  it('rolls over to 1m00s when toFixed(2) would round up to 60.00', () => {
+    // 59_999 ms is 59.999s, which `toFixed(2)` renders as "60.00"
+    // (V8 floating-point rounding). Render that as `1m00s` rather
+    // than the surprising boundary value `60.00s`.
+    expect(formatElapsed(59_999)).toBe('1m00s')
+    // Just under the rounding boundary still uses the seconds branch.
+    expect(formatElapsed(59_990)).toBe('59.99s')
+  })
+
   it('clamps negatives to 0ms', () => {
     expect(formatElapsed(-5)).toBe('0ms')
   })

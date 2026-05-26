@@ -28,12 +28,21 @@ export function formatComp(
  * Format an elapsed wall-clock duration in milliseconds as a compact
  * human-readable string: `123ms`, `1.24s`, or `1m02s`. Negative values
  * clamp to `0ms` so the running lookup timer never renders a negative
- * value if the clock briefly drifts backwards.
+ * value if the clock briefly drifts backwards. Values that would
+ * round to exactly `60.00s` (e.g. 59_995 ms) roll over to `1m00s` so
+ * the sub-minute branch never displays the next minute's boundary.
  */
 export function formatElapsed(ms: number): string {
   if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`
   const seconds = ms / 1000
-  if (seconds < 60) return `${seconds.toFixed(2)}s`
+  if (seconds < 60) {
+    // `toFixed(2)` can round just-under-60 values up to "60.00"
+    // (e.g. 59.999s). Promote that case to the next minute so the
+    // sub-minute branch never displays the boundary value.
+    const display = seconds.toFixed(2)
+    if (parseFloat(display) < 60) return `${display}s`
+    return '1m00s'
+  }
   const m = Math.floor(seconds / 60)
   const s = Math.floor(seconds % 60)
   return `${m}m${s.toString().padStart(2, '0')}s`

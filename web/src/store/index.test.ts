@@ -31,13 +31,18 @@ describe('store: processingLines', () => {
 
   it('markLineStatus stamps endedAt with the wall-clock time of the transition', () => {
     vi.useFakeTimers()
-    vi.setSystemTime(1_700_000_000_000)
-    useAppStore.setState({
-      processingLines: [{ line: 'Charizard', status: 'pending' }],
-    })
-    useAppStore.getState().markLineStatus(0, 'resolved')
-    expect(useAppStore.getState().processingLines[0].endedAt).toBe(1_700_000_000_000)
-    vi.useRealTimers()
+    try {
+      vi.setSystemTime(1_700_000_000_000)
+      useAppStore.setState({
+        processingLines: [{ line: 'Charizard', status: 'pending' }],
+      })
+      useAppStore.getState().markLineStatus(0, 'resolved')
+      expect(useAppStore.getState().processingLines[0].endedAt).toBe(1_700_000_000_000)
+    } finally {
+      // try/finally so a failing assertion above doesn't strand the
+      // suite in fake-timer mode and cascade into later tests.
+      vi.useRealTimers()
+    }
   })
 })
 
