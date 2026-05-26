@@ -35,6 +35,8 @@ function App() {
     setProgress,
     setProcessingLines,
     markLineStatus,
+    setRunStartedAt,
+    setRunEndedAt,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -66,14 +68,23 @@ function App() {
     setProcessingLines(nonEmpty.map((line) => ({ line, status: 'pending' })))
     setIsRunning(true)
     setProgress({ done: 0, total: nonEmpty.length })
+    // Reset run timestamps. `runStartedAt` is set when the first SSE
+    // event arrives so the elapsed value reflects user-felt latency.
+    setRunStartedAt(null)
+    setRunEndedAt(null)
 
     abortRef.current = new AbortController()
 
     // Track unique card IDs for client-side deduplication.
     const seenIds = new Set<string>()
+    let firstEventSeen = false
 
     function onEvent(event: BulkEvent) {
       if (event.done) return
+      if (!firstEventSeen) {
+        firstEventSeen = true
+        setRunStartedAt(Date.now())
+      }
 
       // First event for this input line transitions it out of "pending".
       // Subsequent events (top:N expansions) leave the status alone.
@@ -99,14 +110,23 @@ function App() {
       setProgress({ done: event.index + 1, total: event.total })
     }
 
-    function onDone() {
+    // `bulkLookup` calls `onDone` on every normal exit path (non-OK
+    // response, stream completion, abort). The only way it can throw
+    // without calling `onDone` is if the initial `fetch` itself
+    // rejects — a true network error. Guard both endpoints against
+    // double-stamping by only stamping if the run hasn't already
+    // ended; that way Stop, completion, and network-error paths each
+    // land exactly one `runEndedAt` write.
+    function stampEndIfMissing() {
+      if (useAppStore.getState().runEndedAt != null) return
       setIsRunning(false)
+      setRunEndedAt(Date.now())
     }
 
     try {
-      await bulkLookup(nonEmpty, settings, onEvent, onDone, abortRef.current.signal)
+      await bulkLookup(nonEmpty, settings, onEvent, stampEndIfMissing, abortRef.current.signal)
     } catch {
-      setIsRunning(false)
+      stampEndIfMissing()
     }
   }, [
     inputText,
@@ -118,12 +138,17 @@ function App() {
     setProgress,
     setProcessingLines,
     markLineStatus,
+    setRunStartedAt,
+    setRunEndedAt,
   ])
 
   const handleStop = useCallback(() => {
+    // Just abort the stream. `bulkLookup`'s abort path will fire
+    // `onDone(aborted=true)` which the handleRun-side guard stamps
+    // exactly once. No need to stamp here ourselves — doing so used
+    // to overwrite the actual stream-end timestamp.
     abortRef.current?.abort()
-    setIsRunning(false)
-  }, [setIsRunning])
+  }, [])
 
   // Re-run a single line (called after adding a PriceCharting URL override).
   const handleRerunLine = useCallback(

@@ -29,5 +29,16 @@ Paste the relevant CLI output, traceback, or screenshot (for the web UI).
  - OS: [e.g. macOS 14, Ubuntu 22.04]
  - Install method: [pip / uv / Docker / from source]
 
+**Performance (if relevant)**
+Optional — fill in if the report is about something being slow. Turn on
+**Show lookup timer** in the SPA settings drawer to capture these
+numbers; ranges to compare against live in
+[docs/benchmarks.md](../../docs/benchmarks.md).
+
+ - Lookup timer (from settings drawer): [e.g. 12.4s · 25 cards · 496 ms/card]
+ - Workload: [e.g. `top:25 Charizard cards`]
+ - Cache state: [warm / cold / unknown]
+ - Compared against benchmarks in docs/benchmarks.md: [within range / N× slower]
+
 **Additional context**
 Add any other context about the problem here.

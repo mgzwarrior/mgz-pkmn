@@ -138,6 +138,13 @@ export function SettingsDrawer() {
                 checked={settings.noImages}
                 onChange={(v) => updateSettings({ noImages: v })}
               />
+              <Toggle
+                id="showTimer"
+                label="Show lookup timer"
+                description="Surfaces wall-clock elapsed time during a run and a total/avg summary after"
+                checked={settings.showTimer}
+                onChange={(v) => updateSettings({ showTimer: v })}
+              />
             </div>
           </div>
 

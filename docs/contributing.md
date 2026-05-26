@@ -267,6 +267,15 @@ uv run python -m unittest discover -s tests   # run tests
 Ruff config lives in [pyproject.toml](../pyproject.toml) under
 `[tool.ruff]`.
 
+### Performance reference
+
+[`docs/benchmarks.md`](benchmarks.md) lists expected lookup latencies
+for the workloads users hit most often. If you're changing
+`lookup.py`, `pricing.py`, `images.py`, or the SSE wiring, run one of
+the reference workloads with the **Show lookup timer** setting on and
+compare the on-screen total against the documented range — it's the
+cheapest regression check available.
+
 ## Pre-commit hooks
 
 `make install-hooks` (or the full `make install`) does this for you:

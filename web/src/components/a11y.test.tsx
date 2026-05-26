@@ -46,6 +46,7 @@ const { storeState, storeApi } = vi.hoisted(() => {
       tag: '',
       dedupe: false,
       sort: 'number' as const,
+      showTimer: false,
     },
   }
   const api = {

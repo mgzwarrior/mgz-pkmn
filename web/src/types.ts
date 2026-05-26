@@ -82,12 +82,21 @@ export interface Settings {
   tag: string
   dedupe: boolean
   sort: SortMode
+  showTimer: boolean
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */
 export interface ProcessingLine {
   line: string
   status: 'pending' | 'resolved' | 'error'
+  /**
+   * Wall-clock ms (Date.now()) when the line transitioned out of
+   * `pending` — i.e. when its first SSE event arrived. The status at
+   * that point is either `resolved` or `error`; either way the elapsed
+   * badge represents the time between the run starting and the line
+   * leaving the queue.
+   */
+  endedAt?: number
 }
 
 export interface SetInfo {

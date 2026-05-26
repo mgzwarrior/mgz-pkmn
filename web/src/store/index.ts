@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: Settings = {
   tag: '',
   dedupe: false,
   sort: 'number',
+  showTimer: false,
 }
 
 interface AppState {
@@ -29,6 +30,18 @@ interface AppState {
   /** Whether a bulk lookup is in flight. */
   isRunning: boolean
   setIsRunning: (v: boolean) => void
+
+  /**
+   * Wall-clock timestamps (Date.now()) bracketing the most recent bulk run.
+   * `runStartedAt` is set when the first SSE event arrives so the elapsed
+   * value reflects user-felt latency (network + SSE overhead included).
+   * `runEndedAt` is set when the run finishes — by completion, stop, or
+   * error — and stays set so the post-run summary remains visible.
+   */
+  runStartedAt: number | null
+  runEndedAt: number | null
+  setRunStartedAt: (t: number | null) => void
+  setRunEndedAt: (t: number | null) => void
 
   /** Per-input-line status tracked across the current bulk lookup. */
   processingLines: ProcessingLine[]
@@ -71,6 +84,11 @@ export const useAppStore = create<AppState>()(
       isRunning: false,
       setIsRunning: (isRunning) => set({ isRunning }),
 
+      runStartedAt: null,
+      runEndedAt: null,
+      setRunStartedAt: (runStartedAt) => set({ runStartedAt }),
+      setRunEndedAt: (runEndedAt) => set({ runEndedAt }),
+
       processingLines: [],
       setProcessingLines: (processingLines) => set({ processingLines }),
       markLineStatus: (index, status) =>
@@ -78,7 +96,7 @@ export const useAppStore = create<AppState>()(
           const current = state.processingLines[index]
           if (!current || current.status !== 'pending') return state
           const next = state.processingLines.slice()
-          next[index] = { ...current, status }
+          next[index] = { ...current, status, endedAt: Date.now() }
           return { processingLines: next }
         }),
 
