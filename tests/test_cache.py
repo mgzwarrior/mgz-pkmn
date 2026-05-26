@@ -367,5 +367,214 @@ class UrlOverrideSchemaTests(_IsolatedCacheDirMixin):
         self.assertEqual(cache.stats().override_count, 2)
 
 
+# ---------------------------------------------------------------------------
+# Image cache (indefinite TTL) — set logos, set symbols, future card art.
+# ---------------------------------------------------------------------------
+
+
+class _FakeResponse:
+    """Stand-in for `requests.Response` with just the bits the cache needs."""
+
+    def __init__(self, content: bytes, status: int = 200) -> None:
+        self.content = content
+        self.status_code = status
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            import requests as _r
+
+            raise _r.HTTPError(f"HTTP {self.status_code}")
+
+
+class _FakeSession:
+    """Minimal session stub. `responses` is a URL → bytes (or exception) map."""
+
+    def __init__(self, responses: dict[str, bytes | Exception]) -> None:
+        self.responses = responses
+        self.calls: list[str] = []
+
+    def get(self, url: str, timeout: float | None = None) -> _FakeResponse:
+        self.calls.append(url)
+        result = self.responses.get(url)
+        if isinstance(result, Exception):
+            raise result
+        if result is None:
+            return _FakeResponse(b"", status=404)
+        return _FakeResponse(result, status=200)
+
+
+class ImageCacheRoundTripTests(_IsolatedCacheDirMixin):
+    def test_write_then_read_returns_path(self) -> None:
+        path = cache.write_image("sets/logo", "sv8", b"PNGDATA", ext=".png")
+        self.assertIsNotNone(path)
+        self.assertTrue(path.exists())  # type: ignore[union-attr]
+        self.assertEqual(path.read_bytes(), b"PNGDATA")  # type: ignore[union-attr]
+
+        found = cache.read_image("sets/logo", "sv8")
+        self.assertEqual(found, path)
+
+    def test_read_returns_none_when_missing(self) -> None:
+        self.assertIsNone(cache.read_image("sets/logo", "nope"))
+
+    def test_read_finds_any_allowed_extension(self) -> None:
+        cache.write_image("sets/symbol", "base1", b"data", ext=".jpg")
+        found = cache.read_image("sets/symbol", "base1")
+        self.assertIsNotNone(found)
+        self.assertEqual(found.suffix, ".jpg")  # type: ignore[union-attr]
+
+    def test_unknown_extension_falls_back_to_png(self) -> None:
+        path = cache.write_image("sets/logo", "x", b"bytes", ext=".bogus")
+        self.assertIsNotNone(path)
+        self.assertEqual(path.suffix, ".png")  # type: ignore[union-attr]
+
+    def test_safe_image_key_strips_unsafe_chars(self) -> None:
+        # Keys with slashes / spaces / punctuation must collapse to safe names
+        # so no surprise subdirs sneak in via category-tunneling.
+        path = cache.write_image("sets/logo", "weird id / with spaces!", b"x")
+        self.assertIsNotNone(path)
+        self.assertNotIn("/", path.name)  # type: ignore[union-attr]
+        self.assertNotIn(" ", path.name)  # type: ignore[union-attr]
+
+    def test_write_is_noop_when_cache_disabled(self) -> None:
+        os.environ[cache._NO_CACHE_ENV] = "1"
+        self.assertIsNone(cache.write_image("sets/logo", "x", b"bytes"))
+
+    def test_read_returns_none_when_cache_disabled(self) -> None:
+        cache.write_image("sets/logo", "x", b"bytes")
+        os.environ[cache._NO_CACHE_ENV] = "1"
+        self.assertIsNone(cache.read_image("sets/logo", "x"))
+
+
+class DownloadAndCacheImageTests(_IsolatedCacheDirMixin):
+    def test_miss_downloads_and_persists(self) -> None:
+        session = _FakeSession({"https://example/logo.png": b"PNGBYTES"})
+        path = cache.download_and_cache_image(
+            "sets/logo", "sv8", "https://example/logo.png", session
+        )
+        self.assertIsNotNone(path)
+        self.assertEqual(path.read_bytes(), b"PNGBYTES")  # type: ignore[union-attr]
+        self.assertEqual(session.calls, ["https://example/logo.png"])
+
+    def test_hit_skips_network(self) -> None:
+        cache.write_image("sets/logo", "sv8", b"CACHED", ext=".png")
+        session = _FakeSession({"https://example/logo.png": b"FRESH"})
+        path = cache.download_and_cache_image(
+            "sets/logo", "sv8", "https://example/logo.png", session
+        )
+        self.assertIsNotNone(path)
+        self.assertEqual(path.read_bytes(), b"CACHED")  # type: ignore[union-attr]
+        self.assertEqual(session.calls, [], "cache hit must not touch the network")
+
+    def test_network_failure_returns_none_and_does_not_write(self) -> None:
+        import requests
+
+        session = _FakeSession({"https://example/logo.png": requests.ConnectionError("down")})
+        path = cache.download_and_cache_image(
+            "sets/logo", "sv8", "https://example/logo.png", session
+        )
+        self.assertIsNone(path)
+        # Nothing on disk for that key.
+        self.assertIsNone(cache.read_image("sets/logo", "sv8"))
+
+
+class ImageCacheEdgeCaseTests(_IsolatedCacheDirMixin):
+    def test_safe_image_key_empty_falls_back_to_default(self) -> None:
+        # An empty (or whitespace-only) key collapses to "image" rather than
+        # producing a hidden dot-prefixed file like `.png`. Non-empty but
+        # all-punctuation keys collapse to `_` via the regex sub.
+        path_blank = cache.write_image("sets/logo", "   ", b"data")
+        self.assertIsNotNone(path_blank)
+        self.assertTrue(path_blank.name.startswith("image"))  # type: ignore[union-attr]
+        path_punct = cache.write_image("sets/logo", "!!!", b"other")
+        self.assertIsNotNone(path_punct)
+        self.assertEqual(path_punct.name, "_.png")  # type: ignore[union-attr]
+
+    def test_read_image_returns_none_when_dir_missing(self) -> None:
+        # Cache root exists (touched by setUp via overrides path) but the
+        # `images/` subdir was never created — read should short-circuit.
+        self.assertIsNone(cache.read_image("sets/logo", "anything"))
+
+    def test_zero_byte_file_is_treated_as_missing(self) -> None:
+        # An interrupted write that left a zero-byte file shouldn't poison
+        # the cache — the next read must fall through to a fresh fetch.
+        target = cache._image_dir("sets/logo") / "ghost.png"
+        target.write_bytes(b"")
+        self.assertIsNone(cache.read_image("sets/logo", "ghost"))
+
+    def test_write_returns_none_when_filesystem_errors(self) -> None:
+        # Simulate a transient OS write error during the rename step. The
+        # function should swallow it and return None rather than crash the
+        # caller, and no half-written temp should be left behind.
+        from unittest.mock import patch as _patch
+
+        with _patch("pathlib.Path.replace", side_effect=OSError("disk full")):
+            self.assertIsNone(cache.write_image("sets/logo", "x", b"bytes"))
+        # And the temp file is cleaned up so the next attempt sees an empty
+        # category dir.
+        leftovers = list((cache.cache_root() / "images").rglob("*"))
+        self.assertEqual([p.name for p in leftovers if p.is_file()], [])
+
+
+class ClearImageCacheEdgeCaseTests(_IsolatedCacheDirMixin):
+    def test_clear_returns_zero_when_no_image_dir(self) -> None:
+        # Fresh cache with no `images/` subdir — clear is a no-op, not an
+        # error.
+        self.assertEqual(cache.clear_image_cache(), 0)
+
+    def test_clear_removes_nested_category_dirs(self) -> None:
+        # After clear, the category subdirectories should be pruned so
+        # subsequent `stats()` doesn't show ghost entries.
+        cache.write_image("sets/logo", "a", b"x")
+        cache.write_image("sets/symbol", "b", b"y")
+        cache.clear_image_cache()
+        images_dir = cache.cache_root() / "images"
+        # The leaf categories should be gone.
+        self.assertFalse((images_dir / "sets" / "logo").exists())
+        self.assertFalse((images_dir / "sets" / "symbol").exists())
+
+
+class ImageCacheStatsAndClearTests(_IsolatedCacheDirMixin):
+    def test_size_and_count_reflect_writes(self) -> None:
+        cache.write_image("sets/logo", "a", b"abcdef")
+        cache.write_image("sets/symbol", "a", b"01234")
+        count, total = cache.image_cache_size()
+        self.assertEqual(count, 2)
+        self.assertEqual(total, len(b"abcdef") + len(b"01234"))
+
+    def test_stats_surfaces_image_slice(self) -> None:
+        cache.write_image("sets/logo", "a", b"1234")
+        s = cache.stats()
+        self.assertEqual(s.image_entry_count, 1)
+        self.assertEqual(s.image_bytes, 4)
+
+    def test_cache_size_bytes_includes_images(self) -> None:
+        cache.write_api("k", {"x": 1})
+        cache.write_image("sets/logo", "a", b"123456")
+        # API write + image write must both appear in the total.
+        total = cache.cache_size_bytes()
+        api_size = sum(p.stat().st_size for p in (cache.cache_root() / "api").glob("*.json"))
+        self.assertEqual(total, api_size + 6)
+
+    def test_clear_image_cache_removes_only_images(self) -> None:
+        cache.write_api("k", {"x": 1})
+        cache.write_image("sets/logo", "a", b"img")
+        removed = cache.clear_image_cache()
+        self.assertEqual(removed, 1)
+        # API cache survived.
+        api_dir = cache.cache_root() / "api"
+        self.assertGreater(len(list(api_dir.glob("*.json"))), 0)
+        # Image cache is empty.
+        self.assertEqual(cache.image_cache_size(), (0, 0))
+
+    def test_clear_api_cache_does_not_touch_images(self) -> None:
+        # The defining property of the indefinite slice: it survives an API
+        # wipe. A user clearing stale API payloads should not lose a 30 MB
+        # warmed set catalog.
+        cache.write_image("sets/logo", "a", b"img-bytes")
+        cache.write_api("k", {"x": 1})
+        cache.clear_api_cache()
+        self.assertEqual(cache.image_cache_size(), (1, len(b"img-bytes")))
+
+
 if __name__ == "__main__":
     unittest.main()
