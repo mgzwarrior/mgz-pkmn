@@ -35,6 +35,7 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
+from . import branding
 from . import cache as disk_cache
 from .images import download_image
 from .sources import TCGClient
@@ -172,11 +173,14 @@ def write_set_cards_pdf(
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     c = canvas.Canvas(str(out_path), pagesize=letter)
-    c.setTitle(out_path.stem)
+    branding.apply_pdf_metadata(c, out_path.stem)
+    tracker = branding.PageTracker(c, letter)
 
     for page_start in range(0, len(cutouts), CUTOUTS_PER_PAGE):
         if page_start > 0:
-            c.showPage()
+            tracker.show_page()
+        if tracker.page_num == 1:
+            _draw_page_one_logo(c)
         page = cutouts[page_start : page_start + CUTOUTS_PER_PAGE]
         for i, co in enumerate(page):
             col = i % COLS
@@ -185,8 +189,18 @@ def write_set_cards_pdf(
             y = PAGE_H - MARGIN_Y - (row + 1) * CARD_H
             _draw_cutout(c, x, y, co)
 
-    c.save()
+    tracker.finish()
     return len(cutouts)
+
+
+def _draw_page_one_logo(c: canvas.Canvas) -> None:
+    """Page-1 only wordmark above the 3x3 cutout grid. Painted on its
+    own dark slate chip so the light-grey wordmark reads — the
+    set-cards layout has no shared header band to ride on, unlike the
+    binder and checklist writers."""
+    logo_h = 11.0
+    logo_y = PAGE_H - MARGIN_Y / 2 - logo_h / 2
+    branding.draw_pdf_logo(c, MARGIN_X + 4, logo_y, logo_h, draw_panel=True)
 
 
 def _normalize(set_obj: dict[str, Any], today: _dt.date) -> dict[str, Any]:

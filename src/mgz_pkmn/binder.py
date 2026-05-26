@@ -25,6 +25,7 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
+from . import branding
 from .parser import (
     _CJK_IDEOGRAPH_RE,
     _HANGUL_RE,
@@ -214,7 +215,8 @@ def write_binder_pdf(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     _ensure_cjk_fonts()
     c = canvas.Canvas(str(out_path), pagesize=letter)
-    c.setTitle(title or out_path.stem)
+    branding.apply_pdf_metadata(c, title or out_path.stem)
+    tracker = branding.PageTracker(c, letter)
 
     geom = _compute_geometry(layout)
 
@@ -225,11 +227,11 @@ def write_binder_pdf(
     is_first_section = True
     for tag, section_rows in sections:
         if not is_first_section:
-            c.showPage()
+            tracker.show_page()
         is_first_section = False
-        _draw_section(c, tag, section_rows, layout, geom, max_price=max_price)
+        _draw_section(c, tag, section_rows, layout, geom, tracker, max_price=max_price)
 
-    c.save()
+    tracker.finish()
 
 
 def _compute_geometry(layout: BinderLayout) -> dict:
@@ -265,13 +267,14 @@ def _draw_section(
     rows: list[Row],
     layout: BinderLayout,
     geom: dict,
+    tracker: branding.PageTracker,
     max_price: float | None = None,
 ) -> None:
     """Render one tag's worth of cards across as many pages as needed."""
     for i, row in enumerate(rows):
         idx_on_page = i % layout.cards_per_page
         if i > 0 and idx_on_page == 0:
-            c.showPage()
+            tracker.show_page()
         if idx_on_page == 0:
             _draw_section_header(c, tag, len(rows), layout)
 
@@ -285,21 +288,31 @@ def _draw_section(
 
 
 def _draw_section_header(c: canvas.Canvas, tag: str, count: int, layout: BinderLayout) -> None:
-    """Banner across the top of each page in a section: 'Source: <tag>  ·  N cards'."""
+    """Banner across the top of each page in a section: 'Source: <tag>  ·  N cards'.
+
+    The mgz-pkmn wordmark rides on the left edge of the band — the band's
+    dark slate background is the only spot in the binder layout where the
+    light-grey logo type reads, and putting it here gets branding on
+    every page without inventing a fresh chrome strip."""
     c.saveState()
     band_y = PAGE_H - layout.margin - layout.header_band_h
-    c.setFillColorRGB(0.16, 0.21, 0.30)  # dark slate
+    c.setFillColorRGB(*branding.HEADER_PANEL_RGB)
     c.rect(
         layout.margin, band_y, PAGE_W - 2 * layout.margin, layout.header_band_h, fill=1, stroke=0
     )
+
+    logo_h = layout.header_band_h * 0.65
+    logo_y = band_y + (layout.header_band_h - logo_h) / 2
+    logo_x = layout.margin + 6
+    branding.draw_pdf_logo(c, logo_x, logo_y, logo_h)
+    text_x = logo_x + logo_h * branding.LOGO_ASPECT + 10
+
     c.setFillColorRGB(1, 1, 1)
     title_size = max(9, layout.header_band_h * 0.5)
     sub_size = max(7, layout.header_band_h * 0.4)
     c.setFont("Helvetica-Bold", title_size)
     label = tag or "(untagged)"
-    c.drawString(
-        layout.margin + 8, band_y + (layout.header_band_h - title_size) / 2, f"Source: {label}"
-    )
+    c.drawString(text_x, band_y + (layout.header_band_h - title_size) / 2, f"Source: {label}")
     c.setFont("Helvetica", sub_size)
     suffix = f"{count} card{'s' if count != 1 else ''}"
     c.drawRightString(
