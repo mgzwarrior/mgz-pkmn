@@ -9,6 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: **Lookup timer** — a new **Show lookup timer** toggle in the
+  settings drawer (off by default) surfaces wall-clock elapsed time
+  during a bulk run: a live ticking clock under the **Look up** button
+  while a run is in flight, a final
+  `total · count · ms/card` summary after it finishes, and a
+  per-input-line elapsed-ms badge in the processing queue. Timing is
+  measured frontend-side from the first SSE event to the done event so
+  the number reflects user-felt latency (network + SSE overhead
+  included). New [docs/benchmarks.md](docs/benchmarks.md) lists
+  expected ranges for the workloads users hit most often, and the bug
+  report template carries an optional **Performance** section linking
+  back to it.
 - Web: **Card detail modal** — tapping any matched row in the results table
   opens a modal with the large card art, a two-column identity + pricing
   block (market + 80/85/90/95% comps), and a "card data" section that

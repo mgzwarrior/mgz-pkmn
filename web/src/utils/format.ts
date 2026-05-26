@@ -23,3 +23,18 @@ export function formatComp(
   if (market == null) return '—'
   return formatMoney((market * pct) / 100, currency)
 }
+
+/**
+ * Format an elapsed wall-clock duration in milliseconds as a compact
+ * human-readable string: `123ms`, `1.24s`, or `1m02s`. Negative values
+ * clamp to `0ms` so the running lookup timer never renders a negative
+ * value if the clock briefly drifts backwards.
+ */
+export function formatElapsed(ms: number): string {
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`
+  const seconds = ms / 1000
+  if (seconds < 60) return `${seconds.toFixed(2)}s`
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}m${s.toString().padStart(2, '0')}s`
+}

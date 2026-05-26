@@ -70,6 +70,7 @@ describe('ExportBar', () => {
         tag: '',
         dedupe: false,
         sort: 'number',
+        showTimer: false,
       },
     })
     mockExportFile.mockReset()
@@ -141,6 +142,7 @@ describe('ExportBar', () => {
         tag: 'binder',
         dedupe: true,
         sort: 'alpha',
+        showTimer: false,
       },
     })
 

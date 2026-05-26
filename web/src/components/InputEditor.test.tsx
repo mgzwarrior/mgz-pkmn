@@ -21,6 +21,19 @@ vi.mock('../store', () => ({
     setInputText: mockSetInputText,
     isRunning: storeState.isRunning,
     clearRows: mockClearRows,
+    // LookupTimer (rendered under the toolbar) reads these fields.
+    settings: {
+      apiKey: '',
+      maxPrice: null,
+      noImages: true,
+      tag: '',
+      dedupe: false,
+      sort: 'number',
+      showTimer: false,
+    },
+    runStartedAt: null,
+    runEndedAt: null,
+    rows: [],
   }),
 }))
 

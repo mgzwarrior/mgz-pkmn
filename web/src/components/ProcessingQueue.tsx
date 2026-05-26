@@ -10,7 +10,7 @@ import { useAppStore } from '../store'
 import type { ProcessingLine } from '../types'
 
 export function ProcessingQueue() {
-  const { processingLines, isRunning } = useAppStore()
+  const { processingLines, isRunning, runStartedAt, settings } = useAppStore()
 
   if (processingLines.length === 0) return null
   // Hide as soon as the run finishes — covers both the success case
@@ -33,14 +33,27 @@ export function ProcessingQueue() {
       </div>
       <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3">
         {processingLines.map((pl, i) => (
-          <LineStatus key={`${i}:${pl.line}`} line={pl} />
+          <LineStatus
+            key={`${i}:${pl.line}`}
+            line={pl}
+            runStartedAt={runStartedAt}
+            showTimer={settings.showTimer}
+          />
         ))}
       </ul>
     </div>
   )
 }
 
-function LineStatus({ line }: { line: ProcessingLine }) {
+function LineStatus({
+  line,
+  runStartedAt,
+  showTimer,
+}: {
+  line: ProcessingLine
+  runStartedAt: number | null
+  showTimer: boolean
+}) {
   const icon =
     line.status === 'pending' ? (
       <Loader2 size={12} className="flex-shrink-0 animate-spin text-blue-400" />
@@ -49,10 +62,27 @@ function LineStatus({ line }: { line: ProcessingLine }) {
     ) : (
       <AlertTriangle size={12} className="flex-shrink-0 text-amber-400" />
     )
+
+  // Per-line elapsed badge: wall-clock from the run start to the moment
+  // this line transitioned out of pending. Gated by the same setting as
+  // the global timer so the queue isn't noisy by default.
+  const elapsedMs =
+    showTimer && line.endedAt != null && runStartedAt != null
+      ? Math.max(0, line.endedAt - runStartedAt)
+      : null
+
   return (
     <li className="flex items-center gap-1.5 text-xs text-zinc-400">
       {icon}
       <span className="truncate">{line.line}</span>
+      {elapsedMs != null && (
+        <span
+          className="ml-auto flex-shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-mono text-[10px] tabular-nums text-zinc-400"
+          aria-label={`Resolved in ${elapsedMs} milliseconds`}
+        >
+          {elapsedMs}ms
+        </span>
+      )}
     </li>
   )
 }

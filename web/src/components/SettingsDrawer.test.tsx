@@ -16,6 +16,7 @@ vi.mock('../store', () => ({
       tag: '',
       dedupe: false,
       sort: 'number',
+      showTimer: false,
     },
     updateSettings: mockUpdateSettings,
     resetSettings: mockResetSettings,
@@ -38,5 +39,12 @@ describe('SettingsDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
     fireEvent.click(screen.getByRole('button', { name: /restore defaults/i }))
     expect(mockResetSettings).toHaveBeenCalledOnce()
+  })
+
+  it('toggling "Show lookup timer" calls updateSettings({ showTimer: true })', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    fireEvent.click(screen.getByLabelText(/show lookup timer/i))
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ showTimer: true })
   })
 })

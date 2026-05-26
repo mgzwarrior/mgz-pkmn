@@ -82,12 +82,15 @@ export interface Settings {
   tag: string
   dedupe: boolean
   sort: SortMode
+  showTimer: boolean
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */
 export interface ProcessingLine {
   line: string
   status: 'pending' | 'resolved' | 'error'
+  /** Wall-clock ms (Date.now()) when the line first resolved or errored. */
+  endedAt?: number
 }
 
 export interface SetInfo {

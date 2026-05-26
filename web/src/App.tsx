@@ -35,6 +35,8 @@ function App() {
     setProgress,
     setProcessingLines,
     markLineStatus,
+    setRunStartedAt,
+    setRunEndedAt,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -66,14 +68,23 @@ function App() {
     setProcessingLines(nonEmpty.map((line) => ({ line, status: 'pending' })))
     setIsRunning(true)
     setProgress({ done: 0, total: nonEmpty.length })
+    // Reset run timestamps. `runStartedAt` is set when the first SSE
+    // event arrives so the elapsed value reflects user-felt latency.
+    setRunStartedAt(null)
+    setRunEndedAt(null)
 
     abortRef.current = new AbortController()
 
     // Track unique card IDs for client-side deduplication.
     const seenIds = new Set<string>()
+    let firstEventSeen = false
 
     function onEvent(event: BulkEvent) {
       if (event.done) return
+      if (!firstEventSeen) {
+        firstEventSeen = true
+        setRunStartedAt(Date.now())
+      }
 
       // First event for this input line transitions it out of "pending".
       // Subsequent events (top:N expansions) leave the status alone.
@@ -101,12 +112,14 @@ function App() {
 
     function onDone() {
       setIsRunning(false)
+      setRunEndedAt(Date.now())
     }
 
     try {
       await bulkLookup(nonEmpty, settings, onEvent, onDone, abortRef.current.signal)
     } catch {
       setIsRunning(false)
+      setRunEndedAt(Date.now())
     }
   }, [
     inputText,
@@ -118,12 +131,15 @@ function App() {
     setProgress,
     setProcessingLines,
     markLineStatus,
+    setRunStartedAt,
+    setRunEndedAt,
   ])
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort()
     setIsRunning(false)
-  }, [setIsRunning])
+    setRunEndedAt(Date.now())
+  }, [setIsRunning, setRunEndedAt])
 
   // Re-run a single line (called after adding a PriceCharting URL override).
   const handleRerunLine = useCallback(

@@ -12,6 +12,7 @@ import { Play, Square, RotateCcw } from 'lucide-react'
 import { parseLine } from '../api/client'
 import { useAppStore } from '../store'
 import type { CardQuery } from '../types'
+import { LookupTimer } from './LookupTimer'
 
 interface Props {
   onRun: (overrideText?: string) => void
@@ -136,6 +137,12 @@ export function InputEditor({ onRun, onStop }: Props) {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Optional lookup-timer readout (settings-gated). Sits under the
+          toolbar so it's adjacent to the Look up / Stop button. */}
+      <div className="flex justify-end">
+        <LookupTimer />
       </div>
 
       {/* Textarea */}
