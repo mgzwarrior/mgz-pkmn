@@ -156,6 +156,21 @@ describe('LookupTimer', () => {
     expect(screen.getByText('12.40s · 5 cards · 2480 ms/card')).toBeInTheDocument()
   })
 
+  it('clears the tick interval on unmount', () => {
+    const start = 2_000_000
+    vi.setSystemTime(start)
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, showTimer: true },
+      isRunning: true,
+      runStartedAt: start,
+    })
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval')
+    const { unmount } = render(<LookupTimer />)
+    unmount()
+    expect(clearSpy).toHaveBeenCalled()
+    clearSpy.mockRestore()
+  })
+
   it('renders just the elapsed value (no avg) when 0 rows resolved', () => {
     useAppStore.setState({
       settings: { ...DEFAULT_SETTINGS, showTimer: true },
