@@ -116,7 +116,7 @@ function RecentRunRow({
         type="button"
         onClick={onDelete}
         aria-label={`Delete recent search: ${summary}`}
-        className="flex-shrink-0 rounded p-1 text-zinc-500 opacity-0 group-hover:opacity-100 hover:text-zinc-200 hover:bg-zinc-700 transition-opacity"
+        className="flex-shrink-0 rounded p-1 text-zinc-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 hover:text-zinc-200 hover:bg-zinc-700 transition-opacity"
       >
         <X size={12} />
       </button>
