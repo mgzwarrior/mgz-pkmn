@@ -21,19 +21,19 @@ const milestones = [
 ];
 
 const stateStyle = {
-  done: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  active: "bg-brand-500/15 text-brand-400 border-brand-500/30",
-  planned: "bg-zinc-800/60 text-zinc-300 border-zinc-700",
+  done: "bg-palm-50 text-palm-600 border-palm-200",
+  active: "bg-sun-100 text-sun-700 border-sun-200",
+  planned: "bg-sand-200 text-coconut-500 border-sand-300",
 };
 ---
 
-<section id="roadmap" class="border-b border-zinc-900/80 px-6 py-20 sm:py-24">
+<section id="roadmap" class="border-b border-sand-300 px-6 py-20 sm:py-24">
   <div class="mx-auto max-w-6xl">
     <div class="max-w-2xl">
-      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700">
         Where it's going.
       </h2>
-      <p class="mt-4 text-lg text-zinc-400">
+      <p class="mt-4 text-lg text-coconut-400">
         Roadmap organized by area — lookup, outputs, cache, web, devops. Speculative
         ideas live in the full roadmap; the committed work is below.
       </p>
@@ -42,16 +42,16 @@ const stateStyle = {
     <ul class="mt-12 grid gap-6 md:grid-cols-3">
       {
         milestones.map((m) => (
-          <li class="flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+          <li class="flex flex-col rounded-xl border border-sand-300 bg-sand-100 p-6 shadow-xs">
             <span
               class={`self-start rounded-full border px-3 py-1 text-xs font-semibold ${stateStyle[m.state as keyof typeof stateStyle]}`}
             >
               {m.label}
             </span>
-            <p class="mt-4 text-sm leading-relaxed text-zinc-400 flex-1">{m.body}</p>
+            <p class="mt-4 text-sm leading-relaxed text-coconut-400 flex-1">{m.body}</p>
             <a
               href={m.href}
-              class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-brand-400 hover:text-brand-300"
+              class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-palm-500 hover:text-palm-400"
             >
               View milestone →
             </a>
@@ -60,11 +60,11 @@ const stateStyle = {
       }
     </ul>
 
-    <p class="mt-10 text-sm text-zinc-500">
+    <p class="mt-10 text-sm text-sand-500">
       Full roadmap (including post-V2 monetization and V3+ proposals) lives in the
       <a
         href="https://github.com/mgzwarrior/mgz-pkmn/blob/main/docs/roadmap.md"
-        class="text-zinc-300 underline-offset-4 hover:underline">repo</a
+        class="text-coconut-500 underline-offset-4 hover:underline">repo</a
       >.
     </p>
   </div>

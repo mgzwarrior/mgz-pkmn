@@ -7,6 +7,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Site: **Tropical design system rollout** — the Astro marketing site
+  moves off the dark zinc/blue palette onto a warm cream + sun + palm +
+  coconut system (Exeggutor-inspired brand direction). Display type is
+  now **Bricolage Grotesque**; body is **DM Sans**; code remains
+  monospace, recolored to JetBrains Mono. All component colors map per
+  the design-system cheatsheet; cards/CTAs/badges gain warm coconut-alpha
+  shadows where the prior dark surfaces previously carried contrast for
+  free. `--color-brand-*` aliases stay mapped onto `sun` so any
+  remaining usage keeps rendering during the cutover. SPA migration
+  lands in a follow-up PR.
+
 ### Added
 
 - Outputs: **Branded exports** — every artifact now carries the

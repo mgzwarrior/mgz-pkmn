@@ -1,28 +1,139 @@
+/* ============================================================
+ * site/src/styles/global.css — Tailwind v4 @theme for the
+ * tropical mgz-pkmn brand direction.
+ *
+ * DROP-IN REPLACEMENT for the existing file with the
+ * `--color-brand-*` blue tokens. Tailwind v4 auto-generates
+ * utility classes from these tokens:
+ *   --color-sun-300  →  bg-sun-300 / text-sun-300 / border-sun-300
+ *   --radius-lg      →  rounded-lg
+ *   --font-display   →  font-display
+ * etc.
+ * ============================================================ */
 @import "tailwindcss";
 
-@theme {
-  --color-brand-50: #eff6ff;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
+/* If you self-host the fonts, replace this with @font-face rules pointing
+   at site/public/fonts/*.woff2. */
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;700&display=swap");
 
+@theme {
+  /* ---------- Color palette ---------- */
+
+  /* Sun — primary yellow (Exeggutor's heads / ripe coconut) */
+  --color-sun-50:  #FDF6D9;
+  --color-sun-100: #FBEBA8;
+  --color-sun-200: #F8DD78;
+  --color-sun-300: #F5C94B;   /* primary CTA */
+  --color-sun-400: #E8B028;
+  --color-sun-500: #C8901A;
+  --color-sun-600: #946812;
+  --color-sun-700: #5E420B;
+
+  /* Palm — secondary green (Exeggutor's crown / success / links) */
+  --color-palm-50:  #EAF3E2;
+  --color-palm-100: #C9E0B5;
+  --color-palm-200: #97C57E;
+  --color-palm-300: #6BAC55;
+  --color-palm-400: #4A8B3B;   /* primary green */
+  --color-palm-500: #386C2C;
+  --color-palm-600: #2D5A28;
+  --color-palm-700: #1C3A19;
+
+  /* Coconut — tertiary brown (trunk / body text on cream) */
+  --color-coconut-50:  #F4ECDD;
+  --color-coconut-100: #E4D2B0;
+  --color-coconut-200: #C8AC7E;
+  --color-coconut-300: #A6845A;
+  --color-coconut-400: #80623F;
+  --color-coconut-500: #6B4A2F;
+  --color-coconut-600: #4D341F;
+  --color-coconut-700: #2E1F11;
+
+  /* Sand — neutral cream surfaces */
+  --color-sand-50:  #FBF6E8;   /* default page background */
+  --color-sand-100: #F4ECD3;
+  --color-sand-200: #E8DDBC;
+  --color-sand-300: #D6C99F;
+  --color-sand-400: #B4A77C;
+  --color-sand-500: #8C8261;
+  --color-sand-600: #5F583F;
+  --color-sand-700: #3A361F;
+
+  /* Husk — dark-mode coffee-charcoal */
+  --color-husk-50:  #4A453B;
+  --color-husk-100: #353128;
+  --color-husk-200: #2A2620;
+  --color-husk-300: #1F1B16;
+  --color-husk-400: #15120E;
+  --color-husk-500: #0D0B07;
+
+  /* Sky — sparing info accent (over warm surfaces) */
+  --color-sky-300: #8FC3DD;
+  --color-sky-400: #6FB1D9;
+  --color-sky-500: #4A8FB8;
+
+  /* Ember — clay-red for destructive / danger */
+  --color-ember-300: #E8A088;
+  --color-ember-400: #D26B4D;
+  --color-ember-500: #A84A2F;
+  --color-ember-600: #7D331E;
+
+  /* Brand aliases — keep existing `bg-brand-*` classes working
+     during the cutover. Map them onto sun. Remove once swept. */
+  --color-brand-50:  var(--color-sun-50);
+  --color-brand-400: var(--color-sun-300);
+  --color-brand-500: var(--color-sun-300);
+  --color-brand-600: var(--color-sun-400);
+  --color-brand-700: var(--color-sun-500);
+
+  /* ---------- Type ---------- */
+  --font-display:
+    "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
   --font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+    "DM Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
   --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, monospace;
+
+  /* ---------- Radii ---------- */
+  --radius-xs:  4px;
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  14px;
+  --radius-xl:  20px;
+  --radius-2xl: 28px;
+
+  /* ---------- Shadows (warm coconut alpha) ---------- */
+  --shadow-xs: 0 1px 0 0 rgba(77, 52, 31, 0.06);
+  --shadow-sm: 0 1px 2px 0 rgba(77, 52, 31, 0.08), 0 1px 1px -1px rgba(77, 52, 31, 0.04);
+  --shadow-md: 0 4px 10px -2px rgba(77, 52, 31, 0.12), 0 2px 4px -2px rgba(77, 52, 31, 0.06);
+  --shadow-lg: 0 12px 28px -8px rgba(77, 52, 31, 0.18), 0 4px 10px -6px rgba(77, 52, 31, 0.08);
+  --shadow-xl: 0 24px 52px -12px rgba(77, 52, 31, 0.22), 0 8px 20px -10px rgba(77, 52, 31, 0.1);
 }
 
+/* ---------- Base body styles ---------- */
 html {
   scroll-behavior: smooth;
-  background-color: #09090b;
-  color-scheme: dark;
+  background-color: #FBF6E8;
+  color-scheme: light;
 }
 
 body {
   font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Display headings use Bricolage by default. The components currently
+   use bare `<h1>` / `<h2>` — apply the display family via @layer so
+   they pick it up without per-component edits. */
+@layer base {
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
 }
