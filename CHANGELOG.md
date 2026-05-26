@@ -9,6 +9,91 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: **Card detail modal** — tapping any matched row in the results table
+  opens a modal with the large card art, a two-column identity + pricing
+  block (market + 80/85/90/95% comps), and a "card data" section that
+  surfaces whatever optional fields the source returned (subtype, HP,
+  attacks with cost/damage/text, weaknesses, resistances, retreat,
+  regulation mark, artist, dex numbers, flavor text). Missing fields are
+  silently skipped. Direct link out to the canonical source page
+  (TCGPlayer / Cardmarket / PriceCharting / pokemontcg.io fallback). ←/→
+  steps through the currently filtered + sorted result set; Esc closes.
+  Clicking an inner link or button (existing external-link icon, the
+  override-URL form) does not open the modal. Dialog a11y handled by
+  Radix.
+- CLI: `pkmn cache warm-concepts` subcommand walks every distinct name
+  referenced by the curated `_CONCEPT_KEYWORDS` dictionary and primes the
+  API response cache for each one, so concept lookups (`top 9 puppy`,
+  `all eeveelution cards`, …) resolve from cache on subsequent runs
+  instead of fanning out to N upstream calls. Accepts `--source
+  pokemontcg|tcgdex|all` (default `all`: walk pokemontcg.io first and fall
+  back to TCGdex on miss) and `--verbose` to print each name as it warms.
+  Writes a manifest at `concept_warm.json` in the cache root with a
+  timestamp + count.
+- API: opt-in `MGZ_PKMN_WARM_ON_STARTUP=1` env var triggers the same warm
+  pass on FastAPI startup, running on a background daemon thread so
+  startup isn't blocked. Gated by the manifest's 24-hour freshness window
+  so `uvicorn --reload` cycles and tight redeploys don't thrash.
+- Stats: `pkmn cache stats` surfaces a new **Concepts** line — "N names ·
+  warmed <age>" when a warm pass has landed, "not warmed" otherwise.
+
+## [1.1.1] - 2026-05-25
+
+### Fixed
+
+- README: the project logo now renders on the
+  [PyPI description tab](https://pypi.org/project/mgz-pkmn/#description).
+  The prior `<img src="assets/logo.svg">` relative path 404'd on PyPI
+  (the README is rendered standalone, with no repo-relative context);
+  switched to an absolute `raw.githubusercontent.com` URL.
+
+## [1.1.0] - 2026-05-25
+
+### Added
+
+- CLI: `pkmn cache clear` subcommand wipes the API response cache
+  without forcing you to run a lookup. URL overrides and the
+  indefinite-TTL image cache are preserved (they take real effort to
+  populate); the on-disk wipe is the same one `pkmn lookup --clear-cache`
+  performs. Honoured even when `MGZ_PKMN_NO_CACHE=1` is set — explicit
+  wipe wins over implicit skip.
+- Web: **Set picker modal** for the Set ID cards export. Clicking
+  **Set ID cards…** in the Export dropdown now opens a picker that
+  groups every set by series **newest → oldest** (modern blocks like
+  Scarlet & Violet sit at the top; the original Base set is at the bottom),
+  shows each set's cached logo + name + year + total, and lets the
+  user multi-select with **Select all / Select none / Expand all /
+  Collapse all / Select series** buttons. Each series is a collapsible
+  section so the 173-entry catalog stays scannable; the header shows a
+  per-series selection count (`(2/18)`) once anything in it is picked.
+  Selection persists across reloads (Zustand). Submitting the modal
+  downloads a PDF containing only the chosen sets — exactly the same
+  path the new CLI flag uses on the backend. Logo thumbnails come from
+  the new `GET /api/v1/sets/{set_id}/logo` endpoint, which streams
+  images out of the unified disk cache populated by `pkmn cache warm-sets`.
+- API: new `GET /api/v1/sets/{set_id}/logo` endpoint serves cached set
+  logos with a 30-day immutable browser cache. 404 with a "run
+  `pkmn cache warm-sets`" hint when the set hasn't been warmed yet, so
+  the SPA can fall back gracefully and tell the user how to fix it.
+- API: `GET /api/v1/set-cards.pdf` accepts a repeatable `set_ids` query
+  param to restrict the output to specific sets. Unknown ids return
+  404 instead of an empty PDF so the SPA surfaces a clear error.
+- CLI: new `pkmn set-cards --set <id>` flag (repeatable, also `-s`) —
+  the same picker filter is reachable from the terminal. Unknown ids
+  fail loudly as a `ClickException` rather than producing an empty
+  PDF.
+- CLI: new `pkmn cache warm-sets` subcommand walks every Pokémon TCG set
+  and pre-downloads each set's logo + symbol into the unified disk image
+  cache. Cold warm is a single up-front cost (~30 s on a fresh install,
+  173 sets / 346 images / ~19 MB); subsequent `pkmn set-cards` runs and
+  every `/api/v1/set-cards.pdf` request serve images from cache instead of
+  the network. Second warm pass is 0.2 s — already-cached entries
+  short-circuit.
+- Cache: new indefinite-TTL image slice under `cache/images/<category>/`
+  (today: `sets/logo`, `sets/symbol`; tomorrow: card art). Survives
+  `clear_api_cache()` so wiping stale API payloads no longer re-downloads
+  tens of megabytes of stable artwork. `pkmn cache stats` surfaces the
+  slice on its own line so the on-disk cost is always visible.
 - API: new `GET /version` endpoint returns
   `{"version": "<current __version__>"}` for deploy verification,
   monitoring, and SPA footer version display.
@@ -44,6 +129,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Outputs: `pkmn set-cards` and `/api/v1/set-cards.pdf` now resolve set
+  logo images through the unified disk image cache instead of a bespoke
+  per-output `logos_dir`. The CLI's `--logos-dir` flag still works as a
+  sidecar mirror for users who want a writable directory alongside the
+  PDF, but the cache itself (under `cache/images/sets/`) is now the
+  source of truth. The API route's hard-coded `~/.cache/mgz-pkmn/set-logos`
+  path is gone — both surfaces share the same cache.
+- Outputs: `fetch_all_sets()` now routes the pokemontcg.io set catalog
+  through the existing API disk cache, so repeated `pkmn set-cards`
+  invocations within a week reuse the cached catalog (~61 KB) instead of
+  re-fetching the full list.
 - CI: the `api` job now runs tests under `coverage` (via `pytest`,
   which discovers the existing `unittest.TestCase` suites unchanged)
   and uploads both `coverage.xml` and `junit.xml` to
@@ -84,6 +180,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
   card-list textarea an `aria-label`. Made the Help modal's
   scrollable body keyboard-focusable so users can scroll without
   first tabbing through every dialog control.
+
+### Fixed
+
+- Web: the export controls now always render as a single "Export"
+  dropdown, with the matched-row count shown at the bottom of the
+  menu. Previously the row count appeared beneath a row of buttons
+  after a successful run, which pushed the Export controls out of
+  alignment with the other header buttons.
 
 ## [1.0.1] - 2026-05-16
 
@@ -214,7 +318,9 @@ UI, multi-source card lookup, all output formats, and release infrastructure.
 - Incomplete URL substring sanitization (CodeQL alerts).
 - Workflow permissions hardening (CodeQL alerts).
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/mgzwarrior/mgz-pkmn/releases/tag/v0.1.0

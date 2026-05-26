@@ -19,11 +19,16 @@ from . import cache as disk_cache
 from .binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from .checklist import write_checklist_pdf
 from .images import download_image
-from .lookup import find_card, find_top_cards
+from .lookup import WARM_SOURCES, find_card, find_top_cards, warm_concepts
 from .parser import CardQuery, read_input
 from .pricing import Pricing, extract_pricing
 from .report import build_json_report
-from .set_cards import fetch_all_sets, write_set_cards_pdf
+from .set_cards import (
+    fetch_all_sets,
+    filter_sets_by_ids,
+    warm_set_images,
+    write_set_cards_pdf,
+)
 from .sorting import DEFAULT_SORT, SORT_MODES, sort_rows
 from .sources import PriceChartingClient, TCGClient, TCGDexClient
 from .sources.base import MatchResult
@@ -825,12 +830,24 @@ def _expand_inputs(paths: tuple[Path, ...]) -> list[Path]:
     is_flag=True,
     help="Skip logo downloads and render text-only cutouts.",
 )
+@click.option(
+    "-s",
+    "--set",
+    "set_ids",
+    multiple=True,
+    metavar="SET_ID",
+    help=(
+        "Restrict output to one or more set ids (repeatable; e.g. "
+        "`-s sv8 -s sv7`). Omit to render every set."
+    ),
+)
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
 def set_cards_command(
     output: Path,
     api_key: str | None,
     logos_dir: Path,
     no_images: bool,
+    set_ids: tuple[str, ...],
     verbose: bool,
 ) -> None:
     """Generate printable set ID cards for binder section dividers.
@@ -838,7 +855,11 @@ def set_cards_command(
     Fetches every Pokémon TCG set from pokemontcg.io and emits one
     card-sized cutout per set, laid out 3x3 on Letter so a printed page
     drops straight into a 9-pocket binder sheet. Takes no positional
-    arguments."""
+    arguments.
+
+    Pass `--set <id>` (repeatable) to restrict the output to specific
+    sets — the SPA's set picker modal uses the same filter under the
+    hood, so anything you can pick there is reachable from the CLI."""
     _print_banner(__version__)
 
     _print_section("Fetching set catalog from pokemontcg.io")
@@ -851,6 +872,16 @@ def set_cards_command(
         raise click.ClickException("pokemontcg.io returned no sets")
     click.secho("  ✓ ", fg="green", nl=False)
     click.echo(f"{len(sets)} set{'s' if len(sets) != 1 else ''}")
+
+    if set_ids:
+        sets = filter_sets_by_ids(sets, set_ids)
+        if not sets:
+            raise click.ClickException(f"no sets matched the requested ids: {', '.join(set_ids)}")
+        click.secho("  ✓ ", fg="green", nl=False)
+        click.echo(
+            f"filtered to {len(sets)} set{'s' if len(sets) != 1 else ''} "
+            + click.style(f"({', '.join(set_ids)})", fg="bright_black")
+        )
 
     _print_section("Writing outputs")
     logos = None if no_images else logos_dir
@@ -957,7 +988,7 @@ def cache_stats_command(as_json: bool) -> None:
         click.echo(json.dumps(payload, indent=2))
         return
 
-    total_bytes = s.api_bytes + s.override_bytes
+    total_bytes = s.api_bytes + s.override_bytes + s.image_bytes
 
     _print_section("Cache stats")
     click.echo("  " + click.style("Location:      ", fg="bright_black") + str(s.root))
@@ -977,6 +1008,202 @@ def cache_stats_command(as_json: bool) -> None:
         + click.style("URL overrides: ", fg="bright_black")
         + f"{s.override_count} entries · {_format_bytes(s.override_bytes)}"
     )
+    # Indefinite-TTL slice (set logos, set symbols, future card art). Lives
+    # in its own line so it's visible even when zero — when it's non-zero
+    # it tends to dominate the total and the user should see why.
+    click.echo(
+        "  "
+        + click.style("Images:        ", fg="bright_black")
+        + f"{s.image_entry_count} entries · {_format_bytes(s.image_bytes)} · indefinite TTL"
+    )
+    # Concept-warm slice — surfaced from the on-disk manifest written by
+    # `pkmn cache warm-concepts`. Shows "not warmed" when no manifest exists
+    # so an operator can tell at a glance whether concept lookups will pay
+    # network cost on first use.
+    if s.concept_warm_timestamp is None:
+        click.echo(
+            "  "
+            + click.style("Concepts:      ", fg="bright_black")
+            + click.style("not warmed", fg="yellow")
+            + " · run `pkmn cache warm-concepts` to prime"
+        )
+    else:
+        click.echo(
+            "  "
+            + click.style("Concepts:      ", fg="bright_black")
+            + f"{s.concept_warm_names} names · warmed {_format_age(s.concept_warm_timestamp)}"
+        )
+
+
+@cache_group.command(name="clear", context_settings={"help_option_names": ["-h", "--help"]})
+def cache_clear_command() -> None:
+    """Wipe cached API responses; preserve URL overrides and images.
+
+    Standalone counterpart to `pkmn lookup --clear-cache` — same wipe, no
+    lookup required. Reclaims the regenerable API slice (`cache/api/*.json`)
+    while leaving the user-supplied `url_overrides.json` and the
+    indefinite-TTL image cache (`cache/images/`) untouched, since those
+    take real effort to populate.
+
+    Runs even when `MGZ_PKMN_NO_CACHE=1` is set: the user explicitly asked
+    for a wipe, and a no-op surprise would defeat the purpose. No
+    confirmation prompt — the action is recoverable (next run re-fetches)
+    and prompts complicate scripting; the `clear` name is intent enough."""
+    # Snapshot API-slice size before the wipe so the summary can report how
+    # much disk we freed. Reads the same `stats()` snapshot the stats command
+    # renders, but only the api_bytes field is surfaced — overrides and
+    # images aren't touched by this command.
+    before = disk_cache.stats()
+    count = disk_cache.clear_api_cache()
+
+    _print_section("Clearing API response cache")
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(
+        f"{count} entr{'y' if count == 1 else 'ies'} cleared · "
+        + click.style(f"{_format_bytes(before.api_bytes)} freed", bold=True)
+        + click.style(" (overrides + images preserved)", fg="bright_black")
+    )
+
+
+@cache_group.command(name="warm-sets", context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "--api-key",
+    envvar="POKEMONTCG_IO_API_KEY",
+    default=None,
+    help="pokemontcg.io API key (or set POKEMONTCG_IO_API_KEY).",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print each set as it warms.")
+def cache_warm_sets_command(api_key: str | None, verbose: bool) -> None:
+    """Pre-download every set's logo + symbol into the unified image cache.
+
+    Walks the pokemontcg.io set catalog (~200+ sets) and persists each
+    logo + symbol into `cache/images/sets/` with no TTL — so the first
+    `pkmn set-cards` (or web Set ID cards) run after a fresh install
+    serves every image from disk instead of the network. Re-running is
+    cheap: already-cached entries short-circuit on hit.
+
+    Pairs with `pkmn cache stats`, which surfaces the indefinite-TTL
+    image slice on its own line."""
+    _print_banner(__version__)
+
+    _print_section("Warming set image cache")
+    client = TCGClient(api_key=api_key, verbose=verbose)
+
+    def _progress(index: int, total: int, set_id: str) -> None:
+        if not verbose:
+            return
+        click.echo(
+            click.style(f"  [{index}/{total}] ", fg="bright_black") + set_id,
+            err=False,
+        )
+
+    try:
+        result = warm_set_images(client, on_progress=_progress)
+    except requests.RequestException as exc:
+        raise click.ClickException(f"set fetch failed: {exc}") from exc
+
+    if result.sets == 0:
+        raise click.ClickException("pokemontcg.io returned no sets")
+
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(
+        f"{result.sets} sets · "
+        + click.style(f"{result.logos_cached} logos", fg="cyan")
+        + " · "
+        + click.style(f"{result.symbols_cached} symbols", fg="cyan")
+        + (click.style(f" · {result.failures} failures", fg="yellow") if result.failures else "")
+    )
+
+    # Render the post-warm stats inline so the user can see the on-disk cost
+    # immediately without running `pkmn cache stats` separately.
+    count, total_bytes = disk_cache.image_cache_size()
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(f"image cache now {count} entries · {_format_bytes(total_bytes)}")
+
+    click.echo()
+    click.secho("Done!", fg="green", bold=True)
+
+
+@cache_group.command(name="warm-concepts", context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "--api-key",
+    envvar="POKEMONTCG_IO_API_KEY",
+    default=None,
+    help="pokemontcg.io API key (or set POKEMONTCG_IO_API_KEY).",
+)
+@click.option(
+    "--source",
+    type=click.Choice(WARM_SOURCES, case_sensitive=False),
+    default="all",
+    show_default=True,
+    help=(
+        "Restrict the warm pass to a single source. 'all' walks pokemontcg.io "
+        "first and falls back to TCGdex on miss. Note: only the pokemontcg.io "
+        "path writes through to the disk cache — TCGdex caches in-memory only, "
+        "so its branch is useful within a long-lived process (e.g. the FastAPI "
+        "service) but a no-op across separate CLI runs."
+    ),
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print each name as it warms.")
+def cache_warm_concepts_command(api_key: str | None, source: str, verbose: bool) -> None:
+    """Pre-prime the API cache for every name referenced by `_CONCEPT_KEYWORDS`.
+
+    Concept lookups (`top 9 puppy`, `all eeveelution cards`, …) expand to N
+    underlying name searches. On a cold cache that's N upstream calls per
+    concept query; this command walks the curated dictionary up front so
+    subsequent concept lookups resolve as cache hits.
+
+    Writes a manifest at `concept_warm.json` in the cache root with a
+    timestamp + count so `pkmn cache stats` can report freshness and the
+    FastAPI startup hook (`MGZ_PKMN_WARM_ON_STARTUP=1`) can gate itself to
+    run at most once per day."""
+    _print_banner(__version__)
+
+    _print_section(f"Warming concept cache · source={source}")
+    pkmn = TCGClient(api_key=api_key, verbose=verbose)
+    tcgdex = TCGDexClient(verbose=verbose)
+
+    def _progress(index: int, total: int, name: str) -> None:
+        if not verbose:
+            return
+        click.echo(
+            click.style(f"  [{index}/{total}] ", fg="bright_black") + name,
+            err=False,
+        )
+
+    try:
+        result = warm_concepts(pkmn, tcgdex, source=source, on_progress=_progress)
+    except requests.RequestException as exc:
+        raise click.ClickException(f"concept warm failed: {exc}") from exc
+
+    if result.names_attempted == 0:
+        raise click.ClickException("_CONCEPT_KEYWORDS produced no names — check the dictionary")
+
+    # Persist the manifest so `pkmn cache stats` and the API startup gate
+    # see a record of this run.
+    disk_cache.write_concept_warm(
+        names_warmed=result.names_warmed,
+        names_failed=result.names_failed,
+        source=source,
+    )
+
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(
+        f"{result.names_attempted} names · "
+        + click.style(f"{result.names_warmed} warmed", fg="cyan")
+        + (
+            click.style(f" · {len(result.names_failed)} missed", fg="yellow")
+            if result.names_failed
+            else ""
+        )
+    )
+    if result.names_failed and verbose:
+        click.echo(
+            "  " + click.style("missed: ", fg="bright_black") + ", ".join(result.names_failed)
+        )
+
+    click.echo()
+    click.secho("Done!", fg="green", bold=True)
 
 
 if __name__ == "__main__":

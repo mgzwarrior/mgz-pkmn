@@ -27,6 +27,189 @@ describe('ResultsTable', () => {
     render(<ResultsTable />)
     expect(screen.getByText(/results will appear here/i)).toBeInTheDocument()
   })
+
+  it('clicking a matched row opens the card detail modal', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    // Find the table row via the aria-label we add for matched rows.
+    const row = screen.getByLabelText(/View details for Charizard/)
+    fireEvent.click(row)
+    // The detail modal renders into a portal — dialog role appears once open.
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // The 1/N counter confirms we landed on the right row.
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('clicking an inner link inside a row does not open the modal', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+          pricing: {
+            market: 250,
+            currency: 'USD',
+            variant: null,
+            source: 'TCGPlayer',
+            // A real URL triggers the inline external-link icon in the row.
+            url: 'https://example.com/listing',
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    // The external-link anchor has title="Open listing" — click that, not the row.
+    const link = screen.getByTitle('Open listing')
+    fireEvent.click(link)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('unmatched rows are not clickable and do not get the aria-label', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: null,
+          matched: false,
+          query: { raw: 'GhostMon', name: 'GhostMon' } as Row['query'],
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    // No aria-labelled clickable row exists when the lookup didn't match.
+    expect(screen.queryByLabelText(/View details for/)).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('pressing Enter on a focused row opens the modal', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    const row = screen.getByLabelText(/View details for Charizard/)
+    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('pressing Space on a focused row opens the modal', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    const row = screen.getByLabelText(/View details for Charizard/)
+    fireEvent.keyDown(row, { key: ' ' })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('Enter on an inner control does not open the modal', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+          pricing: {
+            market: 250,
+            currency: 'USD',
+            variant: null,
+            source: 'TCGPlayer',
+            url: 'https://example.com/listing',
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    const link = screen.getByTitle('Open listing')
+    // The keydown bubbles up to the row's handler, but `closest('a, button, input')`
+    // on the target keeps the modal closed.
+    fireEvent.keyDown(link, { key: 'Enter', bubbles: true })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('other keys on a row do not open the modal', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    const row = screen.getByLabelText(/View details for Charizard/)
+    fireEvent.keyDown(row, { key: 'a' })
+    fireEvent.keyDown(row, { key: 'Tab' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
 })
 
 describe('applyFilters', () => {

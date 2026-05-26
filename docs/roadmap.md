@@ -1,6 +1,7 @@
 # Roadmap
 
-[![v1.0 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/1?label=v1.0)](https://github.com/mgzwarrior/mgz-pkmn/milestone/1)
+[![v1.2 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/4?label=v1.2)](https://github.com/mgzwarrior/mgz-pkmn/milestone/4)
+[![v2.0 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/3?label=v2.0)](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
 [![open issues](https://img.shields.io/github/issues-raw/mgzwarrior/mgz-pkmn?label=open)](https://github.com/mgzwarrior/mgz-pkmn/issues)
 [![closed issues](https://img.shields.io/github/issues-closed-raw/mgzwarrior/mgz-pkmn?label=closed)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aissue+is%3Aclosed)
 
@@ -18,12 +19,23 @@ live demo), see <https://mgz-pkmn.com>.
 - **V1** (`1.0.0`) — **shipped**. A defensible 1.0 with no obvious
   gaps. Polish, tests, docs, basic release engineering. Released
   2026-05-15; see the [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
-- **V1.x / Post-V1** — **committed but later**. Items best done *after*
-  the 1.0 cut (the announcement, the contributor-comms refresh, set
-  identification cards) rather than blocking it.
-- **V2** — **committed**. Deeper development per area. Tracked per-area
-  on the unified [`mgz-pkmn`](https://github.com/users/mgzwarrior/projects/11)
-  project (per-area views linked below).
+- **V1.1** (`1.1.0`) — **shipped**. Post-1.0 polish, contributor
+  comms, devex (PyPI auto-publish, DCO, Codecov), unified image
+  cache + `pkmn cache warm-sets`, set ID cards + web set-picker,
+  marketing site at <https://mgz-pkmn.com>, mobile + a11y pass on
+  the SPA. Released 2026-05-25; see the
+  [v1.1 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/2).
+- **V1.2** — **committed**. Marketing-site polish + the web UX
+  enhancements that landed late in the v1.1 cycle but didn't gate
+  the cut. Tracked on the
+  [v1.2 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/4).
+- **V2** — **committed**. Deeper development per area, including
+  the persistence layer (Alembic + SQLAlchemy + `/runs` endpoints)
+  that opens the door to sidebars, collections, and wishlists.
+  Tracked per-area on the unified
+  [`mgz-pkmn`](https://github.com/users/mgzwarrior/projects/11)
+  project (per-area views linked below) and the
+  [v2.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/3).
 - **V2.x / Post-V2** — **committed but later**. Currently themed around
   the **free / paid separation and monetization work** — once V2 is
   shipped, the project is mature enough to consider sustainable funding
@@ -184,33 +196,99 @@ All items shipped in **1.0.0** (2026-05-15). See the
 
 ---
 
-## V1.x — committed but post-release
+## V1.1 — complete
 
-Items best done *after* the 1.0 cut so they can lean on the existence
-of a stable release.
+All items shipped in **1.1.0** (2026-05-25). See the
+[CHANGELOG](../CHANGELOG.md#110---2026-05-25) for the full list and
+the [v1.1 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/2)
+for the 80+ closed issues.
 
-### Output artifacts
+The themes:
 
-- **Set identification cards.** A printable A4 / Letter page of
-  card-sized cutouts to slot into the first pocket of each binder
-  section, identifying which set the section is collecting. Each
-  cutout shows the set logo + key art, total cards in the set, total
-  market price as of the run date, and the set release year.
-  Generated alongside the existing `--checklist` flow.
+- **Set ID cards + web set picker.** Printable cutout deck for binder
+  dividers via `pkmn set-cards`, a `/api/v1/set-cards.pdf` endpoint,
+  a multi-select **Set picker modal** in the SPA, and a unified
+  indefinite-TTL image cache (`pkmn cache warm-sets` to prefetch
+  every set logo + symbol so the first export is fully offline-served).
   ([#71](https://github.com/mgzwarrior/mgz-pkmn/issues/71))
+- **Cache subcommands.** `pkmn cache path`, `pkmn cache stats` (with
+  `--json`), `pkmn cache clear`, `pkmn cache warm-sets`.
+- **Marketing site.** Astro + Tailwind landing site at
+  <https://mgz-pkmn.com>, deployed to Cloudflare Pages.
+- **Devex & release engineering.** Auto-publish to PyPI on
+  `pyproject.toml` version bump (Trusted Publisher + PEP 740
+  attestations), DCO sign-off, Codecov (api + web flags),
+  CODEOWNERS, Code of Conduct, issue templates with acceptance
+  criteria, `make dev` / `make uninstall` Docker convenience targets,
+  `HEALTHCHECK`, `make migrate`.
+- **Web polish.** Help modal with interactive tour, empty-state
+  example query chips, mobile-friendly header with collapsible
+  Export dropdown, full axe-core a11y pass (no critical/serious
+  violations), `/version` endpoint for footer display.
+- **Outreach.** GitHub Discussions launched, 1.0 announcement,
+  contributing-guide refresh.
+  ([#37](https://github.com/mgzwarrior/mgz-pkmn/issues/37),
+  [#38](https://github.com/mgzwarrior/mgz-pkmn/issues/38))
 
-### DevOps & release
+---
 
-- **Announce 1.0 via GitHub Discussions.** Enable Discussions, post an
-  Announcement category thread describing what the project is and what
-  shipped in 1.0.
-  ([#37](https://github.com/mgzwarrior/mgz-pkmn/issues/37))
-- **Refresh the contributing guide and start a contributors discussion.**
-  Update [`docs/contributing.md`](contributing.md) with concrete
-  starter-issue patterns. Open a Discussion thread inviting community
-  contributions and explicitly encouraging AI-assisted development —
-  the [AGENTS.md scaffolding](#devops--release) makes that supportable.
-  ([#38](https://github.com/mgzwarrior/mgz-pkmn/issues/38))
+## V1.2 — committed
+
+Marketing-site polish and the web UX enhancements that surfaced late
+in the v1.1 cycle but didn't gate the release cut. Tracked on the
+[v1.2 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/4).
+
+### Marketing site
+
+- **Hero binder grid** — replace the abstract glow with a real sample
+  binder grid.
+  ([#164](https://github.com/mgzwarrior/mgz-pkmn/issues/164))
+- **Output gallery** — a "What you get" section showing the xlsx,
+  binder PDF, checklist, and set-cards artifacts.
+  ([#165](https://github.com/mgzwarrior/mgz-pkmn/issues/165))
+- **Live asciinema cast** in the hero replacing the static code block.
+  ([#167](https://github.com/mgzwarrior/mgz-pkmn/issues/167))
+
+### Web UI / API
+
+- **Card detail modal** — tap any results row for a larger art +
+  full card info view.
+  ([#257](https://github.com/mgzwarrior/mgz-pkmn/issues/257))
+- **Richer search progress** with color-coded per-line status and
+  finer-grained streaming events.
+  ([#260](https://github.com/mgzwarrior/mgz-pkmn/issues/260))
+- **Branded exports** — every export carries the mgz-pkmn logo,
+  footer, and link back to the project.
+  ([#261](https://github.com/mgzwarrior/mgz-pkmn/issues/261))
+- **Configurable export columns** — pick which fields each export
+  format includes.
+  ([#262](https://github.com/mgzwarrior/mgz-pkmn/issues/262))
+- **Lookup timer + published benchmarks** for visible regression
+  guardrails.
+  ([#263](https://github.com/mgzwarrior/mgz-pkmn/issues/263))
+- **Recent searches** with one-click rerun.
+  ([#264](https://github.com/mgzwarrior/mgz-pkmn/issues/264))
+- **Named binders** — save a card list under a name and reload it
+  later.
+  ([#265](https://github.com/mgzwarrior/mgz-pkmn/issues/265))
+- **Per-row manual price override** that flows through to every
+  export.
+  ([#266](https://github.com/mgzwarrior/mgz-pkmn/issues/266))
+- **Set browser** — explore cards by set without an input list.
+  ([#267](https://github.com/mgzwarrior/mgz-pkmn/issues/267))
+- **Bulk row actions** (multi-select → delete / retag / move) in the
+  results table.
+  ([#268](https://github.com/mgzwarrior/mgz-pkmn/issues/268))
+- **Condition-aware pricing** — toggle NM / LP / MP / HP and
+  recalculate comps.
+  ([#270](https://github.com/mgzwarrior/mgz-pkmn/issues/270))
+
+### Cache & persistence
+
+- **Pre-warm `_CONCEPT_KEYWORDS`** so concept lookups (e.g.
+  `top 5 Fire cards`) become cache-hit-only after the first warm
+  pass.
+  ([#272](https://github.com/mgzwarrior/mgz-pkmn/issues/272))
 
 ---
 
@@ -432,11 +510,19 @@ lands.
 
 ## How this list becomes work
 
-Each item under V1 / V1.x / V2 is filed as a GitHub issue with two
-labels: an **area** label (`area:lookup` / `area:outputs` / `area:cache`
-/ `area:web` / `area:site` / `area:devops`) and a **version** label
-(`version:v1` / `version:v1.x` / `version:v2`). V1 issues additionally
-sit on the [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
+Each item under V1 / V1.1 / V1.2 / V2 is filed as a GitHub issue with
+two labels: an **area** label (`area:lookup` / `area:outputs` /
+`area:cache` / `area:web` / `area:site` / `area:devops`) and a
+coarse **version** label — only three exist today: `version:v1`,
+`version:v1.x`, `version:v2`. V1.1 and V1.2 both share
+`version:v1.x`; **milestone** is what splits them apart.
+Committed items sit on the matching milestone:
+[v1.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/1) (shipped),
+[v1.1](https://github.com/mgzwarrior/mgz-pkmn/milestone/2) (shipped),
+[v1.2](https://github.com/mgzwarrior/mgz-pkmn/milestone/4), and
+[v2.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/3). A
+`version:v2.x` label gets created when the monetization items
+above graduate from text-only proposals to filed issues.
 
 V2.x and V3+ items stay in this document as text-only proposals until
 they get promoted to committed work. The "proposed" tag is
