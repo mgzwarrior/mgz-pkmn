@@ -25,6 +25,32 @@ export function formatComp(
 }
 
 /**
+ * Format a wall-clock timestamp as a compact relative-time string
+ * suitable for the recent-searches panel: `just now`, `5m ago`,
+ * `2h ago`, `3d ago`, or an absolute `MMM D` for older entries. The
+ * `now` argument is injectable so tests can pin the boundary cases.
+ *
+ * Buckets use `Math.floor` with a floor of 1 so just-under-boundary
+ * values (e.g. 59.6 minutes) never round up into the next unit's
+ * range and render `60m ago`.
+ */
+export function formatRelativeTime(timestamp: number, now: number = Date.now()): string {
+  const delta = Math.max(0, now - timestamp)
+  const seconds = delta / 1000
+  if (seconds < 45) return 'just now'
+  const minutes = seconds / 60
+  if (minutes < 60) return `${Math.max(1, Math.floor(minutes))}m ago`
+  const hours = minutes / 60
+  if (hours < 24) return `${Math.max(1, Math.floor(hours))}h ago`
+  const days = hours / 24
+  if (days < 7) return `${Math.max(1, Math.floor(days))}d ago`
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/**
  * Format an elapsed wall-clock duration in milliseconds as a compact
  * human-readable string: `123ms`, `1.24s`, or `1m02s`. Negative values
  * clamp to `0ms` so the running lookup timer never renders a negative

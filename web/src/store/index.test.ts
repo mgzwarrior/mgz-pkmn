@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { useAppStore } from './index'
+import { useAppStore, RECENT_RUNS_LIMIT } from './index'
 
 describe('store: processingLines', () => {
   beforeEach(() => useAppStore.setState({ processingLines: [] }))
@@ -61,6 +61,79 @@ describe('store: run timestamps', () => {
     s.setRunEndedAt(null)
     expect(useAppStore.getState().runStartedAt).toBeNull()
     expect(useAppStore.getState().runEndedAt).toBeNull()
+  })
+})
+
+describe('store: recentRuns', () => {
+  beforeEach(() => useAppStore.setState({ recentRuns: [] }))
+
+  it('pushRecentRun prepends a new entry with an id, savedAt, and the lines', () => {
+    useAppStore.getState().pushRecentRun(['Charizard', 'Pikachu'])
+    const [first] = useAppStore.getState().recentRuns
+    expect(first.lines).toEqual(['Charizard', 'Pikachu'])
+    expect(typeof first.id).toBe('string')
+    expect(first.id.length).toBeGreaterThan(0)
+    expect(typeof first.savedAt).toBe('number')
+  })
+
+  it('pushRecentRun ignores an empty submission', () => {
+    useAppStore.getState().pushRecentRun([])
+    expect(useAppStore.getState().recentRuns).toHaveLength(0)
+  })
+
+  it('pushRecentRun collapses consecutive duplicates by refreshing savedAt', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000)
+      useAppStore.getState().pushRecentRun(['Charizard', 'Pikachu'])
+      const original = useAppStore.getState().recentRuns[0]
+
+      vi.setSystemTime(2_000)
+      useAppStore.getState().pushRecentRun(['Charizard', 'Pikachu'])
+
+      const runs = useAppStore.getState().recentRuns
+      expect(runs).toHaveLength(1)
+      expect(runs[0].id).toBe(original.id)
+      expect(runs[0].savedAt).toBe(2_000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it(`pushRecentRun caps history at RECENT_RUNS_LIMIT (${RECENT_RUNS_LIMIT})`, () => {
+    const push = useAppStore.getState().pushRecentRun
+    for (let i = 0; i < RECENT_RUNS_LIMIT + 5; i++) {
+      push([`card-${i}`])
+    }
+    const runs = useAppStore.getState().recentRuns
+    expect(runs).toHaveLength(RECENT_RUNS_LIMIT)
+    // Newest first; the most-recently-pushed entry sits at the head.
+    expect(runs[0].lines).toEqual([`card-${RECENT_RUNS_LIMIT + 4}`])
+    // The oldest entries got evicted, so card-0..card-4 are gone.
+    const surviving = new Set(runs.map((r) => r.lines[0]))
+    for (let i = 0; i < 5; i++) {
+      expect(surviving.has(`card-${i}`)).toBe(false)
+    }
+  })
+
+  it('removeRecentRun drops the entry by id', () => {
+    const push = useAppStore.getState().pushRecentRun
+    push(['a'])
+    push(['b'])
+    push(['c'])
+    const target = useAppStore.getState().recentRuns[1]
+    useAppStore.getState().removeRecentRun(target.id)
+    const lines = useAppStore.getState().recentRuns.map((r) => r.lines[0])
+    expect(lines).not.toContain(target.lines[0])
+    expect(lines).toHaveLength(2)
+  })
+
+  it('clearRecentRuns empties the list', () => {
+    const push = useAppStore.getState().pushRecentRun
+    push(['a'])
+    push(['b'])
+    useAppStore.getState().clearRecentRuns()
+    expect(useAppStore.getState().recentRuns).toHaveLength(0)
   })
 })
 

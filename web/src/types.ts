@@ -106,3 +106,17 @@ export interface SetInfo {
   total: number
   releaseDate: string
 }
+
+/**
+ * One entry in the recent-searches history. Captured the moment the
+ * user clicks **Look up** so the panel reflects what was actually
+ * submitted (even if the run later errored or was stopped).
+ */
+export interface RecentRun {
+  /** Stable id used as the React key and the delete target. */
+  id: string
+  /** Wall-clock ms (Date.now()) when the run was submitted. */
+  savedAt: number
+  /** The non-empty, non-comment lines the user submitted. */
+  lines: string[]
+}

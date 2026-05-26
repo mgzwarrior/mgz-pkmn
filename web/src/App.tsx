@@ -14,6 +14,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { bulkLookup, lookupLine } from './api/client'
 import { InputEditor } from './components/InputEditor'
+import { RecentRuns } from './components/RecentRuns'
 import { ResultsTable } from './components/ResultsTable'
 import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
@@ -37,6 +38,7 @@ function App() {
     markLineStatus,
     setRunStartedAt,
     setRunEndedAt,
+    pushRecentRun,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -72,6 +74,10 @@ function App() {
     // event arrives so the elapsed value reflects user-felt latency.
     setRunStartedAt(null)
     setRunEndedAt(null)
+    // Record the submission in the recent-searches history. We do
+    // this at click time (not on completion) so a run the user stops
+    // or that errors still leaves a re-runnable entry behind.
+    pushRecentRun(nonEmpty)
 
     abortRef.current = new AbortController()
 
@@ -140,6 +146,7 @@ function App() {
     markLineStatus,
     setRunStartedAt,
     setRunEndedAt,
+    pushRecentRun,
   ])
 
   const handleStop = useCallback(() => {
@@ -195,6 +202,9 @@ function App() {
             Card list
           </h2>
           <InputEditor onRun={handleRun} onStop={handleStop} />
+          <div className="mt-3">
+            <RecentRuns onRun={handleRun} />
+          </div>
         </section>
 
         <section data-tour="results">

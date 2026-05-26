@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: **Recent searches history** — a collapsible **Recent searches**
+  panel below the input editor keeps the last 10 bulk-lookup
+  submissions (timestamp, line count, preview like `Charizard,
+  Pikachu, +3 more`). Click an entry to restore the lines into the
+  editor and rerun automatically; hover an entry for a `×` to delete
+  it individually, or use **Clear all** in the panel header to wipe
+  the history. Persisted via Zustand so it survives a page reload;
+  consecutive duplicate submissions collapse by refreshing the
+  existing entry's timestamp rather than stacking copies.
 - Web: **Lookup timer** — a new **Show lookup timer** toggle in the
   settings drawer (off by default) surfaces wall-clock elapsed time
   during a bulk run: a live ticking clock under the **Look up** button
