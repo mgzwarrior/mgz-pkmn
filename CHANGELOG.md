@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Outputs: **Branded exports** — every artifact now carries the
+  `mgz-pkmn` mark, project URL, and file-properties metadata. PDFs
+  (binder, condensed, checklist, set-cards) gain a single muted
+  footer line on every page (mark left, generated-at + URL centered,
+  page number right) and a small wordmark above the header on page 1.
+  The .xlsx workbook properties name mgz-pkmn as the author, and the
+  summary footer carries a clickable `mgz-pkmn` link back to the
+  project site. Logo asset lives once at `src/mgz_pkmn/assets/logo.png`
+  and is shared across every writer.
 - Web: **Recent searches history** — a collapsible **Recent searches**
   panel below the input editor keeps the last 10 bulk-lookup
   submissions (timestamp, line count, preview like `Charizard,

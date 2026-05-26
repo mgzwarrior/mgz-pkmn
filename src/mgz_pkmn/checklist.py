@@ -16,6 +16,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
+from . import branding
 from .pricing import Pricing
 from .spreadsheet import Row
 
@@ -40,13 +41,26 @@ def write_checklist_pdf(rows: list[Row], out_path: Path) -> int:
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     c = canvas.Canvas(str(out_path), pagesize=letter)
-    c.setTitle(out_path.stem)
+    branding.apply_pdf_metadata(c, out_path.stem)
+    tracker = branding.PageTracker(c, letter)
     for i, section in enumerate(sections):
         if i > 0:
-            c.showPage()
-        _draw_section(c, section)
-    c.save()
+            tracker.show_page()
+        if tracker.page_num == 1:
+            _draw_page_one_logo(c)
+        _draw_section(c, section, tracker)
+    tracker.finish()
     return len(sections)
+
+
+def _draw_page_one_logo(c: canvas.Canvas) -> None:
+    """Tuck a wordmark into the top margin above the dark header band on
+    page 1. Same pattern as the binder PDF — page-N corner logos are
+    visual noise once you're flipping through a printed checklist."""
+    logo_h = min(14.0, MARGIN * 0.4)
+    band_top = PAGE_H - MARGIN
+    logo_y = band_top + (MARGIN - logo_h) / 2
+    branding.draw_pdf_logo(c, MARGIN, logo_y, logo_h)
 
 
 def _build_sections(rows: list[Row]) -> list[dict[str, Any]]:
@@ -64,7 +78,7 @@ def _build_sections(rows: list[Row]) -> list[dict[str, Any]]:
     return sections
 
 
-def _draw_section(c: canvas.Canvas, section: dict[str, Any]) -> None:
+def _draw_section(c: canvas.Canvas, section: dict[str, Any], tracker: branding.PageTracker) -> None:
     """Render one tag's checklist across as many pages as it needs."""
     matched = section["rows"]
     total = len(matched)
@@ -76,7 +90,7 @@ def _draw_section(c: canvas.Canvas, section: dict[str, Any]) -> None:
 
     for page_idx, chunk_start in enumerate(range(0, total, cards_per_page), start=1):
         if chunk_start > 0:
-            c.showPage()
+            tracker.show_page()
         _draw_header(c, tag=section["tag"], total=total, page_idx=page_idx)
         chunk = matched[chunk_start : chunk_start + cards_per_page]
         for j, row in enumerate(chunk):

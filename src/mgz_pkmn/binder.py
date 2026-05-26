@@ -25,6 +25,7 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
+from . import branding
 from .parser import (
     _CJK_IDEOGRAPH_RE,
     _HANGUL_RE,
@@ -214,7 +215,8 @@ def write_binder_pdf(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     _ensure_cjk_fonts()
     c = canvas.Canvas(str(out_path), pagesize=letter)
-    c.setTitle(title or out_path.stem)
+    branding.apply_pdf_metadata(c, title or out_path.stem)
+    tracker = branding.PageTracker(c, letter)
 
     geom = _compute_geometry(layout)
 
@@ -225,11 +227,11 @@ def write_binder_pdf(
     is_first_section = True
     for tag, section_rows in sections:
         if not is_first_section:
-            c.showPage()
+            tracker.show_page()
         is_first_section = False
-        _draw_section(c, tag, section_rows, layout, geom, max_price=max_price)
+        _draw_section(c, tag, section_rows, layout, geom, tracker, max_price=max_price)
 
-    c.save()
+    tracker.finish()
 
 
 def _compute_geometry(layout: BinderLayout) -> dict:
@@ -265,15 +267,18 @@ def _draw_section(
     rows: list[Row],
     layout: BinderLayout,
     geom: dict,
+    tracker: branding.PageTracker,
     max_price: float | None = None,
 ) -> None:
     """Render one tag's worth of cards across as many pages as needed."""
     for i, row in enumerate(rows):
         idx_on_page = i % layout.cards_per_page
         if i > 0 and idx_on_page == 0:
-            c.showPage()
+            tracker.show_page()
         if idx_on_page == 0:
             _draw_section_header(c, tag, len(rows), layout)
+            if tracker.page_num == 1:
+                _draw_page_one_logo(c, layout)
 
         col = idx_on_page % layout.cols
         rrow = idx_on_page // layout.cols
@@ -282,6 +287,16 @@ def _draw_section(
         cell_bottom_y = cell_top_y - geom["cell_h"]
 
         _draw_cell(c, row, cell_x, cell_bottom_y, layout, geom, max_price=max_price)
+
+
+def _draw_page_one_logo(c: canvas.Canvas, layout: BinderLayout) -> None:
+    """Squeeze a small wordmark into the top margin above the section
+    header. Page 1 only — page-N corner logos would just look like
+    visual noise once you're flipping through the binder."""
+    logo_h = max(8.0, min(14.0, layout.margin * 0.55))
+    band_top = PAGE_H - layout.margin
+    logo_y = band_top + (layout.margin - logo_h) / 2
+    branding.draw_pdf_logo(c, layout.margin, logo_y, logo_h)
 
 
 def _draw_section_header(c: canvas.Canvas, tag: str, count: int, layout: BinderLayout) -> None:
