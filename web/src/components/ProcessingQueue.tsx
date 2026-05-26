@@ -78,7 +78,7 @@ function LineStatus({
       {elapsedMs != null && (
         <span
           className="ml-auto flex-shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-mono text-[10px] tabular-nums text-zinc-400"
-          aria-label={`Resolved in ${elapsedMs} milliseconds`}
+          aria-label={`Finished in ${elapsedMs} milliseconds`}
         >
           {elapsedMs}ms
         </span>

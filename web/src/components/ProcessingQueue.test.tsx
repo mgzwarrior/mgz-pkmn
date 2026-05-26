@@ -52,4 +52,15 @@ describe('ProcessingQueue', () => {
     expect(screen.getByText('500ms')).toBeInTheDocument()
     expect(screen.getByText('800ms')).toBeInTheDocument()
   })
+
+  it('per-line badge aria-label says "Finished" — works for both resolved and error lines', () => {
+    mockState.settings.showTimer = true
+    render(<ProcessingQueue />)
+    // Charizard resolved at 1500 → 500ms; Pikachu errored at 1800 → 800ms.
+    // Both must read as "Finished" so the label is accurate for error
+    // outcomes too (Copilot review feedback on #297).
+    expect(screen.getByLabelText('Finished in 500 milliseconds')).toBeInTheDocument()
+    expect(screen.getByLabelText('Finished in 800 milliseconds')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Resolved in/)).not.toBeInTheDocument()
+  })
 })

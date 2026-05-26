@@ -18,11 +18,18 @@ bug template](../.github/ISSUE_TEMPLATE/bug.md).
 
 The ranges below were captured on a typical dev machine:
 
-- **CPU:** Apple Silicon (M-series)
+- **CPU:** Apple Silicon (M-series, recent generation)
 - **RAM:** 24 GB
-- **OS:** macOS 26
+- **OS:** macOS (current major release)
 - **Network:** Wired or strong Wi-Fi; no VPN
 - **Cache state:** Noted per row (warm / cold)
+
+These are intentionally generic — the ranges below were captured on
+the maintainer's daily-driver laptop, and the point is the *shape* of
+the numbers (orders of magnitude, warm vs. cold spread), not the
+exact figures. If your machine is meaningfully slower or your network
+adds noticeable latency, expect the absolute values to shift; the
+relative differences across rows should still hold.
 
 "Warm" means the API response cache (`~/.cache/mgz-pkmn`) already
 holds the response for the query; the only work is reading from disk

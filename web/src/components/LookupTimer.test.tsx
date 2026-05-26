@@ -85,6 +85,21 @@ describe('LookupTimer', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('does not schedule the tick interval when showTimer is off', () => {
+    // Perf guard: even though the component returns null when showTimer
+    // is off, an unconditional setInterval would still re-render on
+    // every tick during a run. Gate the effect on the setting too.
+    const setSpy = vi.spyOn(globalThis, 'setInterval')
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, showTimer: false },
+      isRunning: true,
+      runStartedAt: 1_000_000,
+    })
+    render(<LookupTimer />)
+    expect(setSpy).not.toHaveBeenCalled()
+    setSpy.mockRestore()
+  })
+
   it('renders nothing when no run has started', () => {
     useAppStore.setState({
       settings: { ...DEFAULT_SETTINGS, showTimer: true },

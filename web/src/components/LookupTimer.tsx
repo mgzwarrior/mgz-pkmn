@@ -21,11 +21,14 @@ export function LookupTimer() {
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    if (!isRunning || runStartedAt == null) return
+    // Gate the interval on `showTimer` so a run with the toggle off
+    // doesn't schedule a 10 Hz re-render against a component that
+    // would render `null` anyway.
+    if (!settings.showTimer || !isRunning || runStartedAt == null) return
     // 100ms cadence keeps the clock smooth without burning CPU.
     const id = setInterval(() => setNow(Date.now()), 100)
     return () => clearInterval(id)
-  }, [isRunning, runStartedAt])
+  }, [settings.showTimer, isRunning, runStartedAt])
 
   if (!settings.showTimer) return null
   if (runStartedAt == null) return null

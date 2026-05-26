@@ -89,7 +89,13 @@ export interface Settings {
 export interface ProcessingLine {
   line: string
   status: 'pending' | 'resolved' | 'error'
-  /** Wall-clock ms (Date.now()) when the line first resolved or errored. */
+  /**
+   * Wall-clock ms (Date.now()) when the line transitioned out of
+   * `pending` — i.e. when its first SSE event arrived. The status at
+   * that point is either `resolved` or `error`; either way the elapsed
+   * badge represents the time between the run starting and the line
+   * leaving the queue.
+   */
   endedAt?: number
 }
 
