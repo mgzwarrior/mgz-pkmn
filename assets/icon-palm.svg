@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="palm tree">
+  <title>palm tree</title>
+  <path d="M12 22V9"></path>
+  <path d="M12 9c-4-3-7-1-8 2 2-1 5-1 8 0"></path>
+  <path d="M12 9c4-3 7-1 8 2-2-1-5-1-8 0"></path>
+  <path d="M12 9c-2-5 1-7 3-7 1.5 0 3 2-3 7"></path>
+  <path d="M12 9c-5-1-8 1-9 4 3-2 6-2 9-1"></path>
+  <path d="M12 9c5-1 8 1 9 4-3-2-6-2-9-1"></path>
+  <circle cx="10" cy="10.4" r="0.8" fill="currentColor"></circle>
+  <circle cx="14" cy="10.4" r="0.8" fill="currentColor"></circle>
+</svg>
