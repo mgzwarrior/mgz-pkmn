@@ -161,12 +161,15 @@ class CacheStatsCommandTests(unittest.TestCase):
         cache.write_api("https://example.com/a", {"x": 1})
         cache.write_api("https://example.com/b", {"y": 2})
         cache.record_url_override("Mew", None, "https://pc/mew")
+        cache.write_image("sets/logo", "sv8", b"img-bytes")
 
         result = CliRunner().invoke(cli, ["cache", "stats"])
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("Cache stats", result.output)
         self.assertIn("API responses: 2 entries", result.output)
         self.assertIn("URL overrides: 1 entries", result.output)
+        self.assertIn("Images:        1 entries", result.output)
+        self.assertIn("indefinite TTL", result.output)
         self.assertIn(self._tmp.name, result.output)
 
     def test_stats_command_on_empty_cache(self) -> None:
@@ -191,6 +194,10 @@ class CacheStatsCommandTests(unittest.TestCase):
                 "api_oldest_mtime",
                 "override_bytes",
                 "override_count",
+                "image_bytes",
+                "image_entry_count",
+                "concept_warm_timestamp",
+                "concept_warm_names",
                 "root",
             },
         )
@@ -199,7 +206,199 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertIsInstance(payload["api_oldest_mtime"], float)
         self.assertEqual(payload["override_count"], 1)
         self.assertGreater(payload["override_bytes"], 0)
+        # New indefinite-TTL image slice. Defaults to zero on a fresh cache;
+        # exercised end-to-end by the warm-sets test.
+        self.assertEqual(payload["image_entry_count"], 0)
+        self.assertEqual(payload["image_bytes"], 0)
         self.assertEqual(payload["root"], str(Path(self._tmp.name) / "mgz-pkmn"))
+
+    def test_warm_sets_primes_cache_and_summarises(self) -> None:
+        # The CLI subcommand should walk the catalog (mocked here) and
+        # populate `cache/images/sets/{logo,symbol}` with one entry per set,
+        # then print a summary line that reflects the per-kind counts.
+        from unittest.mock import patch as _patch
+
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {
+                    "logo": "https://ex/sv8-logo.png",
+                    "symbol": "https://ex/sv8-symbol.png",
+                },
+            },
+            {
+                "id": "sv7",
+                "name": "Stellar Crown",
+                "images": {"logo": "https://ex/sv7-logo.png"},
+            },
+        ]
+
+        def _fake_download(category, key, url, session, *, timeout=30):
+            # Persist a sentinel byte so image_cache_size reports >0.
+            return cache.write_image(category, key, b"warm", ext=url)
+
+        with (
+            _patch("mgz_pkmn.set_cards.fetch_all_sets", return_value=sets),
+            _patch(
+                "mgz_pkmn.set_cards.disk_cache.download_and_cache_image",
+                side_effect=_fake_download,
+            ),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("2 sets", result.output)
+        self.assertIn("2 logos", result.output)
+        self.assertIn("1 symbols", result.output)
+        # On-disk: a logo for each set, plus the one symbol.
+        self.assertIsNotNone(cache.read_image("sets/logo", "sv8"))
+        self.assertIsNotNone(cache.read_image("sets/logo", "sv7"))
+        self.assertIsNotNone(cache.read_image("sets/symbol", "sv8"))
+        self.assertIsNone(cache.read_image("sets/symbol", "sv7"))
+
+    def test_warm_sets_verbose_prints_per_set_progress(self) -> None:
+        # `-v` should fire the on_progress callback so each set's id lands
+        # in the output. Covers the verbose branch of cache_warm_sets_command.
+        from unittest.mock import patch as _patch
+
+        sets = [
+            {"id": "sv8", "name": "Surging Sparks", "images": {"logo": "u"}},
+            {"id": "sv7", "name": "Stellar Crown", "images": {"logo": "u"}},
+        ]
+
+        def _fake_download(category, key, url, session, *, timeout=30):
+            return cache.write_image(category, key, b"warm", ext=url)
+
+        with (
+            _patch("mgz_pkmn.set_cards.fetch_all_sets", return_value=sets),
+            _patch(
+                "mgz_pkmn.set_cards.disk_cache.download_and_cache_image",
+                side_effect=_fake_download,
+            ),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets", "-v"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        # Both set ids appear with [n/total] prefixes.
+        self.assertIn("[1/2]", result.output)
+        self.assertIn("sv8", result.output)
+        self.assertIn("[2/2]", result.output)
+        self.assertIn("sv7", result.output)
+
+    def test_warm_sets_surfaces_upstream_request_failures(self) -> None:
+        # A network failure during `fetch_all_sets` should surface as a
+        # ClickException with the underlying error message — not a bare
+        # traceback.
+        from unittest.mock import patch as _patch
+
+        import requests as _requests
+
+        with _patch(
+            "mgz_pkmn.set_cards.fetch_all_sets",
+            side_effect=_requests.ConnectionError("network down"),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("set fetch failed", result.output)
+        self.assertIn("network down", result.output)
+
+    def test_warm_sets_reports_failures_in_summary(self) -> None:
+        # When some images fail to download, the summary line should
+        # surface the failure count in yellow rather than hiding it.
+        from unittest.mock import patch as _patch
+
+        sets = [
+            {
+                "id": "sv8",
+                "name": "Surging Sparks",
+                "images": {
+                    "logo": "https://example/sv8-logo.png",
+                    "symbol": "https://example/sv8-symbol.png",
+                },
+            },
+        ]
+
+        def _half_failing(category, key, url, session, *, timeout=30):
+            # Logo succeeds, symbol fails.
+            if "logo" in category:
+                return cache.write_image(category, key, b"warm", ext=url)
+            return None
+
+        with (
+            _patch("mgz_pkmn.set_cards.fetch_all_sets", return_value=sets),
+            _patch(
+                "mgz_pkmn.set_cards.disk_cache.download_and_cache_image",
+                side_effect=_half_failing,
+            ),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("1 failures", result.output)
+
+    def test_set_cards_set_flag_filters_writer(self) -> None:
+        # `pkmn set-cards --set sv8 --set sv7` should reach
+        # write_set_cards_pdf with only those two entries.
+        from unittest.mock import patch as _patch
+
+        sets = [
+            {"id": "sv8", "name": "Surging Sparks", "images": {}},
+            {"id": "sv7", "name": "Stellar Crown", "images": {}},
+            {"id": "sv6", "name": "Twilight Masquerade", "images": {}},
+        ]
+        captured: dict = {}
+
+        def _fake_writer(rows, out_path, *, logos_dir=None, session=None, today=None):
+            captured["sets"] = rows
+            out_path.write_bytes(b"%PDF\n")
+            return len(rows)
+
+        with (
+            _patch("mgz_pkmn.cli.fetch_all_sets", return_value=sets),
+            _patch("mgz_pkmn.cli.write_set_cards_pdf", side_effect=_fake_writer),
+            tempfile.TemporaryDirectory() as tmp,
+        ):
+            out = Path(tmp) / "out.pdf"
+            result = CliRunner().invoke(
+                cli, ["set-cards", "-o", str(out), "--set", "sv8", "--set", "sv7"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("filtered to 2 sets", result.output)
+        self.assertEqual([s["id"] for s in captured["sets"]], ["sv8", "sv7"])
+
+    def test_set_cards_set_flag_with_unknown_id_fails(self) -> None:
+        # An id that doesn't match any catalog entry should surface as a
+        # ClickException — not silently produce an empty PDF.
+        from unittest.mock import patch as _patch
+
+        sets = [{"id": "sv8", "name": "Surging Sparks", "images": {}}]
+
+        with (
+            _patch("mgz_pkmn.cli.fetch_all_sets", return_value=sets),
+            tempfile.TemporaryDirectory() as tmp,
+        ):
+            out = Path(tmp) / "out.pdf"
+            result = CliRunner().invoke(
+                cli, ["set-cards", "-o", str(out), "--set", "does-not-exist"]
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("does-not-exist", result.output)
+
+    def test_warm_sets_clickfails_when_catalog_is_empty(self) -> None:
+        # An empty catalog should surface as a ClickException, not a silent
+        # success — the user installing fresh would otherwise have no
+        # signal that the warm pass did nothing.
+        from unittest.mock import patch as _patch
+
+        with _patch("mgz_pkmn.set_cards.fetch_all_sets", return_value=[]):
+            result = CliRunner().invoke(cli, ["cache", "warm-sets"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("no sets", result.output.lower())
 
     def test_path_command_prints_bare_cache_root(self) -> None:
         expected = Path(self._tmp.name) / "mgz-pkmn"
@@ -209,6 +408,58 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(result.output, f"{expected}\n")
         self.assertNotRegex(result.output, r"\x1b\[")
+
+    def test_clear_command_on_empty_cache_reports_zero(self) -> None:
+        # Fresh cache: nothing to wipe, but the command should still exit
+        # cleanly and report a coherent summary rather than blowing up on
+        # the missing `api/` directory.
+        result = CliRunner().invoke(cli, ["cache", "clear"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Clearing API response cache", result.output)
+        self.assertIn("0 entries cleared", result.output)
+        self.assertIn("0 B freed", result.output)
+
+    def test_clear_command_wipes_api_entries_and_preserves_overrides(self) -> None:
+        cache.write_api("https://example.com/a", {"x": 1})
+        cache.write_api("https://example.com/b", {"y": 2})
+        cache.record_url_override("Mew", None, "https://pc/mew")
+        cache.write_image("sets/logo", "sv8", b"img-bytes")
+        api_bytes_before = cache.stats().api_bytes
+        self.assertGreater(api_bytes_before, 0)
+
+        result = CliRunner().invoke(cli, ["cache", "clear"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("2 entries cleared", result.output)
+        # Bytes-freed reflects the pre-wipe API slice — humanised via
+        # `_format_bytes`, so we just assert the unit suffix is present
+        # rather than pinning a precise byte count that changes with
+        # JSON formatting.
+        self.assertRegex(result.output, r"\d+ B freed|\d+\.\d+ KB freed")
+        # API slice is gone; overrides + images stay put.
+        after = cache.stats()
+        self.assertEqual(after.api_entry_count, 0)
+        self.assertEqual(after.api_bytes, 0)
+        self.assertEqual(after.override_count, 1)
+        self.assertEqual(after.image_entry_count, 1)
+        # Overrides remain usable after the wipe (not just on disk — the
+        # full read path still resolves).
+        self.assertEqual(cache.find_url_override("Mew", None), "https://pc/mew")
+
+    def test_clear_command_runs_even_when_no_cache_env_set(self) -> None:
+        # `--clear-cache` / `clear_api_cache()` are documented as honoured
+        # even under `MGZ_PKMN_NO_CACHE=1` — the user's explicit wipe wins
+        # over the implicit skip. The subcommand has to honour the same
+        # contract so scripts that set the env still get a working wipe.
+        cache.write_api("https://example.com/a", {"x": 1})
+        os.environ[cache._NO_CACHE_ENV] = "1"
+
+        result = CliRunner().invoke(cli, ["cache", "clear"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("1 entry cleared", result.output)
+        self.assertEqual(cache.stats().api_entry_count, 0)
 
 
 class WarnIfCacheLargeTests(unittest.TestCase):

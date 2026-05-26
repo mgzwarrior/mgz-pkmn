@@ -39,6 +39,19 @@ interface AppState {
   settings: Settings
   updateSettings: (partial: Partial<Settings>) => void
   resetSettings: () => void
+
+  /**
+   * Set ids the user last successfully submitted from the picker modal.
+   * Persisted so reopening the picker restores the prior selection.
+   *
+   * An empty array means "nothing has been chosen yet" — the picker
+   * disables its Download PDF button in that state. (The backend would
+   * happily accept an empty `set_ids` and render every set, but the UI
+   * intentionally never sends that request because hitting Set ID
+   * cards… and immediately submitting shouldn't dump a 173-page PDF.)
+   */
+  selectedSetIds: string[]
+  setSelectedSetIds: (ids: string[]) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -73,6 +86,9 @@ export const useAppStore = create<AppState>()(
       updateSettings: (partial) =>
         set((state) => ({ settings: { ...state.settings, ...partial } })),
       resetSettings: () => set({ settings: { ...DEFAULT_SETTINGS } }),
+
+      selectedSetIds: [],
+      setSelectedSetIds: (ids) => set({ selectedSetIds: ids }),
     }),
     {
       name: 'mgz-pkmn-settings',
@@ -80,6 +96,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         inputText: state.inputText,
         settings: state.settings,
+        selectedSetIds: state.selectedSetIds,
       }),
       // Merge persisted state with defaults so new settings fields (e.g.
       // `sort`, added later) fall back to the initial value rather than
