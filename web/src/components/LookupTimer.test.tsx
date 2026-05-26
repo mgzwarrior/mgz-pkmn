@@ -95,6 +95,19 @@ describe('LookupTimer', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('renders nothing in the brief window after click before the first SSE event', () => {
+    // Between handleRun() and the first event arriving, isRunning is true
+    // but runStartedAt is still null. The useEffect interval must NOT
+    // start in that window — there is nothing to elapse against yet.
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, showTimer: true },
+      isRunning: true,
+      runStartedAt: null,
+    })
+    const { container } = render(<LookupTimer />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('shows a live elapsed value while running, advancing as time passes', () => {
     const start = 1_000_000
     vi.setSystemTime(start)
