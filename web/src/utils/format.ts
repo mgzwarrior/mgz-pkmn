@@ -32,6 +32,28 @@ export function formatComp(
  * round to exactly `60.00s` (e.g. 59_995 ms) roll over to `1m00s` so
  * the sub-minute branch never displays the next minute's boundary.
  */
+/**
+ * Format a wall-clock timestamp as a compact relative-time string
+ * suitable for the recent-searches panel: `just now`, `5m ago`,
+ * `2h ago`, `3d ago`, or an absolute `MMM D` for older entries. The
+ * `now` argument is injectable so tests can pin the boundary cases.
+ */
+export function formatRelativeTime(timestamp: number, now: number = Date.now()): string {
+  const delta = Math.max(0, now - timestamp)
+  const seconds = delta / 1000
+  if (seconds < 45) return 'just now'
+  const minutes = seconds / 60
+  if (minutes < 60) return `${Math.round(minutes)}m ago`
+  const hours = minutes / 60
+  if (hours < 24) return `${Math.round(hours)}h ago`
+  const days = hours / 24
+  if (days < 7) return `${Math.round(days)}d ago`
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 export function formatElapsed(ms: number): string {
   if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`
   const seconds = ms / 1000

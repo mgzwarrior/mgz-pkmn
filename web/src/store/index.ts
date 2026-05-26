@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ProcessingLine, Row, Settings } from '../types'
+import type { ProcessingLine, RecentRun, Row, Settings } from '../types'
+
+/** Cap on `recentRuns` so persisted localStorage stays small. */
+export const RECENT_RUNS_LIMIT = 10
 
 const DEFAULT_SETTINGS: Settings = {
   apiKey: '',
@@ -65,6 +68,16 @@ interface AppState {
    */
   selectedSetIds: string[]
   setSelectedSetIds: (ids: string[]) => void
+
+  /**
+   * History of recently submitted card-list runs. Newest first.
+   * Capped at `RECENT_RUNS_LIMIT` so persisted localStorage stays
+   * small.
+   */
+  recentRuns: RecentRun[]
+  pushRecentRun: (lines: string[]) => void
+  removeRecentRun: (id: string) => void
+  clearRecentRuns: () => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -107,6 +120,38 @@ export const useAppStore = create<AppState>()(
 
       selectedSetIds: [],
       setSelectedSetIds: (ids) => set({ selectedSetIds: ids }),
+
+      recentRuns: [],
+      pushRecentRun: (lines) =>
+        set((state) => {
+          if (lines.length === 0) return state
+          // Collapse consecutive duplicates: if the user just re-runs
+          // the same list (or clicks the same chip twice), don't
+          // record the same lines back-to-back — bump the existing
+          // entry's savedAt instead so the chronological order
+          // still makes sense.
+          const head = state.recentRuns[0]
+          const sameAsHead =
+            head && head.lines.length === lines.length &&
+            head.lines.every((l, i) => l === lines[i])
+          if (sameAsHead) {
+            const refreshed: RecentRun = { ...head, savedAt: Date.now() }
+            return { recentRuns: [refreshed, ...state.recentRuns.slice(1)] }
+          }
+          const next: RecentRun = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            savedAt: Date.now(),
+            lines,
+          }
+          return {
+            recentRuns: [next, ...state.recentRuns].slice(0, RECENT_RUNS_LIMIT),
+          }
+        }),
+      removeRecentRun: (id) =>
+        set((state) => ({
+          recentRuns: state.recentRuns.filter((r) => r.id !== id),
+        })),
+      clearRecentRuns: () => set({ recentRuns: [] }),
     }),
     {
       name: 'mgz-pkmn-settings',
@@ -115,6 +160,7 @@ export const useAppStore = create<AppState>()(
         inputText: state.inputText,
         settings: state.settings,
         selectedSetIds: state.selectedSetIds,
+        recentRuns: state.recentRuns,
       }),
       // Merge persisted state with defaults so new settings fields (e.g.
       // `sort`, added later) fall back to the initial value rather than
