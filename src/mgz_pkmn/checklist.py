@@ -46,21 +46,9 @@ def write_checklist_pdf(rows: list[Row], out_path: Path) -> int:
     for i, section in enumerate(sections):
         if i > 0:
             tracker.show_page()
-        if tracker.page_num == 1:
-            _draw_page_one_logo(c)
         _draw_section(c, section, tracker)
     tracker.finish()
     return len(sections)
-
-
-def _draw_page_one_logo(c: canvas.Canvas) -> None:
-    """Tuck a wordmark into the top margin above the dark header band on
-    page 1. Same pattern as the binder PDF — page-N corner logos are
-    visual noise once you're flipping through a printed checklist."""
-    logo_h = min(14.0, MARGIN * 0.4)
-    band_top = PAGE_H - MARGIN
-    logo_y = band_top + (MARGIN - logo_h) / 2
-    branding.draw_pdf_logo(c, MARGIN, logo_y, logo_h)
 
 
 def _build_sections(rows: list[Row]) -> list[dict[str, Any]]:
@@ -104,13 +92,20 @@ def _draw_section(c: canvas.Canvas, section: dict[str, Any], tracker: branding.P
 def _draw_header(c: canvas.Canvas, *, tag: str, total: int, page_idx: int) -> None:
     c.saveState()
     band_y = PAGE_H - MARGIN - HEADER_BAND_H
-    c.setFillColorRGB(0.16, 0.21, 0.30)
+    c.setFillColorRGB(*branding.HEADER_PANEL_RGB)
     c.rect(MARGIN, band_y, PAGE_W - 2 * MARGIN, HEADER_BAND_H, fill=1, stroke=0)
+
+    logo_h = HEADER_BAND_H * 0.55
+    logo_y = band_y + (HEADER_BAND_H - logo_h) / 2
+    logo_x = MARGIN + 6
+    branding.draw_pdf_logo(c, logo_x, logo_y, logo_h)
+    text_x = logo_x + logo_h * branding.LOGO_ASPECT + 10
+
     c.setFillColorRGB(1, 1, 1)
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(MARGIN + 8, band_y + 16, tag or "(untagged)")
+    c.drawString(text_x, band_y + 16, tag or "(untagged)")
     c.setFont("Helvetica", 9)
-    c.drawString(MARGIN + 8, band_y + 4, "Checklist")
+    c.drawString(text_x, band_y + 4, "Checklist")
     c.setFont("Helvetica-Bold", 12)
     c.drawRightString(PAGE_W - MARGIN - 8, band_y + 16, f"{total} cards")
     c.setFont("Helvetica", 8)

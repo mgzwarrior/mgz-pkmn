@@ -11,8 +11,9 @@ when the source changes.
 from __future__ import annotations
 
 import datetime as _dt
+import io
+import sys
 from importlib import resources
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -26,10 +27,28 @@ PROJECT_CREATOR = f"mgz-pkmn ({PROJECT_URL})"
 _LOGO_RESOURCE = "assets/logo.png"
 LOGO_ASPECT = 320 / 80  # source SVG viewBox: w / h
 
+# Dark slate panel used wherever the logo sits, so the light-grey
+# wordmark reads. Matches the existing section-header band color in the
+# binder + checklist writers so the logo blends with those headers
+# rather than introducing a third shade.
+HEADER_PANEL_RGB = (0.16, 0.21, 0.30)
 
-def logo_path() -> Path:
-    """Resolve the bundled PNG logo to a filesystem path."""
-    return Path(str(resources.files("mgz_pkmn") / _LOGO_RESOURCE))
+_logo_bytes_cache: bytes | None = None
+_logo_warned = False
+
+
+def logo_bytes() -> bytes:
+    """Read the bundled PNG logo as raw bytes.
+
+    Goes through `importlib.resources.files(...).read_bytes()` so the
+    asset resolves whether the package is installed from a wheel, a
+    zipimport, or a source checkout (no on-disk path assumption). The
+    result is cached for the life of the process — the file is small
+    (<10 KB) and gets touched on every export."""
+    global _logo_bytes_cache
+    if _logo_bytes_cache is None:
+        _logo_bytes_cache = (resources.files("mgz_pkmn") / _LOGO_RESOURCE).read_bytes()
+    return _logo_bytes_cache
 
 
 def apply_pdf_metadata(c: Canvas, title: str) -> None:
@@ -89,24 +108,57 @@ class PageTracker:
         self.c.save()
 
 
-def draw_pdf_logo(c: Canvas, x: float, y: float, height: float) -> None:
+def draw_pdf_logo(
+    c: Canvas, x: float, y: float, height: float, *, draw_panel: bool = False
+) -> None:
     """Draw the rasterized logo with bottom-left at (x, y) and the given
-    height in points. Width is derived from `LOGO_ASPECT`. Best-effort:
-    if the bundled asset is missing or unreadable, we render nothing —
-    the logo is decorative and a missing file shouldn't break the
-    export."""
+    height in points. Width is derived from `LOGO_ASPECT`.
+
+    `draw_panel=True` paints a dark slate background behind the logo so
+    the light-grey wordmark reads on otherwise-white pages (set-cards
+    layout). Callers that already place the logo inside an existing
+    dark header band leave this `False`.
+
+    Failures fetching or decoding the bundled asset are logged to
+    stderr once per process; the export proceeds without a logo so a
+    bad asset doesn't break the file. Programming errors (wrong types,
+    canvas in a bad state) are re-raised."""
     width = height * LOGO_ASPECT
     try:
-        from reportlab.lib.utils import ImageReader
-
-        c.drawImage(
-            ImageReader(str(logo_path())),
-            x,
-            y,
-            width,
-            height,
-            preserveAspectRatio=True,
-            mask="auto",
-        )
-    except Exception:
+        data = logo_bytes()
+    except (FileNotFoundError, OSError, ModuleNotFoundError) as exc:
+        _warn_once(f"logo asset unavailable: {exc}")
         return
+
+    if draw_panel:
+        pad = max(2.0, height * 0.25)
+        c.saveState()
+        c.setFillColorRGB(*HEADER_PANEL_RGB)
+        c.rect(x - pad, y - pad, width + 2 * pad, height + 2 * pad, fill=1, stroke=0)
+        c.restoreState()
+
+    from reportlab.lib.utils import ImageReader
+
+    try:
+        reader = ImageReader(io.BytesIO(data))
+    except OSError as exc:  # corrupted/unreadable PNG bytes
+        _warn_once(f"logo decode failed: {exc}")
+        return
+    c.drawImage(
+        reader,
+        x,
+        y,
+        width,
+        height,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+
+
+def _warn_once(msg: str) -> None:
+    """One-shot stderr warning so a broken asset doesn't spam the log."""
+    global _logo_warned
+    if _logo_warned:
+        return
+    _logo_warned = True
+    print(f"  ! branding: {msg}", file=sys.stderr)

@@ -194,12 +194,13 @@ def write_set_cards_pdf(
 
 
 def _draw_page_one_logo(c: canvas.Canvas) -> None:
-    """Page-1 only wordmark above the 3x3 cutout grid. The set-cards
-    layout centers the grid with a generous top margin, so a small
-    branded mark sits naturally above the artwork without crowding it."""
-    logo_h = 14.0
+    """Page-1 only wordmark above the 3x3 cutout grid. Painted on its
+    own dark slate chip so the light-grey wordmark reads — the
+    set-cards layout has no shared header band to ride on, unlike the
+    binder and checklist writers."""
+    logo_h = 11.0
     logo_y = PAGE_H - MARGIN_Y / 2 - logo_h / 2
-    branding.draw_pdf_logo(c, MARGIN_X, logo_y, logo_h)
+    branding.draw_pdf_logo(c, MARGIN_X + 4, logo_y, logo_h, draw_panel=True)
 
 
 def _normalize(set_obj: dict[str, Any], today: _dt.date) -> dict[str, Any]:

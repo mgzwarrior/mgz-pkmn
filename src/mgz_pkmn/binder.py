@@ -277,8 +277,6 @@ def _draw_section(
             tracker.show_page()
         if idx_on_page == 0:
             _draw_section_header(c, tag, len(rows), layout)
-            if tracker.page_num == 1:
-                _draw_page_one_logo(c, layout)
 
         col = idx_on_page % layout.cols
         rrow = idx_on_page // layout.cols
@@ -289,32 +287,32 @@ def _draw_section(
         _draw_cell(c, row, cell_x, cell_bottom_y, layout, geom, max_price=max_price)
 
 
-def _draw_page_one_logo(c: canvas.Canvas, layout: BinderLayout) -> None:
-    """Squeeze a small wordmark into the top margin above the section
-    header. Page 1 only — page-N corner logos would just look like
-    visual noise once you're flipping through the binder."""
-    logo_h = max(8.0, min(14.0, layout.margin * 0.55))
-    band_top = PAGE_H - layout.margin
-    logo_y = band_top + (layout.margin - logo_h) / 2
-    branding.draw_pdf_logo(c, layout.margin, logo_y, logo_h)
-
-
 def _draw_section_header(c: canvas.Canvas, tag: str, count: int, layout: BinderLayout) -> None:
-    """Banner across the top of each page in a section: 'Source: <tag>  ·  N cards'."""
+    """Banner across the top of each page in a section: 'Source: <tag>  ·  N cards'.
+
+    The mgz-pkmn wordmark rides on the left edge of the band — the band's
+    dark slate background is the only spot in the binder layout where the
+    light-grey logo type reads, and putting it here gets branding on
+    every page without inventing a fresh chrome strip."""
     c.saveState()
     band_y = PAGE_H - layout.margin - layout.header_band_h
-    c.setFillColorRGB(0.16, 0.21, 0.30)  # dark slate
+    c.setFillColorRGB(*branding.HEADER_PANEL_RGB)
     c.rect(
         layout.margin, band_y, PAGE_W - 2 * layout.margin, layout.header_band_h, fill=1, stroke=0
     )
+
+    logo_h = layout.header_band_h * 0.65
+    logo_y = band_y + (layout.header_band_h - logo_h) / 2
+    logo_x = layout.margin + 6
+    branding.draw_pdf_logo(c, logo_x, logo_y, logo_h)
+    text_x = logo_x + logo_h * branding.LOGO_ASPECT + 10
+
     c.setFillColorRGB(1, 1, 1)
     title_size = max(9, layout.header_band_h * 0.5)
     sub_size = max(7, layout.header_band_h * 0.4)
     c.setFont("Helvetica-Bold", title_size)
     label = tag or "(untagged)"
-    c.drawString(
-        layout.margin + 8, band_y + (layout.header_band_h - title_size) / 2, f"Source: {label}"
-    )
+    c.drawString(text_x, band_y + (layout.header_band_h - title_size) / 2, f"Source: {label}")
     c.setFont("Helvetica", sub_size)
     suffix = f"{count} card{'s' if count != 1 else ''}"
     c.drawRightString(

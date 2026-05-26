@@ -192,12 +192,19 @@ def _apply_workbook_branding(wb: Workbook, out_path: Path) -> None:
 
     ws = wb.active
     try:
-        logo = XLImage(str(branding.logo_path()))
+        logo_data = branding.logo_bytes()
+    except (FileNotFoundError, OSError, ModuleNotFoundError) as exc:
+        print(f"  ! branding logo unavailable, skipping xlsx logo: {exc}", file=sys.stderr)
+        return
+    try:
+        logo = XLImage(io.BytesIO(logo_data))
         # Header row is 22 pt ≈ 29 px; scale the wordmark to ~24 px tall so it
         # sits flush inside the row without crowding the "Image" header.
         target_h = 24
         logo.height = target_h
         logo.width = int(target_h * branding.LOGO_ASPECT)
         ws.add_image(logo, "A1")
-    except Exception:
+    except OSError as exc:
+        # PIL / openpyxl couldn't decode the PNG bytes.
+        print(f"  ! xlsx logo embed failed: {exc}", file=sys.stderr)
         return

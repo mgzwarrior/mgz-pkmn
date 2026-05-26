@@ -20,15 +20,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from openpyxl import load_workbook
+# Disable ReportLab page compression for this test module so footer text
+# stays as literal `(generated YYYY-MM-DD)` runs in the PDF bytes — the
+# alternative is round-tripping every content stream through
+# ASCII85 + zlib which is more machinery than these checks need.
+import reportlab.rl_config
 
-from mgz_pkmn import branding
-from mgz_pkmn.binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
-from mgz_pkmn.checklist import write_checklist_pdf
-from mgz_pkmn.parser import CardQuery
-from mgz_pkmn.pricing import Pricing
-from mgz_pkmn.set_cards import write_set_cards_pdf
-from mgz_pkmn.spreadsheet import Row, write_spreadsheet
+reportlab.rl_config.pageCompression = 0
+
+from openpyxl import load_workbook  # noqa: E402
+
+from mgz_pkmn import branding  # noqa: E402
+from mgz_pkmn.binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf  # noqa: E402
+from mgz_pkmn.checklist import write_checklist_pdf  # noqa: E402
+from mgz_pkmn.parser import CardQuery  # noqa: E402
+from mgz_pkmn.pricing import Pricing  # noqa: E402
+from mgz_pkmn.set_cards import write_set_cards_pdf  # noqa: E402
+from mgz_pkmn.spreadsheet import Row, write_spreadsheet  # noqa: E402
 
 
 def _row(tag: str = "list-a") -> Row:
@@ -68,9 +76,22 @@ def _pdf_contains(pdf_path: Path, needle: bytes) -> bool:
 
     ReportLab serializes short ASCII strings (like our footer text) as
     literal `(mgz-pkmn)` runs inside content streams, so a raw substring
-    match is sufficient for "footer is present" — we don't need a true
-    text extractor like pypdf for this check."""
+    match is sufficient for the presence checks below — we don't need a
+    true text extractor like pypdf."""
     return needle in pdf_path.read_bytes()
+
+
+def _pdf_has_footer(pdf_path: Path) -> bool:
+    """Footer-specific text that is NOT also in PDF metadata.
+
+    `mgz-pkmn` alone appears in `/Author` and `/Creator`, so matching
+    it can't distinguish "footer drew correctly" from "metadata wrote
+    correctly". The `generated YYYY-MM-DD` prefix and the `p.N` page
+    suffix only show up in the footer content stream — with page
+    compression disabled at the top of this module they appear as
+    literal text in the PDF bytes."""
+    data = pdf_path.read_bytes()
+    return b"generated " in data and re.search(rb"p\.\d+", data) is not None
 
 
 class XlsxBrandingTests(unittest.TestCase):
@@ -119,9 +140,7 @@ class BinderBrandingTests(unittest.TestCase):
             self.assertIn(b"mgz-pkmn", meta.get("Creator", b""))
             self.assertIn(b"mgz-pkmn", meta.get("Subject", b""))
             self.assertIn(b"mgz-pkmn", meta.get("Keywords", b""))
-            self.assertTrue(_pdf_contains(out, b"mgz-pkmn"))
-            # Footer carries the project URL on every page.
-            self.assertTrue(_pdf_contains(out, branding.PROJECT_URL.encode()))
+            self.assertTrue(_pdf_has_footer(out))
 
     def test_condensed_layout_carries_same_branding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -129,7 +148,7 @@ class BinderBrandingTests(unittest.TestCase):
             write_binder_pdf([_row()], out, layout=CONDENSED_LAYOUT)
             meta = _read_pdf_metadata(out)
             self.assertEqual(meta.get("Author"), branding.PROJECT_AUTHOR.encode())
-            self.assertTrue(_pdf_contains(out, branding.PROJECT_URL.encode()))
+            self.assertTrue(_pdf_has_footer(out))
 
 
 class ChecklistBrandingTests(unittest.TestCase):
@@ -140,7 +159,7 @@ class ChecklistBrandingTests(unittest.TestCase):
             meta = _read_pdf_metadata(out)
             self.assertEqual(meta.get("Author"), branding.PROJECT_AUTHOR.encode())
             self.assertIn(b"mgz-pkmn", meta.get("Creator", b""))
-            self.assertTrue(_pdf_contains(out, branding.PROJECT_URL.encode()))
+            self.assertTrue(_pdf_has_footer(out))
 
 
 class SetCardsBrandingTests(unittest.TestCase):
@@ -162,15 +181,14 @@ class SetCardsBrandingTests(unittest.TestCase):
             meta = _read_pdf_metadata(out)
             self.assertEqual(meta.get("Author"), branding.PROJECT_AUTHOR.encode())
             self.assertIn(b"mgz-pkmn", meta.get("Creator", b""))
-            self.assertTrue(_pdf_contains(out, branding.PROJECT_URL.encode()))
+            self.assertTrue(_pdf_has_footer(out))
 
 
 class LogoAssetTests(unittest.TestCase):
     def test_bundled_logo_resolves_and_is_a_png(self) -> None:
-        p = branding.logo_path()
-        self.assertTrue(p.exists())
+        data = branding.logo_bytes()
         # PNG magic number — confirms the asset wasn't replaced with the SVG by accident.
-        self.assertEqual(p.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
 
 
 if __name__ == "__main__":
