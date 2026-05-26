@@ -110,16 +110,23 @@ function App() {
       setProgress({ done: event.index + 1, total: event.total })
     }
 
-    function onDone() {
+    // `bulkLookup` calls `onDone` on every normal exit path (non-OK
+    // response, stream completion, abort). The only way it can throw
+    // without calling `onDone` is if the initial `fetch` itself
+    // rejects — a true network error. Guard both endpoints against
+    // double-stamping by only stamping if the run hasn't already
+    // ended; that way Stop, completion, and network-error paths each
+    // land exactly one `runEndedAt` write.
+    function stampEndIfMissing() {
+      if (useAppStore.getState().runEndedAt != null) return
       setIsRunning(false)
       setRunEndedAt(Date.now())
     }
 
     try {
-      await bulkLookup(nonEmpty, settings, onEvent, onDone, abortRef.current.signal)
+      await bulkLookup(nonEmpty, settings, onEvent, stampEndIfMissing, abortRef.current.signal)
     } catch {
-      setIsRunning(false)
-      setRunEndedAt(Date.now())
+      stampEndIfMissing()
     }
   }, [
     inputText,
@@ -136,10 +143,12 @@ function App() {
   ])
 
   const handleStop = useCallback(() => {
+    // Just abort the stream. `bulkLookup`'s abort path will fire
+    // `onDone(aborted=true)` which the handleRun-side guard stamps
+    // exactly once. No need to stamp here ourselves — doing so used
+    // to overwrite the actual stream-end timestamp.
     abortRef.current?.abort()
-    setIsRunning(false)
-    setRunEndedAt(Date.now())
-  }, [setIsRunning, setRunEndedAt])
+  }, [])
 
   // Re-run a single line (called after adding a PriceCharting URL override).
   const handleRerunLine = useCallback(

@@ -28,10 +28,14 @@ vi.mock('./api/client', () => ({
   lookupLine: mockLookupLine,
   parseLine: mockParseLine,
   // Other client functions are referenced by ExportBar / SetPickerModal
-  // mounted inside App; stub them to keep render happy.
+  // mounted inside App; stub them to keep render happy. Names must
+  // match the real `client.ts` exports — `fetchSets`, not
+  // `fetchSetCatalog`.
   exportFile: vi.fn(),
   downloadSetCardsPdf: vi.fn(),
-  fetchSetCatalog: vi.fn(() => Promise.resolve([])),
+  fetchSets: vi.fn(() => Promise.resolve([])),
+  setLogoUrl: vi.fn(() => ''),
+  dedupeRows: vi.fn((rows: unknown[]) => rows),
   addOverride: vi.fn(),
 }))
 
@@ -149,18 +153,28 @@ describe('App: bulk-run timestamp lifecycle', () => {
     expect(useAppStore.getState().runStartedAt).toBe(2_000)
   })
 
-  it('Stop sets runEndedAt and clears isRunning', async () => {
+  it('Stop aborts the stream; bulkLookup\'s onDone(aborted) is what stamps runEndedAt', async () => {
     useAppStore.setState({ inputText: 'Charizard' })
+    // Simulate real client.ts: surface the first event so runStartedAt
+    // is set, then wait for the abort signal and call onDone(true) —
+    // which is the contract App.tsx now relies on as the single
+    // source of truth for end-of-run stamping.
     mockBulkLookup.mockImplementation(
       (
         _lines: string[],
         _settings: unknown,
         onEvent: (e: BulkEvent) => void,
+        onDone: (aborted: boolean) => void,
+        signal: AbortSignal,
       ) => {
-        // Surface the first event so runStartedAt is set, then idle.
         setNow(1_000)
         onEvent(makeEvent(0, 5))
-        return new Promise<void>(() => {})
+        return new Promise<void>((resolve) => {
+          signal.addEventListener('abort', () => {
+            onDone(true)
+            resolve()
+          })
+        })
       },
     )
 
@@ -172,11 +186,16 @@ describe('App: bulk-run timestamp lifecycle', () => {
 
     setNow(4_200)
     fireEvent.click(screen.getByRole('button', { name: /stop/i }))
-    expect(useAppStore.getState().isRunning).toBe(false)
+    await waitFor(() => {
+      expect(useAppStore.getState().isRunning).toBe(false)
+    })
     expect(useAppStore.getState().runEndedAt).toBe(4_200)
   })
 
-  it('bulkLookup throwing still stamps runEndedAt and clears isRunning', async () => {
+  it('a bulkLookup network rejection without onDone still stamps runEndedAt via the App-level catch', async () => {
+    // Mirrors the real path where `fetch` itself rejects before
+    // bulkLookup gets a chance to call onDone — the only case the
+    // outer `catch` in handleRun is still needed for.
     useAppStore.setState({ inputText: 'Charizard' })
     mockBulkLookup.mockImplementation(() => {
       setNow(9_000)
@@ -190,5 +209,34 @@ describe('App: bulk-run timestamp lifecycle', () => {
       expect(useAppStore.getState().isRunning).toBe(false)
     })
     expect(useAppStore.getState().runEndedAt).toBe(9_000)
+  })
+
+  it('does not double-stamp runEndedAt when both onDone and the catch would fire', async () => {
+    // Defensive case: if bulkLookup were to both call onDone AND
+    // throw (as the real `if (!aborted) throw err` branch does), the
+    // outer catch must not overwrite the timestamp onDone stamped.
+    useAppStore.setState({ inputText: 'Charizard' })
+    mockBulkLookup.mockImplementation(
+      (
+        _lines: string[],
+        _settings: unknown,
+        _onEvent: (e: BulkEvent) => void,
+        onDone: (aborted: boolean) => void,
+      ) => {
+        setNow(5_000)
+        onDone(false)
+        setNow(5_010)
+        return Promise.reject(new Error('post-onDone throw'))
+      },
+    )
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /look up/i }))
+
+    await waitFor(() => {
+      expect(useAppStore.getState().isRunning).toBe(false)
+    })
+    // The first stamp (5_000) wins; the catch must NOT overwrite to 5_010.
+    expect(useAppStore.getState().runEndedAt).toBe(5_000)
   })
 })
