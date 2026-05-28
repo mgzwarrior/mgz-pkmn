@@ -9,6 +9,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- API: new `GET /api/v1/changelog` endpoint returns structured release
+  notes parsed from `CHANGELOG.md` — the single source of truth for
+  "what's new" surfaces, shared by the marketing site and (later) the
+  demo SPA. Supports `?limit=N` (newest first) and
+  `?include_unreleased=true`; the in-flight Unreleased section is
+  omitted by default. Parsing lives in `mgz_pkmn.changelog` so it's
+  unit-testable independent of the route.
+- Site: **"Recently shipped" release notes** — a new section on the
+  marketing landing page renders the last three releases (version,
+  date, and bullets grouped by Added / Changed / Fixed) pulled at
+  build time from `GET /api/v1/changelog`. The hero's "Now shipping
+  X.Y.Z" pill is now derived from the same source instead of being
+  hand-edited every release, so it can't drift. Both degrade
+  gracefully (section omitted, pill shows just "Now shipping") if the
+  API is unreachable at build time.
 - Site: **Hero binder grid + asciinema cast** — the marketing landing
   page now opens on a tilted 3×3 binder page of real Pokémon TCG cards
   (replacing the abstract brand-color radial glow) and an embedded

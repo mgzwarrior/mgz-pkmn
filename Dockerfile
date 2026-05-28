@@ -28,6 +28,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # declares it as the package readme — hatchling validates it at build time.
 COPY src/ ./src/
 COPY README.md ./
+# CHANGELOG.md backs GET /api/v1/changelog (release notes for the web
+# surfaces). Read at runtime from the repo root, so it must ship in the image.
+COPY CHANGELOG.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --extra api --no-dev --frozen
 

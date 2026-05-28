@@ -25,7 +25,7 @@ from mgz_pkmn import cache as disk_cache
 from mgz_pkmn.lookup import warm_concepts, warm_set_cards
 from mgz_pkmn.sources import TCGClient, TCGDexClient
 
-from .routes import export, lookup, overrides, parse, set_cards, sets
+from .routes import changelog, export, lookup, overrides, parse, set_cards, sets
 
 _log = logging.getLogger(__name__)
 
@@ -163,6 +163,7 @@ app.include_router(export.router, prefix="/api/v1", tags=["export"])
 app.include_router(sets.router, prefix="/api/v1", tags=["sets"])
 app.include_router(set_cards.router, prefix="/api/v1", tags=["set-cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
+app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
 
 
 @app.get("/health")

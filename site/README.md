@@ -49,6 +49,28 @@ site/
 
 Pure static output. No SSR, no runtime, no API routes.
 
+## Build-time data
+
+Two surfaces pull live data at **build time** (baked into the static HTML,
+so the shipped site stays client-side-free). Both degrade gracefully — if
+the upstream is unreachable, the helper returns empty and the section is
+omitted rather than failing the build:
+
+- **`/contribute` OSS signals** — GitHub API via
+  [`src/lib/github.ts`](src/lib/github.ts). Set `GITHUB_TOKEN` in the build
+  env to avoid the anonymous rate limit.
+- **"Recently shipped" release notes + hero version pill** — the demo
+  API's `GET /api/v1/changelog` via
+  [`src/lib/changelog.ts`](src/lib/changelog.ts). This is the single
+  source of truth shared with the demo SPA; the endpoint parses the repo's
+  `CHANGELOG.md` (see `api/routes/changelog.py`), so release copy is never
+  hand-edited on the site. Override the API origin with `MGZ_PKMN_API_BASE`
+  (default: the public demo) — useful for building against a local API:
+
+  ```bash
+  MGZ_PKMN_API_BASE=http://localhost:8000 npm run build
+  ```
+
 ## Deploying to Cloudflare Pages
 
 The site builds and deploys automatically once the Cloudflare Pages
