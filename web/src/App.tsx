@@ -39,6 +39,7 @@ function App() {
     setProgress,
     setProcessingLines,
     markLineStatus,
+    updateLineStage,
     setRunStartedAt,
     setRunEndedAt,
     pushRecentRun,
@@ -90,13 +91,21 @@ function App() {
     let firstEventSeen = false
 
     function onEvent(event: BulkEvent) {
-      if (event.done) return
+      if ('done' in event && event.done) return
       if (!firstEventSeen) {
         firstEventSeen = true
         setRunStartedAt(Date.now())
       }
 
-      // First event for this input line transitions it out of "pending".
+      // Record the latest stage for the line either way — both progress
+      // frames and the terminal row frame carry one.
+      updateLineStage(event.index, event.stage)
+
+      // Progress-only frame (no row payload): the line advanced a stage but
+      // hasn't resolved yet, so don't append a result or flip its status.
+      if (!('matched' in event)) return
+
+      // First row event for this input line transitions it out of "pending".
       // Subsequent events (top:N expansions) leave the status alone.
       markLineStatus(event.index, event.matched ? 'resolved' : 'error')
 
@@ -148,6 +157,7 @@ function App() {
     setProgress,
     setProcessingLines,
     markLineStatus,
+    updateLineStage,
     setRunStartedAt,
     setRunEndedAt,
     pushRecentRun,

@@ -9,6 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: **color-coded search progress** — while a bulk lookup runs, each
+  input line's chip in the progress panel now reflects the exact pipeline
+  stage it's in (parsed → looking up → fallback / URL hint → pricing →
+  resolved / no match / error) instead of a single blue spinner. The
+  `/api/v1/bulk` SSE stream carries a `stage` on every frame, including
+  intermediate progress-only frames streamed live as a line moves through
+  the sources. Hovering a chip shows how long the line has spent in its
+  current stage, and a **Legend** toggle in the panel header maps the
+  colors to their meanings. All stage colors clear WCAG AA contrast —
+  see [docs/accessibility.md](docs/accessibility.md#color-coded-progress-stages).
 - Web: **"What's new" panel** — a new header button (with an unobtrusive
   dot when a release newer than you've seen has shipped) opens a panel of
   recent release notes, pulled at runtime from `GET /api/v1/changelog` —

@@ -44,6 +44,50 @@ describe('store: processingLines', () => {
       vi.useRealTimers()
     }
   })
+
+  it('updateLineStage records the stage and stamps stageStartedAt', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_700_000_000_000)
+      useAppStore.setState({
+        processingLines: [{ line: 'Charizard', status: 'pending' }],
+      })
+      useAppStore.getState().updateLineStage(0, 'looking_up')
+      const line = useAppStore.getState().processingLines[0]
+      expect(line.stage).toBe('looking_up')
+      expect(line.stageStartedAt).toBe(1_700_000_000_000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('updateLineStage resets stageStartedAt only when the stage changes', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1000)
+      useAppStore.setState({
+        processingLines: [{ line: 'a', status: 'pending' }],
+      })
+      useAppStore.getState().updateLineStage(0, 'looking_up')
+      vi.setSystemTime(2000)
+      // Same stage again → timestamp must not move.
+      useAppStore.getState().updateLineStage(0, 'looking_up')
+      expect(useAppStore.getState().processingLines[0].stageStartedAt).toBe(1000)
+      // New stage → timestamp advances.
+      useAppStore.getState().updateLineStage(0, 'fallback')
+      expect(useAppStore.getState().processingLines[0].stageStartedAt).toBe(2000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('updateLineStage ignores out-of-range indices', () => {
+    useAppStore.setState({
+      processingLines: [{ line: 'a', status: 'pending' }],
+    })
+    useAppStore.getState().updateLineStage(99, 'looking_up')
+    expect(useAppStore.getState().processingLines[0].stage).toBeUndefined()
+  })
 })
 
 describe('store: run timestamps', () => {
