@@ -218,3 +218,16 @@ describe('store: settings.showTimer', () => {
     expect(useAppStore.getState().settings.showTimer).toBe(false)
   })
 })
+
+describe('store: lastSeenChangelogVersion', () => {
+  beforeEach(() => useAppStore.setState({ lastSeenChangelogVersion: null }))
+
+  it('defaults to null', () => {
+    expect(useAppStore.getState().lastSeenChangelogVersion).toBeNull()
+  })
+
+  it('setLastSeenChangelogVersion records the version', () => {
+    useAppStore.getState().setLastSeenChangelogVersion('1.1.1')
+    expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1')
+  })
+})

@@ -128,6 +128,27 @@ export interface SetCard {
 }
 
 /**
+ * One section within a release (Added / Changed / Fixed / …) as returned
+ * by `GET /api/v1/changelog`. Bullet `entries` are raw Markdown — the
+ * renderer formats inline links and code spans.
+ */
+export interface ChangelogSection {
+  name: string
+  entries: string[]
+}
+
+/**
+ * One release block from `GET /api/v1/changelog`. The endpoint omits the
+ * in-flight Unreleased section by default, so every release here is
+ * shipped and carries a `date`.
+ */
+export interface ChangelogRelease {
+  version: string
+  date: string | null
+  sections: ChangelogSection[]
+}
+
+/**
  * One entry in the recent-searches history. Captured the moment the
  * user clicks **Look up** so the panel reflects what was actually
  * submitted (even if the run later errored or was stopped).

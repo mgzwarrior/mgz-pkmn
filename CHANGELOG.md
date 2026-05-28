@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: **"What's new" panel** — a new header button (with an unobtrusive
+  dot when a release newer than you've seen has shipped) opens a panel of
+  recent release notes, pulled at runtime from `GET /api/v1/changelog` —
+  the same source the marketing site reads. Opening the panel marks the
+  latest version seen, clearing the dot; a first-time visitor is caught
+  up silently so it never competes with the Help button's first-visit
+  hint. Bullets render inline Markdown (links, `code`, **bold**). The
+  last-seen version persists via the existing Zustand store.
 - API: new `GET /api/v1/changelog` endpoint returns structured release
   notes parsed from `CHANGELOG.md` — the single source of truth for
   "what's new" surfaces, shared by the marketing site and (later) the

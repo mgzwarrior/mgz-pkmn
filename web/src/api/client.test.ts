@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { dedupeRows } from './client'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { dedupeRows, fetchChangelog } from './client'
 import type { Row } from '../types'
 
 function makeRow(over: Partial<Row> = {}): Row {
@@ -44,5 +44,28 @@ describe('dedupeRows', () => {
       makeRow({ card: { id: 'c' } }),
     ]
     expect(dedupeRows(rows)).toHaveLength(3)
+  })
+})
+
+describe('fetchChangelog', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('requests the changelog endpoint with the limit and returns releases', async () => {
+    const releases = [{ version: '1.1.1', date: '2026-05-25', sections: [] }]
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ releases }), { status: 200 }),
+      )
+    const result = await fetchChangelog(3)
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/changelog?limit=3')
+    expect(result).toEqual(releases)
+  })
+
+  it('throws on a non-ok response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 500 }))
+    await expect(fetchChangelog()).rejects.toThrow(/changelog failed: 500/)
   })
 })
