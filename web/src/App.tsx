@@ -22,6 +22,7 @@ import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { HelpModal } from './components/HelpModal'
+import { WhatsNewModal } from './components/WhatsNewModal'
 import { Tour } from './components/Tour'
 import { useAppStore } from './store'
 import type { BulkEvent } from './types'
@@ -201,6 +202,7 @@ function App() {
             <div data-tour="exports">
               <ExportBar />
             </div>
+            <WhatsNewModal />
             <HelpModal onStartTour={() => setTourOpen(true)} />
             <div data-tour="settings">
               <SettingsDrawer />

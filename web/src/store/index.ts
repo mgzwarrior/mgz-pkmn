@@ -92,6 +92,16 @@ interface AppState {
   pushRecentRun: (lines: string[]) => void
   removeRecentRun: (id: string) => void
   clearRecentRuns: () => void
+
+  /**
+   * Latest changelog version the user has seen in the "What's new" panel.
+   * `null` until the panel first resolves a version. Persisted so the
+   * "unseen release" dot only shows when a newer release has shipped
+   * since the user last opened the panel. A first-time visitor (null) is
+   * initialised silently to the current latest — no dot, no nag.
+   */
+  lastSeenChangelogVersion: string | null
+  setLastSeenChangelogVersion: (version: string) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -185,6 +195,10 @@ export const useAppStore = create<AppState>()(
           recentRuns: state.recentRuns.filter((r) => r.id !== id),
         })),
       clearRecentRuns: () => set({ recentRuns: [] }),
+
+      lastSeenChangelogVersion: null,
+      setLastSeenChangelogVersion: (version) =>
+        set({ lastSeenChangelogVersion: version }),
     }),
     {
       name: 'mgz-pkmn-settings',
@@ -194,6 +208,7 @@ export const useAppStore = create<AppState>()(
         settings: state.settings,
         selectedSetIds: state.selectedSetIds,
         recentRuns: state.recentRuns,
+        lastSeenChangelogVersion: state.lastSeenChangelogVersion,
       }),
       // Merge persisted state with defaults so new settings fields (e.g.
       // `sort`, added later) fall back to the initial value rather than

@@ -9,6 +9,7 @@
 import type {
   BulkEvent,
   CardQuery,
+  ChangelogRelease,
   ExportFormat,
   Row,
   SetCard,
@@ -301,4 +302,22 @@ export async function addOverride(name: string, set: string | null, url: string)
     body: JSON.stringify({ name, set, url }),
   })
   if (!res.ok) throw new Error(`override failed: ${res.status}`)
+}
+
+// ---------------------------------------------------------------------------
+// changelog
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch parsed release notes (newest first) from the shared
+ * `GET /api/v1/changelog` endpoint — the same source the marketing site
+ * reads. The in-flight Unreleased section is omitted by the backend, so
+ * every release returned is shipped. Response is browser-cacheable for an
+ * hour via the backend's `Cache-Control`.
+ */
+export async function fetchChangelog(limit = 5): Promise<ChangelogRelease[]> {
+  const res = await fetch(`${BASE}/changelog?limit=${limit}`)
+  if (!res.ok) throw new Error(`changelog failed: ${res.status}`)
+  const data = await res.json()
+  return data.releases as ChangelogRelease[]
 }
