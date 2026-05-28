@@ -9,6 +9,29 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Web: **Browse sets** — a new **Browse** button in the header opens a
+  modal that explores the Pokémon TCG catalog without typing a card
+  list. The set list groups every set by series, newest-first, with
+  the cached logo + release year + card count per row (reuses the
+  image cache populated by `pkmn cache warm-sets`). Picking a set
+  opens a responsive grid of every card with thumb / name / number /
+  rarity / market price, plus search-within-set, rarity-bucket filter
+  chips (All / Rares / Holos / Ultra+), and sort by number / name /
+  price ↓. Each card has an **Add to list** button; bulk actions push
+  every visible card, every holo, or every rare into the editor in
+  one click. Lines pushed into the editor follow the parser's
+  canonical `Name | Set | Number` shape and dedupe against existing
+  input — clicking the same card twice doesn't double-stamp it.
+- API: new `GET /api/v1/sets/{set_id}/cards` endpoint returns a
+  **trimmed** card list for one set — just the fields Browse renders
+  (id, name, number, rarity, supertype, subtypes, thumb URL, market
+  price). A 250-card set ships ~46 KB on the wire vs hundreds of KB
+  for the raw pokemontcg.io shape. Flows through the existing on-disk
+  API cache, so once any user warms a set every subsequent open is a
+  disk-cache hit. Browser-cacheable for a day via
+  `Cache-Control: public, max-age=86400`; 404s when the set is
+  unknown / empty. Malformed set ids rejected at the route boundary
+  (422) by the same validator that gates the logo endpoint.
 - Outputs: **Branded exports** — every artifact now carries the
   `mgz-pkmn` mark, project URL, and file-properties metadata. PDFs
   (binder, condensed, checklist, set-cards) gain a single muted
