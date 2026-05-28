@@ -9,6 +9,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Site: **Hero binder grid + asciinema cast** — the marketing landing
+  page now opens on a tilted 3×3 binder page of real Pokémon TCG cards
+  (replacing the abstract brand-color radial glow) and an embedded
+  [asciinema](https://asciinema.org/) cast of an actual `pkmn lookup`
+  run against `sample_cards.txt` (replacing the hand-curated static
+  code block). Cards live under `site/public/cards/` as ~40 KB WebP
+  thumbnails; the cast is captured by
+  [`site/scripts/record-cast.sh`](site/scripts/record-cast.sh). Player
+  CSS/JS are vendored into `site/public/vendor/` so the page has no
+  third-party iframe and works offline once cached. Falls back to a
+  `<noscript>` code block for visitors with JS disabled.
+- Site: **"What you get" gallery** — a new section between the
+  features grid and "How it works" shows three side-by-side previews
+  of the actual deliverables (`cards.xlsx`, `binder.pdf`,
+  `checklist.pdf`) rendered from the tracked `output/` samples.
+  Regenerated end-to-end by
+  [`site/scripts/refresh-screenshots.sh`](site/scripts/refresh-screenshots.sh):
+  `pdftoppm` for the PDF previews, plus a custom
+  [`render_xlsx_preview.py`](site/scripts/render_xlsx_preview.py)
+  that composes a faithful spreadsheet-style preview from
+  `output/summary.json` + thumbnails in `output/images/` (LibreOffice
+  headless can't render the xlsx writer's embedded image references).
 - CLI: `pkmn cache warm-set-cards` subcommand walks every Pokémon TCG set
   and pre-primes the API response cache for each one's card list, so the
   web SPA's Browse → set-detail path is a cache hit on first request

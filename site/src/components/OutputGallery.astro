@@ -1,0 +1,73 @@
+---
+const outputs = [
+  {
+    src: "/screenshots/cards-xlsx.webp",
+    title: "Spreadsheet",
+    caption:
+      "Per-tag sections, thumbnails inline, market price and your 80 / 85 / 90 / 95 % comps on every row.",
+    alt: "Screenshot of the generated cards.xlsx workbook showing card rows with thumbnails, set, number, market price, and comparison columns.",
+    suffix: "cards.xlsx",
+  },
+  {
+    src: "/screenshots/binder-page.webp",
+    title: "Binder PDF",
+    caption:
+      "Printable 3×3 binder page — thumb, set, number, price. Hand it across the table.",
+    alt: "Screenshot of a single page from the generated binder.pdf showing a 3×3 grid of Pokémon TCG cards with prices.",
+    suffix: "binder.pdf",
+  },
+  {
+    src: "/screenshots/checklist-page.webp",
+    title: "Checklist PDF",
+    caption:
+      "Tick boxes by set, in collector-number order. Drop it in your binder and shop.",
+    alt: "Screenshot of a single page from the generated checklist.pdf listing cards by set with checkbox marks.",
+    suffix: "checklist.pdf",
+  },
+];
+---
+
+<section
+  id="what-you-get"
+  class="border-b border-zinc-900/80 px-6 py-20 sm:py-24"
+>
+  <div class="mx-auto max-w-6xl">
+    <div class="max-w-2xl">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+        What you actually walk out with.
+      </h2>
+      <p class="mt-4 text-lg text-zinc-400">
+        Every run produces the same three artifacts — pick the format that fits the
+        moment. Screenshots below are rendered from the tracked sample outputs in
+        <code class="text-zinc-300 font-mono text-base">output/</code>.
+      </p>
+    </div>
+
+    <ul class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        outputs.map((output) => (
+          <li class="flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden hover:border-zinc-700 transition">
+            <div class="bg-zinc-950/60 aspect-[5/6] overflow-hidden flex items-start justify-center">
+              <img
+                src={output.src}
+                alt={output.alt}
+                loading="lazy"
+                decoding="async"
+                class="w-full h-auto object-cover object-top"
+              />
+            </div>
+            <div class="p-5">
+              <div class="flex items-baseline justify-between gap-3">
+                <h3 class="text-lg font-semibold text-white">{output.title}</h3>
+                <code class="text-xs text-zinc-500 font-mono">{output.suffix}</code>
+              </div>
+              <p class="mt-2 text-sm leading-relaxed text-zinc-400">
+                {output.caption}
+              </p>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
