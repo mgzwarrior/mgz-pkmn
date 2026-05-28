@@ -108,6 +108,26 @@ export interface SetInfo {
 }
 
 /**
+ * One trimmed card returned by `GET /api/v1/sets/{set_id}/cards`.
+ *
+ * Intentionally narrower than the full `CardData` blob — Browse only
+ * needs enough to render a grid row, filter by rarity/subtype, and
+ * synthesise an "add to list" line. The trim happens server-side so
+ * every Browse open ships kilobytes instead of hundreds-of-kilobytes
+ * over the wire.
+ */
+export interface SetCard {
+  id: string
+  name: string
+  number: string
+  rarity: string | null
+  supertype: string | null
+  subtypes: string[]
+  thumb: string | null
+  market: number | null
+}
+
+/**
  * One entry in the recent-searches history. Captured the moment the
  * user clicks **Look up** so the panel reflects what was actually
  * submitted (even if the run later errored or was stopped).

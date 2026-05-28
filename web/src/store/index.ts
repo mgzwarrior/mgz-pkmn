@@ -19,6 +19,20 @@ interface AppState {
   /** The raw multi-line card-list text typed by the user. */
   inputText: string
   setInputText: (text: string) => void
+  /**
+   * Append one or more lines to `inputText`, deduplicating against the
+   * existing content so the Browse modal's "Add to list" can be clicked
+   * twice on the same card without leaving a stray duplicate. The check
+   * is exact-string and case-sensitive on trimmed lines — same shape
+   * the backend parser sees — so two distinct query shapes for the same
+   * card (e.g. with / without set hint) still both land.
+   *
+   * Returns the count of lines **actually** appended (post-dedupe) so
+   * callers can render an accurate "Added N lines" status — clicking
+   * "Add to list" on a card already in the editor honestly reports 0,
+   * not 1.
+   */
+  appendInputLines: (lines: string[]) => number
 
   /** Accumulated lookup results from the most recent bulk run. */
   rows: Row[]
@@ -82,9 +96,28 @@ interface AppState {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       inputText: '',
       setInputText: (text) => set({ inputText: text }),
+      appendInputLines: (lines) => {
+        // Compute the fresh-line slice outside `set()` so we can return
+        // its count to the caller. We snapshot the current input via
+        // zustand's `get` parameter (not a closure-captured reference
+        // to the store hook, which would cause a circular type during
+        // initial inference), derive `fresh`, then push that exact list
+        // via set. Single source of truth, accurate return value.
+        const current = get().inputText
+        const incoming = lines.map((l) => l.trim()).filter((l) => l.length > 0)
+        if (incoming.length === 0) return 0
+        const existing = new Set(
+          current.split('\n').map((l) => l.trim()).filter(Boolean),
+        )
+        const fresh = incoming.filter((l) => !existing.has(l))
+        if (fresh.length === 0) return 0
+        const sep = current.length === 0 || current.endsWith('\n') ? '' : '\n'
+        set({ inputText: current + sep + fresh.join('\n') + '\n' })
+        return fresh.length
+      },
 
       rows: [],
       setRows: (rows) => set({ rows }),
