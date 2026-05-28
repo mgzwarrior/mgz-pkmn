@@ -15,3 +15,11 @@ services:
       # via `ARG`, so a single entry covers both.
       - key: POKEMONTCG_IO_API_KEY
         sync: false
+      # Warm the concept + set-cards API caches on startup so the first
+      # user after a deploy (or a free-tier spin-up) gets cache hits
+      # instead of paying the full upstream round trip. The warmers run on
+      # background daemon threads — startup and the /health check aren't
+      # blocked — and their on-disk freshness manifests (24 h concepts /
+      # 1 week set-cards) keep restarts within the window from re-walking.
+      - key: MGZ_PKMN_WARM_ON_STARTUP
+        value: "1"
