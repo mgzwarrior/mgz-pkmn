@@ -87,10 +87,11 @@ def _terminal_stage(matched: bool, reason: str) -> str:
 
     Mirrors the `LOOKUP_STAGES` vocabulary so the SPA can render the final
     chip from the same field it uses for intermediate progress: a hard
-    failure (network / unparseable) is `error`, a match is `resolved`, and
-    every "looked but found nothing" reason (`no_candidates`, `set_mismatch`,
-    `no_results`, `price_mismatch`) is `no_match`."""
-    if reason in ("error", "unparseable"):
+    failure (network / scrape / unparseable) is `error`, a match is
+    `resolved`, and every "looked but found nothing" reason
+    (`no_candidates`, `set_mismatch`, `no_results`, `price_mismatch`) is
+    `no_match`."""
+    if reason in ("error", "scrape_failed", "unparseable"):
         return "error"
     return "resolved" if matched else "no_match"
 

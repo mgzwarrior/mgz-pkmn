@@ -157,6 +157,7 @@ class TerminalStageTests(unittest.TestCase):
         self.assertEqual(_terminal_stage(False, "no_results"), "no_match")
         self.assertEqual(_terminal_stage(False, "price_mismatch"), "no_match")
         self.assertEqual(_terminal_stage(False, "error"), "error")
+        self.assertEqual(_terminal_stage(False, "scrape_failed"), "error")
         self.assertEqual(_terminal_stage(False, "unparseable"), "error")
 
 
