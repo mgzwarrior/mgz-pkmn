@@ -33,8 +33,8 @@
  *
  * Environment
  * -----------
- * - `MGZ_PKMN_API_KEY` (optional) — sent as `X-Api-Key` so a generous
- *   pokemontcg.io account avoids the public rate limit.
+ * - `POKEMONTCG_IO_API_KEY` (optional) — sent as `X-Api-Key` so a
+ *   generous pokemontcg.io account avoids the public rate limit.
  */
 
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -58,7 +58,7 @@ function warn(msg) {
 
 async function fetchCatalog() {
   const headers = { 'User-Agent': 'mgz-pkmn/refresh-sets' }
-  const apiKey = process.env.MGZ_PKMN_API_KEY
+  const apiKey = process.env.POKEMONTCG_IO_API_KEY
   if (apiKey) headers['X-Api-Key'] = apiKey
 
   // Per-attempt timeout. pokemontcg.io is occasionally slow on big
