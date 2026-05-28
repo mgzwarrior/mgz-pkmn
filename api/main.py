@@ -22,7 +22,7 @@ from starlette.responses import Response
 
 from mgz_pkmn import __version__
 from mgz_pkmn import cache as disk_cache
-from mgz_pkmn.lookup import warm_concepts
+from mgz_pkmn.lookup import warm_concepts, warm_set_cards
 from mgz_pkmn.sources import TCGClient, TCGDexClient
 
 from .routes import export, lookup, overrides, parse, set_cards, sets
@@ -64,6 +64,41 @@ def _warm_concepts_in_background() -> None:
             _log.exception("concept warm failed; service running with cold cache")
 
     threading.Thread(target=_run, name="concept-warm", daemon=True).start()
+
+
+def _warm_set_cards_in_background() -> None:
+    """Run the set-cards warm pass on a daemon thread so FastAPI startup
+    isn't blocked by ~500 upstream HTTP requests.
+
+    Gated by the on-disk freshness manifest — if a warm pass landed
+    within the last week, skip and log "already fresh". Errors are
+    logged and swallowed: a failed warm should not crash the service,
+    only leave the per-set card lists cold for this run. Sets card
+    data effectively doesn't change once a set ships (only market
+    prices drift, and that's already covered by the 1-day browser
+    cache on the endpoint), so the weekly cadence is generous."""
+    if disk_cache.set_cards_warm_is_fresh():
+        _log.info("set-cards cache fresh; skipping startup warm")
+        return
+
+    def _run() -> None:
+        try:
+            pkmn = TCGClient(api_key=os.environ.get("POKEMONTCG_IO_API_KEY"))
+            result = warm_set_cards(pkmn)
+            disk_cache.write_set_cards_warm(
+                sets_warmed=result.sets_warmed,
+                sets_failed=result.sets_failed,
+            )
+            _log.info(
+                "set-cards warm complete: %d sets attempted, %d warmed, %d missed",
+                result.sets_attempted,
+                result.sets_warmed,
+                len(result.sets_failed),
+            )
+        except Exception:
+            _log.exception("set-cards warm failed; service running with cold cache")
+
+    threading.Thread(target=_run, name="set-cards-warm", daemon=True).start()
 
 
 class SPAStaticFiles(StaticFiles):
@@ -109,16 +144,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Opt-in startup hook: when MGZ_PKMN_WARM_ON_STARTUP=1, kick off a concept
-# warm pass in the background so the first concept lookup served by this
-# process is a cache hit. The manifest's once-per-day gate keeps reloads
-# from thrashing (a `uvicorn --reload` cycle won't re-warm if a warm pass
-# landed within the last 24 h).
+# Opt-in startup hook: when MGZ_PKMN_WARM_ON_STARTUP=1, kick off both the
+# concept warm and the set-cards warm in the background so first-use
+# lookups served by this process are cache hits. Each warmer has its own
+# freshness manifest (24 h for concepts, 1 week for set cards) so the
+# heavier one doesn't re-thrash on every `uvicorn --reload` cycle.
 if os.environ.get(_WARM_ON_STARTUP_ENV, "").strip() in ("1", "true", "True"):
 
     @app.on_event("startup")
-    def _startup_warm_concepts() -> None:
+    def _startup_warm() -> None:
         _warm_concepts_in_background()
+        _warm_set_cards_in_background()
 
 
 app.include_router(parse.router, prefix="/api/v1", tags=["parse"])

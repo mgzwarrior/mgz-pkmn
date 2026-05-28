@@ -9,6 +9,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- CLI: `pkmn cache warm-set-cards` subcommand walks every Pokémon TCG set
+  and pre-primes the API response cache for each one's card list, so the
+  web SPA's Browse → set-detail path is a cache hit on first request
+  instead of a multi-second upstream round trip. Issues the exact same
+  `set.id:"<id>"` Lucene query the `GET /api/v1/sets/{set_id}/cards`
+  endpoint issues, so cache keys line up. Accepts `--set <id>`
+  (repeatable) to warm only specific sets — handy for staging a new
+  release without re-walking the whole catalog — and `--verbose` to
+  print each set id as it warms. Writes `set_cards_warm.json` in the
+  cache root with a timestamp + warmed-count so `pkmn cache stats` can
+  report freshness and the FastAPI startup hook gates itself to run at
+  most once per week.
+- API: `MGZ_PKMN_WARM_ON_STARTUP=1` now kicks off a set-cards warm pass
+  on a separate daemon thread alongside the existing concept warm, so
+  the first Browse → set-detail request served by a fresh process is a
+  cache hit. Each warmer has its own freshness manifest (24 h for
+  concepts, 1 week for set cards) so the heavier set-cards walk doesn't
+  thrash on every `uvicorn --reload` cycle.
+- Stats: `pkmn cache stats` surfaces a new **Set cards** line — "N sets ·
+  warmed <age>" when a warm pass has landed, "not warmed · run …"
+  otherwise. JSON output (`--json`) gains matching `set_cards_warm_timestamp`
+  and `set_cards_warm_count` fields for monitoring.
 - Web: **Browse sets** — a new **Browse** button in the header opens a
   modal that explores the Pokémon TCG catalog without typing a card
   list. The set list groups every set by series, newest-first, with

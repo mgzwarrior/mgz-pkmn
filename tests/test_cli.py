@@ -198,6 +198,8 @@ class CacheStatsCommandTests(unittest.TestCase):
                 "image_entry_count",
                 "concept_warm_timestamp",
                 "concept_warm_names",
+                "set_cards_warm_timestamp",
+                "set_cards_warm_count",
                 "root",
             },
         )
