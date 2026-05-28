@@ -19,6 +19,15 @@ interface AppState {
   /** The raw multi-line card-list text typed by the user. */
   inputText: string
   setInputText: (text: string) => void
+  /**
+   * Append one or more lines to `inputText`, deduplicating against the
+   * existing content so the Browse modal's "Add to list" can be clicked
+   * twice on the same card without leaving a stray duplicate. The check
+   * is exact-string and case-sensitive on trimmed lines — same shape
+   * the backend parser sees — so two distinct query shapes for the same
+   * card (e.g. with / without set hint) still both land.
+   */
+  appendInputLines: (lines: string[]) => void
 
   /** Accumulated lookup results from the most recent bulk run. */
   rows: Row[]
@@ -85,6 +94,19 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       inputText: '',
       setInputText: (text) => set({ inputText: text }),
+      appendInputLines: (lines) =>
+        set((state) => {
+          const incoming = lines.map((l) => l.trim()).filter((l) => l.length > 0)
+          if (incoming.length === 0) return state
+          const existing = new Set(
+            state.inputText.split('\n').map((l) => l.trim()).filter(Boolean),
+          )
+          const fresh = incoming.filter((l) => !existing.has(l))
+          if (fresh.length === 0) return state
+          const sep =
+            state.inputText.length === 0 || state.inputText.endsWith('\n') ? '' : '\n'
+          return { inputText: state.inputText + sep + fresh.join('\n') + '\n' }
+        }),
 
       rows: [],
       setRows: (rows) => set({ rows }),

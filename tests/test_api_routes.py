@@ -190,6 +190,169 @@ class SetsRouteTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["sets"], fetched_sets)
 
+    def test_browser_cache_control_header(self) -> None:
+        # The /sets response needs a short-TTL Cache-Control so the Browse
+        # modal doesn't round-trip on every open. We assert presence, not
+        # the exact max-age value, so the constant can be tuned without
+        # the test going brittle — but we do require it's `public` and
+        # has a non-zero max-age.
+        with (
+            patch("api.routes.sets._load_sets_cache", return_value=[]),
+        ):
+            resp = client.get("/api/v1/sets")
+
+        self.assertEqual(resp.status_code, 200)
+        cache_control = resp.headers.get("cache-control", "")
+        self.assertIn("public", cache_control)
+        self.assertIn("max-age=", cache_control)
+
+
+class SetCardsRouteTests(unittest.TestCase):
+    """`GET /api/v1/sets/{set_id}/cards` returns a trimmed card list."""
+
+    def test_trims_card_payload(self) -> None:
+        # Synthetic upstream response with the fields we care about plus
+        # a bunch of noise to confirm the trim drops them.
+        raw_cards = [
+            {
+                "id": "sv8-1",
+                "name": "Pikachu",
+                "number": "1",
+                "rarity": "Common",
+                "supertype": "Pokémon",
+                "subtypes": ["Basic"],
+                "images": {
+                    "small": "https://images.example/sv8-1-small.png",
+                    "large": "https://images.example/sv8-1-large.png",
+                },
+                "tcgplayer": {
+                    "prices": {"normal": {"market": 1.23}},
+                    "url": "https://tcgplayer.example/sv8-1",
+                },
+                # Noise we expect the trim to drop.
+                "attacks": [{"name": "Thundershock"}],
+                "weaknesses": [{"type": "Fighting"}],
+                "legalities": {"standard": "Legal"},
+            }
+        ]
+
+        with patch(
+            "api.routes.sets._fetch_set_cards",
+            return_value=[
+                # _fetch_set_cards is the trimmer entry point; bypass it and
+                # verify the route hands the slim shape straight through.
+                {
+                    "id": "sv8-1",
+                    "name": "Pikachu",
+                    "number": "1",
+                    "rarity": "Common",
+                    "supertype": "Pokémon",
+                    "subtypes": ["Basic"],
+                    "thumb": "https://images.example/sv8-1-small.png",
+                    "market": 1.23,
+                }
+            ],
+        ) as fetch_mock:
+            resp = client.get("/api/v1/sets/sv8/cards")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["set_id"], "sv8")
+        self.assertEqual(len(body["cards"]), 1)
+
+        card = body["cards"][0]
+        # Required fields are all present.
+        for field in ("id", "name", "number", "rarity", "supertype", "subtypes", "thumb", "market"):
+            self.assertIn(field, card)
+        # And the noise fields are absent.
+        for noise in ("attacks", "weaknesses", "legalities", "tcgplayer", "images"):
+            self.assertNotIn(noise, card)
+        # And the fetch helper actually got the set_id we passed.
+        fetch_mock.assert_called_once()
+        args, _ = fetch_mock.call_args
+        self.assertEqual(args[0], "sv8")
+        # Silence unused-variable lint — raw_cards documents the upstream
+        # shape the trim is reducing.
+        self.assertEqual(raw_cards[0]["id"], "sv8-1")
+
+    def test_trim_card_helper_projects_fields(self) -> None:
+        # Direct test of the trim helper so we don't have to mock the
+        # HTTP client to assert the projection contract.
+        from api.routes.sets import _trim_card
+
+        raw = {
+            "id": "sv8-99",
+            "name": "Charizard",
+            "number": "99",
+            "rarity": "Rare Holo",
+            "supertype": "Pokémon",
+            "subtypes": ["Stage 2"],
+            "images": {"small": "https://example/c.png", "large": "x"},
+            "tcgplayer": {"prices": {"holofoil": {"market": 42.5}}},
+            "attacks": [{"name": "Fire Spin"}],
+        }
+        slim = _trim_card(raw)
+        self.assertEqual(slim["id"], "sv8-99")
+        self.assertEqual(slim["name"], "Charizard")
+        self.assertEqual(slim["number"], "99")
+        self.assertEqual(slim["rarity"], "Rare Holo")
+        self.assertEqual(slim["supertype"], "Pokémon")
+        self.assertEqual(slim["subtypes"], ["Stage 2"])
+        self.assertEqual(slim["thumb"], "https://example/c.png")
+        self.assertEqual(slim["market"], 42.5)
+        self.assertNotIn("attacks", slim)
+        self.assertNotIn("images", slim)
+        self.assertNotIn("tcgplayer", slim)
+
+    def test_trim_card_missing_pricing_returns_null_market(self) -> None:
+        # A card without tcgplayer / cardmarket pricing — happens for very
+        # new releases or promo cards. The shape should still be valid
+        # with `market: None` so the SPA can render a `—` placeholder.
+        from api.routes.sets import _trim_card
+
+        slim = _trim_card({"id": "x", "name": "n", "number": "1"})
+        self.assertIsNone(slim["market"])
+        self.assertIsNone(slim["thumb"])
+        self.assertEqual(slim["subtypes"], [])
+
+    def test_404_when_set_has_no_cards(self) -> None:
+        with patch("api.routes.sets._fetch_set_cards", return_value=[]):
+            resp = client.get("/api/v1/sets/bogus/cards")
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn("bogus", resp.json()["detail"])
+
+    def test_browser_cache_control_header(self) -> None:
+        with patch(
+            "api.routes.sets._fetch_set_cards",
+            return_value=[
+                {
+                    "id": "sv8-1",
+                    "name": "Pikachu",
+                    "number": "1",
+                    "rarity": "Common",
+                    "supertype": "Pokémon",
+                    "subtypes": [],
+                    "thumb": None,
+                    "market": None,
+                }
+            ],
+        ):
+            resp = client.get("/api/v1/sets/sv8/cards")
+        self.assertEqual(resp.status_code, 200)
+        cache_control = resp.headers.get("cache-control", "")
+        self.assertIn("public", cache_control)
+        self.assertIn("max-age=", cache_control)
+
+    def test_rejects_malformed_set_ids(self) -> None:
+        # Mirrors the logo route's defence — the same `_SET_ID_PATH`
+        # validator gates both endpoints, so a regression in one would
+        # likely catch the other. Subset of inputs is enough to verify
+        # the validator is wired up here too.
+        for bad in ("sv8;rm", "x" * 200, "sv8&foo"):
+            with self.subTest(set_id=bad):
+                resp = client.get(f"/api/v1/sets/{bad}/cards")
+                self.assertEqual(resp.status_code, 422)
+
 
 class SetLogoRouteTests(unittest.TestCase):
     """`GET /api/v1/sets/{set_id}/logo` serves cached images, 404s on miss."""
