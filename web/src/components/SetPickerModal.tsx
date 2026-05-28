@@ -34,6 +34,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { downloadSetCardsPdf, fetchSets, setLogoUrl } from '../api/client'
+import { BAKED_SETS } from '../data/sets'
 import { useAppStore } from '../store'
 import type { SetInfo } from '../types'
 
@@ -92,8 +93,13 @@ function releaseYear(date: string): string | null {
 export function SetPickerModal({ open, onOpenChange }: Props) {
   const { settings, selectedSetIds, setSelectedSetIds } = useAppStore()
 
-  const [sets, setSets] = useState<SetInfo[] | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  // Seed from the baked catalog so the picker opens with rows visible
+  // on the first frame — no "Loading set catalog…" tax. The live
+  // `/api/v1/sets` fetch runs in the background to revalidate; see
+  // the effect below. A transient revalidation failure is silently
+  // swallowed because the baked content is already a working list.
+  const [sets, setSets] = useState<SetInfo[]>(BAKED_SETS)
+  const [revalidatedSets, setRevalidatedSets] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -123,35 +129,37 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   useEffect(() => {
     if (!open) return
     setDraft(new Set(selectedSetIds))
-    setLoadError(null)
     setSubmitError(null)
   }, [open])
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
-  // Lazy-load the catalog once, the first time the modal opens. We keep
-  // the result mounted across open/close so a re-open is free.
+  // Background revalidation of the catalog. Runs once per session on
+  // the first open — the picker is already rendering the baked
+  // catalog, so this fetch is off the critical path. Errors are
+  // swallowed: the user has a working list either way, and a red
+  // banner over an otherwise usable picker reads as broken even when
+  // the bake is fine.
   useEffect(() => {
-    if (!open || sets !== null) return
+    if (!open || revalidatedSets) return
     let cancelled = false
     const load = async () => {
-      setLoadError(null)
       try {
         const data = await fetchSets(settings.apiKey || undefined)
-        if (cancelled) return
-        setSets(data)
-      } catch (err) {
-        if (cancelled) return
-        setLoadError(err instanceof Error ? err.message : String(err))
+        if (!cancelled) setSets(data)
+      } catch {
+        // Swallow — baked catalog is already rendered.
+      } finally {
+        if (!cancelled) setRevalidatedSets(true)
       }
     }
     void load()
     return () => {
       cancelled = true
     }
-  }, [open, sets, settings.apiKey])
+  }, [open, revalidatedSets, settings.apiKey])
 
-  const groups = useMemo(() => (sets ? groupBySeries(sets) : []), [sets])
-  const allCount = sets?.length ?? 0
+  const groups = useMemo(() => groupBySeries(sets), [sets])
+  const allCount = sets.length
   const selectedCount = draft.size
 
   function toggle(id: string) {
@@ -164,7 +172,6 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   }
 
   function selectAll() {
-    if (!sets) return
     setDraft(new Set(sets.map((s) => s.id)))
   }
 
@@ -173,7 +180,6 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   }
 
   function selectSeries(series: string) {
-    if (!sets) return
     setDraft((prev) => {
       const next = new Set(prev)
       // Use the same keying as `groupBySeries` so the "Other" bucket
@@ -252,38 +258,28 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
             className="px-5 pt-3 text-sm text-zinc-400"
           >
             Pick which Pokémon TCG sets the printable ID cards PDF should
-            include. {sets ? `${selectedCount} of ${allCount} selected.` : ''}
+            include. {`${selectedCount} of ${allCount} selected.`}
           </Dialog.Description>
 
           {/* Bulk-action toolbar */}
-          {sets && (
-            <div className="flex flex-wrap gap-2 px-5 pt-3">
-              <BulkButton onClick={selectAll}>Select all</BulkButton>
-              <BulkButton onClick={selectNone}>Select none</BulkButton>
-              <BulkButton onClick={expandAllSeries}>Expand all</BulkButton>
-              <BulkButton onClick={collapseAllSeries}>Collapse all</BulkButton>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2 px-5 pt-3">
+            <BulkButton onClick={selectAll}>Select all</BulkButton>
+            <BulkButton onClick={selectNone}>Select none</BulkButton>
+            <BulkButton onClick={expandAllSeries}>Expand all</BulkButton>
+            <BulkButton onClick={collapseAllSeries}>Collapse all</BulkButton>
+          </div>
 
           <div
             className="flex-1 overflow-y-auto px-5 py-3"
             tabIndex={0}
             aria-label="Set list"
           >
-            {loadError && (
-              <p className="rounded border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
-                Couldn’t load sets: {loadError}
-              </p>
-            )}
-            {!sets && !loadError && (
-              <p className="flex items-center gap-2 text-sm text-zinc-400">
-                <Loader2 size={14} className="animate-spin" />
-                Loading set catalog…
-              </p>
-            )}
-            {sets && (
-              <ul className="space-y-4">
-                {groups.map((group) => {
+            {/* No loading / error state — the SPA seeds from the baked
+                 catalog in `web/src/data/sets.json`, so `groups` is
+                 always non-empty on first render. The live fetch
+                 silently revalidates off the critical path. */}
+            <ul className="space-y-4">
+              {groups.map((group) => {
                   const collapsed = collapsedSeries.has(group.series)
                   const seriesIds = group.sets.map((s) => s.id)
                   const selectedInSeries = seriesIds.filter((id) => draft.has(id)).length
@@ -336,14 +332,13 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
                     </li>
                   )
                 })}
-              </ul>
-            )}
+            </ul>
           </div>
 
           <footer className="flex items-center justify-between gap-3 border-t border-zinc-800 px-5 py-4">
             <div className="flex-1 text-xs text-zinc-400">
               {submitError && <span className="text-red-400">{submitError}</span>}
-              {!submitError && sets && (
+              {!submitError && (
                 <span>
                   {selectedCount} set{selectedCount === 1 ? '' : 's'} selected
                 </span>
@@ -356,7 +351,7 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
             </Dialog.Close>
             <button
               onClick={handleSubmit}
-              disabled={submitting || draft.size === 0 || !sets}
+              disabled={submitting || draft.size === 0}
               className="flex items-center gap-1.5 rounded-md border border-blue-700 bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? (

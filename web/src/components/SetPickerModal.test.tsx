@@ -15,6 +15,15 @@ vi.mock('../api/client', () => ({
   setLogoUrl: vi.fn((id: string) => `/api/v1/sets/${id}/logo`),
 }))
 
+// Override the baked catalog to be empty so existing tests still own
+// the catalog shape via the mocked `fetchSets`. Without this, the
+// modal would render the real 173-set bundle layered with the
+// mocked-fetch revalidation, fighting fixtures like `id: 'jungle'`
+// (which collides with the real bundle's `base2` id for the same set
+// name). New tests that exercise the baked-catalog-renders-instantly
+// path mock this module per-test with their own non-empty value.
+vi.mock('../data/sets', () => ({ BAKED_SETS: [] }))
+
 const mockFetchSets = vi.mocked(fetchSets)
 const mockDownload = vi.mocked(downloadSetCardsPdf)
 const mockLogoUrl = vi.mocked(setLogoUrl)
@@ -167,42 +176,16 @@ describe('SetPickerModal', () => {
     ).not.toBeChecked()
   })
 
-  it('surfaces a load error when the catalog fetch fails', async () => {
+  it('silently swallows a failed background revalidation', async () => {
+    // The picker seeds from the baked catalog so users always have a
+    // working list. A transient `/api/v1/sets` failure must not paint
+    // an error banner over content that's working fine. Verify no
+    // "Couldn't load sets" appears even though the fetch rejected.
     mockFetchSets.mockRejectedValueOnce(new Error('upstream down'))
     renderOpen()
 
-    expect(
-      await screen.findByText(/Couldn’t load sets: upstream down/)
-    ).toBeInTheDocument()
-  })
-
-  it('clears stale load errors while retrying after reopening', async () => {
-    let resolveRetry!: (value: SetInfo[]) => void
-    const retryPromise = new Promise<SetInfo[]>((resolve) => {
-      resolveRetry = resolve
-    })
-    mockFetchSets
-      .mockRejectedValueOnce(new Error('upstream down'))
-      .mockReturnValueOnce(retryPromise)
-    const onOpenChange = vi.fn()
-    const { rerender } = render(
-      <SetPickerModal open={true} onOpenChange={onOpenChange} />
-    )
-
-    expect(
-      await screen.findByText(/Couldn’t load sets: upstream down/)
-    ).toBeInTheDocument()
-
-    rerender(<SetPickerModal open={false} onOpenChange={onOpenChange} />)
-    rerender(<SetPickerModal open={true} onOpenChange={onOpenChange} />)
-
-    await waitFor(() => {
-      expect(screen.queryByText(/Couldn’t load sets:/)).not.toBeInTheDocument()
-    })
-    expect(screen.getByText(/Loading set catalog/)).toBeInTheDocument()
-
-    resolveRetry(SETS)
-    expect(await screen.findByText('Surging Sparks')).toBeInTheDocument()
+    await waitFor(() => expect(mockFetchSets).toHaveBeenCalled())
+    expect(screen.queryByText(/Couldn’t load sets/)).not.toBeInTheDocument()
   })
 
   it('surfaces a submit error and keeps the modal open', async () => {

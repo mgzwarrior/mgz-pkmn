@@ -57,6 +57,16 @@ _SETS_TTL = 7 * 24 * 60 * 60  # refresh weekly
 # up in the picker within an hour without the user having to hard-refresh.
 _SETS_BROWSER_TTL = 60 * 60
 
+# `stale-while-revalidate` window for `GET /api/v1/sets`. After the
+# `max-age` window expires, the browser can serve the cached response
+# **immediately** for up to this many seconds while it asynchronously
+# revalidates in the background. The user never sees a loading state
+# on the catalog endpoint as long as they've hit it within the last
+# day — the new data lands on the *next* render. Pairs with the
+# SPA-side baked catalog in `web/src/data/sets.json`, which covers the
+# very-first-visit case.
+_SETS_BROWSER_SWR = 24 * 60 * 60
+
 # Browser-cache TTL for `GET /api/v1/sets/{set_id}/cards`. Card data within a
 # released set is effectively immutable (rarity / number / images don't change
 # once the set ships); only market prices drift, and a 1-day cache keeps
@@ -125,7 +135,9 @@ async def get_sets(response: Response, api_key: str | None = None) -> dict:
     hasn't moved. Pass `api_key` as a query parameter to authenticate the
     upstream refresh request.
     """
-    response.headers["Cache-Control"] = f"public, max-age={_SETS_BROWSER_TTL}"
+    response.headers["Cache-Control"] = (
+        f"public, max-age={_SETS_BROWSER_TTL}, stale-while-revalidate={_SETS_BROWSER_SWR}"
+    )
     cached = _load_sets_cache()
     if cached is not None:
         return {"sets": cached}
