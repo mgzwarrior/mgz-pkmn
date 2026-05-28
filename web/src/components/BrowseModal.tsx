@@ -37,6 +37,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { fetchSetCards, fetchSets, setLogoUrl } from '../api/client'
+import { BAKED_SETS } from '../data/sets'
 import { useAppStore } from '../store'
 import type { SetCard, SetInfo } from '../types'
 
@@ -149,8 +150,13 @@ function toInputLine(card: SetCard, set: SetInfo): string {
 export function BrowseModal({ open, onOpenChange }: Props) {
   const { settings, appendInputLines } = useAppStore()
 
-  const [sets, setSets] = useState<SetInfo[] | null>(null)
-  const [setsError, setSetsError] = useState<string | null>(null)
+  // Seed `sets` from the baked catalog so the modal opens with content
+  // visible on the very first frame — no "Loading set catalog…" state.
+  // The live `/api/v1/sets` fetch still runs in the background on first
+  // open to write through any sets that landed upstream since the last
+  // bake; see the revalidation effect below.
+  const [sets, setSets] = useState<SetInfo[]>(BAKED_SETS)
+  const [revalidatedSets, setRevalidatedSets] = useState(false)
   const [activeSet, setActiveSet] = useState<SetInfo | null>(null)
   const [cards, setCards] = useState<SetCard[] | null>(null)
   const [cardsError, setCardsError] = useState<string | null>(null)
@@ -188,23 +194,31 @@ export function BrowseModal({ open, onOpenChange }: Props) {
   }, [open])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Lazy-load the set catalog on first open.
+  // Background revalidation of the catalog. Runs once on the first
+  // open per session — the UI is already showing the baked catalog,
+  // so this fetch is fully off the critical path. Errors are
+  // swallowed: the user has working content already, and a transient
+  // network failure shouldn't paint a red banner over an otherwise
+  // perfectly usable modal. The next session-open retries.
   useEffect(() => {
-    if (!open || sets !== null) return
+    if (!open || revalidatedSets) return
     let cancelled = false
     void (async () => {
-      setSetsError(null)
       try {
         const data = await fetchSets(settings.apiKey || undefined)
         if (!cancelled) setSets(data)
-      } catch (err) {
-        if (!cancelled) setSetsError(err instanceof Error ? err.message : String(err))
+      } catch {
+        // Swallow — baked catalog is already on screen. The browser's
+        // `stale-while-revalidate` cache will retry transparently on
+        // the next user-initiated request.
+      } finally {
+        if (!cancelled) setRevalidatedSets(true)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [open, sets, settings.apiKey])
+  }, [open, revalidatedSets, settings.apiKey])
 
   // Load the in-set card list whenever the user picks a set. The
   // backend caches the response for a day in the browser, so flipping
@@ -257,7 +271,7 @@ export function BrowseModal({ open, onOpenChange }: Props) {
     }
   }, [activeSet, settings.apiKey])
 
-  const groups = useMemo(() => (sets ? groupBySeries(sets) : []), [sets])
+  const groups = useMemo(() => groupBySeries(sets), [sets])
 
   const filteredCards = useMemo(() => {
     if (!cards) return []
@@ -367,12 +381,7 @@ export function BrowseModal({ open, onOpenChange }: Props) {
               }
             />
           ) : (
-            <SetListView
-              sets={sets}
-              groups={groups}
-              error={setsError}
-              onPick={(s) => setActiveSet(s)}
-            />
+            <SetListView groups={groups} onPick={(s) => setActiveSet(s)} />
           )}
         </Dialog.Content>
       </Dialog.Portal>
@@ -385,45 +394,36 @@ export function BrowseModal({ open, onOpenChange }: Props) {
 // ---------------------------------------------------------------------------
 
 interface SetListProps {
-  sets: SetInfo[] | null
   groups: SeriesGroup[]
-  error: string | null
   onPick: (set: SetInfo) => void
 }
 
-function SetListView({ sets, groups, error, onPick }: SetListProps) {
+function SetListView({ groups, onPick }: SetListProps) {
+  // No loading / error state here — the SPA seeds from a baked catalog
+  // (`web/src/data/sets.json`), so `groups` is always non-empty on
+  // first render. The live `/api/v1/sets` revalidation runs off the
+  // critical path and either silently writes through fresher data or
+  // silently fails; either way, the user sees a populated list from
+  // frame one.
   return (
     <div className="flex-1 overflow-y-auto px-5 py-3">
-      {error && (
-        <p className="rounded border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
-          Couldn’t load sets: {error}
-        </p>
-      )}
-      {!sets && !error && (
-        <p className="flex items-center gap-2 text-sm text-zinc-400">
-          <Loader2 size={14} className="animate-spin" />
-          Loading set catalog…
-        </p>
-      )}
-      {sets && (
-        <ul className="space-y-4">
-          {groups.map((group) => (
-            <li key={group.series}>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-300">
-                {group.series}
-                <span className="ml-1 font-normal normal-case tracking-normal text-zinc-500">
-                  ({group.sets.length})
+      <ul className="space-y-4">
+        {groups.map((group) => (
+          <li key={group.series}>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-300">
+              {group.series}
+              <span className="ml-1 font-normal normal-case tracking-normal text-zinc-500">
+                ({group.sets.length})
                 </span>
               </div>
-              <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
-                {group.sets.map((s) => (
-                  <SetTile key={s.id} set={s} onPick={() => onPick(s)} />
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
+            <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
+              {group.sets.map((s) => (
+                <SetTile key={s.id} set={s} onPick={() => onPick(s)} />
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

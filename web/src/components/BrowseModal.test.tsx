@@ -11,6 +11,11 @@ vi.mock('../api/client', () => ({
   setLogoUrl: vi.fn((id: string) => `/api/v1/sets/${id}/logo`),
 }))
 
+// Empty baked catalog so the existing tests control the catalog shape
+// via the mocked `fetchSets`. Tests that exercise the baked-catalog
+// initial-render path mock this module per-test with a non-empty value.
+vi.mock('../data/sets', () => ({ BAKED_SETS: [] }))
+
 const mockFetchSets = vi.mocked(fetchSets)
 const mockFetchSetCards = vi.mocked(fetchSetCards)
 const mockLogoUrl = vi.mocked(setLogoUrl)
@@ -211,13 +216,17 @@ describe('BrowseModal', () => {
     ).toBeInTheDocument()
   })
 
-  it('surfaces an error when the catalog fetch fails', async () => {
+  it('silently swallows a failed background catalog revalidation', async () => {
+    // Browse seeds from the baked catalog so users always see content.
+    // A transient `/api/v1/sets` failure must not paint a red banner
+    // over an already-working list. (For this test the baked catalog
+    // is the empty mock at module level, but the SAME behavior applies
+    // when the bundle has content — the error simply never surfaces.)
     mockFetchSets.mockRejectedValueOnce(new Error('catalog down'))
     renderOpen()
 
-    expect(
-      await screen.findByText(/Couldn’t load sets: catalog down/),
-    ).toBeInTheDocument()
+    await waitFor(() => expect(mockFetchSets).toHaveBeenCalled())
+    expect(screen.queryByText(/Couldn’t load sets/)).not.toBeInTheDocument()
   })
 
   it('reports an honest 0-added status when re-adding an already-added card', async () => {
@@ -296,6 +305,62 @@ describe('BrowseModal', () => {
 
     const lines = useAppStore.getState().inputText.split('\n')
     expect(lines).toContain('Charizard ex | Surging Sparks | 25')
+  })
+
+  it('renders the baked catalog before the live fetch resolves', async () => {
+    // Use a never-resolving fetch so the only thing on screen is what
+    // the baked catalog supplied. The component should render those
+    // rows immediately — no loading state, no waiting.
+    vi.resetModules()
+    vi.doMock('../data/sets', () => ({ BAKED_SETS: SETS }))
+    mockFetchSets.mockReturnValueOnce(new Promise(() => {}))
+    const { BrowseModal: BrowseModalWithBaked } = await import('./BrowseModal')
+
+    render(<BrowseModalWithBaked open onOpenChange={vi.fn()} />)
+    // Rows appear synchronously from the baked catalog. We don't
+    // `findByText` (which awaits an effect tick) — `getByText`
+    // confirms the row is on the first render.
+    expect(screen.getByText('Surging Sparks')).toBeInTheDocument()
+    expect(screen.getByText('Base Set')).toBeInTheDocument()
+
+    vi.doUnmock('../data/sets')
+    vi.resetModules()
+  })
+
+  it('background revalidation writes through fresher data when it lands', async () => {
+    vi.resetModules()
+    vi.doMock('../data/sets', () => ({
+      BAKED_SETS: [
+        {
+          id: 'base1',
+          name: 'Base Set',
+          series: 'Base',
+          total: 102,
+          releaseDate: '1998/01/09',
+        },
+      ],
+    }))
+    const NEWER: SetInfo[] = [
+      ...SETS,
+      {
+        id: 'sv9',
+        name: 'Hypothetical New Set',
+        series: 'Scarlet & Violet',
+        total: 200,
+        releaseDate: '2025/05/01',
+      },
+    ]
+    mockFetchSets.mockResolvedValueOnce(NEWER)
+    const { BrowseModal: BrowseModalWithBaked } = await import('./BrowseModal')
+
+    render(<BrowseModalWithBaked open onOpenChange={vi.fn()} />)
+    // Baked content is on screen first.
+    expect(screen.getByText('Base Set')).toBeInTheDocument()
+    // After revalidation lands, the new set surfaces.
+    expect(await screen.findByText('Hypothetical New Set')).toBeInTheDocument()
+
+    vi.doUnmock('../data/sets')
+    vi.resetModules()
   })
 
   it('caches the trimmed cards in memory — re-picking the same set skips the fetch', async () => {

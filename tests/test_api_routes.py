@@ -191,11 +191,12 @@ class SetsRouteTests(unittest.TestCase):
         self.assertEqual(resp.json()["sets"], fetched_sets)
 
     def test_browser_cache_control_header(self) -> None:
-        # The /sets response needs a short-TTL Cache-Control so the Browse
-        # modal doesn't round-trip on every open. We assert presence, not
-        # the exact max-age value, so the constant can be tuned without
-        # the test going brittle — but we do require it's `public` and
-        # has a non-zero max-age.
+        # The /sets response needs a short-TTL Cache-Control plus
+        # stale-while-revalidate so the browser serves cached content
+        # immediately while it revalidates in the background. Pairs
+        # with the SPA-side baked catalog (`web/src/data/sets.json`)
+        # which covers the very-first-visit case where there's no
+        # browser cache to serve from.
         with (
             patch("api.routes.sets._load_sets_cache", return_value=[]),
         ):
@@ -205,6 +206,7 @@ class SetsRouteTests(unittest.TestCase):
         cache_control = resp.headers.get("cache-control", "")
         self.assertIn("public", cache_control)
         self.assertIn("max-age=", cache_control)
+        self.assertIn("stale-while-revalidate=", cache_control)
 
 
 class SetCardsRouteTests(unittest.TestCase):

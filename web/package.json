@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "refresh-sets": "node scripts/refresh-sets.mjs"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
