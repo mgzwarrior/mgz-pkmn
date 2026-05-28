@@ -61,6 +61,34 @@ document.head.appendChild(s)
 [issue-62]: https://github.com/mgzwarrior/mgz-pkmn/issues/62
 [pr-220]: https://github.com/mgzwarrior/mgz-pkmn/pull/220
 
+## Color-coded progress stages
+
+While a bulk lookup runs, the per-line progress panel
+([`ProcessingQueue`](../web/src/components/ProcessingQueue.tsx)) renders
+each line's current pipeline stage as a color-coded chip. Color is never
+the *only* signal — every chip also carries a text label and a hover
+tooltip — but the colors still clear WCAG 2.1 AA contrast (≥ 4.5:1)
+against the app background (`bg-zinc-950`, `#09090b`). All are Tailwind
+`*-400` shades:
+
+| Stage | Class | Meaning |
+|---|---|---|
+| Parsed | `text-zinc-400` | Line accepted by the parser; queued for lookup |
+| Looking up | `text-blue-400` | Querying the first source (pokemontcg.io) |
+| Fallback | `text-indigo-400` | First source missed; trying TCGdex |
+| URL hint | `text-violet-400` | URL-based scrape (PriceCharting) |
+| Pricing | `text-cyan-400` | Card resolved; building the pricing snapshot |
+| Image | `text-teal-400` | Downloading + thumbnailing the image (CLI only) |
+| Resolved | `text-green-400` | Done, matched |
+| No match | `text-amber-400` | Done, no card found |
+| Error | `text-red-400` | Hard failure (network, parse, etc.) |
+
+The `Image` stage is part of the shared vocabulary but the web app runs
+image-free, so it never appears in the SPA. A **Legend** toggle in the
+panel header (collapsed by default) maps the colors back to their labels.
+When adding or recoloring a stage, keep it a `*-400`-or-lighter shade and
+re-run the live-browser contrast scan below.
+
 ## Keyboard reference
 
 | Where | Key | Effect |

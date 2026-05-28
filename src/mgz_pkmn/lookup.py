@@ -25,6 +25,32 @@ from .sources.base import MatchResult, name_clause
 # full set in help text without re-declaring it.
 WARM_SOURCES = ("pokemontcg", "tcgdex", "all")
 
+# Pipeline stages surfaced to the web UI via the bulk SSE stream. The lookup
+# coordinator emits the intermediate stages (`looking_up` / `fallback` /
+# `url_hint` / `pricing`) through the optional `on_stage` callback below; the
+# API route brackets a run with `parsed` and resolves it into one of the
+# terminal stages (`resolved` / `no_match` / `error`). `image` is part of the
+# vocabulary the CLI uses when it downloads thumbnails, but the web flow runs
+# image-free, so it never fires there. Kept here as the single source of truth
+# so the API, the SPA, and the tests all agree on the spelling.
+LOOKUP_STAGES = (
+    "parsed",
+    "url_hint",
+    "looking_up",
+    "fallback",
+    "pricing",
+    "image",
+    "resolved",
+    "no_match",
+    "error",
+)
+
+# Type alias for the per-stage progress callback threaded through the lookup
+# coordinator. Invoked with the stage name as the lookup advances through its
+# sources; `None` (the default) disables emission entirely for callers — like
+# the CLI and the single-line `/lookup` endpoint — that don't stream progress.
+StageCallback = Callable[[str], None]
+
 # Bulk subjects that aren't Pokemon names but card subtypes. When the user
 # writes `top 4 tag team` they want cards whose subtype is "TAG TEAM" (cards
 # featuring 2+ Pokemon), not cards literally named "tag team". Keys are
@@ -165,6 +191,7 @@ def find_card(
     pc: PriceChartingClient,
     q: CardQuery,
     default_lang: str | None = None,
+    on_stage: StageCallback | None = None,
 ) -> MatchResult:
     """Coordinate lookups across pokemontcg.io, TCGdex (multilingual), and an
     optional explicit URL hint (currently PriceCharting). The first source
@@ -177,7 +204,17 @@ def find_card(
     `default_lang` is consulted only as a fallback when the line itself didn't
     name a language. It's used by the CLI/API global ``--lang`` knob — set it
     to ``"ja"`` to make every untagged line fall through to TCGdex Japanese
-    after pokemontcg.io misses."""
+    after pokemontcg.io misses.
+
+    `on_stage`, when provided, is called with the name of each pipeline stage
+    as the lookup advances (`url_hint` / `looking_up` / `fallback`) so the web
+    UI can show finer-grained per-line progress. It's a pure passthrough of
+    state that already drives control flow here — see `LOOKUP_STAGES`."""
+
+    def _stage(name: str) -> None:
+        if on_stage is not None:
+            on_stage(name)
+
     # 1. Explicit URL hint takes precedence — the user already found the card.
     #    A scrape failure (404 / 500 / connection error) propagates as
     #    `scrape_failed` so the CLI can name the URL instead of pretending
@@ -185,6 +222,7 @@ def find_card(
     #    URL the user pastes once doesn't get pinned as a sticky override
     #    that quietly fails on every subsequent run.
     if q.url_hint and _is_pricecharting_url(q.url_hint):
+        _stage("url_hint")
         result = pc.fetch(q.url_hint)
         if result.card:
             disk_cache.record_url_override(q.name, q.set_hint, q.url_hint)
@@ -199,11 +237,13 @@ def find_card(
     #    failing the lookup — the user didn't paste it this run.
     override = disk_cache.find_url_override(q.name, q.set_hint)
     if override and _is_pricecharting_url(override):
+        _stage("url_hint")
         override_result = pc.fetch(override)
         if override_result.card:
             return _apply_price_bounds(override_result, q)
 
     # 3. pokemontcg.io — best for English / international English releases.
+    _stage("looking_up")
     primary = search_pokemontcg(pkmn, q)
     if primary.card:
         return _apply_price_bounds(primary, q)
@@ -219,6 +259,7 @@ def find_card(
         langs.append("en")
 
     saw_set_mismatch = primary.reason == "set_mismatch"
+    _stage("fallback")
     for lang in langs:
         result = search_tcgdex(tcgdex, q, lang)
         if result.card:
@@ -334,6 +375,7 @@ def find_top_cards(
     q: CardQuery,
     limit: int | None = 5,
     max_price: float | None = None,
+    on_stage: StageCallback | None = None,
 ) -> list[dict[str, Any]]:
     """Return up to `limit` chase cards for a name, ranked by market price.
 
@@ -356,7 +398,14 @@ def find_top_cards(
     results when there are enough cheap variants in the pool. The per-query
     bounds (`q.price_min` / `q.price_max`) are AND-combined with `max_price`,
     so an inline `>= $20` on the line excludes cheap fillers and inline
-    `<= $50` further tightens the global cap."""
+    `<= $50` further tightens the global cap.
+
+    `on_stage`, when provided, is called with `looking_up` before the upstream
+    searches and `pricing` before the pool is ranked, so the web UI can show
+    per-line progress for bulk (`top:N` / `All <set>`) queries."""
+    if on_stage is not None:
+        on_stage("looking_up")
+
     cleaned = strip_noise(q.name) or q.name
     seen_ids: set[str] = set()
     pool: list[dict[str, Any]] = []
@@ -523,6 +572,9 @@ def find_top_cards(
             effective_max_exclusive = True
     effective_min = q.price_min
     effective_min_exclusive = q.price_min_exclusive
+
+    if on_stage is not None:
+        on_stage("pricing")
 
     enriched: list[tuple[float, dict[str, Any]]] = []
     for card in pool:

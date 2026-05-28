@@ -64,6 +64,12 @@ interface AppState {
   processingLines: ProcessingLine[]
   setProcessingLines: (lines: ProcessingLine[]) => void
   markLineStatus: (index: number, status: ProcessingLine['status']) => void
+  /**
+   * Record the latest pipeline stage for a line. Resets `stageStartedAt`
+   * only when the stage actually changes, so the chip tooltip measures
+   * time spent in the *current* stage rather than since the run began.
+   */
+  updateLineStage: (index: number, stage: NonNullable<ProcessingLine['stage']>) => void
 
   /** Persistent settings (survives page reload). */
   settings: Settings
@@ -153,6 +159,14 @@ export const useAppStore = create<AppState>()(
           if (!current || current.status !== 'pending') return state
           const next = state.processingLines.slice()
           next[index] = { ...current, status, endedAt: Date.now() }
+          return { processingLines: next }
+        }),
+      updateLineStage: (index, stage) =>
+        set((state) => {
+          const current = state.processingLines[index]
+          if (!current || current.stage === stage) return state
+          const next = state.processingLines.slice()
+          next[index] = { ...current, stage, stageStartedAt: Date.now() }
           return { processingLines: next }
         }),
 

@@ -130,6 +130,87 @@ class LookupRouteTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# /bulk (SSE) — stage streaming
+# ---------------------------------------------------------------------------
+
+
+def _parse_sse(text: str) -> list[dict]:
+    """Parse a collected SSE body into a list of decoded JSON frames."""
+    frames = []
+    for chunk in text.strip().split("\n\n"):
+        chunk = chunk.strip()
+        if chunk.startswith("data: "):
+            frames.append(json.loads(chunk[len("data: ") :]))
+    return frames
+
+
+class TerminalStageTests(unittest.TestCase):
+    """`_terminal_stage` collapses a resolved row's (matched, reason) onto
+    one of the three terminal pipeline stages."""
+
+    def test_mapping(self) -> None:
+        from api.routes.lookup import _terminal_stage
+
+        self.assertEqual(_terminal_stage(True, "matched"), "resolved")
+        self.assertEqual(_terminal_stage(False, "no_candidates"), "no_match")
+        self.assertEqual(_terminal_stage(False, "set_mismatch"), "no_match")
+        self.assertEqual(_terminal_stage(False, "no_results"), "no_match")
+        self.assertEqual(_terminal_stage(False, "price_mismatch"), "no_match")
+        self.assertEqual(_terminal_stage(False, "error"), "error")
+        self.assertEqual(_terminal_stage(False, "unparseable"), "error")
+
+
+class BulkStageStreamTests(unittest.TestCase):
+    """The /bulk SSE stream interleaves progress-only stage frames with the
+    terminal resolved-row frame for each line."""
+
+    def test_streams_parsed_then_pipeline_stages_then_resolved_row(self) -> None:
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None):
+            if on_stage is not None:
+                on_stage("looking_up")
+                on_stage("fallback")
+            card = {"id": "base1-4", "name": "Charizard"}
+            return [(Row(query=q, card=card, pricing=Pricing(market=100.0), tag=""), "matched")]
+
+        with patch("api.routes.lookup._do_lookup", side_effect=fake):
+            resp = client.post("/api/v1/bulk", json={"lines": ["Charizard"]})
+
+        self.assertEqual(resp.status_code, 200)
+        frames = _parse_sse(resp.text)
+
+        progress = [f["stage"] for f in frames if "matched" not in f and not f.get("done")]
+        self.assertEqual(progress, ["parsed", "looking_up", "fallback"])
+
+        rows = [f for f in frames if "matched" in f]
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["matched"])
+        self.assertEqual(rows[0]["stage"], "resolved")
+
+        self.assertTrue(frames[-1].get("done"))
+
+    def test_unmatched_row_carries_no_match_terminal_stage(self) -> None:
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None):
+            if on_stage is not None:
+                on_stage("looking_up")
+            return [(Row(query=q, card=None, pricing=Pricing(), tag=""), "no_candidates")]
+
+        with patch("api.routes.lookup._do_lookup", side_effect=fake):
+            resp = client.post("/api/v1/bulk", json={"lines": ["Nonsense"]})
+
+        frames = _parse_sse(resp.text)
+        rows = [f for f in frames if "matched" in f]
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["matched"])
+        self.assertEqual(rows[0]["stage"], "no_match")
+
+
+# ---------------------------------------------------------------------------
 # /sets
 # ---------------------------------------------------------------------------
 

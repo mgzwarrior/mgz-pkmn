@@ -47,6 +47,7 @@ function makeEvent(index: number, total: number, matched = true): BulkEvent {
     total,
     matched,
     reason: matched ? '' : 'no match',
+    stage: matched ? 'resolved' : 'no_match',
     tag: '',
     query: {
       raw: `q${index}`,

@@ -560,5 +560,97 @@ class FindCardUrlHintOverrideTests(unittest.TestCase):
         self.assertEqual(cache.find_url_override("Charizard", None), self.URL)
 
 
+class StageCallbackTests(unittest.TestCase):
+    """The lookup coordinator surfaces pipeline stages through `on_stage`
+    so the web UI can render finer-grained per-line progress."""
+
+    def setUp(self) -> None:
+        # Isolate the disk cache so the URL-hint test's sticky override
+        # can't leak into the DB-source tests (which would otherwise see a
+        # phantom `url_hint` stage from a recorded override).
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+
+    def _charizard(self, market: float = 100.0) -> dict:
+        return {
+            "id": "base1-4",
+            "name": "Charizard",
+            "number": "4",
+            "set": {"name": "Base Set", "series": "Base"},
+            "tcgplayer": {"prices": {"holofoil": {"market": market}}},
+        }
+
+    def test_find_card_emits_looking_up_on_pokemontcg_hit(self) -> None:
+        client = _StubTCGClient({"name:Charizard": [self._charizard()]})
+        q = CardQuery(raw="Charizard", name="Charizard")
+        stages: list[str] = []
+        find_card(
+            client,
+            _NullTCGDexClient(),
+            _StubPCClient(MatchResult(None, "no_candidates")),
+            q,
+            on_stage=stages.append,
+        )
+        # pokemontcg.io hits first, so the TCGdex fallback never fires.
+        self.assertEqual(stages, ["looking_up"])
+
+    def test_find_card_emits_fallback_when_pokemontcg_misses(self) -> None:
+        class _EmptyTCGDex:
+            def search(self, *_: object, **__: object) -> list[dict]:
+                return []
+
+        client = _StubTCGClient()  # empty map → no pokemontcg.io match
+        q = CardQuery(raw="Charizard", name="Charizard")
+        stages: list[str] = []
+        find_card(
+            client,
+            _EmptyTCGDex(),
+            _StubPCClient(MatchResult(None, "no_candidates")),
+            q,
+            on_stage=stages.append,
+        )
+        self.assertEqual(stages, ["looking_up", "fallback"])
+
+    def test_find_card_emits_url_hint_on_pricecharting_url(self) -> None:
+        url = "https://www.pricecharting.com/game/pokemon-base-set/charizard-4"
+        pc = _StubPCClient(MatchResult(self._charizard(), "matched"))
+        q = CardQuery(raw=f"Charizard | {url}", name="Charizard", url_hint=url)
+        stages: list[str] = []
+        find_card(_StubTCGClient(), _NullTCGDexClient(), pc, q, on_stage=stages.append)
+        # A successful URL hint short-circuits the DB sources entirely.
+        self.assertEqual(stages, ["url_hint"])
+
+    def test_find_top_cards_emits_looking_up_then_pricing(self) -> None:
+        client = _StubTCGClient({"name:Charizard": [_card("base1-4", "Charizard", 100.0)]})
+        q = CardQuery(raw="top:5 Charizard", name="Charizard", bulk_top=5)
+        stages: list[str] = []
+        find_top_cards(client, q, limit=5, on_stage=stages.append)
+        self.assertEqual(stages, ["looking_up", "pricing"])
+
+    def test_on_stage_none_is_a_silent_no_op(self) -> None:
+        # The default (no callback) must not raise — the CLI and the
+        # single-line endpoint rely on it.
+        client = _StubTCGClient({"name:Charizard": [self._charizard()]})
+        q = CardQuery(raw="Charizard", name="Charizard")
+        result = find_card(
+            client, _NullTCGDexClient(), _StubPCClient(MatchResult(None, "no_candidates")), q
+        )
+        self.assertIsNotNone(result.card)
+
+
 if __name__ == "__main__":
     unittest.main()
