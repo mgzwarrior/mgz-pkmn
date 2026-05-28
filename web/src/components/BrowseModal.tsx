@@ -34,7 +34,7 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { fetchSetCards, fetchSets, setLogoUrl } from '../api/client'
 import { useAppStore } from '../store'
@@ -161,6 +161,15 @@ export function BrowseModal({ open, onOpenChange }: Props) {
   const [sort, setSort] = useState<CardSort>('number')
   const [addedCount, setAddedCount] = useState<number | null>(null)
 
+  // SPA-side cache of `set_id → trimmed cards`. Persists for the
+  // lifetime of the React tree (a page reload clears it; the browser's
+  // 1-day `Cache-Control` covers the cross-reload case). The point is
+  // to make re-picking the *same* set within a prep session feel
+  // instant — no fetch round-trip, no `Loading cards…` flicker, no
+  // re-render of the empty grid. A `useRef` (not state) is exactly
+  // right: cache writes shouldn't trigger renders.
+  const cardCacheRef = useRef<Map<string, SetCard[]>>(new Map())
+
   // Reset transient view state whenever the modal becomes visible. We
   // deliberately keep `sets` mounted across open/close so a re-open is
   // free — the catalog won't have moved between opens. The
@@ -209,12 +218,33 @@ export function BrowseModal({ open, onOpenChange }: Props) {
     if (!activeSet) return
     let cancelled = false
     const load = async () => {
-      setCardsLoading(true)
+      // Clear any "Added N lines" status carried over from the previous
+      // set — otherwise the message persists into the new detail view
+      // until the user adds something fresh, which reads as stale.
+      setAddedCount(null)
       setCardsError(null)
+
+      // SPA-side cache hit: serve immediately, skip the fetch and the
+      // loading state. This is the load-bearing optimisation for
+      // re-picking the same set — the browser's 1-day `Cache-Control`
+      // would also cover this, but a fetch-and-re-render still costs a
+      // visible tick of `Loading cards…`. An in-memory `Map` lookup
+      // costs none.
+      const cached = cardCacheRef.current.get(activeSet.id)
+      if (cached) {
+        setCards(cached)
+        setCardsLoading(false)
+        return
+      }
+
+      setCardsLoading(true)
       setCards(null)
       try {
         const data = await fetchSetCards(activeSet.id, settings.apiKey || undefined)
-        if (!cancelled) setCards(data)
+        if (!cancelled) {
+          cardCacheRef.current.set(activeSet.id, data)
+          setCards(data)
+        }
       } catch (err) {
         if (!cancelled) setCardsError(err instanceof Error ? err.message : String(err))
       } finally {
@@ -247,8 +277,12 @@ export function BrowseModal({ open, onOpenChange }: Props) {
 
   function addCards(toAdd: SetCard[]) {
     if (!activeSet || toAdd.length === 0) return
-    appendInputLines(toAdd.map((c) => toInputLine(c, activeSet)))
-    setAddedCount(toAdd.length)
+    // `appendInputLines` returns the count of lines *actually* appended
+    // — dedupes against the editor's current contents. We report that,
+    // not `toAdd.length`, so a click on an already-added card honestly
+    // reads "Added 0 lines" instead of overstating.
+    const added = appendInputLines(toAdd.map((c) => toInputLine(c, activeSet)))
+    setAddedCount(added)
   }
 
   return (
@@ -318,11 +352,18 @@ export function BrowseModal({ open, onOpenChange }: Props) {
               addedCount={addedCount}
               onAddCards={addCards}
               onAddAll={() => addCards(filteredCards)}
+              // Holos / rares bulks operate on the **full** set, not the
+              // currently-filtered slice. Otherwise the buttons fight
+              // the active rarity chip — e.g. with "Ultra+" selected,
+              // "Add holos" would only add the intersection (often
+              // zero), despite the label promising every holo. Predictable
+              // beats clever. "Add all visible" is the explicit
+              // honour-the-filter button right alongside.
               onAddHolos={() =>
-                addCards(filteredCards.filter((c) => inBucket(c, 'holo')))
+                addCards((cards ?? []).filter((c) => inBucket(c, 'holo')))
               }
               onAddRares={() =>
-                addCards(filteredCards.filter((c) => inBucket(c, 'rare')))
+                addCards((cards ?? []).filter((c) => inBucket(c, 'rare')))
               }
             />
           ) : (

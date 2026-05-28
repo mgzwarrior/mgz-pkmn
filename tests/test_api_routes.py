@@ -353,6 +353,50 @@ class SetCardsRouteTests(unittest.TestCase):
                 resp = client.get(f"/api/v1/sets/{bad}/cards")
                 self.assertEqual(resp.status_code, 422)
 
+    def test_fetch_set_cards_queries_set_id_filter(self) -> None:
+        # Patch TCGClient.search_all to capture the Lucene query the
+        # helper issues. The cache-hit-rate of the underlying disk cache
+        # depends on the query string being a stable shape, so a silent
+        # change here would silently bust everyone's cache. The query
+        # MUST be `set.id:"<id>"` (quoted, single key) — see
+        # api/routes/sets.py:_fetch_set_cards.
+        from api.routes.sets import _fetch_set_cards
+
+        captured: list[str] = []
+
+        def _capture(self_, query):
+            del self_  # bound-method shape; we only care about the query string
+            captured.append(query)
+            return []
+
+        with patch("mgz_pkmn.sources.pokemontcg.TCGClient.search_all", _capture):
+            _fetch_set_cards("sv8", api_key=None)
+
+        self.assertEqual(captured, ['set.id:"sv8"'])
+
+    def test_set_id_passed_through_to_fetch(self) -> None:
+        # Confirms the route hands the path parameter straight through
+        # to `_fetch_set_cards` — i.e. no rewriting / normalisation /
+        # case-folding between the URL and the helper. Important
+        # because the upstream catalog ids are case-sensitive.
+        with patch(
+            "api.routes.sets._fetch_set_cards",
+            return_value=[
+                {
+                    "id": "x",
+                    "name": "x",
+                    "number": "1",
+                    "rarity": None,
+                    "supertype": None,
+                    "subtypes": [],
+                    "thumb": None,
+                    "market": None,
+                }
+            ],
+        ) as fetch_mock:
+            client.get("/api/v1/sets/MixedCaseId-9/cards?api_key=abc")
+        fetch_mock.assert_called_once_with("MixedCaseId-9", "abc")
+
 
 class SetLogoRouteTests(unittest.TestCase):
     """`GET /api/v1/sets/{set_id}/logo` serves cached images, 404s on miss."""

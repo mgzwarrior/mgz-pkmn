@@ -219,4 +219,100 @@ describe('BrowseModal', () => {
       await screen.findByText(/Couldn’t load sets: catalog down/),
     ).toBeInTheDocument()
   })
+
+  it('reports an honest 0-added status when re-adding an already-added card', async () => {
+    // Covers Copilot review thread #1 — the modal used to render "Added
+    // 1 line" even when `appendInputLines` had silently dropped the
+    // dupe. We now use the return value of `appendInputLines`, so the
+    // status reflects what actually landed in the editor.
+    renderOpen()
+    fireEvent.click(await screen.findByText('Surging Sparks'))
+    await screen.findByText('Pikachu')
+
+    const addBtn = screen.getByRole('button', { name: 'Add Pikachu to list' })
+    fireEvent.click(addBtn)
+    // After the first click: "Added 1 line to your list".
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Added 1 line to your list',
+    )
+    // Second click on the same card is a no-op: dedupe silently drops
+    // it, so the status now reports the honest 0.
+    fireEvent.click(addBtn)
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Added 0 lines to your list',
+    )
+  })
+
+  it('clears the "Added N lines" status when switching to a different set', async () => {
+    // Covers Copilot review thread #2 — the status used to persist into
+    // the next set's detail view, reading as stale information. The
+    // load effect now clears it before fetching the new set's cards.
+    const OTHER_CARDS: SetCard[] = [
+      {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        rarity: 'Rare Holo',
+        supertype: 'Pokémon',
+        subtypes: ['Stage 2'],
+        thumb: null,
+        market: 200.0,
+      },
+    ]
+    mockFetchSetCards.mockImplementation((id: string) =>
+      Promise.resolve(id === 'base1' ? OTHER_CARDS : SV8_CARDS),
+    )
+
+    renderOpen()
+    fireEvent.click(await screen.findByText('Surging Sparks'))
+    await screen.findByText('Pikachu')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Pikachu to list' }))
+    await screen.findByRole('status') // ensures the status rendered
+
+    // Back out and pick the other set.
+    fireEvent.click(screen.getByRole('button', { name: 'Back to set list' }))
+    fireEvent.click(await screen.findByText('Base Set'))
+    await screen.findByText('Charizard')
+
+    // No status carried over.
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('Add holos / Add rares operate on the FULL set, not the filtered slice', async () => {
+    // Covers Copilot review thread #3 — with a non-"All" rarity chip
+    // active, the bulk buttons used to take their input from the
+    // already-filtered grid, producing zero-add results that fought
+    // the button's label. Now they always run against the unfiltered
+    // pool so the label is honest.
+    renderOpen()
+    fireEvent.click(await screen.findByText('Surging Sparks'))
+    await screen.findByText('Pikachu')
+
+    // Narrow visible to "Ultra+" (only the Special Illustration Rare
+    // would be visible). Then click "Add holos" — should still find
+    // the Rare Holo Charizard ex in the unfiltered pool.
+    fireEvent.click(screen.getByRole('button', { name: 'Ultra+' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add holos' }))
+
+    const lines = useAppStore.getState().inputText.split('\n')
+    expect(lines).toContain('Charizard ex | Surging Sparks | 25')
+  })
+
+  it('caches the trimmed cards in memory — re-picking the same set skips the fetch', async () => {
+    // New behaviour added during PR review (observation #2): re-opening
+    // the same set should be instantaneous, with no loading flicker
+    // and no second network call.
+    renderOpen()
+    fireEvent.click(await screen.findByText('Surging Sparks'))
+    await screen.findByText('Pikachu')
+    expect(mockFetchSetCards).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to set list' }))
+    fireEvent.click(await screen.findByText('Surging Sparks'))
+
+    // Cards render immediately from the SPA-side cache.
+    expect(await screen.findByText('Pikachu')).toBeInTheDocument()
+    // And no second fetch fired.
+    expect(mockFetchSetCards).toHaveBeenCalledTimes(1)
+  })
 })
