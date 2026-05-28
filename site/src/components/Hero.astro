@@ -1,6 +1,13 @@
 ---
+import { fetchLatestVersion } from "../lib/changelog.ts";
+
 const demoUrl = "https://mgz-pkmn.onrender.com";
 const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
+
+// Latest shipped version, pulled at build time from the changelog API so
+// the "Now shipping" pill never drifts. Falls back to hiding the version
+// number (just "Now shipping") if the API is unreachable at build time.
+const latestVersion = await fetchLatestVersion();
 
 // Nine real Pokémon TCG cards arranged as a tilted 3×3 binder page.
 // Same public image sources the CLI consumes; copies live in
@@ -49,7 +56,7 @@ const binderCards = [
       class="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/60 backdrop-blur px-3 py-1 text-xs font-medium text-zinc-300"
     >
       <span class="h-1.5 w-1.5 rounded-full bg-brand-400"></span>
-      Now shipping 1.1.1
+      {latestVersion ? `Now shipping ${latestVersion}` : "Now shipping"}
     </p>
 
     <h1

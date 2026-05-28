@@ -534,5 +534,58 @@ class OverridesRouteTests(unittest.TestCase):
         self.assertTrue(any(url in v for v in overrides.values()))
 
 
+# ---------------------------------------------------------------------------
+# /changelog
+# ---------------------------------------------------------------------------
+
+
+class ChangelogRouteTests(unittest.TestCase):
+    def test_returns_releases_newest_first(self) -> None:
+        resp = client.get("/api/v1/changelog")
+        self.assertEqual(resp.status_code, 200)
+        releases = resp.json()["releases"]
+        self.assertGreater(len(releases), 0)
+        # First shipped release carries a date and a version.
+        self.assertIsNotNone(releases[0]["version"])
+        self.assertIsNotNone(releases[0]["date"])
+
+    def test_excludes_unreleased_by_default(self) -> None:
+        versions = [r["version"] for r in client.get("/api/v1/changelog").json()["releases"]]
+        self.assertNotIn("Unreleased", versions)
+
+    def test_include_unreleased_flag(self) -> None:
+        versions = [
+            r["version"]
+            for r in client.get("/api/v1/changelog?include_unreleased=true").json()["releases"]
+        ]
+        self.assertIn("Unreleased", versions)
+
+    def test_limit_caps_release_count(self) -> None:
+        resp = client.get("/api/v1/changelog?limit=1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["releases"]), 1)
+
+    def test_limit_applies_after_unreleased_filter(self) -> None:
+        # limit=1 without unreleased should return the most recent *shipped*
+        # release, never the in-flight Unreleased section.
+        release = client.get("/api/v1/changelog?limit=1").json()["releases"][0]
+        self.assertNotEqual(release["version"], "Unreleased")
+
+    def test_invalid_limit_rejected(self) -> None:
+        self.assertEqual(client.get("/api/v1/changelog?limit=0").status_code, 422)
+        self.assertEqual(client.get("/api/v1/changelog?limit=999").status_code, 422)
+
+    def test_cache_control_header(self) -> None:
+        resp = client.get("/api/v1/changelog")
+        self.assertIn("max-age", resp.headers.get("cache-control", ""))
+
+    def test_release_section_shape(self) -> None:
+        release = client.get("/api/v1/changelog?limit=1").json()["releases"][0]
+        self.assertIn("sections", release)
+        for section in release["sections"]:
+            self.assertIn("name", section)
+            self.assertIsInstance(section["entries"], list)
+
+
 if __name__ == "__main__":
     unittest.main()
