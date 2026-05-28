@@ -325,22 +325,61 @@ class WarmSetCardsBackgroundHookTests(_IsolatedCacheMixin):
         from api.main import _warm_set_cards_in_background
 
         # No manifest → freshness gate returns False → we expect a real
-        # background daemon. Mock the warm function so no HTTP fires and
-        # block on the thread.
-        fake = WarmSetCardsResult(sets_attempted=5, sets_warmed=4, sets_failed=["x"])
-        with patch("api.main.warm_set_cards", return_value=fake) as warm_mock:
+        # background daemon. Signal completion via an Event from the
+        # mocked warm function rather than scanning `threading.enumerate()`
+        # (which races: the thread may not yet be enumerable, or it may
+        # already have exited by the time we look).
+        done = threading.Event()
+
+        def _fake_warm(_pkmn):
+            try:
+                return WarmSetCardsResult(sets_attempted=5, sets_warmed=4, sets_failed=["x"])
+            finally:
+                done.set()
+
+        with (
+            patch("api.main.warm_set_cards", side_effect=_fake_warm),
+            patch("api.main.TCGClient"),
+        ):
             _warm_set_cards_in_background()
-            # Daemon thread does the work; join via the named thread.
-            for t in threading.enumerate():
-                if t.name == "set-cards-warm":
-                    t.join(timeout=5)
-            warm_mock.assert_called_once()
-        # Manifest landed.
+            self.assertTrue(done.wait(timeout=5.0), "background thread did not finish")
+            # Give the writer a tick to land the manifest after warm returns.
+            for _ in range(50):
+                if disk_cache.read_set_cards_warm() is not None:
+                    break
+                time.sleep(0.02)
+
         manifest = disk_cache.read_set_cards_warm()
         self.assertIsNotNone(manifest)
         assert manifest is not None
         self.assertEqual(manifest["sets_warmed"], 4)
         self.assertEqual(manifest["sets_failed"], ["x"])
+
+    def test_swallows_exceptions_so_service_keeps_running(self) -> None:
+        import threading
+
+        from api.main import _warm_set_cards_in_background
+
+        done = threading.Event()
+
+        def _boom(*_args, **_kwargs):
+            try:
+                raise RuntimeError("upstream down")
+            finally:
+                done.set()
+
+        # Even when warm_set_cards raises, the hook must not propagate
+        # (the daemon thread should log + swallow). No manifest is
+        # written when the warm fails — that's the signal the next
+        # startup should re-attempt instead of trusting a stale gate.
+        with (
+            patch("api.main.warm_set_cards", side_effect=_boom),
+            patch("api.main.TCGClient"),
+        ):
+            _warm_set_cards_in_background()  # must return without raising
+            self.assertTrue(done.wait(timeout=5.0))
+
+        self.assertIsNone(disk_cache.read_set_cards_warm())
 
 
 if __name__ == "__main__":
