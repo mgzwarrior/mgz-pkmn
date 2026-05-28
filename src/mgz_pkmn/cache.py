@@ -45,12 +45,21 @@ if TYPE_CHECKING:
 DEFAULT_API_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
 DEFAULT_CACHE_WARN_BYTES = 50 * 1024 * 1024  # 50 MB
 CONCEPT_WARM_STALE_SECONDS = 24 * 60 * 60  # one day — once-per-day startup gate
+# Set-cards warm pass is much heavier (~500 HTTP requests for the whole
+# catalog) and the underlying data turns over much more slowly than the
+# concept dictionary — cards within a released set effectively don't
+# change, only market prices drift. A weekly cadence matches the API
+# response cache's own TTL: once a set-cards warm pass lands, every
+# entry it primed survives until the API cache itself expires.
+SET_CARDS_WARM_STALE_SECONDS = 7 * 24 * 60 * 60  # one week
 _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
 _WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
 _CONCEPT_WARM_FILE = "concept_warm.json"
+_SET_CARDS_WARM_FILE = "set_cards_warm.json"
 OVERRIDES_SCHEMA_VERSION = 1
 CONCEPT_WARM_SCHEMA_VERSION = 1
+SET_CARDS_WARM_SCHEMA_VERSION = 1
 _IMAGES_SUBDIR = "images"
 # Allowed image extensions for read-side discovery; write-side derives the
 # extension from the source URL but normalises it through this list so an
@@ -90,6 +99,12 @@ class CacheStats:
     # "concept cache: not warmed" so the operator knows the state at a glance.
     concept_warm_timestamp: float | None
     concept_warm_names: int
+    # Set-cards warm slice — populated from `set_cards_warm.json`, written by
+    # `pkmn cache warm-set-cards`. Same shape as the concept slice: None
+    # timestamp renders as "not warmed", and the count tracks how many
+    # sets had their full card list primed during the most recent pass.
+    set_cards_warm_timestamp: float | None
+    set_cards_warm_count: int
 
 
 def _disabled() -> bool:
@@ -657,6 +672,84 @@ def concept_warm_is_fresh(*, now: float | None = None) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Set-cards-warm manifest — records the most recent `warm-set-cards` run.
+# Same shape as the concept manifest (timestamp, count, failed list) so the
+# stats projection and freshness gate can share their mental model. Lives
+# alongside `concept_warm.json` in the cache root.
+# ---------------------------------------------------------------------------
+
+
+def _set_cards_warm_path() -> Path:
+    return _cache_root_path() / _SET_CARDS_WARM_FILE
+
+
+def read_set_cards_warm() -> dict[str, Any] | None:
+    """Return the parsed set-cards-warm manifest, or None when absent/malformed.
+
+    Schema (v1):
+        {
+            "version": 1,
+            "timestamp": <unix float>,
+            "sets_warmed": <int>,
+            "sets_failed": [<set_id>, ...]
+        }
+
+    Same defence-in-depth as `read_concept_warm`: corrupt files / wrong
+    schema versions are treated as "no manifest" so a bad write doesn't
+    poison the freshness gate."""
+    path = _set_cards_warm_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or data.get("version") != SET_CARDS_WARM_SCHEMA_VERSION:
+        return None
+    return data
+
+
+def write_set_cards_warm(
+    *,
+    sets_warmed: int,
+    sets_failed: list[str],
+) -> None:
+    """Persist the set-cards-warm manifest. Best-effort write — failures
+    are silent so a read-only filesystem doesn't crash a successful
+    warm pass that's about to return its result to the caller."""
+    payload = {
+        "version": SET_CARDS_WARM_SCHEMA_VERSION,
+        "timestamp": time.time(),
+        "sets_warmed": sets_warmed,
+        "sets_failed": sets_failed,
+    }
+    root = cache_root()
+    with contextlib.suppress(OSError):
+        (root / _SET_CARDS_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def set_cards_warm_is_fresh(*, now: float | None = None) -> bool:
+    """True when a manifest exists, its timestamp is within the staleness
+    window (1 week, see `SET_CARDS_WARM_STALE_SECONDS`), and it recorded
+    at least one successful set warm.
+
+    Same `sets_warmed > 0` guard as the concept gate — a manifest written
+    after a fully-failed pass (e.g. transient upstream outage) must not
+    suppress the next retry for a full week with the cache still cold."""
+    manifest = read_set_cards_warm()
+    if manifest is None:
+        return False
+    ts = manifest.get("timestamp")
+    if not isinstance(ts, int | float):
+        return False
+    sets_warmed = manifest.get("sets_warmed")
+    if not isinstance(sets_warmed, int) or sets_warmed <= 0:
+        return False
+    current = now if now is not None else time.time()
+    return (current - ts) < SET_CARDS_WARM_STALE_SECONDS
+
+
+# ---------------------------------------------------------------------------
 # Stats — health snapshot for `pkmn cache stats`.
 # ---------------------------------------------------------------------------
 
@@ -714,6 +807,17 @@ def stats() -> CacheStats:
         if isinstance(n, int):
             concept_warm_names = n
 
+    set_cards_warm_timestamp: float | None = None
+    set_cards_warm_count = 0
+    sc_manifest = read_set_cards_warm()
+    if sc_manifest is not None:
+        ts = sc_manifest.get("timestamp")
+        if isinstance(ts, int | float):
+            set_cards_warm_timestamp = float(ts)
+        n = sc_manifest.get("sets_warmed")
+        if isinstance(n, int):
+            set_cards_warm_count = n
+
     return CacheStats(
         root=root,
         api_entry_count=api_count,
@@ -725,4 +829,6 @@ def stats() -> CacheStats:
         image_bytes=image_bytes,
         concept_warm_timestamp=concept_warm_timestamp,
         concept_warm_names=concept_warm_names,
+        set_cards_warm_timestamp=set_cards_warm_timestamp,
+        set_cards_warm_count=set_cards_warm_count,
     )

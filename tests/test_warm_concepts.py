@@ -467,8 +467,15 @@ class CacheStatsConceptLineTests(_IsolatedCacheMixin):
         # Branch covered: includes the count + "warmed" with a relative age.
         self.assertIn("42 names", result.output)
         self.assertIn("warmed", result.output)
-        # "not warmed" text from the other branch must NOT appear here.
-        self.assertNotIn("not warmed", result.output)
+        # "not warmed" text from this slice's branch must NOT appear here.
+        # We scope the negative assertion to the Concepts line so a sibling
+        # slice (e.g. the Set cards line, which renders "not warmed" when
+        # its own manifest is missing) doesn't break this test.
+        concepts_line = next(
+            (line for line in result.output.splitlines() if "Concepts:" in line),
+            "",
+        )
+        self.assertNotIn("not warmed", concepts_line)
 
 
 # ---------------------------------------------------------------------------
