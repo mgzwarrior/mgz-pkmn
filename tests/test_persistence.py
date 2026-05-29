@@ -17,6 +17,7 @@ real `~/.cache/mgz-pkmn/mgz-pkmn.db` is never touched.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 import tempfile
@@ -288,10 +289,62 @@ class ReExportTests(_IsolatedDbMixin):
 
 
 # ---------------------------------------------------------------------------
+# serialize round-trip
+# ---------------------------------------------------------------------------
+
+
+class SerializeRoundTripTests(unittest.TestCase):
+    def test_strict_price_bounds_round_trip(self) -> None:
+        """`price_*_exclusive` survive the Row → RunRow → Row round-trip."""
+        from api.db.serialize import row_to_run_row, run_row_to_row
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        q = CardQuery(
+            raw="charizard >$10 <$50",
+            name="charizard",
+            price_min=10.0,
+            price_max=50.0,
+            price_min_exclusive=True,
+            price_max_exclusive=True,
+        )
+        row = Row(query=q, card={"id": "x"}, pricing=Pricing(market=20.0), tag="")
+
+        restored = run_row_to_row(row_to_run_row(row, position=0))
+        self.assertTrue(restored.query.price_min_exclusive)
+        self.assertTrue(restored.query.price_max_exclusive)
+        self.assertEqual(restored.query.price_min, 10.0)
+        self.assertEqual(restored.query.price_max, 50.0)
+
+    def test_currency_is_null_on_unpriced_miss(self) -> None:
+        """An unmatched/unpriced row stores `currency = NULL`, not the
+        `Pricing.currency` "USD" default."""
+        from api.db.serialize import row_to_run_row
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        row = Row(
+            query=CardQuery(raw="missingmon", name="missingmon"),
+            card=None,
+            pricing=Pricing(),  # market=None, currency defaults to "USD"
+            tag="",
+        )
+        rr = row_to_run_row(row, position=0)
+        self.assertIsNone(rr.market_price)
+        self.assertIsNone(rr.currency)
+
+
+# ---------------------------------------------------------------------------
 # SQLite flock — gates concurrent acquires
 # ---------------------------------------------------------------------------
 
 
+@unittest.skipUnless(
+    importlib.util.find_spec("fcntl") is not None,
+    "fcntl unavailable — _sqlite_flock is a no-op on this platform",
+)
 class SqliteFlockTests(unittest.TestCase):
     def test_second_acquire_blocks_until_first_releases(self) -> None:
         """The flock is exclusive — a second `_sqlite_flock` on the same path
@@ -302,6 +355,7 @@ class SqliteFlockTests(unittest.TestCase):
 
             holder_acquired = threading.Event()
             holder_release = threading.Event()
+            second_attempting = threading.Event()
             second_acquired_at: dict[str, float] = {}
 
             def hold_first() -> None:
@@ -311,6 +365,9 @@ class SqliteFlockTests(unittest.TestCase):
 
             def take_second() -> None:
                 holder_acquired.wait(timeout=5.0)
+                # Signal that we're about to block on the held lock, so the
+                # main thread doesn't release before we've started waiting.
+                second_attempting.set()
                 start = time.monotonic()
                 with _sqlite_flock(db_path):
                     second_acquired_at["delay"] = time.monotonic() - start
@@ -319,7 +376,10 @@ class SqliteFlockTests(unittest.TestCase):
             t2 = threading.Thread(target=take_second)
             t1.start()
             t2.start()
-            # Give the second waiter time to attempt + block.
+            # Wait until the second thread has reached its acquire attempt,
+            # then give it a beat to actually block inside flock() before the
+            # holder releases — without this the delay can race to ~0.
+            second_attempting.wait(timeout=5.0)
             time.sleep(0.1)
             holder_release.set()
             t1.join(timeout=2.0)

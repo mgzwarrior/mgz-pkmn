@@ -16,10 +16,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `GET /api/v1/runs/{id}`, and `POST /api/v1/runs/{id}/export` let
   clients list, load, and re-export prior runs without re-fetching from
   pokemontcg.io. Database lives at `$XDG_CACHE_HOME/mgz-pkmn/mgz-pkmn.db`
-  by default; override with `MGZ_PKMN_DATABASE_URL` (e.g.
-  `postgresql+psycopg://…`). The API runs `alembic upgrade head` on
-  startup under a cross-worker lock; set `MGZ_PKMN_AUTOMIGRATE=0` to skip
-  and run `make migrate` as a prestart step instead.
+  by default; override with `MGZ_PKMN_DATABASE_URL`. Postgres is supported
+  via a `postgresql+psycopg://…` URL, but no Postgres driver ships in the
+  `api` extra yet — install one yourself (`pip install psycopg`) first. The
+  API runs `alembic upgrade head` on startup under a cross-worker lock; set
+  `MGZ_PKMN_AUTOMIGRATE=0` to skip and run `make migrate` as a prestart step
+  instead.
 - Web: **color-coded search progress** — while a bulk lookup runs, each
   input line's chip in the progress panel now reflects the exact pipeline
   stage it's in (parsed → looking up → fallback / URL hint → pricing →

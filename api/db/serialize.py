@@ -35,6 +35,8 @@ def _query_to_dict(q: CardQuery) -> dict[str, Any]:
         "bulk_all": q.bulk_all,
         "price_min": q.price_min,
         "price_max": q.price_max,
+        "price_min_exclusive": q.price_min_exclusive,
+        "price_max_exclusive": q.price_max_exclusive,
     }
 
 
@@ -55,11 +57,15 @@ def row_to_run_row(row: Row, position: int) -> RunRow:
     ADR-0013 so list filters are real SQL. `card_json` is NULL on miss
     (rather than `{}`) so `WHERE card_json IS NULL` finds unmatched rows
     natively."""
+    # Only store currency alongside an actual price — `Pricing.currency`
+    # defaults to "USD" even on an unpriced miss, so gating on `market`
+    # keeps NULL meaning "unpriced" per ADR-0013.
+    currency = row.pricing.currency or None if row.pricing.market is not None else None
     return RunRow(
         position=position,
         tag=row.tag,
         market_price=row.pricing.market,
-        currency=row.pricing.currency or None,
+        currency=currency,
         image_path=str(row.image_path) if row.image_path else None,
         query_json=_query_to_dict(row.query),
         card_json=row.card if row.card else None,
@@ -91,6 +97,8 @@ def run_row_to_row(rr: RunRow) -> Row:
         bulk_top=q.get("bulk_top"),
         price_min=q.get("price_min"),
         price_max=q.get("price_max"),
+        price_min_exclusive=q.get("price_min_exclusive", False),
+        price_max_exclusive=q.get("price_max_exclusive", False),
         bulk_all=q.get("bulk_all", False),
     )
     # `pricing_json` is the canonical source; the promoted `market_price` /

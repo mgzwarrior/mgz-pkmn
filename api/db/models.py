@@ -93,7 +93,12 @@ class RunRow(Base):
 
     # Promoted columns — see ADR-0013. NULL on miss / non-USD-only sources.
     tag: Mapped[str] = mapped_column(String(64), nullable=False, default="")
-    market_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    # asdecimal=False so reads come back as float, matching the annotation —
+    # otherwise SQLAlchemy materialises Numeric as Decimal and float
+    # comparisons downstream raise TypeError.
+    market_price: Mapped[float | None] = mapped_column(
+        Numeric(12, 2, asdecimal=False), nullable=True
+    )
     currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
     image_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
 

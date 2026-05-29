@@ -61,7 +61,7 @@ include your frontend origin.
 |---|---|---|
 | `POKEMONTCG_IO_API_KEY` | API process env | Raises rate limit to 20k req/day |
 | `VITE_API_BASE` | Frontend build-time | Override API URL (default: empty → same origin) |
-| `MGZ_PKMN_DATABASE_URL` | API process env | SQLAlchemy URL for the persistence layer. Defaults to `sqlite:///<cache-root>/mgz-pkmn.db` (e.g. `sqlite:////home/me/.cache/mgz-pkmn/mgz-pkmn.db`). Set to a `postgresql+psycopg://…` URL to back the API with Postgres instead. See [ADR-0013](adr/0013-sqlite-persistence-for-runs-collections-wishlists.md). |
+| `MGZ_PKMN_DATABASE_URL` | API process env | SQLAlchemy URL for the persistence layer. Defaults to `sqlite:///<cache-root>/mgz-pkmn.db` (e.g. `sqlite:////home/me/.cache/mgz-pkmn/mgz-pkmn.db`). The API also runs against Postgres via a `postgresql+psycopg://…` URL, but no Postgres driver ships in the `api` extra — install one yourself (`pip install psycopg`) before pointing at Postgres. See [ADR-0013](adr/0013-sqlite-persistence-for-runs-collections-wishlists.md). |
 | `MGZ_PKMN_AUTOMIGRATE` | API process env | Set to `0` (or `false`) to skip the automatic `alembic upgrade head` on API startup. Useful when migrations are run as a prestart step (init container, Render pre-deploy command, etc.). Default: enabled. |
 
 ## Database & migrations
