@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="coconut">
+  <title>coconut</title>
+  <circle cx="12" cy="13" r="7"></circle>
+  <circle cx="9.5" cy="11.5" r="0.7" fill="currentColor"></circle>
+  <circle cx="14.5" cy="11.5" r="0.7" fill="currentColor"></circle>
+  <path d="M9 16c1.2 1 4.8 1 6 0"></path>
+  <path d="M12 6c-1-2-3-3-3-3"></path>
+  <path d="M12 6c1-2 3-3 3-3"></path>
+</svg>

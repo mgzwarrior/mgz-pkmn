@@ -7,6 +7,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Site: **Tropical theme as a light mode** — the Astro marketing site
+  now ships both themes: the original zinc/blue palette stays the default
+  **dark** mode, and the warm cream + sun + palm + coconut Exeggutor
+  direction is available as an opt-in **light** mode. A header toggle
+  switches between them and the choice persists; on first visit the site
+  follows the OS `prefers-color-scheme`, falling back to dark. Light mode
+  uses display type **Bricolage Grotesque**, body **DM Sans**, and warm
+  coconut-alpha shadows; dark mode keeps the prior contrast-by-border
+  surfaces. SPA migration lands in a follow-up PR.
+
 ### Added
 
 - API: persistence layer for run history backed by SQLite + Alembic
