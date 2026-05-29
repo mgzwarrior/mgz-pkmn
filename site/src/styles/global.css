@@ -122,7 +122,7 @@ html {
 }
 
 html:not(.dark) {
-  background-color: #FBF6E8;
+  background-color: var(--color-sand-50);
   color-scheme: light;
 }
 
