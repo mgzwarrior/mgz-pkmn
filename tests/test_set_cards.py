@@ -8,8 +8,9 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import requests
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
@@ -137,6 +138,32 @@ class FetchAllSetsTests(_IsolatedCacheMixin):
         self.assertEqual(len(sets), 1)
         self.assertEqual(sets[0]["id"], "sv8")
         self.assertEqual(sets[0]["images"]["logo"], "https://images.pokemontcg.io/sv8/logo.png")
+
+    def test_retries_transient_timeout_then_succeeds(self) -> None:
+        client = MagicMock()
+        ok = MagicMock()
+        ok.json.return_value = {"data": [{"id": "sv8", "name": "Surging Sparks"}]}
+        ok.raise_for_status.return_value = None
+        client.session.get.side_effect = [
+            requests.Timeout("read timed out"),
+            requests.ConnectionError("conn reset"),
+            ok,
+        ]
+
+        with patch("mgz_pkmn.set_cards.time.sleep"):
+            sets = fetch_all_sets(client)
+
+        self.assertEqual([s["id"] for s in sets], ["sv8"])
+        self.assertEqual(client.session.get.call_count, 3)
+
+    def test_reraises_after_exhausting_retries(self) -> None:
+        client = MagicMock()
+        client.session.get.side_effect = requests.Timeout("read timed out")
+
+        with patch("mgz_pkmn.set_cards.time.sleep"), self.assertRaises(requests.Timeout):
+            fetch_all_sets(client)
+
+        self.assertEqual(client.session.get.call_count, 4)
 
 
 class WritePdfTests(unittest.TestCase):
