@@ -130,6 +130,88 @@ class LookupRouteTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# /bulk (SSE) — stage streaming
+# ---------------------------------------------------------------------------
+
+
+def _parse_sse(text: str) -> list[dict]:
+    """Parse a collected SSE body into a list of decoded JSON frames."""
+    frames = []
+    for chunk in text.strip().split("\n\n"):
+        chunk = chunk.strip()
+        if chunk.startswith("data: "):
+            frames.append(json.loads(chunk[len("data: ") :]))
+    return frames
+
+
+class TerminalStageTests(unittest.TestCase):
+    """`_terminal_stage` collapses a resolved row's (matched, reason) onto
+    one of the three terminal pipeline stages."""
+
+    def test_mapping(self) -> None:
+        from api.routes.lookup import _terminal_stage
+
+        self.assertEqual(_terminal_stage(True, "matched"), "resolved")
+        self.assertEqual(_terminal_stage(False, "no_candidates"), "no_match")
+        self.assertEqual(_terminal_stage(False, "set_mismatch"), "no_match")
+        self.assertEqual(_terminal_stage(False, "no_results"), "no_match")
+        self.assertEqual(_terminal_stage(False, "price_mismatch"), "no_match")
+        self.assertEqual(_terminal_stage(False, "error"), "error")
+        self.assertEqual(_terminal_stage(False, "scrape_failed"), "error")
+        self.assertEqual(_terminal_stage(False, "unparseable"), "error")
+
+
+class BulkStageStreamTests(unittest.TestCase):
+    """The /bulk SSE stream interleaves progress-only stage frames with the
+    terminal resolved-row frame for each line."""
+
+    def test_streams_parsed_then_pipeline_stages_then_resolved_row(self) -> None:
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None):
+            if on_stage is not None:
+                on_stage("looking_up")
+                on_stage("fallback")
+            card = {"id": "base1-4", "name": "Charizard"}
+            return [(Row(query=q, card=card, pricing=Pricing(market=100.0), tag=""), "matched")]
+
+        with patch("api.routes.lookup._do_lookup", side_effect=fake):
+            resp = client.post("/api/v1/bulk", json={"lines": ["Charizard"]})
+
+        self.assertEqual(resp.status_code, 200)
+        frames = _parse_sse(resp.text)
+
+        progress = [f["stage"] for f in frames if "matched" not in f and not f.get("done")]
+        self.assertEqual(progress, ["parsed", "looking_up", "fallback"])
+
+        rows = [f for f in frames if "matched" in f]
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["matched"])
+        self.assertEqual(rows[0]["stage"], "resolved")
+
+        self.assertTrue(frames[-1].get("done"))
+
+    def test_unmatched_row_carries_no_match_terminal_stage(self) -> None:
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None):
+            if on_stage is not None:
+                on_stage("looking_up")
+            return [(Row(query=q, card=None, pricing=Pricing(), tag=""), "no_candidates")]
+
+        with patch("api.routes.lookup._do_lookup", side_effect=fake):
+            resp = client.post("/api/v1/bulk", json={"lines": ["Nonsense"]})
+
+        frames = _parse_sse(resp.text)
+        rows = [f for f in frames if "matched" in f]
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["matched"])
+        self.assertEqual(rows[0]["stage"], "no_match")
+
+
+# ---------------------------------------------------------------------------
 # /sets
 # ---------------------------------------------------------------------------
 
@@ -189,6 +271,215 @@ class SetsRouteTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["sets"], fetched_sets)
+
+    def test_browser_cache_control_header(self) -> None:
+        # The /sets response needs a short-TTL Cache-Control plus
+        # stale-while-revalidate so the browser serves cached content
+        # immediately while it revalidates in the background. Pairs
+        # with the SPA-side baked catalog (`web/src/data/sets.json`)
+        # which covers the very-first-visit case where there's no
+        # browser cache to serve from.
+        with (
+            patch("api.routes.sets._load_sets_cache", return_value=[]),
+        ):
+            resp = client.get("/api/v1/sets")
+
+        self.assertEqual(resp.status_code, 200)
+        cache_control = resp.headers.get("cache-control", "")
+        self.assertIn("public", cache_control)
+        self.assertIn("max-age=", cache_control)
+        self.assertIn("stale-while-revalidate=", cache_control)
+
+
+class SetCardsRouteTests(unittest.TestCase):
+    """`GET /api/v1/sets/{set_id}/cards` returns a trimmed card list."""
+
+    def test_trims_card_payload(self) -> None:
+        # Synthetic upstream response with the fields we care about plus
+        # a bunch of noise to confirm the trim drops them.
+        raw_cards = [
+            {
+                "id": "sv8-1",
+                "name": "Pikachu",
+                "number": "1",
+                "rarity": "Common",
+                "supertype": "Pokémon",
+                "subtypes": ["Basic"],
+                "images": {
+                    "small": "https://images.example/sv8-1-small.png",
+                    "large": "https://images.example/sv8-1-large.png",
+                },
+                "tcgplayer": {
+                    "prices": {"normal": {"market": 1.23}},
+                    "url": "https://tcgplayer.example/sv8-1",
+                },
+                # Noise we expect the trim to drop.
+                "attacks": [{"name": "Thundershock"}],
+                "weaknesses": [{"type": "Fighting"}],
+                "legalities": {"standard": "Legal"},
+            }
+        ]
+
+        with patch(
+            "api.routes.sets._fetch_set_cards",
+            return_value=[
+                # _fetch_set_cards is the trimmer entry point; bypass it and
+                # verify the route hands the slim shape straight through.
+                {
+                    "id": "sv8-1",
+                    "name": "Pikachu",
+                    "number": "1",
+                    "rarity": "Common",
+                    "supertype": "Pokémon",
+                    "subtypes": ["Basic"],
+                    "thumb": "https://images.example/sv8-1-small.png",
+                    "market": 1.23,
+                }
+            ],
+        ) as fetch_mock:
+            resp = client.get("/api/v1/sets/sv8/cards")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["set_id"], "sv8")
+        self.assertEqual(len(body["cards"]), 1)
+
+        card = body["cards"][0]
+        # Required fields are all present.
+        for field in ("id", "name", "number", "rarity", "supertype", "subtypes", "thumb", "market"):
+            self.assertIn(field, card)
+        # And the noise fields are absent.
+        for noise in ("attacks", "weaknesses", "legalities", "tcgplayer", "images"):
+            self.assertNotIn(noise, card)
+        # And the fetch helper actually got the set_id we passed.
+        fetch_mock.assert_called_once()
+        args, _ = fetch_mock.call_args
+        self.assertEqual(args[0], "sv8")
+        # Silence unused-variable lint — raw_cards documents the upstream
+        # shape the trim is reducing.
+        self.assertEqual(raw_cards[0]["id"], "sv8-1")
+
+    def test_trim_card_helper_projects_fields(self) -> None:
+        # Direct test of the trim helper so we don't have to mock the
+        # HTTP client to assert the projection contract.
+        from api.routes.sets import _trim_card
+
+        raw = {
+            "id": "sv8-99",
+            "name": "Charizard",
+            "number": "99",
+            "rarity": "Rare Holo",
+            "supertype": "Pokémon",
+            "subtypes": ["Stage 2"],
+            "images": {"small": "https://example/c.png", "large": "x"},
+            "tcgplayer": {"prices": {"holofoil": {"market": 42.5}}},
+            "attacks": [{"name": "Fire Spin"}],
+        }
+        slim = _trim_card(raw)
+        self.assertEqual(slim["id"], "sv8-99")
+        self.assertEqual(slim["name"], "Charizard")
+        self.assertEqual(slim["number"], "99")
+        self.assertEqual(slim["rarity"], "Rare Holo")
+        self.assertEqual(slim["supertype"], "Pokémon")
+        self.assertEqual(slim["subtypes"], ["Stage 2"])
+        self.assertEqual(slim["thumb"], "https://example/c.png")
+        self.assertEqual(slim["market"], 42.5)
+        self.assertNotIn("attacks", slim)
+        self.assertNotIn("images", slim)
+        self.assertNotIn("tcgplayer", slim)
+
+    def test_trim_card_missing_pricing_returns_null_market(self) -> None:
+        # A card without tcgplayer / cardmarket pricing — happens for very
+        # new releases or promo cards. The shape should still be valid
+        # with `market: None` so the SPA can render a `—` placeholder.
+        from api.routes.sets import _trim_card
+
+        slim = _trim_card({"id": "x", "name": "n", "number": "1"})
+        self.assertIsNone(slim["market"])
+        self.assertIsNone(slim["thumb"])
+        self.assertEqual(slim["subtypes"], [])
+
+    def test_404_when_set_has_no_cards(self) -> None:
+        with patch("api.routes.sets._fetch_set_cards", return_value=[]):
+            resp = client.get("/api/v1/sets/bogus/cards")
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn("bogus", resp.json()["detail"])
+
+    def test_browser_cache_control_header(self) -> None:
+        with patch(
+            "api.routes.sets._fetch_set_cards",
+            return_value=[
+                {
+                    "id": "sv8-1",
+                    "name": "Pikachu",
+                    "number": "1",
+                    "rarity": "Common",
+                    "supertype": "Pokémon",
+                    "subtypes": [],
+                    "thumb": None,
+                    "market": None,
+                }
+            ],
+        ):
+            resp = client.get("/api/v1/sets/sv8/cards")
+        self.assertEqual(resp.status_code, 200)
+        cache_control = resp.headers.get("cache-control", "")
+        self.assertIn("public", cache_control)
+        self.assertIn("max-age=", cache_control)
+
+    def test_rejects_malformed_set_ids(self) -> None:
+        # Mirrors the logo route's defence — the same `_SET_ID_PATH`
+        # validator gates both endpoints, so a regression in one would
+        # likely catch the other. Subset of inputs is enough to verify
+        # the validator is wired up here too.
+        for bad in ("sv8;rm", "x" * 200, "sv8&foo"):
+            with self.subTest(set_id=bad):
+                resp = client.get(f"/api/v1/sets/{bad}/cards")
+                self.assertEqual(resp.status_code, 422)
+
+    def test_fetch_set_cards_queries_set_id_filter(self) -> None:
+        # Patch TCGClient.search_all to capture the Lucene query the
+        # helper issues. The cache-hit-rate of the underlying disk cache
+        # depends on the query string being a stable shape, so a silent
+        # change here would silently bust everyone's cache. The query
+        # MUST be `set.id:"<id>"` (quoted, single key) — see
+        # api/routes/sets.py:_fetch_set_cards.
+        from api.routes.sets import _fetch_set_cards
+
+        captured: list[str] = []
+
+        def _capture(self_, query):
+            del self_  # bound-method shape; we only care about the query string
+            captured.append(query)
+            return []
+
+        with patch("mgz_pkmn.sources.pokemontcg.TCGClient.search_all", _capture):
+            _fetch_set_cards("sv8", api_key=None)
+
+        self.assertEqual(captured, ['set.id:"sv8"'])
+
+    def test_set_id_passed_through_to_fetch(self) -> None:
+        # Confirms the route hands the path parameter straight through
+        # to `_fetch_set_cards` — i.e. no rewriting / normalisation /
+        # case-folding between the URL and the helper. Important
+        # because the upstream catalog ids are case-sensitive.
+        with patch(
+            "api.routes.sets._fetch_set_cards",
+            return_value=[
+                {
+                    "id": "x",
+                    "name": "x",
+                    "number": "1",
+                    "rarity": None,
+                    "supertype": None,
+                    "subtypes": [],
+                    "thumb": None,
+                    "market": None,
+                }
+            ],
+        ) as fetch_mock:
+            client.get("/api/v1/sets/MixedCaseId-9/cards?api_key=abc")
+        fetch_mock.assert_called_once_with("MixedCaseId-9", "abc")
 
 
 class SetLogoRouteTests(unittest.TestCase):
@@ -323,6 +614,59 @@ class OverridesRouteTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         overrides = resp.json()["overrides"]
         self.assertTrue(any(url in v for v in overrides.values()))
+
+
+# ---------------------------------------------------------------------------
+# /changelog
+# ---------------------------------------------------------------------------
+
+
+class ChangelogRouteTests(unittest.TestCase):
+    def test_returns_releases_newest_first(self) -> None:
+        resp = client.get("/api/v1/changelog")
+        self.assertEqual(resp.status_code, 200)
+        releases = resp.json()["releases"]
+        self.assertGreater(len(releases), 0)
+        # First shipped release carries a date and a version.
+        self.assertIsNotNone(releases[0]["version"])
+        self.assertIsNotNone(releases[0]["date"])
+
+    def test_excludes_unreleased_by_default(self) -> None:
+        versions = [r["version"] for r in client.get("/api/v1/changelog").json()["releases"]]
+        self.assertNotIn("Unreleased", versions)
+
+    def test_include_unreleased_flag(self) -> None:
+        versions = [
+            r["version"]
+            for r in client.get("/api/v1/changelog?include_unreleased=true").json()["releases"]
+        ]
+        self.assertIn("Unreleased", versions)
+
+    def test_limit_caps_release_count(self) -> None:
+        resp = client.get("/api/v1/changelog?limit=1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["releases"]), 1)
+
+    def test_limit_applies_after_unreleased_filter(self) -> None:
+        # limit=1 without unreleased should return the most recent *shipped*
+        # release, never the in-flight Unreleased section.
+        release = client.get("/api/v1/changelog?limit=1").json()["releases"][0]
+        self.assertNotEqual(release["version"], "Unreleased")
+
+    def test_invalid_limit_rejected(self) -> None:
+        self.assertEqual(client.get("/api/v1/changelog?limit=0").status_code, 422)
+        self.assertEqual(client.get("/api/v1/changelog?limit=999").status_code, 422)
+
+    def test_cache_control_header(self) -> None:
+        resp = client.get("/api/v1/changelog")
+        self.assertIn("max-age", resp.headers.get("cache-control", ""))
+
+    def test_release_section_shape(self) -> None:
+        release = client.get("/api/v1/changelog?limit=1").json()["releases"][0]
+        self.assertIn("sections", release)
+        for section in release["sections"]:
+            self.assertIn("name", section)
+            self.assertIsInstance(section["entries"], list)
 
 
 if __name__ == "__main__":

@@ -34,6 +34,9 @@ tests/
 # Local docs
 *.md
 !README.md
+# CHANGELOG.md backs GET /api/v1/changelog (release notes) — the runtime
+# reads it at /app/CHANGELOG.md, so it must survive into the build context.
+!CHANGELOG.md
 
 # Misc
 .env

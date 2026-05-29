@@ -21,6 +21,119 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- API: persistence layer for run history backed by SQLite + Alembic
+  (see [ADR-0013](docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
+  `POST /api/v1/bulk` now writes a `runs` + `run_rows` record on
+  successful stream completion. New endpoints `GET /api/v1/runs`,
+  `GET /api/v1/runs/{id}`, and `POST /api/v1/runs/{id}/export` let
+  clients list, load, and re-export prior runs without re-fetching from
+  pokemontcg.io. Database lives at `$XDG_CACHE_HOME/mgz-pkmn/mgz-pkmn.db`
+  by default; override with `MGZ_PKMN_DATABASE_URL`. Postgres is supported
+  via a `postgresql+psycopg://…` URL, but no Postgres driver ships in the
+  `api` extra yet — install one yourself (`pip install psycopg`) first. The
+  API runs `alembic upgrade head` on startup under a cross-worker lock; set
+  `MGZ_PKMN_AUTOMIGRATE=0` to skip and run `make migrate` as a prestart step
+  instead.
+- Web: **color-coded search progress** — while a bulk lookup runs, each
+  input line's chip in the progress panel now reflects the exact pipeline
+  stage it's in (parsed → looking up → fallback / URL hint → pricing →
+  resolved / no match / error) instead of a single blue spinner. The
+  `/api/v1/bulk` SSE stream carries a `stage` on every frame, including
+  intermediate progress-only frames streamed live as a line moves through
+  the sources. Hovering a chip shows how long the line has spent in its
+  current stage, and a **Legend** toggle in the panel header maps the
+  colors to their meanings. All stage colors clear WCAG AA contrast —
+  see [docs/accessibility.md](docs/accessibility.md#color-coded-progress-stages).
+- Web: **"What's new" panel** — a new header button (with an unobtrusive
+  dot when a release newer than you've seen has shipped) opens a panel of
+  recent release notes, pulled at runtime from `GET /api/v1/changelog` —
+  the same source the marketing site reads. Opening the panel marks the
+  latest version seen, clearing the dot; a first-time visitor is caught
+  up silently so it never competes with the Help button's first-visit
+  hint. Bullets render inline Markdown (links, `code`, **bold**). The
+  last-seen version persists via the existing Zustand store.
+- API: new `GET /api/v1/changelog` endpoint returns structured release
+  notes parsed from `CHANGELOG.md` — the single source of truth for
+  "what's new" surfaces, shared by the marketing site and (later) the
+  demo SPA. Supports `?limit=N` (newest first) and
+  `?include_unreleased=true`; the in-flight Unreleased section is
+  omitted by default. Parsing lives in `mgz_pkmn.changelog` so it's
+  unit-testable independent of the route.
+- Site: **"Recently shipped" release notes** — a new section on the
+  marketing landing page renders the last three releases (version,
+  date, and bullets grouped by Added / Changed / Fixed) pulled at
+  build time from `GET /api/v1/changelog`. The hero's "Now shipping
+  X.Y.Z" pill is now derived from the same source instead of being
+  hand-edited every release, so it can't drift. Both degrade
+  gracefully (section omitted, pill shows just "Now shipping") if the
+  API is unreachable at build time.
+- Site: **Hero binder grid + asciinema cast** — the marketing landing
+  page now opens on a tilted 3×3 binder page of real Pokémon TCG cards
+  (replacing the abstract brand-color radial glow) and an embedded
+  [asciinema](https://asciinema.org/) cast of an actual `pkmn lookup`
+  run against `sample_cards.txt` (replacing the hand-curated static
+  code block). Cards live under `site/public/cards/` as ~40 KB WebP
+  thumbnails; the cast is captured by
+  [`site/scripts/record-cast.sh`](site/scripts/record-cast.sh). Player
+  CSS/JS are vendored into `site/public/vendor/` so the page has no
+  third-party iframe and works offline once cached. Falls back to a
+  `<noscript>` code block for visitors with JS disabled.
+- Site: **"What you get" gallery** — a new section between the
+  features grid and "How it works" shows three side-by-side previews
+  of the actual deliverables (`cards.xlsx`, `binder.pdf`,
+  `checklist.pdf`) rendered from the tracked `output/` samples.
+  Regenerated end-to-end by
+  [`site/scripts/refresh-screenshots.sh`](site/scripts/refresh-screenshots.sh):
+  `pdftoppm` for the PDF previews, plus a custom
+  [`render_xlsx_preview.py`](site/scripts/render_xlsx_preview.py)
+  that composes a faithful spreadsheet-style preview from
+  `output/summary.json` + thumbnails in `output/images/` (LibreOffice
+  headless can't render the xlsx writer's embedded image references).
+- CLI: `pkmn cache warm-set-cards` subcommand walks every Pokémon TCG set
+  and pre-primes the API response cache for each one's card list, so the
+  web SPA's Browse → set-detail path is a cache hit on first request
+  instead of a multi-second upstream round trip. Issues the exact same
+  `set.id:"<id>"` Lucene query the `GET /api/v1/sets/{set_id}/cards`
+  endpoint issues, so cache keys line up. Accepts `--set <id>`
+  (repeatable) to warm only specific sets — handy for staging a new
+  release without re-walking the whole catalog — and `--verbose` to
+  print each set id as it warms. Writes `set_cards_warm.json` in the
+  cache root with a timestamp + warmed-count so `pkmn cache stats` can
+  report freshness and the FastAPI startup hook gates itself to run at
+  most once per week.
+- API: `MGZ_PKMN_WARM_ON_STARTUP=1` now kicks off a set-cards warm pass
+  on a separate daemon thread alongside the existing concept warm, so
+  the first Browse → set-detail request served by a fresh process is a
+  cache hit. Each warmer has its own freshness manifest (24 h for
+  concepts, 1 week for set cards) so the heavier set-cards walk doesn't
+  thrash on every `uvicorn --reload` cycle.
+- Stats: `pkmn cache stats` surfaces a new **Set cards** line — "N sets ·
+  warmed <age>" when a warm pass has landed, "not warmed · run …"
+  otherwise. JSON output (`--json`) gains matching `set_cards_warm_timestamp`
+  and `set_cards_warm_count` fields for monitoring.
+- Web: **Browse sets** — a new **Browse** button in the header opens a
+  modal that explores the Pokémon TCG catalog without typing a card
+  list. The set list groups every set by series, newest-first, with
+  the cached logo + release year + card count per row (reuses the
+  image cache populated by `pkmn cache warm-sets`). Picking a set
+  opens a responsive grid of every card with thumb / name / number /
+  rarity / market price, plus search-within-set, rarity-bucket filter
+  chips (All / Rares / Holos / Ultra+), and sort by number / name /
+  price ↓. Each card has an **Add to list** button; bulk actions push
+  every visible card, every holo, or every rare into the editor in
+  one click. Lines pushed into the editor follow the parser's
+  canonical `Name | Set | Number` shape and dedupe against existing
+  input — clicking the same card twice doesn't double-stamp it.
+- API: new `GET /api/v1/sets/{set_id}/cards` endpoint returns a
+  **trimmed** card list for one set — just the fields Browse renders
+  (id, name, number, rarity, supertype, subtypes, thumb URL, market
+  price). A 250-card set ships ~46 KB on the wire vs hundreds of KB
+  for the raw pokemontcg.io shape. Flows through the existing on-disk
+  API cache, so once any user warms a set every subsequent open is a
+  disk-cache hit. Browser-cacheable for a day via
+  `Cache-Control: public, max-age=86400`; 404s when the set is
+  unknown / empty. Malformed set ids rejected at the route boundary
+  (422) by the same validator that gates the logo endpoint.
 - Outputs: **Branded exports** — every artifact now carries the
   `mgz-pkmn` mark, project URL, and file-properties metadata. PDFs
   (binder, condensed, checklist, set-cards) gain a single muted

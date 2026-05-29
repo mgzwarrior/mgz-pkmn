@@ -25,6 +25,32 @@ from .sources.base import MatchResult, name_clause
 # full set in help text without re-declaring it.
 WARM_SOURCES = ("pokemontcg", "tcgdex", "all")
 
+# Pipeline stages surfaced to the web UI via the bulk SSE stream. The lookup
+# coordinator emits the intermediate stages (`looking_up` / `fallback` /
+# `url_hint` / `pricing`) through the optional `on_stage` callback below; the
+# API route brackets a run with `parsed` and resolves it into one of the
+# terminal stages (`resolved` / `no_match` / `error`). `image` is part of the
+# vocabulary the CLI uses when it downloads thumbnails, but the web flow runs
+# image-free, so it never fires there. Kept here as the single source of truth
+# so the API, the SPA, and the tests all agree on the spelling.
+LOOKUP_STAGES = (
+    "parsed",
+    "url_hint",
+    "looking_up",
+    "fallback",
+    "pricing",
+    "image",
+    "resolved",
+    "no_match",
+    "error",
+)
+
+# Type alias for the per-stage progress callback threaded through the lookup
+# coordinator. Invoked with the stage name as the lookup advances through its
+# sources; `None` (the default) disables emission entirely for callers — like
+# the CLI and the single-line `/lookup` endpoint — that don't stream progress.
+StageCallback = Callable[[str], None]
+
 # Bulk subjects that aren't Pokemon names but card subtypes. When the user
 # writes `top 4 tag team` they want cards whose subtype is "TAG TEAM" (cards
 # featuring 2+ Pokemon), not cards literally named "tag team". Keys are
@@ -165,6 +191,7 @@ def find_card(
     pc: PriceChartingClient,
     q: CardQuery,
     default_lang: str | None = None,
+    on_stage: StageCallback | None = None,
 ) -> MatchResult:
     """Coordinate lookups across pokemontcg.io, TCGdex (multilingual), and an
     optional explicit URL hint (currently PriceCharting). The first source
@@ -177,7 +204,17 @@ def find_card(
     `default_lang` is consulted only as a fallback when the line itself didn't
     name a language. It's used by the CLI/API global ``--lang`` knob — set it
     to ``"ja"`` to make every untagged line fall through to TCGdex Japanese
-    after pokemontcg.io misses."""
+    after pokemontcg.io misses.
+
+    `on_stage`, when provided, is called with the name of each pipeline stage
+    as the lookup advances (`url_hint` / `looking_up` / `fallback`) so the web
+    UI can show finer-grained per-line progress. It's a pure passthrough of
+    state that already drives control flow here — see `LOOKUP_STAGES`."""
+
+    def _stage(name: str) -> None:
+        if on_stage is not None:
+            on_stage(name)
+
     # 1. Explicit URL hint takes precedence — the user already found the card.
     #    A scrape failure (404 / 500 / connection error) propagates as
     #    `scrape_failed` so the CLI can name the URL instead of pretending
@@ -185,6 +222,7 @@ def find_card(
     #    URL the user pastes once doesn't get pinned as a sticky override
     #    that quietly fails on every subsequent run.
     if q.url_hint and _is_pricecharting_url(q.url_hint):
+        _stage("url_hint")
         result = pc.fetch(q.url_hint)
         if result.card:
             disk_cache.record_url_override(q.name, q.set_hint, q.url_hint)
@@ -199,11 +237,13 @@ def find_card(
     #    failing the lookup — the user didn't paste it this run.
     override = disk_cache.find_url_override(q.name, q.set_hint)
     if override and _is_pricecharting_url(override):
+        _stage("url_hint")
         override_result = pc.fetch(override)
         if override_result.card:
             return _apply_price_bounds(override_result, q)
 
     # 3. pokemontcg.io — best for English / international English releases.
+    _stage("looking_up")
     primary = search_pokemontcg(pkmn, q)
     if primary.card:
         return _apply_price_bounds(primary, q)
@@ -219,6 +259,7 @@ def find_card(
         langs.append("en")
 
     saw_set_mismatch = primary.reason == "set_mismatch"
+    _stage("fallback")
     for lang in langs:
         result = search_tcgdex(tcgdex, q, lang)
         if result.card:
@@ -334,6 +375,7 @@ def find_top_cards(
     q: CardQuery,
     limit: int | None = 5,
     max_price: float | None = None,
+    on_stage: StageCallback | None = None,
 ) -> list[dict[str, Any]]:
     """Return up to `limit` chase cards for a name, ranked by market price.
 
@@ -356,7 +398,14 @@ def find_top_cards(
     results when there are enough cheap variants in the pool. The per-query
     bounds (`q.price_min` / `q.price_max`) are AND-combined with `max_price`,
     so an inline `>= $20` on the line excludes cheap fillers and inline
-    `<= $50` further tightens the global cap."""
+    `<= $50` further tightens the global cap.
+
+    `on_stage`, when provided, is called with `looking_up` before the upstream
+    searches and `pricing` before the pool is ranked, so the web UI can show
+    per-line progress for bulk (`top:N` / `All <set>`) queries."""
+    if on_stage is not None:
+        on_stage("looking_up")
+
     cleaned = strip_noise(q.name) or q.name
     seen_ids: set[str] = set()
     pool: list[dict[str, Any]] = []
@@ -524,6 +573,9 @@ def find_top_cards(
     effective_min = q.price_min
     effective_min_exclusive = q.price_min_exclusive
 
+    if on_stage is not None:
+        on_stage("pricing")
+
     enriched: list[tuple[float, dict[str, Any]]] = []
     for card in pool:
         pricing = extract_pricing(card, q.variant_hint)
@@ -658,4 +710,102 @@ def warm_concepts(
         names_attempted=total,
         names_warmed=warmed,
         names_failed=failed,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Set-cards warming — walk every set and prime the API cache for each one's
+# card list, so the SPA's Browse → set-detail path becomes a true cache hit
+# on first pick instead of a multi-second upstream round trip.
+#
+# This MUST mirror the query shape `api/routes/sets.py:_fetch_set_cards`
+# issues — `client.search_all(f'set.id:"<id>"')` — or the cache keys won't
+# line up and the user-facing endpoint will still fan out to upstream.
+# The pokemontcg.io free tier rate-limits at 30 rpm; with ~170 sets at
+# ~3 pages each, a full warm is a multi-minute background job.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class WarmSetCardsResult:
+    """Outcome of a `warm_set_cards` run.
+
+    `sets_attempted` is the count of set ids walked (after any explicit
+    filter). `sets_warmed` counts the sets where pokemontcg.io returned
+    at least one card and we therefore wrote through to the disk cache.
+    `sets_failed` lists the set ids where the search returned zero
+    results — useful for the operator to spot ids that have been
+    retired upstream or typo'd in a manual `--set` flag."""
+
+    sets_attempted: int
+    sets_warmed: int
+    sets_failed: list[str] = field(default_factory=list)
+
+
+def fetch_set_ids(pkmn: TCGClient) -> list[str]:
+    """Return every Pokémon TCG set id from pokemontcg.io, oldest → newest.
+
+    Single-call helper used by `warm_set_cards` so the warmer doesn't have
+    to know about FastAPI's catalog endpoint. We deliberately don't go
+    through the API response disk cache here — the warmer is what
+    populates that cache, and a 7-day-old set list would mean newly
+    released sets quietly miss the warm pass for up to a week. Set ids
+    are short (~5 KB total for ~170 sets), so re-fetching every warm pass
+    is negligible cost.
+
+    Raises `requests.RequestException` on transport failure; callers
+    surface that as a user-visible error rather than silently warming
+    against an empty list."""
+    from .sources.pokemontcg import API_BASE
+
+    url = f"{API_BASE}/sets?orderBy=releaseDate&pageSize=250"
+    resp = pkmn.session.get(url, timeout=30)
+    resp.raise_for_status()
+    return [s["id"] for s in resp.json().get("data", []) if s.get("id")]
+
+
+def warm_set_cards(
+    pkmn: TCGClient,
+    *,
+    set_ids: list[str] | None = None,
+    on_progress: Callable[[int, int, str], None] | None = None,
+) -> WarmSetCardsResult:
+    """Pre-prime the API disk cache for every set's card list.
+
+    `set_ids`, when provided, restricts the walk to that subset — handy
+    for the CLI's `--set` flag to warm a single set on demand. When
+    None (the default), the full Pokémon TCG catalog is fetched via
+    `fetch_set_ids` and every id is walked.
+
+    Each set fires exactly `pkmn.search_all(f'set.id:"{set_id}"')` — the
+    same query `api/routes/sets.py:_fetch_set_cards` issues. The disk
+    cache key (a sha1 of the request URL) is derived deep inside
+    `TCGClient._fetch_page`, so as long as the query strings match, the
+    keys line up and the user-facing endpoint becomes a cache hit on
+    first request.
+
+    `on_progress`, when provided, is invoked once per set with
+    `(index, total, set_id)` so callers can render a progress bar.
+
+    Returns a `WarmSetCardsResult` so the CLI / API can render a summary
+    and write the on-disk manifest that `pkmn cache stats` reports
+    against."""
+    ids = set_ids if set_ids is not None else fetch_set_ids(pkmn)
+    total = len(ids)
+    warmed = 0
+    failed: list[str] = []
+    for index, set_id in enumerate(ids, start=1):
+        if on_progress is not None:
+            on_progress(index, total, set_id)
+        # MUST mirror `_fetch_set_cards` so the disk-cache key lines up.
+        query = f'set.id:"{set_id}"'
+        results = pkmn.search_all(query)
+        if results:
+            warmed += 1
+        else:
+            failed.append(set_id)
+    return WarmSetCardsResult(
+        sets_attempted=total,
+        sets_warmed=warmed,
+        sets_failed=failed,
     )

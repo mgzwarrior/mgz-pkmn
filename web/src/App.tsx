@@ -12,7 +12,9 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
+import { Library } from 'lucide-react'
 import { bulkLookup, lookupLine } from './api/client'
+import { BrowseModal } from './components/BrowseModal'
 import { InputEditor } from './components/InputEditor'
 import { RecentRuns } from './components/RecentRuns'
 import { ResultsTable } from './components/ResultsTable'
@@ -20,6 +22,7 @@ import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { HelpModal } from './components/HelpModal'
+import { WhatsNewModal } from './components/WhatsNewModal'
 import { Tour } from './components/Tour'
 import { useAppStore } from './store'
 import type { BulkEvent } from './types'
@@ -36,6 +39,7 @@ function App() {
     setProgress,
     setProcessingLines,
     markLineStatus,
+    updateLineStage,
     setRunStartedAt,
     setRunEndedAt,
     pushRecentRun,
@@ -43,6 +47,7 @@ function App() {
 
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
+  const [browseOpen, setBrowseOpen] = useState(false)
 
   // Easter egg: 5 clicks on the brand reveals Exeggutor + claim code
   // EGG-EXEGGCUTE (referencing the six-egg pre-evolution). Reset on
@@ -86,13 +91,21 @@ function App() {
     let firstEventSeen = false
 
     function onEvent(event: BulkEvent) {
-      if (event.done) return
+      if ('done' in event && event.done) return
       if (!firstEventSeen) {
         firstEventSeen = true
         setRunStartedAt(Date.now())
       }
 
-      // First event for this input line transitions it out of "pending".
+      // Record the latest stage for the line either way — both progress
+      // frames and the terminal row frame carry one.
+      updateLineStage(event.index, event.stage)
+
+      // Progress-only frame (no row payload): the line advanced a stage but
+      // hasn't resolved yet, so don't append a result or flip its status.
+      if (!('matched' in event)) return
+
+      // First row event for this input line transitions it out of "pending".
       // Subsequent events (top:N expansions) leave the status alone.
       markLineStatus(event.index, event.matched ? 'resolved' : 'error')
 
@@ -144,6 +157,7 @@ function App() {
     setProgress,
     setProcessingLines,
     markLineStatus,
+    updateLineStage,
     setRunStartedAt,
     setRunEndedAt,
     pushRecentRun,
@@ -184,9 +198,21 @@ function App() {
             <span className="text-xs text-zinc-500 hidden sm:inline">card lookup</span>
           </button>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBrowseOpen(true)}
+              className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors sm:px-3"
+              title="Browse sets"
+              aria-label="Browse sets"
+              data-tour="browse"
+            >
+              <Library size={15} />
+              <span className="hidden sm:inline">Browse</span>
+            </button>
             <div data-tour="exports">
               <ExportBar />
             </div>
+            <WhatsNewModal />
             <HelpModal onStartTour={() => setTourOpen(true)} />
             <div data-tour="settings">
               <SettingsDrawer />
@@ -221,6 +247,8 @@ function App() {
       {tourOpen && (
         <Tour onClose={() => setTourOpen(false)} onRun={handleRun} onStop={handleStop} />
       )}
+
+      <BrowseModal open={browseOpen} onOpenChange={setBrowseOpen} />
 
       {/* Easter egg overlay — see handleBrandClick. */}
       {showEgg && (

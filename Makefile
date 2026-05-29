@@ -166,6 +166,10 @@ cache-clear:  ## Wipe the on-disk cache (~/.cache/mgz-pkmn) — including URL ov
 	rm -rf $${XDG_CACHE_HOME:-$$HOME/.cache}/mgz-pkmn
 	@echo "✓ cleared $${XDG_CACHE_HOME:-$$HOME/.cache}/mgz-pkmn"
 
+.PHONY: migrate
+migrate:  ## Apply pending Alembic migrations against the configured DB (MGZ_PKMN_DATABASE_URL or the SQLite default).
+	uv run alembic -c api/alembic.ini upgrade head
+
 ## Cleanup
 
 .PHONY: clean

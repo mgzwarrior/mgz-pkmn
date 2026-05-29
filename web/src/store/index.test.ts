@@ -44,6 +44,50 @@ describe('store: processingLines', () => {
       vi.useRealTimers()
     }
   })
+
+  it('updateLineStage records the stage and stamps stageStartedAt', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_700_000_000_000)
+      useAppStore.setState({
+        processingLines: [{ line: 'Charizard', status: 'pending' }],
+      })
+      useAppStore.getState().updateLineStage(0, 'looking_up')
+      const line = useAppStore.getState().processingLines[0]
+      expect(line.stage).toBe('looking_up')
+      expect(line.stageStartedAt).toBe(1_700_000_000_000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('updateLineStage resets stageStartedAt only when the stage changes', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1000)
+      useAppStore.setState({
+        processingLines: [{ line: 'a', status: 'pending' }],
+      })
+      useAppStore.getState().updateLineStage(0, 'looking_up')
+      vi.setSystemTime(2000)
+      // Same stage again → timestamp must not move.
+      useAppStore.getState().updateLineStage(0, 'looking_up')
+      expect(useAppStore.getState().processingLines[0].stageStartedAt).toBe(1000)
+      // New stage → timestamp advances.
+      useAppStore.getState().updateLineStage(0, 'fallback')
+      expect(useAppStore.getState().processingLines[0].stageStartedAt).toBe(2000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('updateLineStage ignores out-of-range indices', () => {
+    useAppStore.setState({
+      processingLines: [{ line: 'a', status: 'pending' }],
+    })
+    useAppStore.getState().updateLineStage(99, 'looking_up')
+    expect(useAppStore.getState().processingLines[0].stage).toBeUndefined()
+  })
 })
 
 describe('store: run timestamps', () => {
@@ -137,6 +181,70 @@ describe('store: recentRuns', () => {
   })
 })
 
+describe('store: appendInputLines', () => {
+  beforeEach(() => useAppStore.setState({ inputText: '' }))
+
+  it('appends a single line to an empty editor and reports 1 added', () => {
+    const added = useAppStore.getState().appendInputLines(['Charizard | Base | 4'])
+    expect(added).toBe(1)
+    expect(useAppStore.getState().inputText).toBe('Charizard | Base | 4\n')
+  })
+
+  it('joins multiple lines with newlines and reports the total fresh count', () => {
+    const added = useAppStore
+      .getState()
+      .appendInputLines(['Pikachu | Jungle | 60', 'Squirtle | Base | 63'])
+    expect(added).toBe(2)
+    expect(useAppStore.getState().inputText).toContain('Pikachu | Jungle | 60')
+    expect(useAppStore.getState().inputText).toContain('Squirtle | Base | 63')
+  })
+
+  it('dedupes against existing input — re-adding the same line returns 0', () => {
+    useAppStore.setState({ inputText: 'Charizard | Base | 4\n' })
+    const added = useAppStore.getState().appendInputLines(['Charizard | Base | 4'])
+    expect(added).toBe(0)
+    expect(useAppStore.getState().inputText).toBe('Charizard | Base | 4\n')
+  })
+
+  it('partial dedupe — reports only the freshly-appended count', () => {
+    useAppStore.setState({ inputText: 'Pikachu | Jungle | 60\n' })
+    const added = useAppStore
+      .getState()
+      .appendInputLines([
+        'Pikachu | Jungle | 60', // dup
+        'Charizard | Base | 4', // fresh
+        'Squirtle | Base | 63', // fresh
+      ])
+    expect(added).toBe(2)
+    const lines = useAppStore.getState().inputText.trim().split('\n')
+    expect(lines).toHaveLength(3)
+  })
+
+  it('ignores empty / whitespace-only inputs without bumping the count', () => {
+    const added = useAppStore.getState().appendInputLines(['  ', '', '   '])
+    expect(added).toBe(0)
+    expect(useAppStore.getState().inputText).toBe('')
+  })
+
+  it('does not double-stamp the trailing newline when inputText already ends with \\n', () => {
+    useAppStore.setState({ inputText: 'foo\n' })
+    useAppStore.getState().appendInputLines(['bar'])
+    expect(useAppStore.getState().inputText).toBe('foo\nbar\n')
+  })
+
+  it('preserves a missing trailing newline by inserting one before the new lines', () => {
+    useAppStore.setState({ inputText: 'foo' })
+    useAppStore.getState().appendInputLines(['bar'])
+    expect(useAppStore.getState().inputText).toBe('foo\nbar\n')
+  })
+
+  it('trims whitespace on incoming lines before deduping', () => {
+    useAppStore.setState({ inputText: 'Charizard | Base | 4\n' })
+    const added = useAppStore.getState().appendInputLines(['  Charizard | Base | 4  '])
+    expect(added).toBe(0)
+  })
+})
+
 describe('store: settings.showTimer', () => {
   afterEach(() => {
     useAppStore.getState().resetSettings()
@@ -152,5 +260,18 @@ describe('store: settings.showTimer', () => {
     useAppStore.getState().updateSettings({ showTimer: true })
     useAppStore.getState().resetSettings()
     expect(useAppStore.getState().settings.showTimer).toBe(false)
+  })
+})
+
+describe('store: lastSeenChangelogVersion', () => {
+  beforeEach(() => useAppStore.setState({ lastSeenChangelogVersion: null }))
+
+  it('defaults to null', () => {
+    expect(useAppStore.getState().lastSeenChangelogVersion).toBeNull()
+  })
+
+  it('setLastSeenChangelogVersion records the version', () => {
+    useAppStore.getState().setLastSeenChangelogVersion('1.1.1')
+    expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1')
   })
 })

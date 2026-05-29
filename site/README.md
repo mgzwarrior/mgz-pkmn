@@ -49,6 +49,28 @@ site/
 
 Pure static output. No SSR, no runtime, no API routes.
 
+## Build-time data
+
+Two surfaces pull live data at **build time** (baked into the static HTML,
+so the shipped site stays client-side-free). Both degrade gracefully — if
+the upstream is unreachable, the helper returns empty and the section is
+omitted rather than failing the build:
+
+- **`/contribute` OSS signals** — GitHub API via
+  [`src/lib/github.ts`](src/lib/github.ts). Set `GITHUB_TOKEN` in the build
+  env to avoid the anonymous rate limit.
+- **"Recently shipped" release notes + hero version pill** — the demo
+  API's `GET /api/v1/changelog` via
+  [`src/lib/changelog.ts`](src/lib/changelog.ts). This is the single
+  source of truth shared with the demo SPA; the endpoint parses the repo's
+  `CHANGELOG.md` (see `api/routes/changelog.py`), so release copy is never
+  hand-edited on the site. Override the API origin with `MGZ_PKMN_API_BASE`
+  (default: the public demo) — useful for building against a local API:
+
+  ```bash
+  MGZ_PKMN_API_BASE=http://localhost:8000 npm run build
+  ```
+
 ## Deploying to Cloudflare Pages
 
 The site builds and deploys automatically once the Cloudflare Pages
@@ -90,3 +112,66 @@ in `README.md`, `CITATION.cff`, and `pyproject.toml`.
 `assets/logo.svg` and `assets/social-preview.png` at the repo root.
 Astro's static asset pipeline prefers files inside the site root, so
 the duplication is intentional. If the logo changes, copy it forward.
+
+### Hero binder grid (`public/cards/*.webp`)
+
+The hero backdrop is a 3×3 tilted grid of real Pokémon TCG card
+thumbnails. The source images live in `output/images/` (downloaded
+by `pkmn lookup` from pokemontcg.io). To refresh or swap the curated
+set, copy the desired card images, resize to ~360 px wide, and
+convert to WebP:
+
+```bash
+for f in <chosen-files>; do
+  cp "output/images/$f.png" "site/public/cards/$f.png"
+done
+cd site/public/cards
+sips --resampleWidth 360 *.png -o .
+for f in *.png; do cwebp -q 80 "$f" -o "${f%.png}.webp"; done
+rm *.png
+```
+
+Update the `binderCards` array in
+[`src/components/Hero.astro`](src/components/Hero.astro) to match the
+new filenames + alt text.
+
+### "What you get" gallery (`public/screenshots/*.webp`)
+
+The OutputGallery section shows previews of the tracked sample
+deliverables in `output/`. Regenerate them with:
+
+```bash
+./site/scripts/refresh-screenshots.sh
+```
+
+Requirements: `brew install poppler webp uv`.
+
+The script handles each output via the cleanest available path:
+
+- **binder.pdf / checklist.pdf**: `pdftoppm` renders page 1 to PNG;
+  `cwebp` re-encodes at quality 82.
+- **cards.xlsx**: composed by
+  [`render_xlsx_preview.py`](scripts/render_xlsx_preview.py) directly
+  from `output/summary.json` plus thumbnails in `output/images/`.
+  LibreOffice headless can't render the xlsx writer's embedded image
+  references, so a custom Pillow composer renders a faithful
+  spreadsheet-style preview instead. Lives in the project's `uv` env
+  for the Pillow dep.
+
+Re-run after any `make refresh-examples` change.
+
+### Asciinema cast (`public/casts/lookup-demo.cast`)
+
+The hero embeds an [asciinema](https://asciinema.org/) cast of a real
+`pkmn lookup` against `sample_cards.txt`. Player CSS/JS are vendored
+in `public/vendor/asciinema-player.*`. To re-record after CLI output
+changes:
+
+```bash
+./site/scripts/record-cast.sh
+```
+
+Requirements: `brew install asciinema` and the `pkmn` CLI on PATH
+(`make install` from repo root). Set `POKEMONTCG_IO_API_KEY` to avoid
+the anonymous-tier rate limit. The cast is overwritten in place —
+commit the diff if it changed.

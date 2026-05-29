@@ -55,12 +55,52 @@ export interface Row {
   reason: string
 }
 
-/** SSE event payload emitted by POST /api/v1/bulk. */
-export interface BulkEvent extends Row {
+/**
+ * One stage in the per-line lookup pipeline, surfaced by the bulk SSE
+ * stream. Mirrors `mgz_pkmn.lookup.LOOKUP_STAGES`. The first five are
+ * intermediate (the line is still in flight); the last three are terminal.
+ * `image` is part of the shared vocabulary (the CLI downloads thumbnails)
+ * but the web app runs image-free, so it never arrives over the wire here.
+ */
+export type Stage =
+  | 'parsed'
+  | 'url_hint'
+  | 'looking_up'
+  | 'fallback'
+  | 'pricing'
+  | 'image'
+  | 'resolved'
+  | 'no_match'
+  | 'error'
+
+/**
+ * A progress-only SSE frame: the line moved to a new stage but hasn't
+ * resolved yet. Distinguished from a row event by the absence of `query` /
+ * `matched`.
+ */
+export interface StageEvent {
   index: number
   total: number
-  done?: boolean
+  stage: Stage
 }
+
+/** A resolved-row SSE frame — a full {@link Row} plus its terminal stage. */
+export interface RowEvent extends Row {
+  index: number
+  total: number
+  stage: Stage
+  done?: false
+}
+
+/** The single terminating SSE frame emitted once all lines are done. */
+export interface DoneEvent {
+  index?: undefined
+  total: number
+  done: true
+}
+
+/** Any frame emitted by POST /api/v1/bulk. */
+export type BulkEvent = StageEvent | RowEvent | DoneEvent
 
 /** Sort modes accepted by the API (must mirror mgz_pkmn.sorting.SORT_MODES). */
 export type SortMode =
@@ -90,11 +130,23 @@ export interface ProcessingLine {
   line: string
   status: 'pending' | 'resolved' | 'error'
   /**
+   * The most recent pipeline stage reported for this line. Drives the
+   * color-coded chip. `undefined` until the first stage frame arrives
+   * (briefly, before the `parsed` frame).
+   */
+  stage?: Stage
+  /**
+   * Wall-clock ms (Date.now()) when the line entered its current
+   * `stage`. Used to render the per-stage elapsed time in the chip
+   * tooltip.
+   */
+  stageStartedAt?: number
+  /**
    * Wall-clock ms (Date.now()) when the line transitioned out of
-   * `pending` — i.e. when its first SSE event arrived. The status at
-   * that point is either `resolved` or `error`; either way the elapsed
-   * badge represents the time between the run starting and the line
-   * leaving the queue.
+   * `pending` — i.e. when its first terminal (row) event arrived. The
+   * status at that point is either `resolved` or `error`; either way the
+   * elapsed badge represents the time between the run starting and the
+   * line leaving the queue.
    */
   endedAt?: number
 }
@@ -105,6 +157,47 @@ export interface SetInfo {
   series: string
   total: number
   releaseDate: string
+}
+
+/**
+ * One trimmed card returned by `GET /api/v1/sets/{set_id}/cards`.
+ *
+ * Intentionally narrower than the full `CardData` blob — Browse only
+ * needs enough to render a grid row, filter by rarity/subtype, and
+ * synthesise an "add to list" line. The trim happens server-side so
+ * every Browse open ships kilobytes instead of hundreds-of-kilobytes
+ * over the wire.
+ */
+export interface SetCard {
+  id: string
+  name: string
+  number: string
+  rarity: string | null
+  supertype: string | null
+  subtypes: string[]
+  thumb: string | null
+  market: number | null
+}
+
+/**
+ * One section within a release (Added / Changed / Fixed / …) as returned
+ * by `GET /api/v1/changelog`. Bullet `entries` are raw Markdown — the
+ * renderer formats inline links and code spans.
+ */
+export interface ChangelogSection {
+  name: string
+  entries: string[]
+}
+
+/**
+ * One release block from `GET /api/v1/changelog`. The endpoint omits the
+ * in-flight Unreleased section by default, so every release here is
+ * shipped and carries a `date`.
+ */
+export interface ChangelogRelease {
+  version: string
+  date: string | null
+  sections: ChangelogSection[]
 }
 
 /**

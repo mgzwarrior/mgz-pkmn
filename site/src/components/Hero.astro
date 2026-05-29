@@ -1,6 +1,28 @@
 ---
+import { fetchLatestVersion } from "../lib/changelog.ts";
+
 const demoUrl = "https://mgz-pkmn.onrender.com";
 const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
+
+// Latest shipped version, pulled at build time from the changelog API so
+// the "Now shipping" pill never drifts. Falls back to hiding the version
+// number (just "Now shipping") if the API is unreachable at build time.
+const latestVersion = await fetchLatestVersion();
+
+// Nine real Pokémon TCG cards arranged as a tilted 3×3 binder page.
+// Same public image sources the CLI consumes; copies live in
+// site/public/cards/ to keep first-paint local.
+const binderCards = [
+  { src: "/cards/base1-4.webp", alt: "Charizard, Base Set 4/102" },
+  { src: "/cards/gym2-2.webp", alt: "Blaine's Charizard, Gym Challenge 2/132" },
+  { src: "/cards/ex15-100.webp", alt: "Charizard ★ δ, Dragon Frontiers 100/101" },
+  { src: "/cards/base1-2.webp", alt: "Blastoise, Base Set 2/102" },
+  { src: "/cards/sv8-1.webp", alt: "Exeggcute, Surging Sparks 1/191" },
+  { src: "/cards/ru1-7.webp", alt: "Pikachu, Pokémon Rumble 7/16" },
+  { src: "/cards/pop5-16.webp", alt: "Espeon ★, POP Series 5 16/17" },
+  { src: "/cards/ecard3-H30.webp", alt: "Umbreon, Skyridge H30/H32" },
+  { src: "/cards/ecard3-H31.webp", alt: "Vaporeon, Skyridge H31/H32" },
+];
 ---
 
 <section
@@ -8,29 +30,44 @@ const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
 >
   <div
     aria-hidden="true"
-    class="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]"
+    class="pointer-events-none absolute inset-0 z-0 hidden sm:flex items-center justify-center"
+    style="mask-image: radial-gradient(ellipse at center, black 22%, transparent 68%); -webkit-mask-image: radial-gradient(ellipse at center, black 22%, transparent 68%);"
   >
     <div
-      class="absolute inset-x-0 top-0 mx-auto h-[40rem] w-[40rem] -translate-y-1/3 rounded-full bg-sun-200/35 dark:bg-blue-600/15 blur-3xl"
+      class="grid grid-cols-3 gap-2 sm:gap-3 w-[36rem] lg:w-[46rem]"
+      style="opacity: 0.4; transform: rotate(-6deg) skewY(-3deg);"
     >
+      {
+        binderCards.map((card) => (
+          <img
+            src={card.src}
+            alt=""
+            loading="eager"
+            decoding="async"
+            class="w-full aspect-[2.5/3.5] rounded-md shadow-lg shadow-black/40 ring-1 ring-white/10"
+          />
+        ))
+      }
     </div>
   </div>
 
-  <div class="mx-auto max-w-4xl text-center">
+  <div class="relative z-10 mx-auto max-w-4xl text-center">
     <p
-      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 px-3 py-1 text-xs font-medium text-coconut-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300"
+      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 backdrop-blur px-3 py-1 text-xs font-medium text-coconut-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300"
     >
       <span class="h-1.5 w-1.5 rounded-full bg-palm-400 dark:bg-blue-400"></span>
-      Now shipping 1.1.1
+      {latestVersion ? `Now shipping ${latestVersion}` : "Now shipping"}
     </p>
 
     <h1
-      class="mt-6 text-4xl sm:text-6xl font-bold tracking-tight text-coconut-700 dark:text-white text-balance"
+      class="mt-6 text-4xl sm:text-6xl font-bold tracking-tight text-coconut-700 dark:text-white dark:[text-shadow:0_2px_8px_rgba(0,0,0,0.7)] text-balance"
     >
       Walk into your next card show with a plan, not a hope.
     </h1>
 
-    <p class="mt-6 text-lg sm:text-xl text-coconut-500 dark:text-zinc-300 text-balance max-w-2xl mx-auto">
+    <p
+      class="mt-6 text-lg sm:text-xl text-coconut-500 dark:text-zinc-300 dark:[text-shadow:0_1px_3px_rgba(0,0,0,0.6)] text-balance max-w-2xl mx-auto"
+    >
       <strong class="text-coconut-700 dark:text-white">mgz-pkmn</strong> turns a list of cards you want into a
       printable binder with thumbnails, market prices, and your negotiation floor. Built
       for collectors who'd rather show up informed than wing it on convention center
@@ -60,25 +97,77 @@ const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
       </a>
       <a
         href={repoUrl}
-        class="inline-flex items-center gap-2 rounded-md border border-sand-300 bg-sand-100 px-5 py-3 text-sm font-semibold text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:hover:border-zinc-700 transition"
+        class="inline-flex items-center gap-2 rounded-md border border-sand-300 bg-sand-100 backdrop-blur px-5 py-3 text-sm font-semibold text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:hover:border-zinc-700 transition"
       >
         View on GitHub
       </a>
     </div>
   </div>
 
-  <div class="mx-auto mt-16 max-w-3xl">
-    <pre
-      class="overflow-x-auto rounded-lg border border-sand-300 bg-sand-50 p-5 text-sm text-coconut-600 font-mono shadow-md dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-200 dark:shadow-none"><code><span class="text-sand-500 dark:text-zinc-500"># 1. Write your want-list</span>
-<span class="text-coconut-500 dark:text-zinc-300">$ cat input/wants.txt</span>
+  <div class="relative z-10 mx-auto mt-16 max-w-3xl">
+    <div
+      id="asciinema-player"
+      data-cast-src="/casts/lookup-demo.cast"
+      class="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950/80 shadow-2xl shadow-black/40"
+    >
+      <noscript>
+        <pre
+          class="overflow-x-auto p-5 text-sm text-zinc-200 font-mono"><code><span class="text-zinc-500"># 1. Write your want-list</span>
+<span class="text-zinc-300">$ cat input/wants.txt</span>
 top 5 Mew cards under $50
 all Charizard cards | japanese
 rest of Surging Sparks
 
-<span class="text-sand-500 dark:text-zinc-500"># 2. Run the tool</span>
-<span class="text-coconut-500 dark:text-zinc-300">$ pkmn lookup input/ -o output/cards.xlsx \
+<span class="text-zinc-500"># 2. Run the tool</span>
+<span class="text-zinc-300">$ pkmn lookup input/ -o output/cards.xlsx \
     --pdf output/binder.pdf --checklist output/checklist.pdf</span>
 
-<span class="text-palm-500 dark:text-blue-400">→ output/cards.xlsx, binder.pdf, checklist.pdf</span></code></pre>
+<span class="text-brand-400">→ output/cards.xlsx, binder.pdf, checklist.pdf</span></code></pre>
+      </noscript>
+    </div>
   </div>
+
+  <link rel="stylesheet" href="/vendor/asciinema-player.css" />
+  <script src="/vendor/asciinema-player.min.js" is:inline></script>
+  <script is:inline>
+    // Boot the asciinema-player once both the DOM and the player module
+    // are ready. The container's `data-cast-src` is the single source of
+    // truth so future cast swaps need no JS edit.
+    (function () {
+      function init() {
+        if (!window.AsciinemaPlayer) {
+          // Player module hasn't loaded yet — retry shortly.
+          setTimeout(init, 50);
+          return;
+        }
+        var container = document.getElementById("asciinema-player");
+        if (!container || container.dataset.booted === "1") return;
+        container.dataset.booted = "1";
+        // Clear the <noscript> fallback before booting.
+        container.innerHTML = "";
+        // Remember scroll position — the player auto-focuses its
+        // wrapper on create, which the browser then scrolls into
+        // view. Snap back so the landing page doesn't jump 700+ px
+        // down on first paint.
+        var prevScrollY = window.scrollY;
+        window.AsciinemaPlayer.create(container.dataset.castSrc, container, {
+          autoPlay: false,
+          loop: false,
+          idleTimeLimit: 2,
+          theme: "asciinema",
+          poster: "npt:0:02",
+          fit: "width",
+        });
+        if (document.activeElement && container.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+        window.scrollTo(0, prevScrollY);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
 </section>

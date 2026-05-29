@@ -6,7 +6,17 @@
  * origin as the API.
  */
 
-import type { BulkEvent, CardQuery, ExportFormat, Row, SetInfo, Settings, SortMode } from '../types'
+import type {
+  BulkEvent,
+  CardQuery,
+  ChangelogRelease,
+  ExportFormat,
+  Row,
+  SetCard,
+  SetInfo,
+  Settings,
+  SortMode,
+} from '../types'
 
 const BASE = '/api/v1'
 
@@ -259,6 +269,28 @@ export async function fetchSets(apiKey?: string): Promise<SetInfo[]> {
   return data.sets as SetInfo[]
 }
 
+/**
+ * Fetch the trimmed card list for one set. The response is browser-cacheable
+ * for a day (via the backend's `Cache-Control`) so repeated opens of the
+ * same set in the Browse modal don't round-trip the server.
+ */
+export async function fetchSetCards(setId: string, apiKey?: string): Promise<SetCard[]> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/sets/${encodeURIComponent(setId)}/cards${params}`)
+  if (!res.ok) {
+    let detail = `set cards failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  const data = await res.json()
+  return data.cards as SetCard[]
+}
+
 // ---------------------------------------------------------------------------
 // overrides
 // ---------------------------------------------------------------------------
@@ -270,4 +302,22 @@ export async function addOverride(name: string, set: string | null, url: string)
     body: JSON.stringify({ name, set, url }),
   })
   if (!res.ok) throw new Error(`override failed: ${res.status}`)
+}
+
+// ---------------------------------------------------------------------------
+// changelog
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch parsed release notes (newest first) from the shared
+ * `GET /api/v1/changelog` endpoint — the same source the marketing site
+ * reads. The in-flight Unreleased section is omitted by the backend, so
+ * every release returned is shipped. Response is browser-cacheable for an
+ * hour via the backend's `Cache-Control`.
+ */
+export async function fetchChangelog(limit = 5): Promise<ChangelogRelease[]> {
+  const res = await fetch(`${BASE}/changelog?limit=${limit}`)
+  if (!res.ok) throw new Error(`changelog failed: ${res.status}`)
+  const data = await res.json()
+  return data.releases as ChangelogRelease[]
 }

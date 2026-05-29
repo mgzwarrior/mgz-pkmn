@@ -1,6 +1,16 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { ProcessingQueue } from './ProcessingQueue'
+
+const baseSettings = {
+  apiKey: '',
+  maxPrice: null,
+  noImages: true,
+  tag: '',
+  dedupe: false,
+  sort: 'number' as const,
+  showTimer: false,
+}
 
 const { mockState } = vi.hoisted(() => ({
   mockState: {
@@ -8,7 +18,7 @@ const { mockState } = vi.hoisted(() => ({
       { line: 'Charizard | Base Set | 4', status: 'resolved' as const, endedAt: 1500 },
       { line: 'Pikachu | Jungle', status: 'error' as const, endedAt: 1800 },
       { line: 'top:5 Mew ex', status: 'pending' as const },
-    ],
+    ] as Array<Record<string, unknown>>,
     isRunning: true,
     runStartedAt: 1000,
     settings: {
@@ -62,5 +72,60 @@ describe('ProcessingQueue', () => {
     expect(screen.getByLabelText('Finished in 500 milliseconds')).toBeInTheDocument()
     expect(screen.getByLabelText('Finished in 800 milliseconds')).toBeInTheDocument()
     expect(screen.queryByLabelText(/Resolved in/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ProcessingQueue stage chips', () => {
+  beforeEach(() => {
+    mockState.settings = { ...baseSettings }
+    mockState.processingLines = [
+      { line: 'Charizard | Base Set | 4', status: 'pending', stage: 'looking_up', stageStartedAt: 1000 },
+      { line: 'Mew', status: 'pending', stage: 'fallback', stageStartedAt: 1000 },
+      { line: 'Lugia', status: 'resolved', stage: 'resolved', stageStartedAt: 1400, endedAt: 1500 },
+      { line: 'Ditto', status: 'error', stage: 'no_match', stageStartedAt: 1700, endedAt: 1800 },
+    ]
+  })
+
+  it('renders the stage label for each line', () => {
+    render(<ProcessingQueue />)
+    expect(screen.getAllByText('Looking up').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Fallback').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Resolved').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('No match').length).toBeGreaterThan(0)
+  })
+
+  it('applies the matching color class to the stage label', () => {
+    render(<ProcessingQueue />)
+    // The looking_up line's label is rendered in blue (the chip uses the
+    // stage color class on its own <span>, not the legend swatch).
+    const lookingUp = screen
+      .getAllByText('Looking up')
+      .find((el) => el.tagName === 'SPAN' && el.className.includes('text-blue-400'))
+    expect(lookingUp).toBeDefined()
+    const noMatch = screen
+      .getAllByText('No match')
+      .find((el) => el.className.includes('text-amber-400'))
+    expect(noMatch).toBeDefined()
+  })
+
+  it('exposes per-stage elapsed time via the row tooltip for finished lines', () => {
+    render(<ProcessingQueue />)
+    // Lugia spent 1500 - 1400 = 100ms in the resolved stage.
+    expect(screen.getByTitle('Resolved · 100ms')).toBeInTheDocument()
+    // Ditto spent 1800 - 1700 = 100ms in the no_match stage.
+    expect(screen.getByTitle('No match · 100ms')).toBeInTheDocument()
+  })
+
+  it('legend is collapsed by default and toggles open from the header', () => {
+    render(<ProcessingQueue />)
+    const toggle = screen.getByRole('button', { name: /legend/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    // Collapsed: the unique terminal labels (URL hint) aren't shown twice.
+    expect(screen.queryByText('URL hint')).not.toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    // Open: the legend lists every stage, including ones no line is in.
+    expect(screen.getByText('URL hint')).toBeInTheDocument()
+    expect(screen.getByText('Pricing')).toBeInTheDocument()
   })
 })

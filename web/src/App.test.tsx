@@ -37,6 +37,8 @@ vi.mock('./api/client', () => ({
   setLogoUrl: vi.fn(() => ''),
   dedupeRows: vi.fn((rows: unknown[]) => rows),
   addOverride: vi.fn(),
+  // Referenced by the WhatsNewModal mounted in the header.
+  fetchChangelog: vi.fn(() => Promise.resolve([])),
 }))
 
 function makeEvent(index: number, total: number, matched = true): BulkEvent {
@@ -45,6 +47,7 @@ function makeEvent(index: number, total: number, matched = true): BulkEvent {
     total,
     matched,
     reason: matched ? '' : 'no match',
+    stage: matched ? 'resolved' : 'no_match',
     tag: '',
     query: {
       raw: `q${index}`,
