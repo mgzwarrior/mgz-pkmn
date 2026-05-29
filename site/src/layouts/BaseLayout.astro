@@ -16,10 +16,25 @@ const ogImage = new URL("/social-preview-tropical.png", Astro.site).toString();
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline>
+      // Resolve the theme before first paint to avoid a flash. A saved choice
+      // wins; otherwise follow the OS preference, defaulting to dark.
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var theme = stored
+            ? stored
+            : window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark";
+          document.documentElement.classList.toggle("dark", theme !== "light");
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon-tropical.svg" />
     <link rel="canonical" href={canonical} />
     <title>{title}</title>
@@ -39,7 +54,7 @@ const ogImage = new URL("/social-preview-tropical.png", Astro.site).toString();
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
   </head>
-  <body class="bg-sand-50 text-coconut-700">
+  <body class="bg-sand-50 text-coconut-700 dark:bg-zinc-950 dark:text-zinc-100">
     <slot />
   </body>
 </html>

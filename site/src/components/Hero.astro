@@ -4,34 +4,34 @@ const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
 ---
 
 <section
-  class="relative overflow-hidden border-b border-sand-300 px-6 py-20 sm:py-28"
+  class="relative overflow-hidden border-b border-sand-300 dark:border-zinc-900/80 px-6 py-20 sm:py-28"
 >
   <div
     aria-hidden="true"
     class="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]"
   >
     <div
-      class="absolute inset-x-0 top-0 mx-auto h-[40rem] w-[40rem] -translate-y-1/3 rounded-full bg-sun-200/35 blur-3xl"
+      class="absolute inset-x-0 top-0 mx-auto h-[40rem] w-[40rem] -translate-y-1/3 rounded-full bg-sun-200/35 dark:bg-blue-600/15 blur-3xl"
     >
     </div>
   </div>
 
   <div class="mx-auto max-w-4xl text-center">
     <p
-      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 px-3 py-1 text-xs font-medium text-coconut-500"
+      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 px-3 py-1 text-xs font-medium text-coconut-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300"
     >
-      <span class="h-1.5 w-1.5 rounded-full bg-palm-400"></span>
+      <span class="h-1.5 w-1.5 rounded-full bg-palm-400 dark:bg-blue-400"></span>
       Now shipping 1.1.1
     </p>
 
     <h1
-      class="mt-6 text-4xl sm:text-6xl font-bold tracking-tight text-coconut-700 text-balance"
+      class="mt-6 text-4xl sm:text-6xl font-bold tracking-tight text-coconut-700 dark:text-white text-balance"
     >
       Walk into your next card show with a plan, not a hope.
     </h1>
 
-    <p class="mt-6 text-lg sm:text-xl text-coconut-500 text-balance max-w-2xl mx-auto">
-      <strong class="text-coconut-700">mgz-pkmn</strong> turns a list of cards you want into a
+    <p class="mt-6 text-lg sm:text-xl text-coconut-500 dark:text-zinc-300 text-balance max-w-2xl mx-auto">
+      <strong class="text-coconut-700 dark:text-white">mgz-pkmn</strong> turns a list of cards you want into a
       printable binder with thumbnails, market prices, and your negotiation floor. Built
       for collectors who'd rather show up informed than wing it on convention center
       Wi-Fi.
@@ -40,7 +40,7 @@ const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
     <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
       <a
         href={demoUrl}
-        class="inline-flex items-center gap-2 rounded-md bg-sun-300 px-5 py-3 text-sm font-semibold text-coconut-700 shadow-md hover:bg-sun-400 transition"
+        class="inline-flex items-center gap-2 rounded-md bg-sun-300 px-5 py-3 text-sm font-semibold text-coconut-700 shadow-md hover:bg-sun-400 dark:bg-blue-500 dark:text-white dark:shadow-lg dark:shadow-blue-500/20 dark:hover:bg-blue-400 transition"
       >
         Try the live demo
         <svg
@@ -60,7 +60,7 @@ const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
       </a>
       <a
         href={repoUrl}
-        class="inline-flex items-center gap-2 rounded-md border border-sand-300 bg-sand-100 px-5 py-3 text-sm font-semibold text-coconut-700 hover:bg-sand-200 hover:border-sand-400 transition"
+        class="inline-flex items-center gap-2 rounded-md border border-sand-300 bg-sand-100 px-5 py-3 text-sm font-semibold text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:hover:border-zinc-700 transition"
       >
         View on GitHub
       </a>
@@ -69,16 +69,16 @@ const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
 
   <div class="mx-auto mt-16 max-w-3xl">
     <pre
-      class="overflow-x-auto rounded-lg border border-sand-300 bg-sand-50 p-5 text-sm text-coconut-600 font-mono shadow-md"><code><span class="text-sand-500"># 1. Write your want-list</span>
-<span class="text-coconut-500">$ cat input/wants.txt</span>
+      class="overflow-x-auto rounded-lg border border-sand-300 bg-sand-50 p-5 text-sm text-coconut-600 font-mono shadow-md dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-200 dark:shadow-none"><code><span class="text-sand-500 dark:text-zinc-500"># 1. Write your want-list</span>
+<span class="text-coconut-500 dark:text-zinc-300">$ cat input/wants.txt</span>
 top 5 Mew cards under $50
 all Charizard cards | japanese
 rest of Surging Sparks
 
-<span class="text-sand-500"># 2. Run the tool</span>
-<span class="text-coconut-500">$ pkmn lookup input/ -o output/cards.xlsx \
+<span class="text-sand-500 dark:text-zinc-500"># 2. Run the tool</span>
+<span class="text-coconut-500 dark:text-zinc-300">$ pkmn lookup input/ -o output/cards.xlsx \
     --pdf output/binder.pdf --checklist output/checklist.pdf</span>
 
-<span class="text-palm-500">→ output/cards.xlsx, binder.pdf, checklist.pdf</span></code></pre>
+<span class="text-palm-500 dark:text-blue-400">→ output/cards.xlsx, binder.pdf, checklist.pdf</span></code></pre>
   </div>
 </section>

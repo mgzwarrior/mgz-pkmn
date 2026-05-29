@@ -16,6 +16,11 @@
    at site/public/fonts/*.woff2. */
 @import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;700&display=swap");
 
+/* Dark mode is class-driven (`.dark` on <html>), not the default
+   prefers-color-scheme media query — an inline script in BaseLayout sets the
+   class before paint so the choice persists and follows the OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* ---------- Color palette ---------- */
 
@@ -78,14 +83,6 @@
   --color-ember-500: #A84A2F;
   --color-ember-600: #7D331E;
 
-  /* Brand aliases — keep existing `bg-brand-*` classes working
-     during the cutover. Map them onto sun. Remove once swept. */
-  --color-brand-50:  var(--color-sun-50);
-  --color-brand-400: var(--color-sun-300);
-  --color-brand-500: var(--color-sun-300);
-  --color-brand-600: var(--color-sun-400);
-  --color-brand-700: var(--color-sun-500);
-
   /* ---------- Type ---------- */
   --font-display:
     "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system,
@@ -114,8 +111,17 @@
 }
 
 /* ---------- Base body styles ---------- */
+/* Dark is the default (the original palette); the tropical light theme is
+   opt-in via removing `.dark`. Keeping these in sync with the body's
+   light/dark surface utilities avoids a flash of the wrong surface before
+   paint. */
 html {
   scroll-behavior: smooth;
+  background-color: #09090b;
+  color-scheme: dark;
+}
+
+html:not(.dark) {
   background-color: #FBF6E8;
   color-scheme: light;
 }
