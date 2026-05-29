@@ -36,7 +36,7 @@ def upgrade() -> None:
         "users",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("name", sa.String(length=64), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name"),
     )
@@ -44,7 +44,7 @@ def upgrade() -> None:
         "runs",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("elapsed_seconds", sa.Float(), nullable=True),
         sa.Column("input_text", sa.Text(), nullable=False),
         sa.Column("summary_json", sa.JSON(), nullable=False),

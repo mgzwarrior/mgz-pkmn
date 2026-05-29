@@ -20,6 +20,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    DateTime,
     ForeignKey,
     Integer,
     Numeric,
@@ -50,7 +51,9 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
 
     runs: Mapped[list[Run]] = relationship(back_populates="user")
 
@@ -62,7 +65,9 @@ class Run(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"), default=DEFAULT_USER_ID, nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(default=_utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
     elapsed_seconds: Mapped[float | None] = mapped_column(nullable=True)
     input_text: Mapped[str] = mapped_column(Text, nullable=False)
     # Lightweight aggregate (matched/missed counts, totals, per-tag breakdown)

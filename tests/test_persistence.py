@@ -175,7 +175,7 @@ class BulkPersistenceTests(_IsolatedDbMixin):
         # persistence shape, not match correctness.
         from api.routes import lookup as lookup_route
 
-        def fake_do_lookup(pkmn, tcgdex, pc, q, settings):
+        def fake_do_lookup(pkmn, tcgdex, pc, q, settings, on_stage=None):
             from mgz_pkmn.pricing import Pricing
             from mgz_pkmn.spreadsheet import Row
 
@@ -195,8 +195,9 @@ class BulkPersistenceTests(_IsolatedDbMixin):
                     self.assertEqual(resp.status_code, 200)
                     events = list(resp.iter_lines())
 
-                # One row event per line + one `done` event.
-                row_events = [e for e in events if e.startswith("data:") and "done" not in e]
+                # One resolved-row event per line (progress-only `stage`
+                # frames carry no `matched` field and are excluded).
+                row_events = [e for e in events if e.startswith("data:") and "matched" in e]
                 self.assertEqual(len(row_events), 2)
 
                 # The run is visible immediately via /runs.

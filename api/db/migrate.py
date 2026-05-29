@@ -10,8 +10,10 @@ Lock strategy (dialect-aware):
   Held only for the duration of `alembic upgrade head`, which is a no-op on
   an already-current schema — so the overhead is one stat + one
   `alembic_version` read per worker boot.
-- **Postgres**: `pg_try_advisory_lock(<fixed bigint>)` inside the upgrade
-  connection. Auto-released when the connection closes.
+- **Postgres**: `pg_advisory_lock(<fixed bigint>)` inside the upgrade
+  connection — a *blocking* acquire, so a worker that loses the race waits
+  for the migrating worker rather than skipping the upgrade. Released
+  explicitly (and again when the connection closes).
 - **Other / in-memory SQLite / fcntl-less platforms**: best effort — Alembic's
   own version_num check serialises concurrent attempts to the same head, so
   the worst case is wasted work on losers, not corruption.
@@ -39,9 +41,10 @@ _AUTOMIGRATE_ENV = "MGZ_PKMN_AUTOMIGRATE"
 # astronomically unlikely.
 _PG_ADVISORY_LOCK_ID = 0x6D677A2D706B6D6E
 
-# Repo-root-relative path so the same value works for `make migrate` and for
-# the API runtime. `Path(__file__).resolve().parents[2]` resolves to the repo
-# root (api/db/migrate.py → repo root).
+# The config lives at `api/alembic.ini`, alongside the migrations dir, so the
+# same value works for `make migrate` and for the API runtime.
+# `Path(__file__).resolve().parents[1]` resolves to the `api/` dir
+# (api/db/migrate.py → api/).
 _ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
 
 
@@ -57,14 +60,21 @@ def _sqlite_db_path(url: str) -> Path | None:
     Returns None for in-memory SQLite (`sqlite://` / `sqlite:///:memory:`)
     where there's nothing to flock against — concurrent workers in that
     case are a test concern only, and tests use a single process anyway.
+
+    Delegates to SQLAlchemy's URL parser for the database component so
+    relative URLs (`sqlite:///rel.db` → `rel.db`) and absolute ones
+    (`sqlite:////abs.db` → `/abs.db`) resolve correctly instead of being
+    mangled by naive prefix-stripping.
     """
-    if not url.startswith("sqlite:"):
+    from sqlalchemy.engine import make_url
+
+    parsed = make_url(url)
+    if parsed.get_backend_name() != "sqlite":
         return None
-    # Strip the dialect prefix; `sqlite:///abs` → `/abs`, `sqlite:///./rel` → `./rel`.
-    path = url.split("://", 1)[-1]
-    if not path or path == "/:memory:" or path == ":memory:":
+    database = parsed.database
+    if not database or database == ":memory:":
         return None
-    return Path(path.lstrip("/")) if not path.startswith("/") else Path(path)
+    return Path(database)
 
 
 @contextlib.contextmanager
