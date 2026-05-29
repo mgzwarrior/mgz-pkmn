@@ -45,13 +45,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # key), the warm step is skipped cleanly so the image still builds — it just
 # starts with a cold cache.
 #
+# The warm step is best-effort: `warm-sets` already retries transient
+# pokemontcg.io timeouts, but a sustained upstream outage would still exit
+# non-zero. A cold cache is an acceptable degraded state (see the no-key
+# branch below), so trap that exit with `|| echo` rather than letting a
+# flaky API fail the whole deploy.
+#
 # Sits before `COPY api/` and `COPY --from=web-builder` so layer caching
 # isn't invalidated by every api/ or web/ change — only by src/ or deps.
 ARG POKEMONTCG_IO_API_KEY=""
 ENV XDG_CACHE_HOME=/app/.cache
 RUN if [ -n "$POKEMONTCG_IO_API_KEY" ]; then \
         POKEMONTCG_IO_API_KEY="$POKEMONTCG_IO_API_KEY" \
-            uv run pkmn cache warm-sets; \
+            uv run pkmn cache warm-sets \
+            || echo "cache warm failed (pokemontcg.io unreachable?); image will start with a cold cache"; \
     else \
         echo "POKEMONTCG_IO_API_KEY not set at build time; skipping cache warm (image will start with a cold cache)"; \
     fi

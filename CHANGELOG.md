@@ -192,6 +192,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Stats: `pkmn cache stats` surfaces a new **Concepts** line — "N names ·
   warmed <age>" when a warm pass has landed, "not warmed" otherwise.
 
+### Fixed
+
+- Deploy: a transient `pokemontcg.io` timeout during the Docker build's
+  `pkmn cache warm-sets` step no longer fails the whole deploy. The set
+  catalog fetch now retries transient timeouts with backoff (matching the
+  card-lookup path), and the build's warm step falls back to a cold cache
+  on a sustained outage instead of exiting non-zero.
+
 ## [1.1.1] - 2026-05-25
 
 ### Fixed

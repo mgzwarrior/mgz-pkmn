@@ -23,6 +23,7 @@ import datetime as _dt
 import re
 import shutil
 import sys
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,9 +93,21 @@ def fetch_all_sets(client: TCGClient) -> list[dict[str, Any]]:
     url = "https://api.pokemontcg.io/v2/sets?orderBy=releaseDate&pageSize=250"
     raw = disk_cache.read_api(url)
     if raw is None:
-        resp = client.session.get(url, timeout=30)
-        resp.raise_for_status()
-        raw = resp.json().get("data", [])
+        # pokemontcg.io is occasionally slow on the full-catalog response.
+        # Retry transient timeouts/connection errors with backoff (mirrors
+        # TCGClient._fetch_page) so a single slow response doesn't sink the
+        # caller — notably the Docker build's `cache warm-sets` step, where
+        # one hiccup would otherwise fail the whole deploy.
+        for attempt in range(4):
+            try:
+                resp = client.session.get(url, timeout=60)
+                resp.raise_for_status()
+                raw = resp.json().get("data", [])
+                break
+            except (requests.Timeout, requests.ConnectionError):
+                if attempt == 3:
+                    raise
+                time.sleep(1 + attempt)
         disk_cache.write_api(url, raw)
     return [
         {
