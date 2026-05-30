@@ -86,9 +86,12 @@ export async function fetchLatestVersion(): Promise<string | null> {
 
 /**
  * Render a CHANGELOG bullet's inline Markdown to safe HTML: `[text](url)`
- * links and `` `code` `` spans, with everything else HTML-escaped. Kept
- * deliberately minimal — the bullets only ever use those two constructs,
- * and a full Markdown dependency would be overkill for a few inline spans.
+ * links, `` `code` `` spans, and `**bold**` emphasis, with everything else
+ * HTML-escaped. Kept deliberately minimal — the bullets only ever use those
+ * three constructs, and a full Markdown dependency would be overkill for a
+ * few inline spans. Matches the web app's renderer (web/src/utils/
+ * inlineMarkdown.tsx) so the same bullet renders the same way on both
+ * surfaces.
  */
 export function renderInlineMarkdown(text: string): string {
   const escape = (s: string): string =>
@@ -98,9 +101,12 @@ export function renderInlineMarkdown(text: string): string {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
 
-  // Tokenize on links and code spans, escaping the gaps between matches so
-  // raw user text can never inject markup.
-  const pattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|`([^`]+)`/g;
+  // Tokenize on links, code spans, and bold runs, escaping the gaps between
+  // matches so raw user text can never inject markup. Alternation order
+  // matters: code spans before bold so a `**` inside backticks isn't
+  // re-tokenized as emphasis.
+  const pattern =
+    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|`([^`]+)`|\*\*([^*]+)\*\*/g;
   let html = "";
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -112,6 +118,9 @@ export function renderInlineMarkdown(text: string): string {
     } else if (match[3] !== undefined) {
       // Code span: `code`.
       html += `<code class="rounded bg-zinc-800 px-1 py-0.5 text-[0.85em] text-zinc-200">${escape(match[3])}</code>`;
+    } else if (match[4] !== undefined) {
+      // Bold: **emphasis**.
+      html += `<strong class="font-semibold text-coconut-700 dark:text-zinc-100">${escape(match[4])}</strong>`;
     }
     lastIndex = pattern.lastIndex;
   }
