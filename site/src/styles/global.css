@@ -117,7 +117,7 @@
    paint. */
 html {
   scroll-behavior: smooth;
-  background-color: #09090b;
+  background-color: var(--color-husk-400);
   color-scheme: dark;
 }
 

@@ -29,25 +29,25 @@ const outputs = [
 
 <section
   id="what-you-get"
-  class="border-b border-sand-300 dark:border-zinc-900/80 px-6 py-20 sm:py-24"
+  class="border-b border-sand-300 dark:border-husk-200/80 px-6 py-20 sm:py-24"
 >
   <div class="mx-auto max-w-6xl">
     <div class="max-w-2xl">
-      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-white">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50">
         What you actually walk out with.
       </h2>
-      <p class="mt-4 text-lg text-coconut-400 dark:text-zinc-400">
+      <p class="mt-4 text-lg text-coconut-400 dark:text-sand-300">
         Every run produces the same three artifacts — pick the format that fits the
         moment. Screenshots below are rendered from the tracked sample outputs in
-        <code class="text-coconut-500 dark:text-zinc-300 font-mono text-base">output/</code>.
+        <code class="text-coconut-500 dark:text-sand-200 font-mono text-base">output/</code>.
       </p>
     </div>
 
     <ul class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {
         outputs.map((output) => (
-          <li class="flex flex-col rounded-xl border border-sand-300 bg-sand-100 shadow-xs overflow-hidden hover:border-sand-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900/40 dark:shadow-none dark:hover:border-zinc-700 transition">
-            <div class="bg-sand-200 dark:bg-zinc-950/60 aspect-[5/6] overflow-hidden flex items-start justify-center">
+          <li class="flex flex-col rounded-xl border border-sand-300 bg-sand-100 shadow-xs overflow-hidden hover:border-sand-400 hover:shadow-md dark:border-husk-50 dark:bg-husk-200/40 dark:shadow-none dark:hover:border-coconut-400 transition">
+            <div class="bg-sand-200 dark:bg-husk-500/60 aspect-[5/6] overflow-hidden flex items-start justify-center">
               <img
                 src={output.src}
                 alt={output.alt}
@@ -58,10 +58,10 @@ const outputs = [
             </div>
             <div class="p-5">
               <div class="flex items-baseline justify-between gap-3">
-                <h3 class="text-lg font-semibold text-coconut-700 dark:text-white">{output.title}</h3>
-                <code class="text-xs text-sand-500 dark:text-zinc-500 font-mono">{output.suffix}</code>
+                <h3 class="text-lg font-semibold text-coconut-700 dark:text-sand-50">{output.title}</h3>
+                <code class="text-xs text-sand-500 dark:text-sand-400 font-mono">{output.suffix}</code>
               </div>
-              <p class="mt-2 text-sm leading-relaxed text-coconut-400 dark:text-zinc-400">
+              <p class="mt-2 text-sm leading-relaxed text-coconut-400 dark:text-sand-300">
                 {output.caption}
               </p>
             </div>

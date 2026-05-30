@@ -8,30 +8,30 @@ const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
 
 <section
   id="signup"
-  class="border-b border-sand-300 dark:border-zinc-900/80 px-6 py-20 sm:py-24"
+  class="border-b border-sand-300 dark:border-husk-200/80 px-6 py-20 sm:py-24"
 >
   <div class="mx-auto max-w-3xl text-center">
     <p
-      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 backdrop-blur px-3 py-1 text-xs font-medium text-coconut-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300"
+      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 backdrop-blur px-3 py-1 text-xs font-medium text-coconut-500 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-200"
     >
-      <span class="h-1.5 w-1.5 rounded-full bg-sun-300 dark:bg-blue-400"></span>
+      <span class="h-1.5 w-1.5 rounded-full bg-sun-300 dark:bg-sun-300"></span>
       Newsletter
     </p>
 
     <h2
-      class="mt-6 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-white text-balance"
+      class="mt-6 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50 text-balance"
     >
       Get the next release in your inbox.
     </h2>
 
     <p
-      class="mt-4 text-lg text-coconut-500 dark:text-zinc-400 max-w-xl mx-auto text-balance"
+      class="mt-4 text-lg text-coconut-500 dark:text-sand-300 max-w-xl mx-auto text-balance"
     >
       Occasional, no-pressure updates when a new version ships — and
       the odd Pokemon-TCG-meets-open-source note from
       <a
         href="https://www.matt-grant.com"
-        class="text-palm-500 hover:text-palm-400 dark:text-blue-400 dark:hover:text-blue-300 underline-offset-4 hover:underline"
+        class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline"
         rel="noopener noreferrer"
         target="_blank">@mgzwarrior</a
       >. No spam, unsubscribe anytime.
@@ -54,11 +54,11 @@ const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
         required
         autocomplete="email"
         placeholder="you@example.com"
-        class="flex-1 rounded-md border border-sand-300 bg-sand-50 px-4 py-3 text-sm text-coconut-700 placeholder:text-coconut-400 focus:outline-none focus:border-palm-400 focus:ring-2 focus:ring-palm-300/40 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/30 transition"
+        class="flex-1 rounded-md border border-sand-300 bg-sand-50 px-4 py-3 text-sm text-coconut-700 placeholder:text-coconut-400 focus:outline-none focus:border-palm-400 focus:ring-2 focus:ring-palm-300/40 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-50 dark:placeholder:text-sand-400 dark:focus:border-sun-300 dark:focus:ring-sun-400/30 transition"
       />
       <button
         type="submit"
-        class="inline-flex items-center justify-center gap-2 rounded-md bg-sun-300 px-5 py-3 text-sm font-semibold text-coconut-700 shadow-md hover:bg-sun-400 dark:bg-blue-500 dark:text-white dark:shadow-lg dark:shadow-blue-500/20 dark:hover:bg-blue-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
+        class="inline-flex items-center justify-center gap-2 rounded-md bg-sun-300 px-5 py-3 text-sm font-semibold text-coconut-700 shadow-md hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:shadow-lg dark:shadow-sun-400/20 dark:hover:bg-sun-200 transition disabled:opacity-60 disabled:cursor-not-allowed"
         data-default-label="Subscribe"
       >
         <span data-label>Subscribe</span>
@@ -100,10 +100,10 @@ const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
       status.className =
         "mt-4 min-h-[1.5rem] text-sm " +
         (tone === "success"
-          ? "text-palm-500 dark:text-emerald-400 font-medium"
+          ? "text-palm-500 dark:text-palm-200 font-medium"
           : tone === "error"
-            ? "text-ember-500 dark:text-rose-400 font-medium"
-            : "text-coconut-400 dark:text-zinc-400");
+            ? "text-ember-500 dark:text-ember-300 font-medium"
+            : "text-coconut-400 dark:text-sand-300");
     }
 
     form.addEventListener("submit", async (event) => {
