@@ -23,4 +23,4 @@ It takes a want-list (any format — names, sets, "top 5 Mew under $50") and giv
 Two more emails coming over the next week: one tour of what the tool actually does today, and one for the open-source side if that's your thing.
 
 — Matt
-[github.com/mgzwarrior](https://github.com/mgzwarrior) · [matt-grant.com](https://matt-grant.com)
+[github.com/mgzwarrior](https://github.com/mgzwarrior) · [www.matt-grant.com](https://www.matt-grant.com)
