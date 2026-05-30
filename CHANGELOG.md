@@ -25,8 +25,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
   site renders a double-sided quarter-letter (4.25 × 5.5 in) handout for
   in-person card shows. Front: logo, tagline, and a high error-correction
   QR code pointing at the live demo. Back: four feature bullets and a
-  contact block. Print stylesheet uses `@page` with zero margin so
-  saving as PDF or printing direct (4-up on US Letter) just works.
+  contact block. A **Download PDF (4-up)** button generates a 2-page US
+  Letter PDF with four flyers per sheet via `jspdf` + `html2canvas`,
+  bypassing the browser print dialog so the saved file is always the
+  right shape regardless of printer driver quirks. The `@page` print
+  stylesheet remains as a fallback for power users.
 - API: persistence layer for run history backed by SQLite + Alembic
   (see [ADR-0013](docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
   `POST /api/v1/bulk` now writes a `runs` + `run_rows` record on
