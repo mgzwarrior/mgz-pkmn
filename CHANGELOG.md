@@ -21,6 +21,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Site: **print-ready show flyer** — new `/flyer` page on the marketing
+  site renders a double-sided quarter-letter (4.25 × 5.5 in) handout for
+  in-person card shows. Front: logo, tagline, and a high error-correction
+  QR code pointing at the live demo. Back: four feature bullets and a
+  contact block. Print stylesheet uses `@page` with zero margin so
+  saving as PDF or printing direct (4-up on US Letter) just works.
 - API: persistence layer for run history backed by SQLite + Alembic
   (see [ADR-0013](docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
   `POST /api/v1/bulk` now writes a `runs` + `run_rows` record on
