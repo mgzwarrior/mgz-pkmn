@@ -58,7 +58,7 @@ list without logging into a third-party tool.
   - Open-source contributor
   - Just curious
 
-### 5. Favorite Pokemon? (just for fun — feel free to skip)
+### 5. Favorite Pokémon? (just for fun — feel free to skip)
 
 - **Type:** short text
 - **Required:** no

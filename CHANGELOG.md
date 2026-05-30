@@ -25,7 +25,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
   dismissible top banner on the marketing site (above the Header) and
   the demo SPA (above the existing top bar) points visitors at a short
   Tally-hosted survey. ~6 questions covering pain points, useful
-  features, return triggers, audience self-ID, favorite Pokemon, and
+  features, return triggers, audience self-ID, favorite Pokémon, and
   optional contact email. Source of truth for the question list lives
   at `docs/marketing/surveys/v1-interest-survey.md`; bump the survey
   URL and the `survey-v1` dismissal-key suffix in both banner
