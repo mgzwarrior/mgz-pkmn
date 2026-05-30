@@ -8,8 +8,9 @@ const releases = await fetchReleases(3);
 const repoChangelogUrl =
   "https://github.com/mgzwarrior/mgz-pkmn/blob/main/CHANGELOG.md";
 
-// Cap bullets shown per Added/Changed/Fixed section before falling back to
-// a "+N more in the changelog →" link. Keeps the landing page glanceable
+// Cap bullets shown per section (every accent-mapped bucket — Added,
+// Changed, Fixed, Removed, Deprecated, Security) before falling back to a
+// "+N more in the changelog →" link. Keeps the landing page glanceable
 // when a single release ships a dozen entries in one category.
 const ENTRIES_PER_SECTION = 3;
 

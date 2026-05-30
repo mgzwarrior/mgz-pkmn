@@ -125,12 +125,13 @@ const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
           // doesn't return a parseable JSON body — opaque response is fine.
           mode: "no-cors",
         });
-        // `no-cors` => response.type === "opaque" and status is always 0.
-        // We can't verify server-side success from the body, but the POST
-        // does land; surface an optimistic confirmation. Buttondown sends
-        // a confirmation email so any typo gets caught there.
+        // `no-cors` => response.type === "opaque" and status is always 0,
+        // so we can't tell a 200 from a 400 (invalid syntax that slipped
+        // past the HTML5 check, rate limit, server error, etc.) — only
+        // network-layer failures hit the catch below. Soften the copy so
+        // a silently-rejected submission isn't entirely invisible.
         setStatus(
-          "Thanks — check your inbox for a confirmation email.",
+          "Thanks — Buttondown should send a confirmation email shortly. If you don't see one in a few minutes, try again.",
           "success",
         );
         form.reset();
