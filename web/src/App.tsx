@@ -14,6 +14,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Library } from 'lucide-react'
 import { bulkLookup, lookupLine } from './api/client'
+import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { BrowseModal } from './components/BrowseModal'
 import { InputEditor } from './components/InputEditor'
 import { RecentRuns } from './components/RecentRuns'
@@ -184,6 +185,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <AnnouncementBanner />
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
         <h1 className="sr-only">mgz-pkmn — Pokemon card lookup</h1>

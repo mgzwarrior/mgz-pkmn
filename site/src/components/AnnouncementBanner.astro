@@ -1,0 +1,112 @@
+---
+// Slim, dismissible top banner pointing at the v1 interest survey on
+// Tally. Render above the Header in BaseLayout so it appears on every
+// page that uses the layout (the print-only /flyer page bypasses the
+// layout intentionally).
+//
+// Source of truth for the questions: docs/marketing/surveys/v1-interest-survey.md
+// Update both this URL and the localStorage key suffix when shipping a new survey.
+const SURVEY_URL = "https://tally.so/r/gDvZOM";
+const DISMISS_KEY = "mgz-pkmn-announce-survey-v1";
+---
+
+<noscript>
+  <!-- JS-disabled fallback: render the banner unconditionally so the
+       survey CTA stays reachable. No dismiss button (nothing to write
+       the dismissal to without JS); visitors can ignore it. -->
+  <div
+    class="border-b border-sun-400/40 bg-sun-300 text-coconut-700 dark:border-blue-500/40 dark:bg-blue-500/15 dark:text-blue-50"
+    role="region"
+    aria-label="Site announcement"
+  >
+    <div class="mx-auto flex max-w-6xl items-center gap-3 px-6 py-2 text-sm">
+      <span aria-hidden="true" class="text-base">📣</span>
+      <p class="flex-1 leading-snug">
+        <span class="font-semibold">We're listening.</span>
+        Help shape what mgz-pkmn ships next —
+        <a
+          href={SURVEY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="font-semibold underline underline-offset-2 hover:no-underline"
+        >
+          take the 2-min survey →
+        </a>
+      </p>
+    </div>
+  </div>
+</noscript>
+
+<div
+  id="announcement-banner"
+  data-dismiss-key={DISMISS_KEY}
+  class="hidden border-b border-sun-400/40 bg-sun-300 text-coconut-700 dark:border-blue-500/40 dark:bg-blue-500/15 dark:text-blue-50"
+  role="region"
+  aria-label="Site announcement"
+>
+  <div class="mx-auto flex max-w-6xl items-center gap-3 px-6 py-2 text-sm">
+    <span aria-hidden="true" class="text-base">📣</span>
+    <p class="flex-1 leading-snug">
+      <span class="font-semibold">We're listening.</span>
+      Help shape what mgz-pkmn ships next —
+      <a
+        href={SURVEY_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="font-semibold underline underline-offset-2 hover:no-underline"
+      >
+        take the 2-min survey →
+      </a>
+    </p>
+    <button
+      type="button"
+      id="announcement-dismiss"
+      class="rounded-md p-1 text-coconut-500 hover:bg-sun-400/40 hover:text-coconut-700 dark:text-blue-100 dark:hover:bg-blue-500/30 dark:hover:text-white transition"
+      aria-label="Dismiss announcement"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script is:inline>
+  // Inline + pre-paint: read the dismiss flag and either show or hide
+  // the banner before the page renders, so there's no flash of an
+  // already-dismissed banner on reload.
+  (function () {
+    var el = document.getElementById("announcement-banner");
+    if (!el) return;
+    var key = el.dataset.dismissKey;
+    try {
+      if (key && localStorage.getItem(key) === "1") return;
+    } catch (e) {
+      // Storage unavailable (private mode, blocked) — fall through and show.
+    }
+    el.classList.remove("hidden");
+
+    var btn = document.getElementById("announcement-dismiss");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      el.classList.add("hidden");
+      try {
+        if (key) localStorage.setItem(key, "1");
+      } catch (e) {
+        // Best-effort — the banner is dismissed for this session even if
+        // the choice can't be persisted.
+      }
+    });
+  })();
+</script>

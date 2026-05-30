@@ -21,6 +21,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Marketing: **v1 interest survey + announcement banner** — a slim
+  dismissible top banner on the marketing site (above the Header) and
+  the demo SPA (above the existing top bar) points visitors at a short
+  Tally-hosted survey. ~6 questions covering pain points, useful
+  features, return triggers, audience self-ID, favorite Pokémon, and
+  optional contact email. Source of truth for the question list lives
+  at `docs/marketing/surveys/v1-interest-survey.md`; bump the survey
+  URL and the `survey-v1` dismissal-key suffix in both banner
+  components together when shipping a future survey.
 - Site: **print-ready show flyer** — new `/flyer` page on the marketing
   site renders a double-sided quarter-letter (4.25 × 5.5 in) handout for
   in-person card shows. Front: logo, tagline, and a high error-correction
