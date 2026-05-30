@@ -16,7 +16,7 @@ You know the moment: you're at a card show, three booths deep, holding the want-
 
 That's the moment I built **mgz-pkmn** for.
 
-It takes a want-list (any format — names, sets, "top 5 Mew under $50") and gives you back a printable binder with thumbnails, set numbers, and a price floor for every card. You walk into the show with a plan instead of doing napkin math at the table.
+It takes a want-list (any format — names, sets, `top 5 Mew cards <= $50`) and gives you back a printable binder with thumbnails, set numbers, market prices, and comp tiers at 80/85/90/95% of market. You walk into the show with a plan instead of doing napkin math at the table.
 
 [**Try the live demo →**](https://mgz-pkmn.onrender.com)
 

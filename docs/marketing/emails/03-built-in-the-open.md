@@ -12,13 +12,15 @@ Last one for now.
 
 mgz-pkmn is MIT-licensed and built entirely in the open. The CHANGELOG, the roadmap, the half-formed ideas in [Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions) — it's all on GitHub.
 
-**Coming soon (v1.2):**
+**On the v1.2 list:**
 - Condition-aware pricing — toggle NM / LP / MP / HP and watch the comps recalculate
 - Named binders — save a want-list under a name and reload it
-- 30-day price-trend sparkline on every row
-- Cache survives Render redeploys so the demo stays snappy
+- Per-row manual price overrides that flow through every export
+- Configurable export columns — pick what each format ships with
 
-**If you write code** — there's a `good first issue` tag on the repo. Test coverage for the lookup sources is a great way to learn the codebase without changing behavior. I'll review fast.
+(Full committed list: [docs/roadmap.md](https://github.com/mgzwarrior/mgz-pkmn/blob/main/docs/roadmap.md#v12--committed).)
+
+**If you write code** — the [`good first issue` label](https://github.com/mgzwarrior/mgz-pkmn/labels/good%20first%20issue) is the fastest way in. Test coverage for the lookup sources is a great way to learn the codebase without changing behavior. I'll review fast.
 
 **If you don't** — issues and Discussions are open. "Would you ship X?" is a valid issue. "This UX is confusing" is a valid issue. The half-baked thoughts in your head are the ones I most want to hear.
 
