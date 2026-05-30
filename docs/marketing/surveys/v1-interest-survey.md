@@ -2,7 +2,7 @@
 sequence: 1
 when: v1.x — top-banner CTA on the marketing site & demo SPA
 host: Tally (https://tally.so)
-form_url: https://tally.so/r/REPLACE_ME
+form_url: https://tally.so/r/gDvZOM
 length: ~2 minutes / 6 questions
 audience: anyone hitting mgz-pkmn.com or the live demo
 ---

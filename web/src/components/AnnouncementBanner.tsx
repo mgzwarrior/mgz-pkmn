@@ -11,7 +11,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 
-const SURVEY_URL = 'https://tally.so/r/REPLACE_ME'
+const SURVEY_URL = 'https://tally.so/r/gDvZOM'
 const DISMISS_KEY = 'mgz-pkmn-announce-survey-v1'
 
 /**
