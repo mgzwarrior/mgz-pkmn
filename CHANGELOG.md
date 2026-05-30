@@ -30,6 +30,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
   bypassing the browser print dialog so the saved file is always the
   right shape regardless of printer driver quirks. The `@page` print
   stylesheet remains as a fallback for power users.
+- Site: **email signup section** — a new "Get the next release in your
+  inbox" section on the marketing landing page collects subscribers via
+  the [Buttondown](https://buttondown.com) public embed endpoint. Honors
+  the tropical palette in light mode and the blue/zinc palette in dark.
+  Submits inline via `fetch` with a success state ("Thanks — check your
+  inbox") when JS is enabled, falling back to Buttondown's hosted popup
+  when JS is off. No new runtime dependencies; no API key in the client.
 - API: persistence layer for run history backed by SQLite + Alembic
   (see [ADR-0013](docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
   `POST /api/v1/bulk` now writes a `runs` + `run_rows` record on
