@@ -33,8 +33,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Site: **email signup section** — a new "Get the next release in your
   inbox" section on the marketing landing page collects subscribers via
   the [Buttondown](https://buttondown.com) public embed endpoint. Sits
-  right under "What you get" so visitors who've already seen the value
-  prop have an easy on-ramp. Honors the tropical palette in light mode
+  right under "What you actually walk out with" so visitors who've already
+  seen the value prop have an easy on-ramp. Honors the tropical palette in light mode
   and the blue/zinc palette in dark. Submits inline via `fetch` with a
   success state ("Thanks — check your inbox") when JS is enabled, falling
   back to Buttondown's hosted popup when JS is off. No new runtime
