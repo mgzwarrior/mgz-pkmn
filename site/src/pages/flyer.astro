@@ -1,0 +1,518 @@
+---
+// Print-ready quarter-letter (4.25" x 5.5") double-sided flyer for handing
+// out at card shows. Two pages: front then back. From the browser print
+// dialog, save as PDF or print directly — at home, "Multiple pages per
+// sheet → 4" turns one US Letter sheet into four flyers' worth of
+// imposition (4.25 × 5.5 tiles fit 4-up on a US Letter sheet).
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>mgz-pkmn — show flyer</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon-tropical.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap"
+    />
+    <style>
+      :root {
+        --sun: #f5c94b;
+        --sun-deep: #e8b028;
+        --palm: #4a8b3b;
+        --palm-deep: #2d5a28;
+        --coconut: #4d341f;
+        --coconut-ink: #2e1f11;
+        --sand: #fbf6e8;
+        --sand-edge: #d6c99f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #e5e5e5;
+        font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+        color: var(--coconut-ink);
+      }
+
+      .stage {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 2rem 1rem;
+      }
+
+      .toolbar {
+        max-width: 4.25in;
+        text-align: center;
+        font-family: "DM Sans", sans-serif;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: var(--coconut-ink);
+        background: #fff;
+        border: 1px solid var(--sand-edge);
+        border-radius: 12px;
+        padding: 1rem 1.1rem 1.1rem;
+      }
+      .toolbar > strong {
+        display: block;
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-size: 1rem;
+        color: var(--coconut);
+        margin-bottom: 0.35rem;
+      }
+      .toolbar-copy {
+        margin: 0 0 0.75rem;
+      }
+      .toolbar-copy strong {
+        font-family: "Bricolage Grotesque", sans-serif;
+        color: var(--coconut);
+      }
+      .toolbar-button {
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-weight: 700;
+        font-size: 0.95rem;
+        background: var(--sun);
+        color: var(--coconut-ink);
+        border: 0;
+        border-radius: 8px;
+        padding: 0.65rem 1.2rem;
+        cursor: pointer;
+        box-shadow: 0 2px 0 var(--sun-deep);
+        transition: transform 60ms ease, box-shadow 60ms ease;
+      }
+      .toolbar-button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 3px 0 var(--sun-deep);
+      }
+      .toolbar-button:active:not(:disabled) {
+        transform: translateY(1px);
+        box-shadow: 0 1px 0 var(--sun-deep);
+      }
+      .toolbar-button:disabled {
+        opacity: 0.6;
+        cursor: progress;
+      }
+      .toolbar-status {
+        margin: 0.6rem 0 0;
+        min-height: 1.2em;
+        font-size: 0.8rem;
+        color: var(--palm-deep);
+      }
+      .toolbar-status[data-tone="error"] {
+        color: #a84a2f;
+      }
+
+      .panel {
+        width: 4.25in;
+        height: 5.5in;
+        background: var(--sand);
+        color: var(--coconut-ink);
+        position: relative;
+        overflow: hidden;
+        page-break-after: always;
+        break-after: page;
+        box-shadow:
+          0 1px 2px rgba(0, 0, 0, 0.08),
+          0 12px 28px rgba(0, 0, 0, 0.18);
+      }
+      .panel:last-of-type {
+        page-break-after: auto;
+        break-after: auto;
+      }
+
+      /* ----- Front ----- */
+      .front {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0.4in 0.35in 0.35in;
+        text-align: center;
+      }
+
+      .front .logo {
+        width: 2.6in;
+        height: auto;
+        margin-bottom: 0.15in;
+      }
+
+      .front .tag {
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-weight: 800;
+        font-size: 17pt;
+        line-height: 1.12;
+        letter-spacing: -0.01em;
+        color: var(--coconut);
+        margin: 0.05in 0 0.18in;
+        text-wrap: balance;
+      }
+
+      .qr-frame {
+        width: 2.4in;
+        height: 2.4in;
+        background: #fff;
+        border: 4px solid var(--palm-deep);
+        border-radius: 14px;
+        padding: 0.12in;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 0 var(--coconut);
+      }
+      .qr-frame img {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .qr-label {
+        margin-top: 0.16in;
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-weight: 700;
+        font-size: 11pt;
+        color: var(--palm-deep);
+      }
+
+      .front .url {
+        margin-top: auto;
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-weight: 800;
+        font-size: 15pt;
+        color: var(--coconut);
+        letter-spacing: 0.02em;
+      }
+
+      /* ----- Back ----- */
+      .back {
+        display: flex;
+        flex-direction: column;
+        padding: 0.4in 0.35in 0.35in;
+      }
+
+      .back h2 {
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-weight: 800;
+        font-size: 16pt;
+        line-height: 1.15;
+        color: var(--coconut);
+        margin: 0 0 0.18in;
+        text-wrap: balance;
+      }
+
+      .features {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 0.14in;
+      }
+      .features li {
+        display: grid;
+        grid-template-columns: 0.32in 1fr;
+        align-items: start;
+        column-gap: 0.1in;
+        font-size: 10.5pt;
+        line-height: 1.32;
+      }
+      .features .num {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 0.32in;
+        height: 0.32in;
+        border-radius: 50%;
+        background: var(--sun);
+        color: var(--coconut-ink);
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-weight: 800;
+        font-size: 12pt;
+        box-shadow: 0 2px 0 var(--sun-deep);
+      }
+      .features .label {
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-weight: 700;
+        color: var(--coconut);
+        display: block;
+        margin-bottom: 0.02in;
+      }
+      .features .copy {
+        color: var(--coconut-ink);
+      }
+
+      .divider {
+        height: 2px;
+        background: repeating-linear-gradient(
+          90deg,
+          var(--sand-edge),
+          var(--sand-edge) 6px,
+          transparent 6px,
+          transparent 11px
+        );
+        margin: 0.2in 0;
+      }
+
+      .contact {
+        margin-top: auto;
+        display: flex;
+        align-items: center;
+        gap: 0.18in;
+      }
+      .contact .mark {
+        width: 0.7in;
+        height: 0.7in;
+        flex: 0 0 auto;
+      }
+      .contact .lines {
+        font-size: 9.5pt;
+        line-height: 1.4;
+      }
+      .contact .lines .name {
+        font-family: "Bricolage Grotesque", sans-serif;
+        font-weight: 800;
+        font-size: 11pt;
+        color: var(--coconut);
+        display: block;
+        margin-bottom: 0.02in;
+      }
+      .contact .lines a {
+        color: var(--palm-deep);
+        text-decoration: none;
+      }
+
+      /* ----- Print ----- */
+      @page {
+        size: 4.25in 5.5in;
+        margin: 0;
+      }
+
+      @media print {
+        html,
+        body {
+          background: #fff;
+        }
+        .stage {
+          padding: 0;
+          gap: 0;
+        }
+        .toolbar {
+          display: none;
+        }
+        .panel {
+          box-shadow: none;
+          width: 4.25in;
+          height: 5.5in;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="toolbar">
+        <strong>Show flyer</strong>
+        <p class="toolbar-copy">
+          Preview the front and back below. Hit
+          <strong>Download PDF</strong> to grab a 2-page US Letter file
+          with four flyers imposed per sheet — print the first page,
+          flip the paper, print the second, then cut into quarters.
+        </p>
+        <button id="download-pdf" type="button" class="toolbar-button">
+          <span data-label>Download PDF (4-up)</span>
+        </button>
+        <p id="download-status" role="status" aria-live="polite" class="toolbar-status"></p>
+      </div>
+
+      <!-- FRONT -->
+      <section class="panel front" aria-label="Flyer front">
+        <img class="logo" src="/flyer/logo.svg" alt="mgz-pkmn" />
+
+        <p class="tag">
+          Walk into your next card show with a plan, not a hope.
+        </p>
+
+        <div class="qr-frame">
+          <img src="/flyer/qr-demo.png" alt="QR code to mgz-pkmn.onrender.com" />
+        </div>
+        <div class="qr-label">↑ Scan to try the live demo</div>
+
+        <div class="url">mgz-pkmn.com</div>
+      </section>
+
+      <!-- BACK -->
+      <section class="panel back" aria-label="Flyer back">
+        <h2>Show up with comps, not vibes.</h2>
+
+        <ul class="features">
+          <li>
+            <span class="num">1</span>
+            <div>
+              <span class="label">Lookup</span>
+              <span class="copy">
+                Three open price sources cross-checked per card — no more
+                guessing at booth prices.
+              </span>
+            </div>
+          </li>
+          <li>
+            <span class="num">2</span>
+            <div>
+              <span class="label">Printable binder</span>
+              <span class="copy">
+                One PDF with thumbnails, set, number, and your floor — fold it
+                into a binder and walk the show.
+              </span>
+            </div>
+          </li>
+          <li>
+            <span class="num">3</span>
+            <div>
+              <span class="label">Set checklist</span>
+              <span class="copy">
+                Track what you own vs. what you still need, by set, on one
+                page.
+              </span>
+            </div>
+          </li>
+          <li>
+            <span class="num">4</span>
+            <div>
+              <span class="label">Open source</span>
+              <span class="copy">
+                Free, MIT-licensed, built in the open on GitHub. Issues and
+                ideas welcome.
+              </span>
+            </div>
+          </li>
+        </ul>
+
+        <div class="divider" aria-hidden="true"></div>
+
+        <div class="contact">
+          <img class="mark" src="/favicon-tropical.svg" alt="" aria-hidden="true" />
+          <div class="lines">
+            <span class="name">Matt Grant</span>
+            <a href="https://www.matt-grant.com">www.matt-grant.com</a> ·
+            <a href="https://github.com/mgzwarrior">@mgzwarrior</a><br />
+            <a href="mailto:mattgrant33@gmail.com">mattgrant33@gmail.com</a>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      // Compose a real downloadable PDF — 2 pages of US Letter, each laid
+      // out 4-up (2×2) with one flyer face per page. Bypasses the browser
+      // print dialog entirely so the saved file is always the same shape
+      // regardless of the user's print preferences or driver quirks.
+      import("html2canvas").then(async (h2cModule) => {
+        const { jsPDF } = await import("jspdf");
+        const html2canvas = h2cModule.default;
+
+        const button = document.getElementById("download-pdf");
+        const status = document.getElementById("download-status");
+        const labelEl = button?.querySelector("[data-label]");
+        if (!button || !labelEl || !status) return;
+
+        function setStatus(msg: string, tone: "info" | "error" | "" = "info") {
+          status!.textContent = msg;
+          if (tone) {
+            status!.setAttribute("data-tone", tone);
+          } else {
+            status!.removeAttribute("data-tone");
+          }
+        }
+
+        async function capture(el: HTMLElement) {
+          // scale=3 → ~288 DPI when the panel is rendered at 4.25×5.5 in
+          // (CSS px = 96 DPI, so 4.25 × 96 × 3 = 1224px wide). Plenty for
+          // home/office printers, keeps the JPEG payload small.
+          return html2canvas(el, {
+            scale: 3,
+            useCORS: true,
+            backgroundColor: "#FBF6E8",
+            logging: false,
+          });
+        }
+
+        function place4Up(
+          doc: InstanceType<typeof jsPDF>,
+          dataUrl: string,
+        ): void {
+          // US Letter: 8.5 × 11 in. Tile: 4.25 × 5.5 in. Perfect 2×2 fit,
+          // edge-to-edge so the user can cut along the centerlines.
+          const positions: Array<[number, number]> = [
+            [0, 0],
+            [4.25, 0],
+            [0, 5.5],
+            [4.25, 5.5],
+          ];
+          for (const [x, y] of positions) {
+            doc.addImage(dataUrl, "JPEG", x, y, 4.25, 5.5);
+          }
+        }
+
+        button.addEventListener("click", async () => {
+          button.setAttribute("disabled", "true");
+          const originalLabel = labelEl.textContent ?? "Download PDF (4-up)";
+          labelEl.textContent = "Building PDF…";
+          setStatus("");
+
+          try {
+            // Web fonts must be ready before html2canvas captures, or the
+            // body text falls back to system-ui and the result looks off.
+            if ((document as any).fonts?.ready) {
+              await (document as any).fonts.ready;
+            }
+
+            const front = document.querySelector<HTMLElement>(".front");
+            const back = document.querySelector<HTMLElement>(".back");
+            if (!front || !back) {
+              throw new Error("Flyer panels missing from page");
+            }
+
+            const [frontCanvas, backCanvas] = await Promise.all([
+              capture(front),
+              capture(back),
+            ]);
+
+            const doc = new jsPDF({
+              unit: "in",
+              format: "letter",
+              orientation: "portrait",
+            });
+            // JPEG @ 0.92 keeps file size sub-MB while staying visually
+            // clean at print resolution. The QR is high error-correction
+            // so light compression won't break it.
+            place4Up(doc, frontCanvas.toDataURL("image/jpeg", 0.92));
+            doc.addPage("letter", "portrait");
+            place4Up(doc, backCanvas.toDataURL("image/jpeg", 0.92));
+            doc.save("mgz-pkmn-flyer.pdf");
+
+            setStatus(
+              "Done — flyer saved. Print page 1, flip the paper, print page 2, cut into quarters.",
+              "info",
+            );
+          } catch (err) {
+            console.error(err);
+            setStatus(
+              "Couldn't build the PDF in this browser. Try the browser's Print → Save as PDF instead.",
+              "error",
+            );
+          } finally {
+            button.removeAttribute("disabled");
+            labelEl.textContent = originalLabel;
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
