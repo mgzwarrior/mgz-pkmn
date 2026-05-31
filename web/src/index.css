@@ -1,5 +1,152 @@
+/* ============================================================
+ * web/src/index.css — Tailwind v4 @theme for the React SPA.
+ *
+ * Mirrors site/src/styles/global.css so the marketing site and
+ * the demo SPA render identically: same tropical palette
+ * (sun / palm / coconut / sand / husk / sky / ember), same
+ * type stack (Bricolage / DM Sans / JetBrains Mono), same warm
+ * coconut-alpha shadows.
+ *
+ * Light is the default. Dark opts in via `.dark` on <html>,
+ * driven by the pre-paint script in index.html so the choice
+ * persists and follows OS preference without flashing.
+ * ============================================================ */
 @import "tailwindcss";
 
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Sun — primary yellow (Exeggutor's heads / ripe coconut). */
+  --color-sun-50: #fdf6d9;
+  --color-sun-100: #fbeba8;
+  --color-sun-200: #f8dd78;
+  --color-sun-300: #f5c94b;
+  --color-sun-400: #e8b028;
+  --color-sun-500: #c8901a;
+  --color-sun-600: #946812;
+  --color-sun-700: #5e420b;
+
+  /* Palm — secondary green (Exeggutor's crown / success / links). */
+  --color-palm-50: #eaf3e2;
+  --color-palm-100: #c9e0b5;
+  --color-palm-200: #97c57e;
+  --color-palm-300: #6bac55;
+  --color-palm-400: #4a8b3b;
+  --color-palm-500: #386c2c;
+  --color-palm-600: #2d5a28;
+  --color-palm-700: #1c3a19;
+
+  /* Coconut — tertiary brown (trunk / body text on cream). */
+  --color-coconut-50: #f4ecdd;
+  --color-coconut-100: #e4d2b0;
+  --color-coconut-200: #c8ac7e;
+  --color-coconut-300: #a6845a;
+  --color-coconut-400: #80623f;
+  --color-coconut-500: #6b4a2f;
+  --color-coconut-600: #4d341f;
+  --color-coconut-700: #2e1f11;
+
+  /* Sand — neutral cream surfaces. */
+  --color-sand-50: #fbf6e8;
+  --color-sand-100: #f4ecd3;
+  --color-sand-200: #e8ddbc;
+  --color-sand-300: #d6c99f;
+  --color-sand-400: #b4a77c;
+  --color-sand-500: #8c8261;
+  --color-sand-600: #5f583f;
+  --color-sand-700: #3a361f;
+
+  /* Husk — coffee-charcoal for dark-mode surfaces. */
+  --color-husk-50: #4a453b;
+  --color-husk-100: #353128;
+  --color-husk-200: #2a2620;
+  --color-husk-300: #1f1b16;
+  --color-husk-400: #15120e;
+  --color-husk-500: #0d0b07;
+
+  /* Sky — sparing info accent over warm surfaces. */
+  --color-sky-300: #8fc3dd;
+  --color-sky-400: #6fb1d9;
+  --color-sky-500: #4a8fb8;
+
+  /* Ember — clay-red for destructive / danger. */
+  --color-ember-300: #e8a088;
+  --color-ember-400: #d26b4d;
+  --color-ember-500: #a84a2f;
+  --color-ember-600: #7d331e;
+
+  /* Type. */
+  --font-display:
+    "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  --font-sans:
+    "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+
+  /* Radii. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+
+  /* Shadows — warm coconut alpha. */
+  --shadow-xs: 0 1px 0 0 rgba(77, 52, 31, 0.06);
+  --shadow-sm:
+    0 1px 2px 0 rgba(77, 52, 31, 0.08), 0 1px 1px -1px rgba(77, 52, 31, 0.04);
+  --shadow-md:
+    0 4px 10px -2px rgba(77, 52, 31, 0.12),
+    0 2px 4px -2px rgba(77, 52, 31, 0.06);
+  --shadow-lg:
+    0 12px 28px -8px rgba(77, 52, 31, 0.18),
+    0 4px 10px -6px rgba(77, 52, 31, 0.08);
+  --shadow-xl:
+    0 24px 52px -12px rgba(77, 52, 31, 0.22),
+    0 8px 20px -10px rgba(77, 52, 31, 0.1);
+}
+
+/* ---------- Base body styles ----------
+   Light is the default to match the marketing site after #343.
+   The pre-paint script in index.html flips to `.dark` before the
+   first paint when the persisted choice or OS preference says so,
+   so the html background here is the cream sand-50. */
+html {
+  scroll-behavior: smooth;
+  background-color: var(--color-sand-50);
+  color-scheme: light;
+}
+
+html.dark {
+  background-color: var(--color-husk-400);
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+}
+
+/* Streaming-results row enter animation — unchanged from before
+   the palette move. */
 @keyframes fadeInRow {
   from {
     opacity: 0;
@@ -11,9 +158,14 @@
   }
 }
 
+/* Tour highlight ring — kept ember-red on purpose; the tour wants
+   an *attention-grab* color that pops in both themes, not the brand
+   palette. */
 .tour-highlight {
   position: relative;
-  box-shadow: 0 0 0 3px #ef4444, 0 0 24px 6px rgba(239, 68, 68, 0.4);
+  box-shadow:
+    0 0 0 3px var(--color-ember-400),
+    0 0 24px 6px rgba(210, 107, 77, 0.4);
   border-radius: 6px;
   transition: box-shadow 200ms ease-in-out;
 }
