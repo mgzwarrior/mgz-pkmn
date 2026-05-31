@@ -1,6 +1,6 @@
 """Pokemon card list -> spreadsheet for card shows."""
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 from mgz_pkmn.parser import CardQuery, parse_lines
 

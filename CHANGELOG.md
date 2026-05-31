@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-31
+
 ### Changed
 
 - Web: **Tropical palette across the SPA + theme toggle** — the React
@@ -255,6 +257,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Site: **social preview now matches the tropical look** — the
+  Open Graph / Twitter card image (`/social-preview-tropical.png`)
+  was still rendering the old dark zinc background and blue card
+  outline from the pre-tropical era; it's been redrawn on the cream
+  + sun + palm + coconut palette with the new card-and-palm logo,
+  the current "Walk in with a plan, not a hope." headline, and the
+  v1.2 shipping pill. Regenerable from
+  [`site/scripts/social-preview.svg`](site/scripts/social-preview.svg)
+  via `rsvg-convert -w 1280 -h 640 site/scripts/social-preview.svg
+  -o site/public/social-preview-tropical.png`.
 - Deploy: a transient `pokemontcg.io` timeout during the Docker build's
   `pkmn cache warm-sets` step no longer fails the whole deploy. The set
   catalog fetch now retries transient timeouts with backoff (matching the
@@ -542,7 +554,8 @@ UI, multi-source card lookup, all output formats, and release infrastructure.
 - Incomplete URL substring sanitization (CodeQL alerts).
 - Workflow permissions hardening (CodeQL alerts).
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.0.0...v1.0.1
