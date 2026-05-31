@@ -28,8 +28,8 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { Tour } from './components/Tour'
 import { useAppStore } from './store'
 import type { BulkEvent } from './types'
-import logoLightUrl from './assets/logo-tropical.svg'
-import logoDarkUrl from './assets/logo-tropical-dark.svg'
+import logoLightUrl from '../../assets/logo.svg'
+import logoDarkUrl from '../../assets/logo-dark.svg'
 
 function App() {
   const {

@@ -1,5 +1,7 @@
 ---
 import ThemeToggle from "./ThemeToggle.astro";
+import logoLightUrl from "../../../assets/logo.svg?url";
+import logoDarkUrl from "../../../assets/logo-dark.svg?url";
 
 const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
 ---
@@ -13,14 +15,14 @@ const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
   >
     <a href="/" class="flex items-center gap-2" aria-label="mgz-pkmn home">
       <img
-        src="/logo-tropical.svg"
+        src={logoLightUrl}
         alt=""
         width="180"
         height="44"
         class="h-8 w-auto dark:hidden"
       />
       <img
-        src="/logo-tropical-dark.svg"
+        src={logoDarkUrl}
         alt=""
         width="180"
         height="44"

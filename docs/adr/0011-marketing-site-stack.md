@@ -57,12 +57,20 @@ Specifically:
 - **CI gate**: a new `site` job in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
   runs `npm ci && npm run build` on every PR so broken builds don't
   reach Cloudflare Pages.
-- **Shared assets**: `assets/logo.svg` and `assets/social-preview.png`
-  are copied into `site/public/` rather than symlinked. Astro's
-  static-asset pipeline expects files inside the site root; the
-  duplication is cheap (logo is < 1KB, social preview is 35KB) and
-  the alternative (build-time copy script, cross-platform symlink)
-  would add fragility.
+- **Shared assets**: the canonical brand SVGs (`assets/logo.svg`,
+  `assets/logo-dark.svg`) live once at the repo root and are
+  pulled into the marketing site via relative Vite imports
+  (`import logoUrl from "../../../assets/logo.svg?url"` in
+  `Header.astro` / `Footer.astro`). Vite resolves the path, bundles
+  the asset, and emits a hashed URL under `_astro/` — no copy
+  step, no symlink, no drift across surfaces (see [#360](https://github.com/mgzwarrior/mgz-pkmn/issues/360)
+  for the consolidation from the prior copy-forward approach).
+  `astro.config.mjs` opts the dev server's `fs.allow` up one level
+  so the import resolves at dev time too. The `site/` build still
+  needs the repo checkout to include `assets/` — true in CI and
+  in any local checkout. Larger PNG assets (social preview) stay
+  in `site/public/` because they're served as static files for
+  Open Graph metadata, not bundled into components.
 
 ## Consequences
 
@@ -81,9 +89,11 @@ Specifically:
   pricing widget, embedded demo, etc.) means either adding a
   client-side island (Astro supports this) or a tiny serverless
   function — both available without re-platforming.
-- Logo / social-preview duplication between `assets/` and `site/public/`
-  is a small drift risk. Documented as a copy-forward step in
-  [`site/README.md`](../../site/README.md); the assets change rarely.
+- Brand SVGs have a single source of truth under `assets/`. Each
+  surface (marketing site, demo SPA) imports from the same files
+  via Vite, so a logo change is one file edit instead of a
+  six-file sweep. The `?url` import returns a hashed URL so each
+  surface's bundler still handles cache-busting on its own.
 - Cloudflare Pages requires a one-time UI setup (connect the repo,
   pick the build config). Documented in `site/README.md`. Can't be
   reproduced from the repo itself.
