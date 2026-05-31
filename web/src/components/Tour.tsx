@@ -192,7 +192,7 @@ export function Tour({ onClose, onRun, onStop }: Props) {
         </button>
         <button
           onClick={next}
-          className="flex items-center gap-1 rounded-md bg-sun-300 dark:bg-sun-300 px-3 py-1 text-xs font-medium text-white hover:bg-sun-300 dark:hover:bg-sun-300 transition-colors"
+          className="flex items-center gap-1 rounded-md bg-sun-300 dark:bg-sun-300 px-3 py-1 text-xs font-medium text-coconut-700 dark:text-husk-500 hover:bg-sun-400 dark:hover:bg-sun-200 transition-colors"
         >
           {isLast ? 'Done' : 'Next'}
           {!isLast && <ChevronRight size={14} />}

@@ -531,7 +531,7 @@ function SetDetailView({
             placeholder="Search this set…"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 py-1.5 pl-8 pr-2 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:text-sand-400 focus:border-sand-400 dark:border-coconut-400 focus:outline-none"
+            className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 py-1.5 pl-8 pr-2 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:placeholder:text-sand-400 focus:border-sand-400 dark:focus:border-coconut-400 focus:outline-none"
             aria-label="Search cards in this set"
           />
         </label>
@@ -547,7 +547,7 @@ function SetDetailView({
           <select
             value={sort}
             onChange={(e) => onSort(e.target.value as CardSort)}
-            className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 px-2 py-1 text-sm text-coconut-700 dark:text-sand-50 focus:border-sand-400 dark:border-coconut-400 focus:outline-none"
+            className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 px-2 py-1 text-sm text-coconut-700 dark:text-sand-50 focus:border-sand-400 dark:focus:border-coconut-400 focus:outline-none"
             aria-label="Sort cards"
           >
             {SORT_OPTIONS.map((s) => (
@@ -578,7 +578,7 @@ function SetDetailView({
       {/* Grid */}
       <div className="flex-1 overflow-y-auto px-5 py-3">
         {error && (
-          <p className="rounded border border-ember-500/40 dark:border-ember-500/40/50 bg-ember-500/10 dark:bg-ember-500/15/30 px-3 py-2 text-sm text-ember-400 dark:text-ember-300">
+          <p className="rounded border border-ember-500/40 dark:border-ember-500/50 bg-ember-500/10 dark:bg-ember-500/30 px-3 py-2 text-sm text-ember-400 dark:text-ember-300">
             Couldn’t load cards: {error}
           </p>
         )}
@@ -639,7 +639,7 @@ function CardTile({ card, onAdd }: { card: SetCard; onAdd: () => void }) {
       <button
         type="button"
         onClick={onAdd}
-        className="mt-2 flex items-center justify-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:border-palm-400 dark:hover:border-palm-500 hover:bg-palm-100 dark:hover:bg-palm-500/20/30 hover:text-palm-400 dark:hover:text-palm-100"
+        className="mt-2 flex items-center justify-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:border-palm-400 dark:hover:border-palm-500 hover:bg-palm-100 dark:hover:bg-palm-500/30 hover:text-palm-400 dark:hover:text-palm-100"
         aria-label={`Add ${card.name} to list`}
       >
         <Plus size={12} />
@@ -669,7 +669,7 @@ function Chip({
       aria-pressed={active}
       className={`rounded-md border px-2 py-1 text-xs transition-colors ${
         active
-          ? 'border-palm-400 dark:border-sun-400 bg-sun-400/15 dark:bg-sun-400/15/40 text-palm-700 dark:text-sun-100'
+          ? 'border-palm-400 dark:border-sun-400 bg-sun-400/15 dark:bg-sun-400/40 text-palm-700 dark:text-sun-100'
           : 'border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100'
       }`}
     >

@@ -122,7 +122,7 @@ export function ResultsTable({ onRerunLine }: Props) {
               setSortDir(null)
               setFilters(EMPTY_FILTERS)
             }}
-            className="text-xs text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:text-sand-200"
+            className="text-xs text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200"
           >
             Clear sort &amp; filters
           </button>
@@ -447,7 +447,7 @@ function ResultRow({
   return (
     <>
       <tr
-        className={`border-b border-sand-200 dark:border-husk-100 hover:bg-sand-100 dark:bg-husk-200/50 transition-colors motion-safe:animate-[fadeInRow_220ms_ease-out] ${
+        className={`border-b border-sand-200 dark:border-husk-100 hover:bg-sand-100 dark:hover:bg-husk-200/50 transition-colors motion-safe:animate-[fadeInRow_220ms_ease-out] ${
           !row.matched ? 'opacity-60' : ''
         } ${isOverCap ? 'bg-sun-100 dark:bg-sun-400/15' : ''} ${canOpenDetail ? 'cursor-pointer' : ''}`}
         onClick={canOpenDetail ? handleRowClick : undefined}
@@ -579,7 +579,7 @@ function ResultRow({
               </button>
               <button
                 onClick={() => setShowOverrideForm(false)}
-                className="text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:text-sand-200 text-xs"
+                className="text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200 text-xs"
               >
                 Cancel
               </button>

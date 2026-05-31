@@ -352,7 +352,7 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
             <button
               onClick={handleSubmit}
               disabled={submitting || draft.size === 0}
-              className="flex items-center gap-1.5 rounded-md border border-palm-400 dark:border-sun-400 bg-sun-400 dark:bg-sun-400 px-3 py-1.5 text-sm font-medium text-white hover:bg-sun-300 dark:hover:bg-sun-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 rounded-md border border-palm-400 dark:border-sun-400 bg-sun-400 dark:bg-sun-400 px-3 py-1.5 text-sm font-medium text-coconut-700 dark:text-husk-500 hover:bg-sun-300 dark:hover:bg-sun-300 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <Loader2 size={14} className="animate-spin" />

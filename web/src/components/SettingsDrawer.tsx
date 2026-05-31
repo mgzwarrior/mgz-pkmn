@@ -64,7 +64,7 @@ export function SettingsDrawer() {
                 value={settings.apiKey}
                 onChange={(e) => updateSettings({ apiKey: e.target.value })}
                 placeholder="Optional — raises rate limit"
-                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
+                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:placeholder:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
               />
             </Field>
 
@@ -76,7 +76,7 @@ export function SettingsDrawer() {
                 value={settings.tag}
                 onChange={(e) => updateSettings({ tag: e.target.value })}
                 placeholder="Labels rows in the export"
-                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
+                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:placeholder:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
               />
             </Field>
 
@@ -114,7 +114,7 @@ export function SettingsDrawer() {
                   })
                 }
                 placeholder="No cap"
-                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
+                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:placeholder:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
               />
               <p className="mt-1 text-xs text-coconut-400 dark:text-sand-300">
                 Bulk top-N results above this price are excluded. Single-card lookups are always
