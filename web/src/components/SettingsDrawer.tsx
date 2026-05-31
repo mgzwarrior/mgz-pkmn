@@ -3,10 +3,11 @@
  * Uses the Radix Dialog primitive styled with Tailwind.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import type { ReactNode } from 'react'
-import { Settings as SettingsIcon, X } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Database, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react'
+import { fetchCacheStats } from '../api/client'
 import { useAppStore } from '../store'
-import type { SortMode } from '../types'
+import type { CacheStats, SortMode } from '../types'
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'number', label: 'Card number (group by set) — default' },
@@ -146,6 +147,8 @@ export function SettingsDrawer() {
                 onChange={(v) => updateSettings({ showTimer: v })}
               />
             </div>
+
+            <CacheStatsPanel />
           </div>
 
           {/* Footer */}
@@ -184,6 +187,140 @@ function Field({
       {children}
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Cache stats panel — read-only snapshot of GET /api/v1/cache/stats. Lives
+// at the bottom of the drawer because it's diagnostic, not configurable.
+// ---------------------------------------------------------------------------
+
+function CacheStatsPanel() {
+  // `loading` starts true because the mount effect kicks off the first
+  // fetch before any user interaction. Refresh-button clicks flip it back
+  // on. Keeping the initial setLoading out of the effect avoids the
+  // react-hooks/set-state-in-effect lint rule.
+  const [stats, setStats] = useState<CacheStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Single mount effect — cancellable so the drawer closing mid-flight
+  // doesn't try to update an unmounted component. Matches the pattern in
+  // WhatsNewModal.tsx.
+  useEffect(() => {
+    let cancelled = false
+    fetchCacheStats()
+      .then((data) => {
+        if (!cancelled) setStats(data)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'failed to load')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function refresh() {
+    setLoading(true)
+    setError(null)
+    try {
+      setStats(await fetchCacheStats())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'failed to load')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-100 px-3 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5 text-sm font-medium text-coconut-600 dark:text-sand-200">
+          <Database size={14} />
+          Cache stats
+        </div>
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          disabled={loading}
+          aria-label="Refresh cache stats"
+          className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-200 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+      )}
+
+      {!error && !stats && loading && (
+        <p className="text-xs text-coconut-400 dark:text-sand-300">Loading…</p>
+      )}
+
+      {stats && (
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+          <StatRow label="API responses" value={`${stats.api_entry_count} · ${formatBytes(stats.api_bytes)}`} />
+          <StatRow label="Images" value={`${stats.image_entry_count} · ${formatBytes(stats.image_bytes)}`} />
+          <StatRow label="Overrides" value={`${stats.override_count} · ${formatBytes(stats.override_bytes)}`} />
+          <StatRow
+            label="Concepts"
+            value={
+              stats.concept_warm_timestamp == null
+                ? 'not warmed'
+                : `${stats.concept_warm_names} · ${formatAge(stats.concept_warm_timestamp)}`
+            }
+            warn={stats.concept_warm_timestamp == null}
+          />
+          <StatRow
+            label="Set cards"
+            value={
+              stats.set_cards_warm_timestamp == null
+                ? 'not warmed'
+                : `${stats.set_cards_warm_count} · ${formatAge(stats.set_cards_warm_timestamp)}`
+            }
+            warn={stats.set_cards_warm_timestamp == null}
+          />
+        </dl>
+      )}
+    </div>
+  )
+}
+
+function StatRow({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <>
+      <dt className="text-coconut-400 dark:text-sand-300 truncate">{label}</dt>
+      <dd
+        className={`text-right tabular-nums ${
+          warn
+            ? 'text-amber-700 dark:text-amber-400'
+            : 'text-coconut-700 dark:text-sand-50'
+        }`}
+      >
+        {value}
+      </dd>
+    </>
+  )
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatAge(epochSeconds: number): string {
+  const seconds = Math.max(0, Date.now() / 1000 - epochSeconds)
+  if (seconds < 60) return 'just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
 }
 
 function Toggle({

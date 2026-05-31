@@ -35,7 +35,16 @@ from .db.session import get_engine
 from .routes import (
     cache as cache_route,
 )
-from .routes import changelog, export, lookup, overrides, parse, runs, set_cards, sets
+from .routes import (
+    changelog,
+    export,
+    lookup,
+    overrides,
+    parse,
+    runs,
+    set_cards,
+    sets,
+)
 
 _log = logging.getLogger(__name__)
 

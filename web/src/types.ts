@@ -201,6 +201,27 @@ export interface ChangelogRelease {
 }
 
 /**
+ * Snapshot returned by `GET /api/v1/cache/stats` — same shape as
+ * `pkmn cache stats --json`. Counts are always present; the two warm
+ * timestamps are `null` when no warm pass has been recorded on this
+ * instance.
+ */
+export interface CacheStats {
+  root: string
+  api_entry_count: number
+  api_bytes: number
+  api_oldest_mtime: number | null
+  override_count: number
+  override_bytes: number
+  image_entry_count: number
+  image_bytes: number
+  concept_warm_timestamp: number | null
+  concept_warm_names: number
+  set_cards_warm_timestamp: number | null
+  set_cards_warm_count: number
+}
+
+/**
  * One entry in the recent-searches history. Captured the moment the
  * user clicks **Look up** so the panel reflects what was actually
  * submitted (even if the run later errored or was stopped).

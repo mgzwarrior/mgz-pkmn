@@ -25,14 +25,45 @@ from mgz_pkmn import cache as disk_cache
 router = APIRouter()
 
 
+def _zeroed_snapshot() -> disk_cache.CacheStats:
+    """Best-effort fallback when `disk_cache.stats()` can't read the cache.
+
+    `cache_root()` does an `mkdir`, which raises `OSError` on read-only or
+    misconfigured filesystems. A diagnostics endpoint shouldn't 500 just
+    because nothing is cacheable; return the same schema with everything
+    zeroed (and `root` resolved without the mkdir side effect) so the
+    operator gets the "nothing to see" answer instead of an opaque error.
+    """
+    return disk_cache.CacheStats(
+        root=disk_cache._cache_root_path(),
+        api_entry_count=0,
+        api_bytes=0,
+        api_oldest_mtime=None,
+        override_count=0,
+        override_bytes=0,
+        image_entry_count=0,
+        image_bytes=0,
+        concept_warm_timestamp=None,
+        concept_warm_names=0,
+        set_cards_warm_timestamp=None,
+        set_cards_warm_count=0,
+    )
+
+
 @router.get("/cache/stats")
 def get_cache_stats(response: Response) -> dict:
     """Return on-disk cache stats in the same shape as `pkmn cache stats --json`.
 
     `root` is stringified (the dataclass holds a `Path`) so the response
-    serializes cleanly; every other field is already a primitive.
+    serializes cleanly; every other field is already a primitive. Swallows
+    `OSError` from the underlying filesystem reads — see `_zeroed_snapshot`
+    for the rationale.
     """
-    payload = asdict(disk_cache.stats())
+    try:
+        snapshot = disk_cache.stats()
+    except OSError:
+        snapshot = _zeroed_snapshot()
+    payload = asdict(snapshot)
     payload["root"] = str(payload["root"])
     response.headers["Cache-Control"] = "no-store"
     return payload

@@ -16,9 +16,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the "did `MGZ_PKMN_WARM_ON_STARTUP` actually land?" question on demand
   rather than from log-grep, with no auth required (entry counts and
   timestamps aren't sensitive) and `Cache-Control: no-store` so the
-  reading reflects current on-disk state. Wired into
+  reading reflects current on-disk state. Falls back to a zeroed
+  snapshot on `OSError` (read-only / misconfigured filesystem) so the
+  diagnostics endpoint never 500s on the surface meant to diagnose
+  failures. Wired into
   [`docs/deployment.md`](docs/deployment.md#inspecting-deployed-cache-state)
   as the canonical inspection surface.
+- Web: **Cache-stats panel in the Settings drawer** — surfaces the
+  same `/api/v1/cache/stats` snapshot inline in the SPA so contributors
+  and operators can see the deployed instance's API / image / override
+  counts and warm-pass freshness without leaving the app. Reads on
+  drawer open with a refresh button for re-reads, and renders "not
+  warmed" in amber for the concept and set-cards slices when the
+  manifests are missing.
 
 ### Fixed
 

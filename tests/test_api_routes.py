@@ -734,6 +734,20 @@ class CacheStatsRouteTests(unittest.TestCase):
         resp = client.get("/api/v1/cache/stats")
         self.assertEqual(resp.headers.get("cache-control"), "no-store")
 
+    def test_oserror_from_stats_falls_back_to_zero_snapshot(self) -> None:
+        """A read-only / misconfigured filesystem shouldn't 500 a diagnostics endpoint."""
+        with patch.object(cache, "stats", side_effect=OSError("read-only fs")):
+            resp = client.get("/api/v1/cache/stats")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        # Same schema, just zeros + nulls.
+        self.assertEqual(data["api_entry_count"], 0)
+        self.assertEqual(data["api_bytes"], 0)
+        self.assertIsNone(data["api_oldest_mtime"])
+        self.assertIsNone(data["concept_warm_timestamp"])
+        self.assertIsNone(data["set_cards_warm_timestamp"])
+        self.assertIsInstance(data["root"], str)
+
     def test_field_names_match_cli_json_shape(self) -> None:
         """Acceptance check: same field names as `pkmn cache stats --json`.
 

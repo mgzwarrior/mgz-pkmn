@@ -8,6 +8,7 @@
 
 import type {
   BulkEvent,
+  CacheStats,
   CardQuery,
   ChangelogRelease,
   ExportFormat,
@@ -320,4 +321,21 @@ export async function fetchChangelog(limit = 5): Promise<ChangelogRelease[]> {
   if (!res.ok) throw new Error(`changelog failed: ${res.status}`)
   const data = await res.json()
   return data.releases as ChangelogRelease[]
+}
+
+// ---------------------------------------------------------------------------
+// cache
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch on-disk cache stats from `GET /api/v1/cache/stats`. Used by the
+ * Settings drawer to surface whether the instance is warmed and how many
+ * entries are cached. Backend serves the response with
+ * `Cache-Control: no-store` so consumers don't need to bust the cache
+ * themselves.
+ */
+export async function fetchCacheStats(): Promise<CacheStats> {
+  const res = await fetch(`${BASE}/cache/stats`)
+  if (!res.ok) throw new Error(`cache stats failed: ${res.status}`)
+  return (await res.json()) as CacheStats
 }
