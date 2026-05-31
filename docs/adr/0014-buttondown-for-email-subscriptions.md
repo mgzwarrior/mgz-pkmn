@@ -44,8 +44,10 @@ POST https://buttondown.com/api/emails/embed-subscribe/<username>
 The username (`mgz-pkmn`) is committed; no API key is in the
 client. The component uses progressive enhancement: when JS is
 available, the form submits inline via `fetch` and shows a success
-state in place; when JS is off, the browser posts the form
-normally and lands on Buttondown's hosted confirmation page.
+state in place; when JS is off, the `<form>` falls back to
+`target="popupwindow"` + an `onsubmit` that calls
+`window.open(...)` so the submission opens Buttondown's hosted
+form in a popup rather than navigating away from the page.
 Buttondown sets CORS on the embed endpoint so the inline path
 works without a proxy.
 

@@ -35,22 +35,37 @@ Constraints:
 
 ## Decision
 
-Adopt a **tropical palette** as the design system across every
-surface, in two themes:
+Adopt a **tropical palette** as the design system on the user-facing
+surfaces (marketing site via [#342](https://github.com/mgzwarrior/mgz-pkmn/pull/342)
++ [#343](https://github.com/mgzwarrior/mgz-pkmn/pull/343); demo SPA
+via [#347](https://github.com/mgzwarrior/mgz-pkmn/pull/347)), in two
+themes:
 
-- **Light** (default; first-paint after [#343](https://github.com/mgzwarrior/mgz-pkmn/pull/343)
-  and [#347](https://github.com/mgzwarrior/mgz-pkmn/pull/347)):
-  cream `sand-50` background, sun-yellow CTAs, palm-green accents
-  and prices, coconut-brown body text. Display type **Bricolage
-  Grotesque**, body **DM Sans**, monospace **JetBrains Mono**.
-  Warm coconut-alpha shadows replace flat black.
+- **Light:** cream `sand-50` background, sun-yellow CTAs, palm-green
+  accents and prices, coconut-brown body text. Display type
+  **Bricolage Grotesque**, body **DM Sans**, monospace **JetBrains
+  Mono**. Warm coconut-alpha shadows replace flat black.
 - **Dark:** husk coffee-charcoal surfaces (`husk-100` through
   `husk-500`), warm sand body text (`sand-50`/`sand-200`/`sand-300`),
   the same sun-yellow CTAs that define light mode, and badge
   accents on palm / sun / ember instead of generic emerald / blue
   / rose.
 
-Mechanism — applied identically on both surfaces:
+First-paint default differs per surface (each gets the
+strongest-impression theme for its visitor pattern):
+
+- **Marketing site** defaults to **dark** —
+  [`site/src/layouts/BaseLayout.astro`](../../site/src/layouts/BaseLayout.astro)
+  renders `<html class="dark">` and the pre-paint script resolves
+  `localStorage[theme]` → OS `prefers-color-scheme: light` →
+  `dark` fallback.
+- **Demo SPA** defaults to **light** —
+  [`web/index.html`](../../web/index.html)'s pre-paint script
+  resolves saved choice → OS preference → `light` fallback, to
+  match the site's tropical-light look the SPA inherits when
+  visitors click through from a landing-page CTA.
+
+Mechanism — applied per surface, same shape on each:
 
 - Palette tokens defined once per surface in an `@theme` block in
   the surface's root CSS
@@ -59,9 +74,9 @@ Mechanism — applied identically on both surfaces:
   (`--color-sun-300`, `--color-palm-400`, `--color-coconut-700`,
   …) are the contract.
 - Tailwind 4's **`@custom-variant dark`** drives the theme switch,
-  scoped to `.dark` on `<html>`. A pre-paint inline script reads
-  `localStorage[theme]` → OS `prefers-color-scheme` → light
-  default, before first paint to avoid the flash.
+  scoped to `.dark` on `<html>`. Each surface owns its own
+  pre-paint inline script (see defaults above) so the toggle never
+  flashes.
 - Components use **paired classes** for every theme-sensitive
   property: `bg-sand-50 dark:bg-husk-400`,
   `text-coconut-700 dark:text-sand-50`,
@@ -74,7 +89,7 @@ Mechanism — applied identically on both surfaces:
 
 The full design-system definition (palette swatches, type ramp,
 component anatomy) lives outside the repo at
-*~/Downloads/mgz-pkmn Design System-2/* on the maintainer's
+`~/Downloads/mgz-pkmn Design System-2/` on the maintainer's
 machine. The repo intentionally only ships the *applied* tokens
 in `@theme`, not the spec — the spec is allowed to drift ahead of
 the code, and PRs reconcile when a new component lands.
@@ -94,10 +109,12 @@ the code, and PRs reconcile when a new component lands.
 - Dark mode no longer ships as an afterthought. Both themes are
   load-bearing and tested in the same review pass; the contrast
   doc is the spec.
-- Light as the default is a soft brand decision: the cream + sun
-  palette only really lands in light, and that's where the
-  warmest first-visit impression lives. Visitors who prefer dark
-  flip in one click; their choice persists.
+- The per-surface first-paint default (site → dark, SPA → light)
+  is a soft brand decision: a marketing-site landing has the most
+  punch on the moody dark palette, while the demo SPA looks most
+  like a real tool on the warm tropical-light surface. Visitors
+  who prefer the other half flip in one click; their choice
+  persists in `localStorage[theme]`.
 - Migration cost when we change a token (e.g., bump `sun-300`
   from `#F5C94B` to a different yellow): one find-and-replace in
   the two `@theme` blocks. Components don't reference hex codes

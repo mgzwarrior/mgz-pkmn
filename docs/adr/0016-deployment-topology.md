@@ -50,20 +50,26 @@ them, with a single registrar in front:
   [ADR-0011](0011-marketing-site-stack.md).
 - **Demo app (`api/` + `web/`):** **Render** as a Docker web
   service, blueprinted from [`render.yaml`](../../render.yaml) at
-  the repo root, auto-deploy on push to `main`. The app starts on
-  the free Hobby plan and is currently on **Starter** (512 MB RAM,
-  0.5 CPU) to cover the binder-PDF and persistence-layer memory
-  ceilings. Forced rebuilds happen via the existing manual *Deploy*
-  GitHub Action (see [`docs/deployment.md`](../deployment.md)).
+  the repo root, auto-deploy on push to `main`. The blueprint pins
+  the **free Hobby plan** so a fresh `Blueprint → New` from this
+  repo always starts cheap; the running service's tier is an
+  operational dashboard setting that can be raised as demand
+  warrants (e.g., Starter — 512 MB RAM, 0.5 CPU — covers the
+  binder-PDF and persistence-layer memory ceilings without touching
+  the blueprint). Forced rebuilds happen via the existing manual
+  *Deploy* GitHub Action (see
+  [`docs/deployment.md`](../deployment.md)).
 - **Domain registrar:** **Cloudflare Registrar** for both
   `mgz-pkmn.com` and the maintainer's `matt-grant.com`. At-cost
   pricing, no markup on renewals, and the registrar/Pages/DNS
   control plane is one tool.
 
 Tier upgrades follow demand, not feature scope: if Render's free
-spin-down (~30 s wake on cold start) becomes a real
-papercut on a demo link in the README/Slack, that's the moment to
-upgrade — which we've done once already (Hobby → Starter).
+Hobby spin-down (~30 s wake on cold start) becomes a real papercut
+on a demo link in the README/Slack, or the binder-PDF / persistence
+path starts brushing the 512 MB ceiling, that's the trigger to
+bump the dashboard tier (Starter at $7/mo lifts both limits).
+Bumps are reversible and don't touch the committed blueprint.
 
 ## Consequences
 

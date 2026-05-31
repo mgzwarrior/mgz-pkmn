@@ -34,11 +34,14 @@ Constraints:
 Use **[Tally](https://tally.so)** for the v1 interest survey, linked
 out from the announcement banner. Specifically:
 
-- Tally form ID lives in two places: the survey doc
-  ([`docs/marketing/surveys/v1-interest-survey.md`](../marketing/surveys/v1-interest-survey.md))
-  and `AnnouncementBanner.astro`'s `SURVEY_URL`. Bump both, plus
-  the `survey-v1` dismissal-key suffix, when shipping a future
-  survey.
+- Tally form ID lives in three places: the survey doc
+  ([`docs/marketing/surveys/v1-interest-survey.md`](../marketing/surveys/v1-interest-survey.md)),
+  the marketing-site banner
+  ([`site/src/components/AnnouncementBanner.astro`](../../site/src/components/AnnouncementBanner.astro)'s
+  `SURVEY_URL`), and the demo SPA banner
+  ([`web/src/components/AnnouncementBanner.tsx`](../../web/src/components/AnnouncementBanner.tsx)'s
+  `SURVEY_URL`). Bump all three, plus the `survey-v1`
+  dismissal-key suffix, when shipping a future survey.
 - One question per Tally screen (Tally's default); responses go
   to Tally's dashboard.
 - The question list in `docs/marketing/surveys/` is the source of
@@ -61,9 +64,10 @@ a one-time CSV import; we're not building a moat around Tally.
 - Response data lives in Tally's dashboard, off-repo, with optional
   CSV export. Acceptable for a marketing survey; would be wrong for
   anything we needed to query programmatically.
-- Two surfaces (announcement banner + survey doc) must stay in
-  sync on the Tally URL. The CHANGELOG note for the survey-banner
-  feature spells this out so future-us doesn't forget.
+- Three surfaces (survey doc + marketing-site banner + demo SPA
+  banner) must stay in sync on the Tally URL. The CHANGELOG note
+  for the survey-banner feature spells this out so future-us
+  doesn't forget.
 - No subscriber funnel built in: a Tally respondent isn't
   automatically subscribed to Buttondown. We accept that tradeoff
   for v1 — the survey has an optional email field whose answers we
