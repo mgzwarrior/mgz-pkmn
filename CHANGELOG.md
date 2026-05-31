@@ -265,6 +265,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
   [`site/scripts/social-preview.svg`](site/scripts/social-preview.svg)
   via `rsvg-convert -w 1280 -h 640 site/scripts/social-preview.svg
   -o site/public/social-preview-tropical.png`.
+- Repo: **README logo now matches the rest of the brand** —
+  [`assets/logo.svg`](assets/logo.svg) is replaced with the tropical
+  card-and-palm logo (previously only the marketing site + SPA
+  surfaced it). Every reference that uses the canonical
+  `raw.githubusercontent.com/.../assets/logo.svg` URL — the README
+  header, the GitHub Discussion posts that open with the inline
+  logo, the welcome-email drafts — picks up the new mark on cache
+  refresh; no link changes needed.
 - Deploy: a transient `pokemontcg.io` timeout during the Docker build's
   `pkmn cache warm-sets` step no longer fails the whole deploy. The set
   catalog fetch now retries transient timeouts with backoff (matching the

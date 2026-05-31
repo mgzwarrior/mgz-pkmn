@@ -27,7 +27,7 @@
   <line x1="0" y1="540" x2="1280" y2="540" stroke="#D6C99F" stroke-width="1" opacity="0.6"/>
 
   <!-- Stacked card layers behind the hero card for depth -->
-  <g transform="translate(110, 130)" filter="url(#card-shadow)">
+  <g transform="translate(170, 100)" filter="url(#card-shadow)">
     <rect x="32" y="40" width="320" height="412" rx="32" ry="32" fill="#E8DDBC" stroke="#80623F" stroke-width="3" opacity="0.55" transform="rotate(-7, 192, 246)"/>
     <rect x="16" y="20" width="320" height="412" rx="32" ry="32" fill="#F4ECD3" stroke="#80623F" stroke-width="3" opacity="0.8" transform="rotate(-3, 176, 226)"/>
 
@@ -57,7 +57,7 @@
   </g>
 
   <!-- Right-hand content block -->
-  <g transform="translate(520, 144)">
+  <g transform="translate(580, 124)">
     <!-- "Now shipping" pill -->
     <g>
       <rect x="0" y="0" width="220" height="38" rx="19" fill="#FBF6E8" stroke="#D6C99F" stroke-width="1.5"/>
