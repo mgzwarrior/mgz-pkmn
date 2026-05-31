@@ -49,7 +49,7 @@ export function AnnouncementBanner() {
     <div
       role="region"
       aria-label="Site announcement"
-      className="border-b border-blue-500/40 bg-blue-500/15 text-blue-50"
+      className="border-b border-sun-400/40 bg-sun-300 text-coconut-700 dark:border-sun-400/40 dark:bg-sun-400/15 dark:text-sun-100"
     >
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2 text-sm">
         <span aria-hidden="true" className="text-base">
@@ -71,7 +71,7 @@ export function AnnouncementBanner() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss announcement"
-          className="rounded-md p-1 text-blue-100 transition-colors hover:bg-blue-500/30 hover:text-white"
+          className="rounded-md p-1 text-coconut-500 hover:bg-sun-400/40 hover:text-coconut-700 dark:text-sun-100 dark:hover:bg-sun-400/30 dark:hover:text-sand-50 transition-colors"
         >
           <X size={16} strokeWidth={2.5} aria-hidden="true" />
         </button>

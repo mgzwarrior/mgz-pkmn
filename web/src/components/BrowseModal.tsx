@@ -302,29 +302,29 @@ export function BrowseModal({ open, onOpenChange }: Props) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 dark:bg-husk-500/70 backdrop-blur-sm" />
         <Dialog.Content
           aria-describedby="browse-description"
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(1100px,95vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(1100px,95vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-2xl"
         >
-          <header className="flex items-center justify-between gap-3 border-b border-zinc-800 px-5 py-4">
+          <header className="flex items-center justify-between gap-3 border-b border-sand-200 dark:border-husk-100 px-5 py-4">
             <div className="flex items-center gap-2">
               {activeSet && (
                 <button
                   type="button"
                   onClick={() => setActiveSet(null)}
                   aria-label="Back to set list"
-                  className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                  className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-700 dark:hover:text-sand-50"
                 >
                   <ArrowLeft size={16} />
                 </button>
               )}
-              <Library size={18} className="text-zinc-300" />
-              <Dialog.Title className="text-lg font-semibold text-zinc-100">
+              <Library size={18} className="text-coconut-600 dark:text-sand-200" />
+              <Dialog.Title className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
                 {activeSet ? activeSet.name : 'Browse sets'}
               </Dialog.Title>
               {activeSet && (
-                <span className="text-xs text-zinc-500">
+                <span className="text-xs text-coconut-400 dark:text-sand-400">
                   {activeSet.series}
                   {releaseYear(activeSet.releaseDate)
                     ? ` · ${releaseYear(activeSet.releaseDate)}`
@@ -335,7 +335,7 @@ export function BrowseModal({ open, onOpenChange }: Props) {
             <Dialog.Close asChild>
               <button
                 aria-label="Close"
-                className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-700 dark:hover:text-sand-50"
               >
                 <X size={18} />
               </button>
@@ -344,7 +344,7 @@ export function BrowseModal({ open, onOpenChange }: Props) {
 
           <Dialog.Description
             id="browse-description"
-            className="px-5 pt-3 text-sm text-zinc-400"
+            className="px-5 pt-3 text-sm text-coconut-400 dark:text-sand-300"
           >
             {activeSet
               ? 'Click a card to add it to your input list, or use the bulk actions below.'
@@ -410,9 +410,9 @@ function SetListView({ groups, onPick }: SetListProps) {
       <ul className="space-y-4">
         {groups.map((group) => (
           <li key={group.series}>
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-300">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200">
               {group.series}
-              <span className="ml-1 font-normal normal-case tracking-normal text-zinc-500">
+              <span className="ml-1 font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
                 ({group.sets.length})
                 </span>
               </div>
@@ -436,11 +436,11 @@ function SetTile({ set, onPick }: { set: SetInfo; onPick: () => void }) {
       <button
         type="button"
         onClick={onPick}
-        className="flex w-full items-center gap-3 rounded-md border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-left hover:border-zinc-700 hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-700"
+        className="flex w-full items-center gap-3 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 px-3 py-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
       >
-        <div className="flex h-10 w-14 flex-none items-center justify-center rounded bg-zinc-950">
+        <div className="flex h-10 w-14 flex-none items-center justify-center rounded bg-sand-50 dark:bg-husk-400">
           {logoFailed ? (
-            <ImageOff size={16} className="text-zinc-600" aria-hidden />
+            <ImageOff size={16} className="text-coconut-300 dark:text-sand-500" aria-hidden />
           ) : (
             <img
               src={setLogoUrl(set.id)}
@@ -452,10 +452,10 @@ function SetTile({ set, onPick }: { set: SetInfo; onPick: () => void }) {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-zinc-100">
+          <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
             {set.name}
           </div>
-          <div className="truncate text-xs text-zinc-500">
+          <div className="truncate text-xs text-coconut-400 dark:text-sand-400">
             {year || '—'} · {set.total ? `${set.total} cards` : 'count unknown'}
           </div>
         </div>
@@ -519,11 +519,11 @@ function SetDetailView({
   return (
     <>
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
         <label className="relative flex-1 min-w-[180px]">
           <Search
             size={14}
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500"
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-coconut-400 dark:text-sand-400"
             aria-hidden
           />
           <input
@@ -531,7 +531,7 @@ function SetDetailView({
             placeholder="Search this set…"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            className="w-full rounded-md border border-zinc-700 bg-zinc-950 py-1.5 pl-8 pr-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+            className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 py-1.5 pl-8 pr-2 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:placeholder:text-sand-400 focus:border-sand-400 dark:focus:border-coconut-400 focus:outline-none"
             aria-label="Search cards in this set"
           />
         </label>
@@ -542,12 +542,12 @@ function SetDetailView({
             </Chip>
           ))}
         </div>
-        <label className="flex items-center gap-1 text-xs text-zinc-400">
+        <label className="flex items-center gap-1 text-xs text-coconut-400 dark:text-sand-300">
           Sort
           <select
             value={sort}
             onChange={(e) => onSort(e.target.value as CardSort)}
-            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none"
+            className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 px-2 py-1 text-sm text-coconut-700 dark:text-sand-50 focus:border-sand-400 dark:focus:border-coconut-400 focus:outline-none"
             aria-label="Sort cards"
           >
             {SORT_OPTIONS.map((s) => (
@@ -560,16 +560,16 @@ function SetDetailView({
       </div>
 
       {/* Bulk-action toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-5 py-2 text-xs text-zinc-400">
+      <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-2 text-xs text-coconut-400 dark:text-sand-300">
         <span>
           {cards.length} of {total} card{total === 1 ? '' : 's'}
         </span>
-        <span className="text-zinc-600">·</span>
+        <span className="text-coconut-300 dark:text-sand-500">·</span>
         <BulkButton onClick={onAddAll}>Add all visible</BulkButton>
         <BulkButton onClick={onAddHolos}>Add holos</BulkButton>
         <BulkButton onClick={onAddRares}>Add rares</BulkButton>
         {addedCount != null && (
-          <span className="ml-auto text-emerald-400" role="status">
+          <span className="ml-auto text-palm-500 dark:text-palm-200" role="status">
             Added {addedCount} line{addedCount === 1 ? '' : 's'} to your list
           </span>
         )}
@@ -578,18 +578,18 @@ function SetDetailView({
       {/* Grid */}
       <div className="flex-1 overflow-y-auto px-5 py-3">
         {error && (
-          <p className="rounded border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+          <p className="rounded border border-ember-500/40 dark:border-ember-500/50 bg-ember-500/10 dark:bg-ember-500/30 px-3 py-2 text-sm text-ember-400 dark:text-ember-300">
             Couldn’t load cards: {error}
           </p>
         )}
         {loading && !error && (
-          <p className="flex items-center gap-2 text-sm text-zinc-400">
+          <p className="flex items-center gap-2 text-sm text-coconut-400 dark:text-sand-300">
             <Loader2 size={14} className="animate-spin" />
             Loading cards…
           </p>
         )}
         {!loading && !error && cards.length === 0 && (
-          <p className="text-sm text-zinc-500">No cards match your filters.</p>
+          <p className="text-sm text-coconut-400 dark:text-sand-400">No cards match your filters.</p>
         )}
         {!loading && !error && cards.length > 0 && (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -606,8 +606,8 @@ function SetDetailView({
 function CardTile({ card, onAdd }: { card: SetCard; onAdd: () => void }) {
   const [thumbFailed, setThumbFailed] = useState(false)
   return (
-    <li className="group flex flex-col rounded-md border border-zinc-800 bg-zinc-950/40 p-2 text-left hover:border-zinc-700 hover:bg-zinc-900">
-      <div className="relative aspect-[245/342] w-full overflow-hidden rounded bg-zinc-950">
+    <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
+      <div className="relative aspect-[245/342] w-full overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
         {card.thumb && !thumbFailed ? (
           <img
             src={card.thumb}
@@ -617,29 +617,29 @@ function CardTile({ card, onAdd }: { card: SetCard; onAdd: () => void }) {
             onError={() => setThumbFailed(true)}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-zinc-700">
+          <div className="flex h-full w-full items-center justify-center text-coconut-700 dark:text-sand-200">
             <ImageOff size={28} aria-hidden />
           </div>
         )}
       </div>
       <div className="mt-2 min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-zinc-100" title={card.name}>
+        <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={card.name}>
           {card.name}
         </div>
-        <div className="flex items-center justify-between text-xs text-zinc-500">
+        <div className="flex items-center justify-between text-xs text-coconut-400 dark:text-sand-400">
           <span>#{card.number}</span>
           {card.market != null && (
-            <span className="text-emerald-400">${card.market.toFixed(2)}</span>
+            <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
           )}
         </div>
         {card.rarity && (
-          <div className="truncate text-[11px] text-zinc-500">{card.rarity}</div>
+          <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{card.rarity}</div>
         )}
       </div>
       <button
         type="button"
         onClick={onAdd}
-        className="mt-2 flex items-center justify-center gap-1 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 hover:border-emerald-700 hover:bg-emerald-900/30 hover:text-emerald-300"
+        className="mt-2 flex items-center justify-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:border-palm-400 dark:hover:border-palm-500 hover:bg-palm-100 dark:hover:bg-palm-500/30 hover:text-palm-400 dark:hover:text-palm-100"
         aria-label={`Add ${card.name} to list`}
       >
         <Plus size={12} />
@@ -669,8 +669,8 @@ function Chip({
       aria-pressed={active}
       className={`rounded-md border px-2 py-1 text-xs transition-colors ${
         active
-          ? 'border-blue-700 bg-blue-900/40 text-blue-200'
-          : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+          ? 'border-palm-400 dark:border-sun-400 bg-sun-400/15 dark:bg-sun-400/40 text-palm-700 dark:text-sun-100'
+          : 'border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100'
       }`}
     >
       {children}
@@ -689,7 +689,7 @@ function BulkButton({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-700"
+      className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100"
     >
       {children}
     </button>

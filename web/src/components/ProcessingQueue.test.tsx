@@ -96,15 +96,17 @@ describe('ProcessingQueue stage chips', () => {
 
   it('applies the matching color class to the stage label', () => {
     render(<ProcessingQueue />)
-    // The looking_up line's label is rendered in blue (the chip uses the
-    // stage color class on its own <span>, not the legend swatch).
+    // The looking_up label uses the sky-* palette in both themes (the
+    // chip's own <span> carries the stage color class, not the legend
+    // swatch). We assert the light-mode token; the `dark:` counterpart
+    // ships in the same className.
     const lookingUp = screen
       .getAllByText('Looking up')
-      .find((el) => el.tagName === 'SPAN' && el.className.includes('text-blue-400'))
+      .find((el) => el.tagName === 'SPAN' && el.className.includes('text-sky-500'))
     expect(lookingUp).toBeDefined()
     const noMatch = screen
       .getAllByText('No match')
-      .find((el) => el.className.includes('text-amber-400'))
+      .find((el) => el.className.includes('text-sun-600'))
     expect(noMatch).toBeDefined()
   })
 
