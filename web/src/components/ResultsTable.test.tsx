@@ -413,6 +413,40 @@ describe('ResultsTable: header sort cycle', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('Clear sort & filters resets both sort and active filters', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({ card: { name: 'Charizard' } }),
+        makeRow({ card: { name: 'Pikachu' } }),
+        makeRow({ card: { name: 'Squirtle' } }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+
+    render(<ResultsTable />)
+
+    // Activate sort + a filter so the Clear control appears.
+    fireEvent.click(screen.getByRole('button', { name: /sort by name/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^filter$/i }))
+    fireEvent.change(screen.getByLabelText(/filter by name/i), {
+      target: { value: 'char' },
+    })
+    expect(screen.getByText(/1 matched · 0 unmatched · 1 shown/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /clear sort & filters/i }))
+
+    // All rows back, counts reflect the full set, qualifier gone.
+    expect(screen.getByText(/3 matched · 0 unmatched · 3 shown/)).toBeInTheDocument()
+    expect(screen.queryByText(/\(of 3\)/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /clear sort & filters/i })).toBeNull()
+    // Sort is also off — first body row is back to the original order.
+    const bodyRows = screen.getAllByRole('row').filter((tr) => tr.querySelector('td'))
+    expect(bodyRows[0].textContent).toContain('Charizard')
+
+    useAppStore.setState({ rows: [] })
+  })
+
   it('toggling Filter reveals filter inputs and narrows displayed rows', () => {
     useAppStore.setState({
       rows: [
