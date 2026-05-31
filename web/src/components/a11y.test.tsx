@@ -30,6 +30,23 @@ vi.mock('../api/client', () => ({
   downloadSetCardsPdf: vi.fn(),
   parseLine: vi.fn(),
   addOverride: vi.fn(),
+  // Settings drawer mounts the cache-stats panel on open, which fetches
+  // on mount. Return a zeroed snapshot so the a11y scan sees the loaded
+  // state instead of the loading spinner.
+  fetchCacheStats: vi.fn().mockResolvedValue({
+    root: '/tmp/cache',
+    api_entry_count: 0,
+    api_bytes: 0,
+    api_oldest_mtime: null,
+    override_count: 0,
+    override_bytes: 0,
+    image_entry_count: 0,
+    image_bytes: 0,
+    concept_warm_timestamp: null,
+    concept_warm_names: 0,
+    set_cards_warm_timestamp: null,
+    set_cards_warm_count: 0,
+  }),
 }))
 
 const { storeState, storeApi } = vi.hoisted(() => {

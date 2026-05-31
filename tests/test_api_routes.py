@@ -669,5 +669,98 @@ class ChangelogRouteTests(unittest.TestCase):
             self.assertIsInstance(section["entries"], list)
 
 
+# ---------------------------------------------------------------------------
+# /cache/stats
+# ---------------------------------------------------------------------------
+
+
+class CacheStatsRouteTests(unittest.TestCase):
+    """Pinning the JSON shape so it stays interchangeable with `pkmn cache stats --json`.
+
+    Both setUp/tearDown follow the OverridesRouteTests pattern: redirect
+    XDG_CACHE_HOME at a tempdir and clear MGZ_PKMN_NO_CACHE so writes
+    actually land. Tests that don't write any cache entries get the
+    "fresh install" shape; the warmed test seeds the two warm manifests
+    directly via `cache.write_*_warm` so we don't need a real upstream.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+
+    def test_empty_cache_returns_zeroed_shape(self) -> None:
+        resp = client.get("/api/v1/cache/stats")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertTrue(data["root"].startswith(self._tmp.name))
+        self.assertEqual(data["api_entry_count"], 0)
+        self.assertEqual(data["api_bytes"], 0)
+        self.assertIsNone(data["api_oldest_mtime"])
+        self.assertEqual(data["override_count"], 0)
+        self.assertEqual(data["override_bytes"], 0)
+        self.assertEqual(data["image_entry_count"], 0)
+        self.assertEqual(data["image_bytes"], 0)
+        self.assertIsNone(data["concept_warm_timestamp"])
+        self.assertEqual(data["concept_warm_names"], 0)
+        self.assertIsNone(data["set_cards_warm_timestamp"])
+        self.assertEqual(data["set_cards_warm_count"], 0)
+
+    def test_warmed_cache_surfaces_manifest_counts(self) -> None:
+        cache.write_concept_warm(names_warmed=47, names_failed=[], source="test")
+        cache.write_set_cards_warm(sets_warmed=12, sets_failed=[])
+
+        data = client.get("/api/v1/cache/stats").json()
+        self.assertEqual(data["concept_warm_names"], 47)
+        self.assertIsInstance(data["concept_warm_timestamp"], float)
+        self.assertEqual(data["set_cards_warm_count"], 12)
+        self.assertIsInstance(data["set_cards_warm_timestamp"], float)
+
+    def test_response_is_not_browser_cached(self) -> None:
+        resp = client.get("/api/v1/cache/stats")
+        self.assertEqual(resp.headers.get("cache-control"), "no-store")
+
+    def test_oserror_from_stats_falls_back_to_zero_snapshot(self) -> None:
+        """A read-only / misconfigured filesystem shouldn't 500 a diagnostics endpoint."""
+        with patch.object(cache, "stats", side_effect=OSError("read-only fs")):
+            resp = client.get("/api/v1/cache/stats")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        # Same schema, just zeros + nulls.
+        self.assertEqual(data["api_entry_count"], 0)
+        self.assertEqual(data["api_bytes"], 0)
+        self.assertIsNone(data["api_oldest_mtime"])
+        self.assertIsNone(data["concept_warm_timestamp"])
+        self.assertIsNone(data["set_cards_warm_timestamp"])
+        self.assertIsInstance(data["root"], str)
+
+    def test_field_names_match_cli_json_shape(self) -> None:
+        """Acceptance check: same field names as `pkmn cache stats --json`.
+
+        Drift here would silently break operators piping between the two
+        surfaces. Compares against `asdict(CacheStats)` directly rather than
+        spelling the field set out twice.
+        """
+        from dataclasses import fields
+
+        api_keys = set(client.get("/api/v1/cache/stats").json().keys())
+        cli_keys = {f.name for f in fields(cache.CacheStats)}
+        self.assertEqual(api_keys, cli_keys)
+
+
 if __name__ == "__main__":
     unittest.main()

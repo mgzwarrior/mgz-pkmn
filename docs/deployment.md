@@ -133,3 +133,21 @@ hook and Render starts a fresh build from `main`.
 > ~15 min of idle traffic; the next request takes ~30s to wake it.
 > Fine for hobby use. Upgrade to *Starter* (or move to Fly.io) if cold
 > starts hurt.
+
+## Inspecting deployed cache state
+
+`pkmn cache stats` reads `~/.cache/mgz-pkmn` on the local filesystem, so
+it can't see what's warmed on a remote deploy. The API surfaces the same
+snapshot at `GET /api/v1/cache/stats`:
+
+```bash
+curl -s https://mgz-pkmn.onrender.com/api/v1/cache/stats | jq
+```
+
+Same field names as `pkmn cache stats --json`, so the two surfaces are
+pipe-compatible. Use it to confirm `MGZ_PKMN_WARM_ON_STARTUP` actually
+landed (`concept_warm_timestamp` / `set_cards_warm_timestamp` are
+non-null after a successful warm pass) and to spot drift between the
+entry counts you expected and what's actually on disk. The response is
+served with `Cache-Control: no-store` because the underlying state
+changes on every warm pass and cache write.
