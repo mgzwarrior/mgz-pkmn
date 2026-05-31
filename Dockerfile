@@ -6,6 +6,10 @@ WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
+# Shared brand assets (logo.svg, logo-dark.svg) live at the repo
+# root and are imported by web/src/App.tsx via `../../assets/*`.
+# Mirror them into the builder so Vite resolves the import.
+COPY assets/ /app/assets/
 RUN npm run build
 
 

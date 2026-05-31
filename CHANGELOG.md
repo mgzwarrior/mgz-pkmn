@@ -15,10 +15,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
   [`assets/logo-dark.svg`](assets/logo-dark.svg). The marketing
   site (`Header.astro`, `Footer.astro`) and the demo SPA
   ([`App.tsx`](web/src/App.tsx)) pull them in via relative Vite
-  imports (`?url` so each surface's bundler still emits a hashed
-  asset URL). Both Vite configs opt the dev server's `fs.allow`
-  up one level so the import resolves at dev time too. Drops the
-  five prior duplicates (`assets/logo-tropical.svg`,
+  imports — Astro uses `?url` because its asset pipeline
+  otherwise picks SVGs up as components; the SPA's bare import
+  returns the URL string directly. Each surface's bundler still
+  emits a hashed asset URL. Both Vite configs opt the dev
+  server's `fs.allow` to include `../assets` so the import
+  resolves at dev time, and the Dockerfile's web-builder stage
+  copies `assets/` so the import resolves at production build
+  time too. Drops the five prior duplicates
+  (`assets/logo-tropical.svg`,
   `site/public/logo-tropical{,-dark}.svg`,
   `web/src/assets/logo-tropical{,-dark}.svg`); a logo change is
   now one file edit instead of a six-file sweep. See
