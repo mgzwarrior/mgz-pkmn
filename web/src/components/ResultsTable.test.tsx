@@ -363,6 +363,56 @@ describe('ResultsTable: header sort cycle', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('renders the matched/unmatched/shown counts above the table', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({ card: { name: 'Charizard' }, matched: true }),
+        makeRow({ card: { name: 'Pikachu' }, matched: true }),
+        makeRow({ card: null, matched: false, query: { raw: 'asdf', name: 'asdf' } as Row['query'] }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+
+    const { container } = render(<ResultsTable />)
+    const counts = screen.getByText(/2 matched · 1 unmatched · 3 shown/)
+    const table = container.querySelector('table')!
+
+    // The fix for #358: counts must appear before the table in DOM order
+    // so they're visible without scrolling on long result sets.
+    expect(
+      counts.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('shows "(of N)" qualifier when a filter hides some rows', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({ card: { name: 'Charizard' }, matched: true }),
+        makeRow({ card: { name: 'Pikachu' }, matched: true }),
+        makeRow({ card: { name: 'Squirtle' }, matched: true }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+
+    render(<ResultsTable />)
+    expect(screen.getByText(/3 matched · 0 unmatched · 3 shown/)).toBeInTheDocument()
+    expect(screen.queryByText(/\(of 3\)/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /filter/i }))
+    fireEvent.change(screen.getByLabelText(/filter by name/i), {
+      target: { value: 'char' },
+    })
+
+    expect(screen.getByText(/1 matched · 0 unmatched · 1 shown/)).toBeInTheDocument()
+    expect(screen.getByText(/\(of 3\)/)).toBeInTheDocument()
+
+    useAppStore.setState({ rows: [] })
+  })
+
   it('toggling Filter reveals filter inputs and narrows displayed rows', () => {
     useAppStore.setState({
       rows: [
