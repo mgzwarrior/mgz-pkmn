@@ -38,25 +38,25 @@ export function RecentRuns({ onRun }: Props) {
   return (
     <section
       aria-label="Recent searches"
-      className="flex flex-col gap-2 rounded-md border border-zinc-800 bg-zinc-900/40 px-3 py-2"
+      className="flex flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
     >
       <header className="flex items-center justify-between">
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
           aria-expanded={!collapsed}
-          className="flex items-center gap-1.5 rounded text-xs font-medium text-zinc-400 hover:text-zinc-200"
+          className="flex items-center gap-1.5 rounded text-xs font-medium text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200"
         >
           <History size={12} />
           Recent searches
-          <span className="text-zinc-500">({recentRuns.length})</span>
+          <span className="text-coconut-400 dark:text-sand-400">({recentRuns.length})</span>
           {collapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
         </button>
         {!collapsed && (
           <button
             type="button"
             onClick={clearRecentRuns}
-            className="rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+            className="rounded px-1.5 py-0.5 text-xs text-coconut-400 dark:text-sand-400 hover:text-coconut-600 dark:hover:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
           >
             Clear all
           </button>
@@ -96,7 +96,7 @@ function RecentRunRow({
   const lineWord = run.lines.length === 1 ? 'line' : 'lines'
 
   return (
-    <li className="group flex items-center gap-2 rounded border border-transparent hover:border-zinc-700 hover:bg-zinc-800/60 transition-colors">
+    <li className="group flex items-center gap-2 rounded border border-transparent hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-200 dark:hover:bg-husk-100/60 transition-colors">
       <button
         type="button"
         onClick={onRerun}
@@ -104,19 +104,19 @@ function RecentRunRow({
         aria-label={`Rerun search from ${formatRelativeTime(run.savedAt)}: ${summary}`}
         className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className="flex-shrink-0 tabular-nums text-zinc-500">
+        <span className="flex-shrink-0 tabular-nums text-coconut-400 dark:text-sand-400">
           {formatRelativeTime(run.savedAt)}
         </span>
-        <span className="flex-shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-zinc-400">
+        <span className="flex-shrink-0 rounded bg-sand-200 dark:bg-husk-100 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-coconut-400 dark:text-sand-300">
           {run.lines.length} {lineWord}
         </span>
-        <span className="truncate font-mono text-zinc-300">{summary}</span>
+        <span className="truncate font-mono text-coconut-600 dark:text-sand-200">{summary}</span>
       </button>
       <button
         type="button"
         onClick={onDelete}
         aria-label={`Delete recent search: ${summary}`}
-        className="flex-shrink-0 rounded p-1 text-zinc-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 hover:text-zinc-200 hover:bg-zinc-700 transition-opacity"
+        className="flex-shrink-0 rounded p-1 text-coconut-400 dark:text-sand-400 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 hover:text-coconut-600 dark:hover:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-opacity"
       >
         <X size={12} />
       </button>

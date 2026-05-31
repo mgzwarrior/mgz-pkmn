@@ -24,7 +24,7 @@ export function SettingsDrawer() {
     <Dialog.Root>
       <Dialog.Trigger asChild>
         <button
-          className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors sm:px-3"
+          className="flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1.5 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors sm:px-3"
           title="Settings"
           aria-label="Settings"
         >
@@ -34,20 +34,20 @@ export function SettingsDrawer() {
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 dark:bg-husk-500/70 backdrop-blur-sm" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed right-0 top-0 z-50 h-full w-full sm:w-80 bg-zinc-900 border-l border-zinc-700 shadow-2xl flex flex-col"
+          className="fixed right-0 top-0 z-50 h-full w-full sm:w-80 bg-sand-50 dark:bg-husk-200 border-l border-sand-300 dark:border-husk-50 shadow-2xl flex flex-col"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-zinc-700 px-5 py-4">
-            <Dialog.Title className="text-base font-semibold text-zinc-100">
+          <div className="flex items-center justify-between border-b border-sand-300 dark:border-husk-50 px-5 py-4">
+            <Dialog.Title className="text-base font-semibold text-coconut-700 dark:text-sand-50">
               Settings
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
                 aria-label="Close settings"
-                className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition-colors"
+                className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
               >
                 <X size={16} />
               </button>
@@ -64,7 +64,7 @@ export function SettingsDrawer() {
                 value={settings.apiKey}
                 onChange={(e) => updateSettings({ apiKey: e.target.value })}
                 placeholder="Optional — raises rate limit"
-                className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
               />
             </Field>
 
@@ -76,7 +76,7 @@ export function SettingsDrawer() {
                 value={settings.tag}
                 onChange={(e) => updateSettings({ tag: e.target.value })}
                 placeholder="Labels rows in the export"
-                className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
               />
             </Field>
 
@@ -86,7 +86,7 @@ export function SettingsDrawer() {
                 id="sort"
                 value={settings.sort}
                 onChange={(e) => updateSettings({ sort: e.target.value as SortMode })}
-                className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
               >
                 {SORT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -94,7 +94,7 @@ export function SettingsDrawer() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-coconut-400 dark:text-sand-300">
                 Applied to every export (xlsx, PDF binder, condensed PDF, checklist). Tag stays the
                 outermost group; this only changes order within each tag.
               </p>
@@ -114,9 +114,9 @@ export function SettingsDrawer() {
                   })
                 }
                 placeholder="No cap"
-                className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:text-sand-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
               />
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-coconut-400 dark:text-sand-300">
                 Bulk top-N results above this price are excluded. Single-card lookups are always
                 shown (flagged amber in the export).
               </p>
@@ -149,10 +149,10 @@ export function SettingsDrawer() {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-zinc-700 px-5 py-4">
+          <div className="border-t border-sand-300 dark:border-husk-50 px-5 py-4">
             <button
               onClick={resetSettings}
-              className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition-colors"
+              className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
             >
               Restore defaults
             </button>
@@ -178,7 +178,7 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="block mb-1.5 text-sm font-medium text-zinc-300">
+      <label htmlFor={htmlFor} className="block mb-1.5 text-sm font-medium text-coconut-600 dark:text-sand-200">
         {label}
       </label>
       {children}
@@ -210,15 +210,15 @@ function Toggle({
           className="sr-only"
         />
         <div
-          className={`w-9 h-5 rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-zinc-600'}`}
+          className={`w-9 h-5 rounded-full transition-colors ${checked ? 'bg-sun-300 dark:bg-sun-300' : 'bg-sand-300 dark:bg-husk-50'}`}
         />
         <div
           className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : ''}`}
         />
       </div>
       <div>
-        <p className="text-sm text-zinc-200 group-hover:text-zinc-100">{label}</p>
-        <p className="text-xs text-zinc-400">{description}</p>
+        <p className="text-sm text-coconut-600 dark:text-sand-200 group-hover:text-coconut-700 dark:hover:text-sand-50">{label}</p>
+        <p className="text-xs text-coconut-400 dark:text-sand-300">{description}</p>
       </div>
     </label>
   )

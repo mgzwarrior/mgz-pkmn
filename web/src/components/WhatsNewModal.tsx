@@ -26,12 +26,12 @@ const REPO_CHANGELOG_URL =
 
 // Section-name → badge accent. Unknown names fall back to a neutral chip.
 const SECTION_ACCENT: Record<string, string> = {
-  Added: 'text-emerald-400 border-emerald-400/30',
-  Changed: 'text-sky-400 border-sky-400/30',
-  Fixed: 'text-amber-400 border-amber-400/30',
-  Removed: 'text-rose-400 border-rose-400/30',
-  Deprecated: 'text-orange-400 border-orange-400/30',
-  Security: 'text-violet-400 border-violet-400/30',
+  Added: 'text-palm-600 border-palm-500/30 dark:text-palm-200 dark:border-palm-300/30',
+  Changed: 'text-sky-500 border-sky-400/30 dark:text-sky-300 dark:border-sky-400/30',
+  Fixed: 'text-sun-600 border-sun-400/30 dark:text-sun-300 dark:border-sun-400/30',
+  Removed: 'text-ember-500 border-ember-400/30 dark:text-ember-300 dark:border-ember-400/30',
+  Deprecated: 'text-sun-700 border-sun-500/30 dark:text-sun-400 dark:border-sun-500/30',
+  Security: 'text-ember-600 border-ember-500/30 dark:text-ember-300 dark:border-ember-500/30',
 }
 
 function formatDate(iso: string | null): string {
@@ -90,7 +90,7 @@ export function WhatsNewModal() {
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger asChild>
         <button
-          className="relative flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors sm:px-3"
+          className="relative flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
           title="What's new"
           aria-label={hasUnseen ? "What's new (new release available)" : "What's new"}
         >
@@ -99,25 +99,25 @@ export function WhatsNewModal() {
           {hasUnseen && (
             <span
               aria-hidden="true"
-              className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-blue-500 ring-2 ring-zinc-950"
+              className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-palm-400 dark:bg-sun-300 ring-2 ring-sand-50 dark:ring-husk-400"
             />
           )}
         </button>
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 dark:bg-husk-500/70 backdrop-blur-sm" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-2xl"
         >
-          <div className="flex items-center justify-between border-b border-zinc-700 px-5 py-4">
-            <Dialog.Title className="text-base font-semibold text-zinc-100">
+          <div className="flex items-center justify-between border-b border-sand-300 dark:border-husk-50 px-5 py-4">
+            <Dialog.Title className="text-base font-semibold text-coconut-700 dark:text-sand-50">
               What's new
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
-                className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition-colors"
+                className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
                 aria-label="Close"
               >
                 <X size={16} />
@@ -127,36 +127,36 @@ export function WhatsNewModal() {
 
           <div
             tabIndex={0}
-            className="flex-1 overflow-y-auto px-5 py-4 text-sm text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="flex-1 overflow-y-auto px-5 py-4 text-sm text-coconut-600 dark:text-sand-200 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
           >
             {error || (releases && releases.length === 0) ? (
-              <p className="text-zinc-400">
+              <p className="text-coconut-400 dark:text-sand-300">
                 Release notes couldn't be loaded right now. See the{' '}
                 <a
                   href={REPO_CHANGELOG_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-400 underline hover:text-blue-300"
+                  className="text-palm-500 dark:text-sun-300 underline hover:text-palm-400 dark:hover:text-sun-200"
                 >
                   full changelog
                 </a>
                 .
               </p>
             ) : releases === null ? (
-              <p className="text-zinc-500">Loading release notes…</p>
+              <p className="text-coconut-400 dark:text-sand-400">Loading release notes…</p>
             ) : (
               <ol className="space-y-8">
                 {releases.map((release) => (
                   <li
                     key={release.version}
-                    className="border-l border-zinc-800 pl-4"
+                    className="border-l border-sand-200 dark:border-husk-100 pl-4"
                   >
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <h3 className="text-base font-semibold text-zinc-100">
+                      <h3 className="text-base font-semibold text-coconut-700 dark:text-sand-50">
                         v{release.version}
                       </h3>
                       {release.date && (
-                        <time className="text-xs text-zinc-500">
+                        <time className="text-xs text-coconut-400 dark:text-sand-400">
                           {formatDate(release.date)}
                         </time>
                       )}
@@ -167,7 +167,7 @@ export function WhatsNewModal() {
                           <span
                             className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${
                               SECTION_ACCENT[section.name] ??
-                              'text-zinc-400 border-zinc-700'
+                              'text-coconut-400 dark:text-sand-300 border-sand-300 dark:border-husk-50'
                             }`}
                           >
                             {section.name}
@@ -177,7 +177,7 @@ export function WhatsNewModal() {
                               <li key={i} className="flex gap-2 leading-relaxed">
                                 <span
                                   aria-hidden="true"
-                                  className="mt-2 h-1 w-1 shrink-0 rounded-full bg-zinc-600"
+                                  className="mt-2 h-1 w-1 shrink-0 rounded-full bg-sand-300 dark:bg-husk-50"
                                 />
                                 <span>{renderInlineMarkdown(entry)}</span>
                               </li>
@@ -192,12 +192,12 @@ export function WhatsNewModal() {
             )}
           </div>
 
-          <div className="flex items-center justify-end border-t border-zinc-700 px-5 py-3">
+          <div className="flex items-center justify-end border-t border-sand-300 dark:border-husk-50 px-5 py-3">
             <a
               href={REPO_CHANGELOG_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
+              className="text-xs font-medium text-palm-500 dark:text-sun-300 hover:text-palm-400 dark:hover:text-sun-200 transition-colors"
             >
               Full changelog →
             </a>

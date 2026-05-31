@@ -154,45 +154,45 @@ export function Tour({ onClose, onRun, onStop }: Props) {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-4 z-50 mx-auto w-[min(560px,92vw)] rounded-lg border border-blue-500/60 bg-zinc-900 shadow-2xl"
+      className="fixed inset-x-0 bottom-4 z-50 mx-auto w-[min(560px,92vw)] rounded-lg border border-palm-400/60 dark:border-sun-300/60 bg-sand-50 dark:bg-husk-200 shadow-2xl shadow-coconut-700/30"
       role="dialog"
       aria-label={`Tour: ${step.title}`}
     >
-      <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2.5">
+      <div className="flex items-center justify-between border-b border-sand-300 dark:border-husk-50 px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-blue-400">
+          <span className="text-xs font-semibold text-palm-500 dark:text-sun-300">
             Step {stepIndex + 1} of {STEPS.length}
           </span>
-          <span className="text-sm font-semibold text-zinc-100">{step.title}</span>
+          <span className="text-sm font-semibold text-coconut-700 dark:text-sand-50">{step.title}</span>
         </div>
         <button
           onClick={onClose}
-          className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition-colors"
+          className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
           aria-label="Skip tour"
           title="Skip tour"
         >
           <X size={16} />
         </button>
       </div>
-      <div className="px-4 py-3 text-sm text-zinc-300">{step.body}</div>
-      <div className="flex items-center justify-between border-t border-zinc-700 px-4 py-2.5">
+      <div className="px-4 py-3 text-sm text-coconut-600 dark:text-sand-200">{step.body}</div>
+      <div className="flex items-center justify-between border-t border-sand-300 dark:border-husk-50 px-4 py-2.5">
         <button
           onClick={prev}
           disabled={isFirst}
-          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft size={14} />
           Back
         </button>
         <button
           onClick={onClose}
-          className="rounded px-2 py-1 text-xs text-zinc-500 hover:text-zinc-200 transition-colors"
+          className="rounded px-2 py-1 text-xs text-coconut-400 dark:text-sand-400 hover:text-coconut-600 dark:hover:text-sand-200 transition-colors"
         >
           Skip
         </button>
         <button
           onClick={next}
-          className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-500 transition-colors"
+          className="flex items-center gap-1 rounded-md bg-sun-300 dark:bg-sun-300 px-3 py-1 text-xs font-medium text-white hover:bg-sun-300 dark:hover:bg-sun-300 transition-colors"
         >
           {isLast ? 'Done' : 'Next'}
           {!isLast && <ChevronRight size={14} />}

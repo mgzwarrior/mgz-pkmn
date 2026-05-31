@@ -42,9 +42,9 @@ export function LookupTimer() {
         role="status"
         aria-live="polite"
         aria-label="Lookup timer"
-        className="flex items-center gap-1.5 text-xs tabular-nums text-zinc-400"
+        className="flex items-center gap-1.5 text-xs tabular-nums text-coconut-400 dark:text-sand-300"
       >
-        <Timer size={12} className="text-blue-400" />
+        <Timer size={12} className="text-palm-500 dark:text-sun-300" />
         <span>{formatElapsed(elapsedMs)}</span>
       </div>
     )
@@ -56,7 +56,7 @@ export function LookupTimer() {
   const count = rows.length
   if (count === 0) {
     return (
-      <div className="flex items-center gap-1.5 text-xs tabular-nums text-zinc-400">
+      <div className="flex items-center gap-1.5 text-xs tabular-nums text-coconut-400 dark:text-sand-300">
         <Timer size={12} />
         <span>{formatElapsed(elapsedMs)}</span>
       </div>
@@ -65,7 +65,7 @@ export function LookupTimer() {
   const perCard = Math.round(elapsedMs / count)
   const cardWord = count === 1 ? 'card' : 'cards'
   return (
-    <div className="flex items-center gap-1.5 text-xs tabular-nums text-zinc-400">
+    <div className="flex items-center gap-1.5 text-xs tabular-nums text-coconut-400 dark:text-sand-300">
       <Timer size={12} />
       <span>
         {formatElapsed(elapsedMs)} · {count} {cardWord} · {perCard} ms/card
