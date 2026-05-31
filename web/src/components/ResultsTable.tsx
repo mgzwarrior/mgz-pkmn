@@ -100,7 +100,7 @@ export function ResultsTable({ onRerunLine }: Props) {
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => setShowFilters((v) => !v)}
@@ -114,19 +114,29 @@ export function ResultsTable({ onRerunLine }: Props) {
           <Filter size={12} />
           {showFilters ? 'Hide filters' : 'Filter'}
         </button>
-        {(sortColumn || hasActiveFilters(filters)) && (
-          <button
-            type="button"
-            onClick={() => {
-              setSortColumn(null)
-              setSortDir(null)
-              setFilters(EMPTY_FILTERS)
-            }}
-            className="text-xs text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200"
-          >
-            Clear sort &amp; filters
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {(sortColumn || hasActiveFilters(filters)) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSortColumn(null)
+                setSortDir(null)
+                setFilters(EMPTY_FILTERS)
+              }}
+              className="text-xs text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200"
+            >
+              Clear sort &amp; filters
+            </button>
+          )}
+          <p className="text-xs text-coconut-400 dark:text-sand-300 text-right">
+            {displayedRows.filter((r) => r.matched).length} matched ·{' '}
+            {displayedRows.filter((r) => !r.matched).length} unmatched ·{' '}
+            {displayedRows.length} shown
+            {displayedRows.length !== rows.length && (
+              <span className="text-coconut-400 dark:text-sand-300"> (of {rows.length})</span>
+            )}
+          </p>
+        </div>
       </div>
 
       {/* Table */}
@@ -281,15 +291,6 @@ export function ResultsTable({ onRerunLine }: Props) {
           </tbody>
         </table>
       </div>
-
-      <p className="text-xs text-coconut-400 dark:text-sand-300 text-right">
-        {displayedRows.filter((r) => r.matched).length} matched ·{' '}
-        {displayedRows.filter((r) => !r.matched).length} unmatched ·{' '}
-        {displayedRows.length} shown
-        {displayedRows.length !== rows.length && (
-          <span className="text-coconut-400 dark:text-sand-300"> (of {rows.length})</span>
-        )}
-      </p>
 
       <CardDetailModal
         rows={displayedRows}

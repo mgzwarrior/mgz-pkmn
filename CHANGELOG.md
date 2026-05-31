@@ -7,6 +7,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Web: **results table counts now live above the table** — the
+  `N matched · N unmatched · N shown` summary moved from below the
+  results to the right side of the table toolbar so it's visible
+  without scrolling on long result sets ([#358](https://github.com/mgzwarrior/mgz-pkmn/issues/358)).
+
 ## [1.2.0] - 2026-05-31
 
 ### Changed
