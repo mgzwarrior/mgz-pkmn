@@ -19,7 +19,7 @@ top 10 Surging Sparks cards
 Charizard | Base | 4/102
 ```
 
-Hit run, and you get back:
+Hit **Look up**, and you get back:
 
 - **A printable PDF binder** — thumbnail, set, number, market price, and comp tiers at 80/85/90/95% of market for every card. Fold it up, slip it in a backpack pocket, walk the booths.
 - **A printable checklist** — one row per matched card with a tick box, sectioned per input list (sorted by set + card number within each). Lives in the front of your binder so you can mark cards off by hand as you find them at the booth.
