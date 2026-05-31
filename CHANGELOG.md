@@ -9,6 +9,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Repo: **single source of truth for the brand logo** — the
+  tropical card-and-palm SVGs (light + dark) live once at
+  [`assets/logo.svg`](assets/logo.svg) and
+  [`assets/logo-dark.svg`](assets/logo-dark.svg). The marketing
+  site (`Header.astro`, `Footer.astro`) and the demo SPA
+  ([`App.tsx`](web/src/App.tsx)) pull them in via relative Vite
+  imports (`?url` so each surface's bundler still emits a hashed
+  asset URL). Both Vite configs opt the dev server's `fs.allow`
+  up one level so the import resolves at dev time too. Drops the
+  five prior duplicates (`assets/logo-tropical.svg`,
+  `site/public/logo-tropical{,-dark}.svg`,
+  `web/src/assets/logo-tropical{,-dark}.svg`); a logo change is
+  now one file edit instead of a six-file sweep. See
+  [ADR-0011](docs/adr/0011-marketing-site-stack.md#decision) for
+  the updated rationale.
 - Web: **Tropical palette across the SPA + theme toggle** — the React
   demo SPA now ships the same husk/sand/sun/palm/coconut design
   system the marketing site uses, with a header **Light/dark toggle**

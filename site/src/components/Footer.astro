@@ -1,4 +1,7 @@
 ---
+import logoLightUrl from "../../../assets/logo.svg?url";
+import logoDarkUrl from "../../../assets/logo-dark.svg?url";
+
 const year = new Date().getFullYear();
 const links = {
   Project: [
@@ -35,14 +38,14 @@ const links = {
   <div class="mx-auto max-w-6xl grid gap-10 md:grid-cols-4">
     <div>
       <img
-        src="/logo-tropical.svg"
+        src={logoLightUrl}
         alt="mgz-pkmn"
         width="180"
         height="44"
         class="h-9 w-auto dark:hidden"
       />
       <img
-        src="/logo-tropical-dark.svg"
+        src={logoDarkUrl}
         alt="mgz-pkmn"
         width="180"
         height="44"

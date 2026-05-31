@@ -35,8 +35,7 @@ npm run preview
 ```
 site/
 ├── public/
-│   ├── logo-tropical-dark.svg   # dark-mode wordmark (sand-50 text)
-│   └── social-preview.png       # copy of assets/social-preview.png
+│   └── social-preview.png       # OG image, served as a static file
 ├── src/
 │   ├── components/              # Header / Hero / FeaturesGrid / HowItWorks / RoadmapTeaser / Footer
 │   ├── layouts/BaseLayout.astro # <head>, meta, og/twitter cards
@@ -108,11 +107,18 @@ in `README.md`, `CITATION.cff`, and `pyproject.toml`.
 
 ## Assets
 
-`public/logo-tropical.svg` (light) and `public/logo-tropical-dark.svg`
-(dark — same icon, sand-50 wordmark) ship the tropical brand. The
-browser favicon is `public/favicon-tropical.svg` and the OG image is
-`public/social-preview*.png`. Astro's static asset pipeline prefers
-files inside the site root. If the logo changes, copy it forward.
+The brand SVGs (`/assets/logo.svg` light + `/assets/logo-dark.svg`
+dark) live once at the repo root and are pulled into `Header.astro`
+and `Footer.astro` via relative Vite imports (see
+[ADR-0011 §Shared assets](../docs/adr/0011-marketing-site-stack.md)
+and [#360](https://github.com/mgzwarrior/mgz-pkmn/issues/360)).
+`astro.config.mjs` extends the dev server's `fs.allow` up one level
+so the import resolves at dev time.
+
+The browser favicon stays at `public/favicon-tropical.svg`; the OG
+image stays at `public/social-preview*.png` because both are
+served as static files (favicon by the browser, OG by the social
+crawler) rather than bundled into a component.
 
 ### Hero binder grid (`public/cards/*.webp`)
 
