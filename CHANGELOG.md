@@ -7,6 +7,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- API: **`GET /api/v1/cache/stats`** returns the same JSON shape as
+  `pkmn cache stats --json` so operators can introspect a deployed
+  instance's cache state without shelling onto the host
+  ([#311](https://github.com/mgzwarrior/mgz-pkmn/issues/311)). Answers
+  the "did `MGZ_PKMN_WARM_ON_STARTUP` actually land?" question on demand
+  rather than from log-grep, with no auth required (entry counts and
+  timestamps aren't sensitive) and `Cache-Control: no-store` so the
+  reading reflects current on-disk state. Wired into
+  [`docs/deployment.md`](docs/deployment.md#inspecting-deployed-cache-state)
+  as the canonical inspection surface.
+
 ### Fixed
 
 - Web: **results table counts now live above the table** — the

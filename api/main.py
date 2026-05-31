@@ -32,6 +32,9 @@ from mgz_pkmn.sources import TCGClient, TCGDexClient
 # have the lifespan see the patched values.
 from .db import migrate
 from .db.session import get_engine
+from .routes import (
+    cache as cache_route,
+)
 from .routes import changelog, export, lookup, overrides, parse, runs, set_cards, sets
 
 _log = logging.getLogger(__name__)
@@ -193,6 +196,7 @@ app.include_router(set_cards.router, prefix="/api/v1", tags=["set-cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
 app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
+app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
 
 
 @app.get("/health")
