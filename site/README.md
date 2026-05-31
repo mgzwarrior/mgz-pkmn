@@ -35,7 +35,7 @@ npm run preview
 ```
 site/
 ├── public/
-│   ├── favicon.svg              # copy of assets/logo.svg
+│   ├── logo-tropical-dark.svg   # dark-mode wordmark (sand-50 text)
 │   └── social-preview.png       # copy of assets/social-preview.png
 ├── src/
 │   ├── components/              # Header / Hero / FeaturesGrid / HowItWorks / RoadmapTeaser / Footer
@@ -108,10 +108,11 @@ in `README.md`, `CITATION.cff`, and `pyproject.toml`.
 
 ## Assets
 
-`public/favicon.svg` and `public/social-preview.png` are copies of
-`assets/logo.svg` and `assets/social-preview.png` at the repo root.
-Astro's static asset pipeline prefers files inside the site root, so
-the duplication is intentional. If the logo changes, copy it forward.
+`public/logo-tropical.svg` (light) and `public/logo-tropical-dark.svg`
+(dark — same icon, sand-50 wordmark) ship the tropical brand. The
+browser favicon is `public/favicon-tropical.svg` and the OG image is
+`public/social-preview*.png`. Astro's static asset pipeline prefers
+files inside the site root. If the logo changes, copy it forward.
 
 ### Hero binder grid (`public/cards/*.webp`)
 

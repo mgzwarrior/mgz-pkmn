@@ -106,6 +106,10 @@ lint-py:  ## Run ruff lint over Python sources.
 lint-web:  ## Run ESLint over the web frontend.
 	cd web && npm run lint
 
+.PHONY: test-site
+test-site:  ## Run the marketing-site regression tests (node:test, no deps).
+	cd site && npm test
+
 .PHONY: format
 format:  ## Apply ruff formatting in-place.
 	uv run ruff format $(PY_PATHS)
@@ -120,7 +124,7 @@ fix:  ## Auto-fix safe ruff issues + reformat.
 	uv run ruff format $(PY_PATHS)
 
 .PHONY: check
-check: lint-py format-check test lint-web  ## CI-equivalent: lint + format-check + tests + web lint.
+check: lint-py format-check test lint-web test-site  ## CI-equivalent: lint + format-check + tests + web lint + site regressions.
 
 .PHONY: precommit
 precommit:  ## Run all pre-commit hooks against every file in the repo.
