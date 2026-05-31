@@ -20,21 +20,25 @@ import { useAppStore } from '../store'
 import type { ProcessingLine, Stage } from '../types'
 
 /**
- * Per-stage presentation. Colors are Tailwind `*-400` shades, all of which
- * clear WCAG 2.1 AA contrast (≥ 4.5:1) against the app background
- * (`bg-zinc-950`) — see docs/accessibility.md. `terminal` marks the three
- * end states (which get a static icon); the rest are in-flight and spin.
+ * Per-stage presentation. Colors are paired light/dark variants from
+ * the tropical palette — `coconut`/`sand` for muted, `sky` for the
+ * initial lookup, `palm` for pricing/resolved, `sun` for the warn
+ * terminal, `ember` for error. All combinations clear WCAG 2.1 AA
+ * contrast (≥ 4.5:1) against both surfaces (`bg-sand-50` light,
+ * `bg-husk-400` dark) — see docs/accessibility.md.
+ * `terminal` marks the three end states (which get a static icon);
+ * the rest are in-flight and spin.
  */
 const STAGE_CONFIG: Record<Stage, { label: string; color: string; terminal: boolean }> = {
-  parsed: { label: 'Parsed', color: 'text-zinc-400', terminal: false },
-  looking_up: { label: 'Looking up', color: 'text-blue-400', terminal: false },
-  fallback: { label: 'Fallback', color: 'text-indigo-400', terminal: false },
-  url_hint: { label: 'URL hint', color: 'text-violet-400', terminal: false },
-  pricing: { label: 'Pricing', color: 'text-cyan-400', terminal: false },
-  image: { label: 'Image', color: 'text-teal-400', terminal: false },
-  resolved: { label: 'Resolved', color: 'text-green-400', terminal: true },
-  no_match: { label: 'No match', color: 'text-amber-400', terminal: true },
-  error: { label: 'Error', color: 'text-red-400', terminal: true },
+  parsed: { label: 'Parsed', color: 'text-coconut-400 dark:text-sand-300', terminal: false },
+  looking_up: { label: 'Looking up', color: 'text-sky-500 dark:text-sky-300', terminal: false },
+  fallback: { label: 'Fallback', color: 'text-coconut-600 dark:text-coconut-200', terminal: false },
+  url_hint: { label: 'URL hint', color: 'text-sky-400 dark:text-sky-400', terminal: false },
+  pricing: { label: 'Pricing', color: 'text-palm-500 dark:text-palm-300', terminal: false },
+  image: { label: 'Image', color: 'text-palm-400 dark:text-palm-100', terminal: false },
+  resolved: { label: 'Resolved', color: 'text-palm-600 dark:text-palm-200', terminal: true },
+  no_match: { label: 'No match', color: 'text-sun-600 dark:text-sun-300', terminal: true },
+  error: { label: 'Error', color: 'text-ember-500 dark:text-ember-300', terminal: true },
 }
 
 /** Display order for the legend — pipeline order, terminal states last. */
@@ -81,15 +85,15 @@ export function ProcessingQueue() {
   const total = processingLines.length
 
   return (
-    <div className="rounded-md border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+    <div className="rounded-md border border-sand-300 bg-sand-100 dark:border-husk-50 dark:bg-husk-200/60 px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-zinc-400">Looking up cards…</span>
+        <span className="text-xs font-medium text-coconut-500 dark:text-sand-300">Looking up cards…</span>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setLegendOpen((v) => !v)}
             aria-expanded={legendOpen}
-            className="flex items-center gap-1 rounded text-xs text-zinc-400 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="flex items-center gap-1 rounded text-xs text-coconut-400 hover:text-coconut-700 dark:text-sand-300 dark:hover:text-sand-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-palm-400 dark:focus-visible:ring-sun-300"
           >
             Legend
             <ChevronDown
@@ -97,7 +101,7 @@ export function ProcessingQueue() {
               className={`transition-transform ${legendOpen ? 'rotate-180' : ''}`}
             />
           </button>
-          <span className="text-xs tabular-nums text-zinc-400">
+          <span className="text-xs tabular-nums text-coconut-400 dark:text-sand-300">
             {done} of {total} done
           </span>
         </div>
@@ -121,7 +125,7 @@ export function ProcessingQueue() {
 /** Color key explaining what each chip color means. Collapsed by default. */
 function StageLegend() {
   return (
-    <ul className="mb-2 flex flex-wrap gap-x-3 gap-y-1 rounded bg-zinc-900/80 px-2 py-1.5">
+    <ul className="mb-2 flex flex-wrap gap-x-3 gap-y-1 rounded bg-sand-50 dark:bg-husk-300/80 px-2 py-1.5">
       {STAGE_ORDER.map((stage) => {
         const cfg = STAGE_CONFIG[stage]
         return (
@@ -130,7 +134,7 @@ function StageLegend() {
               aria-hidden
               className={`h-2 w-2 rounded-full bg-current ${cfg.color}`}
             />
-            <span className="text-zinc-400">{cfg.label}</span>
+            <span className="text-coconut-500 dark:text-sand-300">{cfg.label}</span>
           </li>
         )
       })}
@@ -142,7 +146,7 @@ function stageIcon(line: ProcessingLine) {
   // Before the first stage frame arrives, fall back to the generic
   // in-flight spinner (matches the historical pending appearance).
   if (!line.stage) {
-    return <Loader2 size={12} className="flex-shrink-0 animate-spin text-blue-400" />
+    return <Loader2 size={12} className="flex-shrink-0 animate-spin text-sky-500 dark:text-sky-300" />
   }
   const cfg = STAGE_CONFIG[line.stage]
   if (!cfg.terminal) {
@@ -193,7 +197,7 @@ function LineStatus({
 
   return (
     <li
-      className="flex items-center gap-1.5 text-xs text-zinc-400"
+      className="flex items-center gap-1.5 text-xs text-coconut-500 dark:text-sand-300"
       title={tooltip}
       aria-label={tooltip ? `${line.line} — ${tooltip}` : undefined}
     >
@@ -204,7 +208,7 @@ function LineStatus({
       )}
       {elapsedMs != null && (
         <span
-          className="flex-shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-mono text-[10px] tabular-nums text-zinc-400"
+          className="flex-shrink-0 rounded bg-sand-200 dark:bg-husk-100 px-1 py-0.5 font-mono text-[10px] tabular-nums text-coconut-500 dark:text-sand-300"
           aria-label={`Finished in ${elapsedMs} milliseconds`}
         >
           {elapsedMs}ms

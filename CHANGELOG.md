@@ -9,6 +9,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Web: **Tropical palette across the SPA + theme toggle** — the React
+  demo SPA now ships the same husk/sand/sun/palm/coconut design
+  system the marketing site uses, with a header **Light/dark toggle**
+  that mirrors the site's behavior (persists in `localStorage`,
+  follows OS `prefers-color-scheme` on first visit, no flash thanks
+  to a pre-paint script in `index.html`). Light is the default to
+  match the marketing site. Every component moves onto paired
+  light/dark tokens — including the easter-egg modal, announcement
+  banner, processing-queue stage chips, modals/drawers, results
+  table, and over-cap / error / success accents (sun / ember / palm).
+  Brand chrome uses the same tropical logo (`sand-50` wordmark) in
+  dark mode. SPA functionality is unchanged.
+- Web: **Per-stage colors moved to the design system** — the bulk
+  lookup progress chips and the `Loader2` spinner now use paired
+  light/dark tokens (`sky-500/sky-300` for `looking_up`,
+  `palm-600/palm-200` for `resolved`, `sun-600/sun-300` for `no_match`,
+  `ember-500/ember-300` for `error`, etc.) instead of single
+  Tailwind `*-400` stock colors. Each pairing clears WCAG 2.1 AA
+  contrast (≥ 4.5:1) against both surfaces; the legend layout is
+  unchanged. See [`docs/accessibility.md`](docs/accessibility.md).
 - Site: **Dark mode now on the tropical palette** — the Astro marketing
   site's dark theme no longer leans on the leftover zinc/blue Tailwind
   stock palette. Surfaces use the husk coffee-charcoal tokens, body text
