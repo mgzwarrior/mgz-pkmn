@@ -3,7 +3,7 @@ sequence: 3
 when: signup + 7 days
 audience: collectors + open-source contributors (secondary hook)
 subject: Built in the open — and a peek at what's next
-preheader: Roadmap, good-first-issues, and where it's going.
+preheader: Roadmap, good first issue label, and where it's going.
 ---
 
 ![mgz-pkmn](https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/logo.svg)
