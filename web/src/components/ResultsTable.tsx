@@ -72,7 +72,7 @@ export function ResultsTable({ onRerunLine }: Props) {
 
   if (rows.length === 0 && !isRunning) {
     return (
-      <div className="flex items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 py-16 text-zinc-400 text-sm">
+      <div className="flex items-center justify-center rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 py-16 text-coconut-400 dark:text-sand-300 text-sm">
         Results will appear here after you run a lookup.
       </div>
     )
@@ -85,14 +85,14 @@ export function ResultsTable({ onRerunLine }: Props) {
       {/* Progress bar */}
       {(isRunning || (progress && progress.done < progress.total)) && (
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-1.5 rounded-full bg-zinc-700 overflow-hidden">
+          <div className="flex-1 h-1.5 rounded-full bg-sand-200 dark:bg-husk-100 overflow-hidden">
             <div
-              className="h-full rounded-full bg-blue-500 transition-all duration-200"
+              className="h-full rounded-full bg-palm-400 dark:bg-sun-300 transition-all duration-200"
               style={{ width: `${pct}%` }}
             />
           </div>
           {progress && (
-            <span className="text-xs text-zinc-400 tabular-nums whitespace-nowrap">
+            <span className="text-xs text-coconut-400 dark:text-sand-300 tabular-nums whitespace-nowrap">
               {progress.done} / {progress.total}
             </span>
           )}
@@ -107,8 +107,8 @@ export function ResultsTable({ onRerunLine }: Props) {
           aria-pressed={showFilters}
           className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
             showFilters
-              ? 'border-blue-700 bg-blue-900/30 text-blue-300'
-              : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
+              ? 'border-palm-400 bg-palm-50 text-palm-700 dark:border-sun-300/60 dark:bg-sun-400/15 dark:text-sun-300'
+              : 'border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100'
           }`}
         >
           <Filter size={12} />
@@ -122,7 +122,7 @@ export function ResultsTable({ onRerunLine }: Props) {
               setSortDir(null)
               setFilters(EMPTY_FILTERS)
             }}
-            className="text-xs text-zinc-400 hover:text-zinc-300"
+            className="text-xs text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200"
           >
             Clear sort &amp; filters
           </button>
@@ -130,12 +130,12 @@ export function ResultsTable({ onRerunLine }: Props) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-md border border-zinc-700">
+      <div className="overflow-x-auto rounded-md border border-sand-300 dark:border-husk-50">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b border-zinc-700 bg-zinc-800 text-left">
+            <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-left">
               {!settings.noImages && (
-                <th className="px-3 py-2 text-xs font-medium text-zinc-400 w-16">Img</th>
+                <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-16">Img</th>
               )}
               <SortableHeader
                 label="Name"
@@ -168,10 +168,10 @@ export function ResultsTable({ onRerunLine }: Props) {
                 onClick={cycleSort}
                 align="right"
               />
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right hidden xl:table-cell">80%</th>
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right hidden xl:table-cell">85%</th>
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right hidden xl:table-cell">90%</th>
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 text-right hidden xl:table-cell">95%</th>
+              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">80%</th>
+              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">85%</th>
+              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">90%</th>
+              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">95%</th>
               <SortableHeader
                 label="Source"
                 column="source"
@@ -180,12 +180,12 @@ export function ResultsTable({ onRerunLine }: Props) {
                 onClick={cycleSort}
                 className="hidden sm:table-cell"
               />
-              <th className="px-3 py-2 text-xs font-medium text-zinc-400 w-8">
+              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-8">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
             {showFilters && (
-              <tr className="border-b border-zinc-700 bg-zinc-900">
+              <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200">
                 {!settings.noImages && (
                   <th>
                     <span className="sr-only">Image (no filter)</span>
@@ -274,7 +274,7 @@ export function ResultsTable({ onRerunLine }: Props) {
             {isRunning && (
               <tr>
                 <td colSpan={12} className="py-2 px-3">
-                  <div className="h-1 w-24 rounded animate-pulse bg-zinc-700" />
+                  <div className="h-1 w-24 rounded animate-pulse bg-sand-200 dark:bg-husk-100" />
                 </td>
               </tr>
             )}
@@ -282,12 +282,12 @@ export function ResultsTable({ onRerunLine }: Props) {
         </table>
       </div>
 
-      <p className="text-xs text-zinc-400 text-right">
+      <p className="text-xs text-coconut-400 dark:text-sand-300 text-right">
         {displayedRows.filter((r) => r.matched).length} matched ·{' '}
         {displayedRows.filter((r) => !r.matched).length} unmatched ·{' '}
         {displayedRows.length} shown
         {displayedRows.length !== rows.length && (
-          <span className="text-zinc-400"> (of {rows.length})</span>
+          <span className="text-coconut-400 dark:text-sand-300"> (of {rows.length})</span>
         )}
       </p>
 
@@ -331,7 +331,7 @@ function SortableHeader({
         type="button"
         onClick={() => onClick(column)}
         className={`inline-flex items-center gap-1 ${
-          isActive ? 'text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
+          isActive ? 'text-coconut-700 dark:text-sand-50' : 'text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50'
         }`}
         aria-label={`Sort by ${label}`}
       >
@@ -372,7 +372,7 @@ function FilterInput({
       placeholder={placeholder}
       aria-label={ariaLabel}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      className="w-full rounded border border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 px-1.5 py-0.5 text-xs text-coconut-600 dark:text-sand-200 placeholder:text-coconut-300 dark:placeholder:text-sand-500 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:focus:ring-sun-300"
     />
   )
 }
@@ -447,9 +447,9 @@ function ResultRow({
   return (
     <>
       <tr
-        className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors motion-safe:animate-[fadeInRow_220ms_ease-out] ${
+        className={`border-b border-sand-200 dark:border-husk-100 hover:bg-sand-100 dark:hover:bg-husk-200/50 transition-colors motion-safe:animate-[fadeInRow_220ms_ease-out] ${
           !row.matched ? 'opacity-60' : ''
-        } ${isOverCap ? 'bg-amber-950/30' : ''} ${canOpenDetail ? 'cursor-pointer' : ''}`}
+        } ${isOverCap ? 'bg-sun-100 dark:bg-sun-400/15' : ''} ${canOpenDetail ? 'cursor-pointer' : ''}`}
         onClick={canOpenDetail ? handleRowClick : undefined}
         onKeyDown={canOpenDetail ? handleRowKey : undefined}
         tabIndex={canOpenDetail ? 0 : undefined}
@@ -470,8 +470,8 @@ function ResultRow({
                 loading="lazy"
               />
             ) : (
-              <div className="w-10 h-14 rounded bg-zinc-800 flex items-center justify-center">
-                <span className="text-zinc-400 text-xs">?</span>
+              <div className="w-10 h-14 rounded bg-sand-100 dark:bg-husk-200 flex items-center justify-center">
+                <span className="text-coconut-400 dark:text-sand-300 text-xs">?</span>
               </div>
             )}
           </td>
@@ -481,18 +481,18 @@ function ResultRow({
         <td className="px-3 py-2 max-w-[200px]">
           {row.matched ? (
             <div>
-              <div className="font-medium text-zinc-100 truncate">{card?.name as string}</div>
-              <div className="text-xs text-zinc-400 truncate">{row.query.raw}</div>
+              <div className="font-medium text-coconut-700 dark:text-sand-50 truncate">{card?.name as string}</div>
+              <div className="text-xs text-coconut-400 dark:text-sand-300 truncate">{row.query.raw}</div>
             </div>
           ) : (
             <div>
-              <div className="flex items-center gap-1 text-zinc-400">
-                <AlertCircle size={13} className="text-amber-400 flex-shrink-0" />
+              <div className="flex items-center gap-1 text-coconut-400 dark:text-sand-300">
+                <AlertCircle size={13} className="text-sun-600 dark:text-sun-300 flex-shrink-0" />
                 <span className="truncate">{row.query.raw}</span>
               </div>
               <button
                 onClick={() => setShowOverrideForm((v) => !v)}
-                className="mt-0.5 text-xs text-blue-400 hover:text-blue-300 hover:underline"
+                className="mt-0.5 text-xs text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 hover:underline"
               >
                 + Add PriceCharting URL
               </button>
@@ -501,43 +501,43 @@ function ResultRow({
         </td>
 
         {/* Set */}
-        <td className="px-3 py-2 text-zinc-400 text-xs hidden md:table-cell max-w-[160px]">
+        <td className="px-3 py-2 text-coconut-400 dark:text-sand-300 text-xs hidden md:table-cell max-w-[160px]">
           <div className="truncate">{setName ?? '—'}</div>
           {card?.number && (
-            <div className="text-zinc-400">#{card.number as string}</div>
+            <div className="text-coconut-400 dark:text-sand-300">#{card.number as string}</div>
           )}
         </td>
 
         {/* Rarity */}
-        <td className="px-3 py-2 text-xs text-zinc-400 hidden lg:table-cell max-w-[120px] truncate">
+        <td className="px-3 py-2 text-xs text-coconut-400 dark:text-sand-300 hidden lg:table-cell max-w-[120px] truncate">
           {(card?.rarity as string | undefined) ?? '—'}
         </td>
 
         {/* Market */}
         <td
           className={`px-3 py-2 text-right font-mono tabular-nums ${
-            isOverCap ? 'text-amber-400 font-bold' : p.market ? 'text-green-400' : 'text-zinc-400'
+            isOverCap ? 'text-sun-600 dark:text-sun-300 font-bold' : p.market ? 'text-palm-500 dark:text-palm-200' : 'text-coconut-400 dark:text-sand-300'
           }`}
         >
           {formatMoney(p.market, p.currency)}
         </td>
 
         {/* Comp tiers */}
-        <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-400 text-xs hidden xl:table-cell">
+        <td className="px-3 py-2 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
           {formatComp(p.market, 80, p.currency)}
         </td>
-        <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-400 text-xs hidden xl:table-cell">
+        <td className="px-3 py-2 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
           {formatComp(p.market, 85, p.currency)}
         </td>
-        <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-400 text-xs hidden xl:table-cell">
+        <td className="px-3 py-2 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
           {formatComp(p.market, 90, p.currency)}
         </td>
-        <td className="px-3 py-2 text-right font-mono tabular-nums text-zinc-400 text-xs hidden xl:table-cell">
+        <td className="px-3 py-2 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
           {formatComp(p.market, 95, p.currency)}
         </td>
 
         {/* Price source */}
-        <td className="px-3 py-2 text-xs text-zinc-400 hidden sm:table-cell">
+        <td className="px-3 py-2 text-xs text-coconut-400 dark:text-sand-300 hidden sm:table-cell">
           {p.source ?? '—'}
         </td>
 
@@ -548,7 +548,7 @@ function ResultRow({
               href={p.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-zinc-400 hover:text-blue-400 transition-colors"
+              className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
               title="Open listing"
             >
               <ExternalLink size={13} />
@@ -559,7 +559,7 @@ function ResultRow({
 
       {/* Override URL form (inline, expands below row) */}
       {showOverrideForm && (
-        <tr className="border-b border-zinc-800 bg-zinc-800/60">
+        <tr className="border-b border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200/60">
           <td colSpan={12} className="px-3 py-2">
             <div className="flex items-center gap-2">
               <input
@@ -567,19 +567,19 @@ function ResultRow({
                 value={overrideUrl}
                 onChange={(e) => setOverrideUrl(e.target.value)}
                 placeholder="https://www.pricecharting.com/game/pokemon-…"
-                className="flex-1 rounded border border-zinc-600 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 rounded border border-sand-300 dark:border-coconut-500 bg-sand-50 dark:bg-husk-200 px-2 py-1 text-xs text-coconut-700 dark:text-sand-50 placeholder:text-coconut-300 dark:placeholder:text-sand-500 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:focus:ring-sun-300"
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveOverride()}
               />
               <button
                 onClick={handleSaveOverride}
                 disabled={overrideSaving || !overrideUrl.trim()}
-                className="rounded bg-blue-700 px-2 py-1 text-xs text-white hover:bg-blue-600 disabled:opacity-50"
+                className="rounded bg-sun-300 px-2 py-1 text-xs font-medium text-coconut-700 hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200 disabled:opacity-50 transition-colors"
               >
                 {overrideSaving ? 'Saving…' : 'Save & re-run'}
               </button>
               <button
                 onClick={() => setShowOverrideForm(false)}
-                className="text-zinc-400 hover:text-zinc-300 text-xs"
+                className="text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200 text-xs"
               >
                 Cancel
               </button>

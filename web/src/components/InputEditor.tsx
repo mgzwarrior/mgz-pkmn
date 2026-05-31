@@ -101,7 +101,7 @@ export function InputEditor({ onRun, onStop }: Props) {
     <div className="flex flex-col gap-2">
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-400">
+        <span className="text-xs text-coconut-400 dark:text-sand-300">
           {lineCount > 0 ? `${lineCount} card line${lineCount !== 1 ? 's' : ''}` : 'Enter card lines below'}
         </span>
         <div className="flex items-center gap-2">
@@ -110,7 +110,7 @@ export function InputEditor({ onRun, onStop }: Props) {
               clearRows()
               setInputText('')
             }}
-            className="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1 rounded px-2 py-1 text-xs text-coconut-400 hover:text-coconut-700 hover:bg-sand-200 dark:text-sand-300 dark:hover:text-sand-50 dark:hover:bg-husk-100 transition-colors"
             title="Clear input and results"
           >
             <RotateCcw size={12} />
@@ -119,7 +119,7 @@ export function InputEditor({ onRun, onStop }: Props) {
           {isRunning ? (
             <button
               onClick={onStop}
-              className="flex items-center gap-1.5 rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600 transition-colors"
+              className="flex items-center gap-1.5 rounded-md bg-ember-500 px-3 py-1.5 text-sm font-medium text-sand-50 hover:bg-ember-400 dark:bg-ember-500 dark:hover:bg-ember-400 transition-colors"
             >
               <Square size={13} fill="currentColor" />
               Stop
@@ -129,11 +129,11 @@ export function InputEditor({ onRun, onStop }: Props) {
               onClick={() => onRun()}
               disabled={lineCount === 0}
               data-tour="run"
-              className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 rounded-md bg-sun-300 px-3 py-1.5 text-sm font-medium text-coconut-700 shadow-sm hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Play size={13} fill="currentColor" />
               Look up&nbsp;
-              <span className="text-xs text-white">(⌘↵)</span>
+              <span className="text-xs opacity-80">(⌘↵)</span>
             </button>
           )}
         </div>
@@ -157,19 +157,19 @@ export function InputEditor({ onRun, onStop }: Props) {
         spellCheck={false}
         rows={12}
         placeholder={`One card per line, e.g.:\nCharizard | Base Set | 4/102\nPikachu | Jungle\ntop:5 Charizard cards\nMew ex | Scarlet & Violet`}
-        className="w-full resize-y rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2.5 font-mono text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="w-full resize-y rounded-md border border-sand-300 bg-sand-50 px-3 py-2.5 font-mono text-sm text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
       />
 
       {/* Example query chips — guided empty-state */}
       {isEmpty && !isRunning && (
-        <div className="flex flex-col gap-2 rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-3">
-          <span className="text-xs text-zinc-400">Try one of these</span>
+        <div className="flex flex-col gap-2 rounded-md border border-sand-300 bg-sand-100 dark:border-husk-50 dark:bg-husk-200/40 px-3 py-3">
+          <span className="text-xs text-coconut-400 dark:text-sand-300">Try one of these</span>
           <div className="flex flex-wrap gap-1.5">
             {EXAMPLE_QUERIES.map((example) => (
               <button
                 key={example}
                 onClick={() => handleChipClick(example)}
-                className="rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 font-mono text-xs text-zinc-300 hover:border-blue-500 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+                className="rounded-full border border-sand-300 bg-sand-50 px-2.5 py-1 font-mono text-xs text-coconut-600 hover:border-palm-400 hover:bg-sand-200 hover:text-coconut-700 dark:border-husk-50 dark:bg-husk-300 dark:text-sand-200 dark:hover:border-sun-300 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition-colors"
               >
                 {example}
               </button>
@@ -180,22 +180,22 @@ export function InputEditor({ onRun, onStop }: Props) {
 
       {/* Parse preview for the active line */}
       {parsedPreview && (
-        <div className="rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-xs text-zinc-400">
-          <span className="text-zinc-500">Parsed: </span>
-          <span className="text-zinc-200 font-medium">{parsedPreview.name}</span>
+        <div className="rounded-md border border-sand-300 bg-sand-100 dark:border-husk-50 dark:bg-husk-200/60 px-3 py-2 text-xs text-coconut-400 dark:text-sand-300">
+          <span className="text-coconut-400 dark:text-sand-400">Parsed: </span>
+          <span className="text-coconut-700 dark:text-sand-50 font-medium">{parsedPreview.name}</span>
           {parsedPreview.set_hint && (
-            <span className="text-zinc-400"> · {parsedPreview.set_hint}</span>
+            <span className="text-coconut-400 dark:text-sand-300"> · {parsedPreview.set_hint}</span>
           )}
           {parsedPreview.number && (
-            <span className="text-zinc-500"> #{parsedPreview.number}</span>
+            <span className="text-coconut-400 dark:text-sand-400"> #{parsedPreview.number}</span>
           )}
           {parsedPreview.bulk_all ? (
-            <span className="text-blue-400"> (all)</span>
+            <span className="text-palm-500 dark:text-sun-300"> (all)</span>
           ) : parsedPreview.bulk_top ? (
-            <span className="text-blue-400"> (top {parsedPreview.bulk_top})</span>
+            <span className="text-palm-500 dark:text-sun-300"> (top {parsedPreview.bulk_top})</span>
           ) : null}
           {parsedPreview.variant_hint && (
-            <span className="text-amber-400"> [{parsedPreview.variant_hint}]</span>
+            <span className="text-sun-600 dark:text-sun-300"> [{parsedPreview.variant_hint}]</span>
           )}
         </div>
       )}

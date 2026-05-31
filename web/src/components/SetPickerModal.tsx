@@ -231,22 +231,22 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 dark:bg-husk-500/70 backdrop-blur-sm" />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[min(720px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[min(720px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-2xl"
           aria-describedby="set-picker-description"
         >
-          <header className="flex items-center justify-between gap-3 border-b border-zinc-800 px-5 py-4">
+          <header className="flex items-center justify-between gap-3 border-b border-sand-200 dark:border-husk-100 px-5 py-4">
             <div className="flex items-center gap-2">
-              <Tags size={18} className="text-zinc-300" />
-              <Dialog.Title className="text-lg font-semibold text-zinc-100">
+              <Tags size={18} className="text-coconut-600 dark:text-sand-200" />
+              <Dialog.Title className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
                 Choose sets
               </Dialog.Title>
             </div>
             <Dialog.Close asChild>
               <button
                 aria-label="Close"
-                className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-700 dark:hover:text-sand-50"
               >
                 <X size={18} />
               </button>
@@ -255,7 +255,7 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
 
           <Dialog.Description
             id="set-picker-description"
-            className="px-5 pt-3 text-sm text-zinc-400"
+            className="px-5 pt-3 text-sm text-coconut-400 dark:text-sand-300"
           >
             Pick which Pokémon TCG sets the printable ID cards PDF should
             include. {`${selectedCount} of ${allCount} selected.`}
@@ -292,15 +292,15 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
                           aria-expanded={!collapsed}
                           aria-controls={headerId}
                           onClick={() => toggleSeriesCollapsed(group.series)}
-                          className="flex items-center gap-1.5 rounded text-left text-xs font-semibold uppercase tracking-wider text-zinc-300 hover:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-700"
+                          className="flex items-center gap-1.5 rounded text-left text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200 hover:text-coconut-700 dark:hover:text-sand-50 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
                         >
                           {collapsed ? (
-                            <ChevronRight size={14} aria-hidden className="text-zinc-500" />
+                            <ChevronRight size={14} aria-hidden className="text-coconut-400 dark:text-sand-400" />
                           ) : (
-                            <ChevronDown size={14} aria-hidden className="text-zinc-500" />
+                            <ChevronDown size={14} aria-hidden className="text-coconut-400 dark:text-sand-400" />
                           )}
                           {group.series}{' '}
-                          <span className="font-normal normal-case tracking-normal text-zinc-500">
+                          <span className="font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
                             {selectedInSeries > 0
                               ? `(${selectedInSeries}/${group.sets.length})`
                               : `(${group.sets.length})`}
@@ -309,7 +309,7 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
                         <button
                           type="button"
                           onClick={() => selectSeries(group.series)}
-                          className="text-xs text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline"
+                          className="text-xs text-coconut-400 dark:text-sand-300 underline-offset-2 hover:text-coconut-600 dark:hover:text-sand-200 hover:underline"
                         >
                           Select series
                         </button>
@@ -335,9 +335,9 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
             </ul>
           </div>
 
-          <footer className="flex items-center justify-between gap-3 border-t border-zinc-800 px-5 py-4">
-            <div className="flex-1 text-xs text-zinc-400">
-              {submitError && <span className="text-red-400">{submitError}</span>}
+          <footer className="flex items-center justify-between gap-3 border-t border-sand-200 dark:border-husk-100 px-5 py-4">
+            <div className="flex-1 text-xs text-coconut-400 dark:text-sand-300">
+              {submitError && <span className="text-ember-500 dark:text-ember-300">{submitError}</span>}
               {!submitError && (
                 <span>
                   {selectedCount} set{selectedCount === 1 ? '' : 's'} selected
@@ -345,14 +345,14 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
               )}
             </div>
             <Dialog.Close asChild>
-              <button className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700">
+              <button className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100">
                 Cancel
               </button>
             </Dialog.Close>
             <button
               onClick={handleSubmit}
               disabled={submitting || draft.size === 0}
-              className="flex items-center gap-1.5 rounded-md border border-blue-700 bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 rounded-md border border-palm-400 dark:border-sun-400 bg-sun-400 dark:bg-sun-400 px-3 py-1.5 text-sm font-medium text-coconut-700 dark:text-husk-500 hover:bg-sun-300 dark:hover:bg-sun-300 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -379,7 +379,7 @@ function BulkButton({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-xs text-zinc-200 hover:bg-zinc-700"
+      className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100"
     >
       {children}
     </button>
@@ -399,19 +399,19 @@ function SetRow({ set, checked, onToggle }: RowProps) {
     <li>
       <label
         className={`flex items-center gap-3 rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
-          checked ? 'bg-blue-950/40 ring-1 ring-blue-700/40' : 'hover:bg-zinc-800/60'
+          checked ? 'bg-palm-50 ring-1 ring-palm-500 dark:bg-sun-400/15 dark:ring-sun-400/40' : 'hover:bg-sand-200 dark:hover:bg-husk-100/60'
         }`}
       >
         <input
           type="checkbox"
           checked={checked}
           onChange={onToggle}
-          className="accent-blue-500"
+          className="accent-palm-500 dark:accent-sun-300"
           aria-label={`Include ${set.name}`}
         />
-        <div className="flex h-8 w-12 flex-none items-center justify-center rounded bg-zinc-950/60">
+        <div className="flex h-8 w-12 flex-none items-center justify-center rounded bg-sand-50 dark:bg-husk-400/60">
           {logoFailed ? (
-            <ImageOff size={14} className="text-zinc-600" aria-hidden />
+            <ImageOff size={14} className="text-coconut-300 dark:text-sand-500" aria-hidden />
           ) : (
             // Cached logo from /api/v1/sets/{id}/logo. The endpoint 404s for
             // un-warmed sets; onError hides the broken image so the row
@@ -426,8 +426,8 @@ function SetRow({ set, checked, onToggle }: RowProps) {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm text-zinc-100">{set.name}</div>
-          <div className="truncate text-xs text-zinc-500">
+          <div className="truncate text-sm text-coconut-700 dark:text-sand-50">{set.name}</div>
+          <div className="truncate text-xs text-coconut-400 dark:text-sand-400">
             {year || '—'} · {set.total ? `${set.total} cards` : 'count unknown'}
           </div>
         </div>

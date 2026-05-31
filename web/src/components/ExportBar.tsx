@@ -74,7 +74,7 @@ export function ExportBar() {
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
           <button
-            className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-3 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             disabled={anyLoading}
             aria-label="Export"
           >
@@ -87,31 +87,31 @@ export function ExportBar() {
           <DropdownMenu.Content
             align="end"
             sideOffset={6}
-            className="z-50 min-w-[200px] rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-xl"
+            className="z-50 min-w-[200px] rounded-md border border-sand-300 bg-sand-50 dark:border-husk-50 dark:bg-husk-200 p-1 shadow-xl shadow-coconut-700/15"
           >
             {BUTTONS.map((b) => (
               <DropdownMenu.Item
                 key={b.format}
                 disabled={disabled}
                 onSelect={() => handleExport(b.format)}
-                className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-zinc-200 outline-none data-[highlighted]:bg-zinc-800 data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed"
+                className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-coconut-700 dark:text-sand-50 outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100 data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed"
               >
                 {b.icon}
                 {b.label}
               </DropdownMenu.Item>
             ))}
-            <DropdownMenu.Separator className="my-1 h-px bg-zinc-800" />
+            <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
             <DropdownMenu.Item
               onSelect={() => setPickerOpen(true)}
-              className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-zinc-200 outline-none data-[highlighted]:bg-zinc-800"
+              className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-coconut-700 dark:text-sand-50 outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100"
             >
               <Tags size={14} />
               Set ID cards…
             </DropdownMenu.Item>
             {matchedRows.length > 0 && (
               <>
-                <DropdownMenu.Separator className="my-1 h-px bg-zinc-800" />
-                <DropdownMenu.Label className="px-2.5 py-1.5 text-xs text-zinc-400">
+                <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
+                <DropdownMenu.Label className="px-2.5 py-1.5 text-xs text-coconut-400 dark:text-sand-300">
                   {matchedRows.length} row{matchedRows.length !== 1 ? 's' : ''}
                 </DropdownMenu.Label>
               </>
@@ -121,7 +121,7 @@ export function ExportBar() {
       </DropdownMenu.Root>
       {/* Errors live outside the dropdown so they stay visible after the
           user picks a format and the menu closes. */}
-      {error && <span className="text-xs text-red-400">{error}</span>}
+      {error && <span className="text-xs text-ember-500 dark:text-ember-300">{error}</span>}
       <SetPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
     </div>
   )

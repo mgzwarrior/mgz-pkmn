@@ -55,8 +55,8 @@ export function HelpModal({ onStartTour }: Props) {
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger asChild>
         <button
-          className={`relative flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors sm:px-3 ${
-            hint ? 'ring-2 ring-blue-500 animate-pulse' : ''
+          className={`relative flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1.5 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors sm:px-3 ${
+            hint ? 'ring-2 ring-palm-400 dark:ring-sun-300 animate-pulse' : ''
           }`}
           title="Help"
           aria-label="Help"
@@ -67,19 +67,19 @@ export function HelpModal({ onStartTour }: Props) {
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 dark:bg-husk-500/70 backdrop-blur-sm" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-2xl"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-zinc-700 px-5 py-4">
-            <Dialog.Title className="text-base font-semibold text-zinc-100">
+          <div className="flex items-center justify-between border-b border-sand-300 dark:border-husk-50 px-5 py-4">
+            <Dialog.Title className="text-base font-semibold text-coconut-700 dark:text-sand-50">
               How to use mgz-pkmn
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
-                className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition-colors"
+                className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
                 aria-label="Close"
               >
                 <X size={16} />
@@ -90,7 +90,7 @@ export function HelpModal({ onStartTour }: Props) {
           {/* Body */}
           <div
             tabIndex={0}
-            className="flex-1 overflow-y-auto px-5 py-4 space-y-6 text-sm text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="flex-1 overflow-y-auto px-5 py-4 space-y-6 text-sm text-coconut-600 dark:text-sand-200 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
           >
             <Section title="What this does">
               <p>
@@ -102,7 +102,7 @@ export function HelpModal({ onStartTour }: Props) {
             </Section>
 
             <Section title="Writing queries">
-              <p className="mb-2 text-zinc-400">
+              <p className="mb-2 text-coconut-400 dark:text-sand-300">
                 One card per line. Blank lines and <code>#</code> comments are
                 skipped. Common formats:
               </p>
@@ -156,13 +156,13 @@ export function HelpModal({ onStartTour }: Props) {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-zinc-700 px-5 py-4">
-            <span className="text-xs text-zinc-400">
+          <div className="flex items-center justify-between border-t border-sand-300 dark:border-husk-50 px-5 py-4">
+            <span className="text-xs text-coconut-400 dark:text-sand-300">
               New here? Take the interactive tour.
             </span>
             <button
               onClick={handleTakeTour}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+              className="rounded-md bg-sun-300 px-3 py-1.5 text-sm font-medium text-coconut-700 hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200 transition-colors"
             >
               Take the tour
             </button>
@@ -176,7 +176,7 @@ export function HelpModal({ onStartTour }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
         {title}
       </h3>
       {children}
@@ -186,7 +186,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-xs text-zinc-200">
+    <kbd className="rounded border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-1.5 py-0.5 font-mono text-xs text-coconut-600 dark:text-sand-200">
       {children}
     </kbd>
   )
@@ -197,10 +197,10 @@ function Examples({ rows }: { rows: [string, string][] }) {
     <ul className="space-y-1.5">
       {rows.map(([query, desc]) => (
         <li key={query} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-          <code className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs text-zinc-100">
+          <code className="rounded bg-sand-200 dark:bg-husk-100 px-2 py-0.5 font-mono text-xs text-coconut-700 dark:text-sand-50">
             {query}
           </code>
-          <span className="text-xs text-zinc-400">{desc}</span>
+          <span className="text-xs text-coconut-400 dark:text-sand-300">{desc}</span>
         </li>
       ))}
     </ul>
@@ -212,8 +212,8 @@ function Definitions({ rows }: { rows: [React.ReactNode, string][] }) {
     <dl className="space-y-2">
       {rows.map(([term, desc], i) => (
         <div key={i} className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
-          <dt className="font-medium text-zinc-200 sm:min-w-[140px]">{term}</dt>
-          <dd className="text-xs text-zinc-400 sm:flex-1 sm:text-sm">{desc}</dd>
+          <dt className="font-medium text-coconut-600 dark:text-sand-200 sm:min-w-[140px]">{term}</dt>
+          <dd className="text-xs text-coconut-400 dark:text-sand-300 sm:flex-1 sm:text-sm">{desc}</dd>
         </div>
       ))}
     </dl>

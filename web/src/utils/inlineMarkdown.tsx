@@ -28,7 +28,7 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
           href={match[2]}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline decoration-zinc-600 hover:decoration-zinc-300"
+          className="underline decoration-coconut-300 hover:decoration-palm-500 dark:decoration-sand-400 dark:hover:decoration-sun-300"
         >
           {match[1]}
         </a>,
@@ -37,14 +37,14 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
       nodes.push(
         <code
           key={nodes.length}
-          className="rounded bg-zinc-800 px-1 py-0.5 text-[0.85em] text-zinc-200"
+          className="rounded bg-sand-200 dark:bg-husk-100 px-1 py-0.5 text-[0.85em] text-coconut-600 dark:text-sand-200"
         >
           {match[3]}
         </code>,
       )
     } else if (match[4] !== undefined) {
       nodes.push(
-        <strong key={nodes.length} className="font-semibold text-zinc-100">
+        <strong key={nodes.length} className="font-semibold text-coconut-700 dark:text-sand-50">
           {match[4]}
         </strong>,
       )

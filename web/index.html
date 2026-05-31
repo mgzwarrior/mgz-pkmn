@@ -4,7 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web</title>
+    <title>mgz-pkmn — card lookup</title>
+    <script>
+      // Resolve the theme before first paint to avoid a flash. A saved
+      // choice wins; otherwise follow OS preference, defaulting to light
+      // so the SPA matches the marketing site's first-visit experience.
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var theme = stored
+            ? stored
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          if (theme === "dark") {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
