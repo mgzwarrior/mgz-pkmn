@@ -235,6 +235,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Site: **social preview now matches the tropical look** — the
+  Open Graph / Twitter card image (`/social-preview-tropical.png`)
+  was still rendering the old dark zinc background and blue card
+  outline from the pre-tropical era; it's been redrawn on the cream
+  + sun + palm + coconut palette with the new card-and-palm logo,
+  the current "Walk in with a plan, not a hope." headline, and the
+  v1.2 shipping pill. Regenerable from
+  [`site/scripts/social-preview.svg`](site/scripts/social-preview.svg)
+  via `rsvg-convert -w 1280 -h 640 site/scripts/social-preview.svg
+  -o site/public/social-preview-tropical.png`.
 - Deploy: a transient `pokemontcg.io` timeout during the Docker build's
   `pkmn cache warm-sets` step no longer fails the whole deploy. The set
   catalog fetch now retries transient timeouts with backoff (matching the
