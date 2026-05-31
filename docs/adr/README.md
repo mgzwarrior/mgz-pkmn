@@ -24,6 +24,10 @@ not just the shape.
 | [0011](0011-marketing-site-stack.md) | Marketing site under `site/` (Astro + Tailwind, Cloudflare Pages) | Accepted | 2026-05-16 |
 | [0012](0012-open-core-architecture.md) | Open-core architecture for a paid Vendor tier | Proposed | 2026-05-16 |
 | [0013](0013-sqlite-persistence-for-runs-collections-wishlists.md) | SQLite + Alembic persistent store for runs, collections, and wishlists | Proposed | 2026-05-20 |
+| [0014](0014-buttondown-for-email-subscriptions.md) | Buttondown for newsletter / email subscriptions | Accepted | 2026-05-31 |
+| [0015](0015-tally-for-surveys.md) | Tally for marketing surveys (with a Buttondown migration clause) | Accepted | 2026-05-31 |
+| [0016](0016-deployment-topology.md) | Production deployment topology — Cloudflare Pages + Render | Accepted | 2026-05-31 |
+| [0017](0017-tropical-design-system.md) | Tropical design system — sun + palm + coconut, paired light/dark tokens | Accepted | 2026-05-31 |
 
 ## Adding a new ADR
 
