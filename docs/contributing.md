@@ -414,14 +414,56 @@ trusted publishing (with PEP 740 attestations), and creates a GitHub
 Release with the built distribution attached and notes linking to the
 new PyPI version.
 
+The other three surfaces ship on their own deploy paths and don't
+need an explicit release action:
+
+- **Marketing site** (`site/`) → Cloudflare Pages auto-deploys on
+  push to `main` ([ADR-0011](adr/0011-marketing-site-stack.md)).
+- **Demo API + SPA** (`api/` + `web/`) → Render auto-deploys on
+  push to `main` from the [`render.yaml`](../render.yaml) blueprint
+  ([ADR-0016](adr/0016-deployment-topology.md), [docs/deployment.md](deployment.md)).
+- The marketing-site hero pill ("Now shipping vX.Y.Z") and the
+  in-app "What's new" panel both read from
+  `GET /api/v1/changelog`, which parses `CHANGELOG.md` — so as
+  long as the release PR's changelog rotation lands, those
+  surfaces self-update on the next deploy.
+
+### Running this from Claude Code
+
+The repo ships a [`cut-release`](../.claude/skills/cut-release/SKILL.md)
+skill that automates the steps below: it asks for the target version,
+creates a tracking issue if one doesn't exist, bumps every surface,
+rotates the changelog, runs the local gate, and opens the PR. Invoke it
+from any Claude Code session with `/cut-release` (or just ask Claude to
+"cut the next release"). You still merge the PR yourself — everything
+downstream is automatic from there.
+
+### Doing it by hand
+
 To cut a release, open a single PR that:
 
 1. Rotates the changelog: rename the `[Unreleased]` section to the new
    version with today's date, add a fresh empty `[Unreleased]` above
    it, and update the compare links at the bottom of the file.
-2. Bumps the version string in `pyproject.toml`,
-   `src/mgz_pkmn/__init__.py`, and `uv.lock` (run `uv lock` after
-   editing `pyproject.toml` to update the lockfile).
+2. Bumps the version string in **every** surface so the artifacts
+   ship the same number:
+   - **CLI** — `pyproject.toml` (root) and `src/mgz_pkmn/__init__.py`.
+     Run `uv lock` afterwards to refresh `uv.lock`.
+   - **API** — `api/pyproject.toml`. Served as `{"version": "..."}` by
+     `GET /version`.
+   - **Web SPA** — `web/package.json`. Run `npm install` afterwards
+     so `web/package-lock.json` picks up the new version.
+   - **Marketing site** — `site/package.json`. Run `npm install`
+     afterwards so `site/package-lock.json` picks up the new version.
+   - **Citation metadata** — `CITATION.cff`: bump `version` and
+     `date-released` so the "How to cite" snippet GitHub renders
+     in the sidebar matches the published release.
+
+Only `pyproject.toml` (root) is load-bearing for the release
+automation — `release-on-version-bump.yml` only fires when that
+file changes — but aligning every surface in one PR keeps the
+mental model "the project is at version X" instead of "each
+folder is on its own number."
 
 Merge the PR — the rest is automatic. The
 `release-on-version-bump` workflow no-ops if the `v<version>` tag
