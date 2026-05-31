@@ -22,8 +22,13 @@ venv/
 .idea/
 .vscode/
 
-# Claude Code session/worktree data — never commit
-.claude/
+# Claude Code session/worktree data — never commit. Project-shipped
+# skills under .claude/skills/ are an explicit exception so they
+# travel with the repo and are usable by anyone running Claude Code.
+# (Uses the .claude/* wildcard form because a `.claude/` directory
+# exclusion can't be re-included with a `!` rule.)
+.claude/*
+!.claude/skills/
 
 # Downloaded card art (copyrighted by TPCi / pokemontcg.io). Local only.
 output/images/

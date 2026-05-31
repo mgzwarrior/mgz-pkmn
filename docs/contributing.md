@@ -428,6 +428,18 @@ need an explicit release action:
   long as the release PR's changelog rotation lands, those
   surfaces self-update on the next deploy.
 
+### Running this from Claude Code
+
+The repo ships a [`cut-release`](../.claude/skills/cut-release/SKILL.md)
+skill that automates the steps below: it asks for the target version,
+creates a tracking issue if one doesn't exist, bumps every surface,
+rotates the changelog, runs the local gate, and opens the PR. Invoke it
+from any Claude Code session with `/cut-release` (or just ask Claude to
+"cut the next release"). You still merge the PR yourself — everything
+downstream is automatic from there.
+
+### Doing it by hand
+
 To cut a release, open a single PR that:
 
 1. Rotates the changelog: rename the `[Unreleased]` section to the new
