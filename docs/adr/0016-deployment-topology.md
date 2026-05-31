@@ -13,10 +13,13 @@ Three surfaces ship from this repo and need a production home:
 2. The **demo web app** at `web/` (React SPA) + the **API** at
    `api/` (FastAPI on uvicorn) — a single Docker image built from
    the repo root, served at <https://mgz-pkmn.onrender.com>.
-3. The custom **domain registrar** — `mgz-pkmn.com` and
-   `matt-grant.com` (the maintainer's personal domain that also
-   hosts the project's `www.matt-grant.com/mgz-pkmn` redirect line
-   on the printed flyer).
+3. The custom **domain registrar** — `mgz-pkmn.com` is the
+   project's domain. The maintainer's personal `matt-grant.com`
+   sits on the same registrar account for operational convenience
+   (one dashboard, one billing surface) but is not a project
+   surface; it appears in repo content only for personal
+   attribution (the flyer contact block, the EmailSignup
+   `@mgzwarrior` link).
 
 The marketing site and the demo app have very different runtime
 profiles: the site is static HTML/CSS/JS with no warm path, the
@@ -59,10 +62,12 @@ them, with a single registrar in front:
   the blueprint). Forced rebuilds happen via the existing manual
   *Deploy* GitHub Action (see
   [`docs/deployment.md`](../deployment.md)).
-- **Domain registrar:** **Cloudflare Registrar** for both
-  `mgz-pkmn.com` and the maintainer's `matt-grant.com`. At-cost
-  pricing, no markup on renewals, and the registrar/Pages/DNS
-  control plane is one tool.
+- **Domain registrar:** **Cloudflare Registrar** for the project's
+  `mgz-pkmn.com`. The maintainer's personal `matt-grant.com` rides
+  the same account for operational convenience (one dashboard, one
+  billing surface) — it is not a project surface. At-cost pricing,
+  no markup on renewals, and the registrar/Pages/DNS control plane
+  is one tool.
 
 Tier upgrades follow demand, not feature scope: if Render's free
 Hobby spin-down (~30 s wake on cold start) becomes a real papercut
