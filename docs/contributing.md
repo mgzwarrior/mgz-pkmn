@@ -433,7 +433,7 @@ To cut a release, open a single PR that:
 1. Rotates the changelog: rename the `[Unreleased]` section to the new
    version with today's date, add a fresh empty `[Unreleased]` above
    it, and update the compare links at the bottom of the file.
-2. Bumps the version string in **every** surface so the four artifacts
+2. Bumps the version string in **every** surface so the artifacts
    ship the same number:
    - **CLI** — `pyproject.toml` (root) and `src/mgz_pkmn/__init__.py`.
      Run `uv lock` afterwards to refresh `uv.lock`.
@@ -443,6 +443,9 @@ To cut a release, open a single PR that:
      so `web/package-lock.json` picks up the new version.
    - **Marketing site** — `site/package.json`. Run `npm install`
      afterwards so `site/package-lock.json` picks up the new version.
+   - **Citation metadata** — `CITATION.cff`: bump `version` and
+     `date-released` so the "How to cite" snippet GitHub renders
+     in the sidebar matches the published release.
 
 Only `pyproject.toml` (root) is load-bearing for the release
 automation — `release-on-version-bump.yml` only fires when that
