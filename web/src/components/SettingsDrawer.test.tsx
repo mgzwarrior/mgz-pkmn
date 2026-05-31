@@ -101,9 +101,16 @@ describe('SettingsDrawer', () => {
   it('refresh button re-fetches /cache/stats', async () => {
     render(<SettingsDrawer />)
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
-    await waitFor(() => expect(mockFetchCacheStats).toHaveBeenCalledTimes(1))
 
-    fireEvent.click(screen.getByRole('button', { name: /refresh cache stats/i }))
+    // Wait for the initial fetch to settle — the button is disabled while
+    // `loading` is true, so clicking it before the finally() clears
+    // loading would silently no-op and the call count would never reach
+    // two. Waiting on the button's enabled state is the cleanest signal.
+    const refresh = await screen.findByRole('button', { name: /refresh cache stats/i })
+    await waitFor(() => expect(refresh).not.toBeDisabled())
+    expect(mockFetchCacheStats).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(refresh)
     await waitFor(() => expect(mockFetchCacheStats).toHaveBeenCalledTimes(2))
   })
 
