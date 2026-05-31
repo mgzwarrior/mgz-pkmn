@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Site: **Dark mode now on the tropical palette** — the Astro marketing
+  site's dark theme no longer leans on the leftover zinc/blue Tailwind
+  stock palette. Surfaces use the husk coffee-charcoal tokens, body text
+  warm sand, links and CTAs the same sun-yellow that defines light mode,
+  and badge accents map onto palm/sun/ember instead of generic
+  emerald/blue/rose. The header theme toggle behavior is unchanged.
+  Light mode is unchanged. SPA migration follows in a separate PR.
 - Site: **Tropical theme as a light mode** — the Astro marketing site
   now ships both themes: the original zinc/blue palette stays the default
   **dark** mode, and the warm cream + sun + palm + coconut Exeggutor
@@ -21,6 +28,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Marketing: **v1 interest survey + announcement banner** — a slim
+  dismissible top banner on the marketing site (above the Header) and
+  the demo SPA (above the existing top bar) points visitors at a short
+  Tally-hosted survey. ~6 questions covering pain points, useful
+  features, return triggers, audience self-ID, favorite Pokémon, and
+  optional contact email. Source of truth for the question list lives
+  at `docs/marketing/surveys/v1-interest-survey.md`; bump the survey
+  URL and the `survey-v1` dismissal-key suffix in both banner
+  components together when shipping a future survey.
 - Site: **print-ready show flyer** — new `/flyer` page on the marketing
   site renders a double-sided quarter-letter (4.25 × 5.5 in) handout for
   in-person card shows. Front: logo, tagline, and a high error-correction
@@ -30,6 +46,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
   bypassing the browser print dialog so the saved file is always the
   right shape regardless of printer driver quirks. The `@page` print
   stylesheet remains as a fallback for power users.
+- Site: **email signup section** — a new "Get the next release in your
+  inbox" section on the marketing landing page collects subscribers via
+  the [Buttondown](https://buttondown.com) public embed endpoint. Sits
+  right under "What you actually walk out with" so visitors who've already
+  seen the value prop have an easy on-ramp. Honors the tropical palette in
+  both light and dark mode. Submits inline via `fetch` with a
+  success state ("Thanks — check your inbox") when JS is enabled, falling
+  back to Buttondown's hosted popup when JS is off. No new runtime
+  dependencies; no API key in the client.
+- Site: **"Recently shipped" stays glanceable** — the release-notes
+  section on the landing page now caps each Added/Changed/Fixed bucket
+  to the first three bullets and clamps each bullet to two lines of
+  prose. A "+N more in the changelog →" link appears when a bucket has
+  been truncated, so the long-form notes are always one click away. Keeps
+  the section a fixed-height palate-cleanser instead of a wall of text
+  on releases that ship a dozen entries in one category.
 - API: persistence layer for run history backed by SQLite + Alembic
   (see [ADR-0013](docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
   `POST /api/v1/bulk` now writes a `runs` + `run_rows` record on

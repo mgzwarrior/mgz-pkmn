@@ -42,13 +42,13 @@ const links = {
         class="h-9 w-auto dark:hidden"
       />
       <img
-        src="/favicon.svg"
+        src="/logo-tropical-dark.svg"
         alt="mgz-pkmn"
-        width="140"
-        height="35"
-        class="hidden h-8 w-auto dark:block"
+        width="180"
+        height="44"
+        class="hidden h-9 w-auto dark:block"
       />
-      <p class="mt-4 text-sm text-coconut-400 dark:text-zinc-400 max-w-xs">
+      <p class="mt-4 text-sm text-coconut-400 dark:text-sand-300 max-w-xs">
         Open-source prep tool for Pokemon card show buyers and sellers. MIT licensed.
       </p>
     </div>
@@ -56,13 +56,13 @@ const links = {
     {
       Object.entries(links).map(([heading, items]) => (
         <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-zinc-500">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
             {heading}
           </h4>
           <ul class="mt-4 space-y-2 text-sm">
             {items.map((item) => (
               <li>
-                <a href={item.href} class="text-coconut-500 hover:text-coconut-700 dark:text-zinc-300 dark:hover:text-white transition">
+                <a href={item.href} class="text-coconut-500 hover:text-coconut-700 dark:text-sand-200 dark:hover:text-sand-50 transition">
                   {item.label}
                 </a>
               </li>
@@ -74,14 +74,14 @@ const links = {
   </div>
 
   <div
-    class="mx-auto mt-12 max-w-6xl border-t border-sand-300 dark:border-zinc-900 pt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-sand-500 dark:text-zinc-500"
+    class="mx-auto mt-12 max-w-6xl border-t border-sand-300 dark:border-husk-200 pt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-sand-500 dark:text-sand-400"
   >
     <span>© {year} Matt Grant. Released under the MIT License.</span>
     <span>
       Built by
       <a
         href="https://github.com/mgzwarrior"
-        class="text-coconut-400 hover:text-coconut-700 dark:text-zinc-400 dark:hover:text-white transition">@mgzwarrior</a
+        class="text-coconut-400 hover:text-coconut-700 dark:text-sand-300 dark:hover:text-sand-50 transition">@mgzwarrior</a
       >.
     </span>
   </div>

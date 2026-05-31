@@ -8,6 +8,12 @@ const releases = await fetchReleases(3);
 const repoChangelogUrl =
   "https://github.com/mgzwarrior/mgz-pkmn/blob/main/CHANGELOG.md";
 
+// Cap bullets shown per section (every accent-mapped bucket — Added,
+// Changed, Fixed, Removed, Deprecated, Security) before falling back to a
+// "+N more in the changelog →" link. Keeps the landing page glanceable
+// when a single release ships a dozen entries in one category.
+const ENTRIES_PER_SECTION = 3;
+
 // Friendly date: "2026-05-25" → "May 25, 2026". Falls back to the raw
 // string if it doesn't parse.
 function formatDate(iso: string | null): string {
@@ -23,12 +29,12 @@ function formatDate(iso: string | null): string {
 }
 
 const sectionAccent: Record<string, string> = {
-  Added: "text-emerald-600 border-emerald-600/30 dark:text-emerald-400 dark:border-emerald-400/30",
-  Changed: "text-sky-600 border-sky-600/30 dark:text-sky-400 dark:border-sky-400/30",
-  Fixed: "text-amber-600 border-amber-600/30 dark:text-amber-400 dark:border-amber-400/30",
-  Removed: "text-rose-600 border-rose-600/30 dark:text-rose-400 dark:border-rose-400/30",
-  Deprecated: "text-orange-600 border-orange-600/30 dark:text-orange-400 dark:border-orange-400/30",
-  Security: "text-violet-600 border-violet-600/30 dark:text-violet-400 dark:border-violet-400/30",
+  Added: "text-emerald-600 border-emerald-600/30 dark:text-palm-200 dark:border-palm-300/30",
+  Changed: "text-sky-600 border-sky-600/30 dark:text-sky-300 dark:border-sky-400/30",
+  Fixed: "text-amber-600 border-amber-600/30 dark:text-sun-300 dark:border-sun-400/30",
+  Removed: "text-rose-600 border-rose-600/30 dark:text-ember-300 dark:border-ember-400/30",
+  Deprecated: "text-orange-600 border-orange-600/30 dark:text-sun-400 dark:border-sun-500/30",
+  Security: "text-violet-600 border-violet-600/30 dark:text-ember-300 dark:border-ember-500/30",
 };
 ---
 
@@ -36,21 +42,21 @@ const sectionAccent: Record<string, string> = {
   releases.length > 0 && (
     <section
       id="whats-new"
-      class="border-b border-sand-300 dark:border-zinc-900/80 px-6 py-20 sm:py-24"
+      class="border-b border-sand-300 dark:border-husk-200/80 px-6 py-20 sm:py-24"
     >
       <div class="mx-auto max-w-4xl">
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div class="max-w-2xl">
-            <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-white">
+            <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50">
               Recently shipped.
             </h2>
-            <p class="mt-4 text-lg text-coconut-400 dark:text-zinc-400">
+            <p class="mt-4 text-lg text-coconut-400 dark:text-sand-300">
               The last few releases at a glance — straight from the changelog.
             </p>
           </div>
           <a
             href={repoChangelogUrl}
-            class="text-sm font-semibold text-palm-500 hover:text-palm-400 dark:text-blue-400 dark:hover:text-blue-300 transition"
+            class="text-sm font-semibold text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -60,42 +66,63 @@ const sectionAccent: Record<string, string> = {
 
         <ol class="mt-12 space-y-10">
           {releases.map((release) => (
-            <li class="relative border-l border-sand-300 dark:border-zinc-800 pl-6">
+            <li class="relative border-l border-sand-300 dark:border-husk-50 pl-6">
               <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h3 class="text-xl font-semibold text-coconut-700 dark:text-white">
+                <h3 class="text-xl font-semibold text-coconut-700 dark:text-sand-50">
                   v{release.version}
                 </h3>
                 {release.date && (
-                  <time class="text-sm text-sand-500 dark:text-zinc-500">
+                  <time class="text-sm text-sand-500 dark:text-sand-400">
                     {formatDate(release.date)}
                   </time>
                 )}
               </div>
 
               <div class="mt-4 space-y-5">
-                {release.sections.map((section) => (
-                  <div>
-                    <span
-                      class={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                        sectionAccent[section.name] ??
-                        "text-coconut-400 border-sand-300 dark:text-zinc-400 dark:border-zinc-700"
-                      }`}
-                    >
-                      {section.name}
-                    </span>
-                    <ul class="mt-3 space-y-2">
-                      {section.entries.map((entry) => (
-                        <li class="flex gap-2.5 text-sm leading-relaxed text-coconut-500 dark:text-zinc-300">
-                          <span
-                            aria-hidden="true"
-                            class="mt-2 h-1 w-1 shrink-0 rounded-full bg-sand-400 dark:bg-zinc-600"
-                          />
-                          <span set:html={renderInlineMarkdown(entry)} />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                {release.sections.map((section) => {
+                  // Keep "Recently shipped" readable at a glance: show only the
+                  // first few bullets per section, with each clamped to 2 lines
+                  // of prose. Long-form release notes live in the full
+                  // CHANGELOG, linked from the section header.
+                  const visible = section.entries.slice(0, ENTRIES_PER_SECTION);
+                  const overflow = section.entries.length - visible.length;
+                  return (
+                    <div>
+                      <span
+                        class={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                          sectionAccent[section.name] ??
+                          "text-coconut-400 border-sand-300 dark:text-sand-300 dark:border-coconut-400"
+                        }`}
+                      >
+                        {section.name}
+                      </span>
+                      <ul class="mt-3 space-y-2">
+                        {visible.map((entry) => (
+                          <li class="flex gap-2.5 text-sm leading-relaxed text-coconut-500 dark:text-sand-200">
+                            <span
+                              aria-hidden="true"
+                              class="mt-2 h-1 w-1 shrink-0 rounded-full bg-sand-400 dark:bg-coconut-300"
+                            />
+                            <span
+                              class="line-clamp-2"
+                              set:html={renderInlineMarkdown(entry)}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                      {overflow > 0 && (
+                        <a
+                          href={repoChangelogUrl}
+                          class="mt-2 inline-block text-xs font-medium text-coconut-400 hover:text-palm-500 dark:text-sand-400 dark:hover:text-sun-300 transition"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          +{overflow} more in the changelog →
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </li>
           ))}

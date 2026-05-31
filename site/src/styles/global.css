@@ -111,13 +111,13 @@
 }
 
 /* ---------- Base body styles ---------- */
-/* Dark is the default (the original palette); the tropical light theme is
-   opt-in via removing `.dark`. Keeping these in sync with the body's
-   light/dark surface utilities avoids a flash of the wrong surface before
-   paint. */
+/* Both themes share the tropical husk/sand/sun palette. Dark is still the
+   default (the SSR class on <html>), with the light theme opted in by
+   removing `.dark`. Keeping these in sync with the body's light/dark
+   surface utilities avoids a flash of the wrong surface before paint. */
 html {
   scroll-behavior: smooth;
-  background-color: #09090b;
+  background-color: var(--color-husk-400);
   color-scheme: dark;
 }
 
@@ -142,4 +142,33 @@ body {
     letter-spacing: -0.02em;
     text-wrap: balance;
   }
+}
+
+/* ---------- Asciinema player tropical theme ----------
+   The Hero's <Asciinema> embed loads `vendor/asciinema-player.css` which
+   defines `.asciinema-player-theme-asciinema` (a generic charcoal/teal
+   look). We override with a husk/sand/sun palette here, then point the
+   player at `theme: "mgz"` (= class `asciinema-player-theme-mgz`) in
+   Hero.astro. Both light and dark site themes show the same terminal
+   colors — terminals read as terminals in either surface, and matching
+   the tropical accents keeps the embed feeling part of the page. */
+.asciinema-player-theme-mgz {
+  --term-color-foreground: #F4ECD3;          /* sand-100 */
+  --term-color-background: #15120E;          /* husk-400 */
+  --term-color-0:  #0D0B07;                  /* husk-500 — black */
+  --term-color-1:  #D26B4D;                  /* ember-400 — red */
+  --term-color-2:  #6BAC55;                  /* palm-300 — green */
+  --term-color-3:  #F5C94B;                  /* sun-300 — yellow */
+  --term-color-4:  #6FB1D9;                  /* sky-400 — blue */
+  --term-color-5:  #A6845A;                  /* coconut-300 — magenta */
+  --term-color-6:  #97C57E;                  /* palm-200 — cyan */
+  --term-color-7:  #E8DDBC;                  /* sand-200 — white */
+  --term-color-8:  #1F1B16;                  /* husk-300 — bright black */
+  --term-color-9:  #E8A088;                  /* ember-300 — bright red */
+  --term-color-10: #97C57E;                  /* palm-200 — bright green */
+  --term-color-11: #F8DD78;                  /* sun-200 — bright yellow */
+  --term-color-12: #8FC3DD;                  /* sky-300 — bright blue */
+  --term-color-13: #C8AC7E;                  /* coconut-200 — bright magenta */
+  --term-color-14: #C9E0B5;                  /* palm-100 — bright cyan */
+  --term-color-15: #FBF6E8;                  /* sand-50 — bright white */
 }

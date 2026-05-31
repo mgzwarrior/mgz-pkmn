@@ -1,0 +1,149 @@
+---
+// Buttondown subscriber username — change here if a different handle is used.
+// The embed endpoint is public, so this is safe to commit.
+const buttondownUser = "mgz-pkmn";
+const formAction = `https://buttondown.com/api/emails/embed-subscribe/${buttondownUser}`;
+const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
+---
+
+<section
+  id="signup"
+  class="border-b border-sand-300 dark:border-husk-200/80 px-6 py-20 sm:py-24"
+>
+  <div class="mx-auto max-w-3xl text-center">
+    <p
+      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 backdrop-blur px-3 py-1 text-xs font-medium text-coconut-500 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-200"
+    >
+      <span class="h-1.5 w-1.5 rounded-full bg-sun-300 dark:bg-sun-300"></span>
+      Newsletter
+    </p>
+
+    <h2
+      class="mt-6 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50 text-balance"
+    >
+      Get the next release in your inbox.
+    </h2>
+
+    <p
+      class="mt-4 text-lg text-coconut-500 dark:text-sand-300 max-w-xl mx-auto text-balance"
+    >
+      Occasional, no-pressure updates when a new version ships — and
+      the odd Pokemon-TCG-meets-open-source note from
+      <a
+        href="https://www.matt-grant.com"
+        class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline"
+        rel="noopener noreferrer"
+        target="_blank">@mgzwarrior</a
+      >. No spam, unsubscribe anytime.
+    </p>
+
+    <form
+      id="email-signup-form"
+      action={formAction}
+      method="post"
+      target="popupwindow"
+      onsubmit={`window.open('${fallbackTarget}','popupwindow')`}
+      class="mt-8 flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+      data-buttondown-user={buttondownUser}
+    >
+      <label for="signup-email" class="sr-only">Email address</label>
+      <input
+        id="signup-email"
+        type="email"
+        name="email"
+        required
+        autocomplete="email"
+        placeholder="you@example.com"
+        class="flex-1 rounded-md border border-sand-300 bg-sand-50 px-4 py-3 text-sm text-coconut-700 placeholder:text-coconut-400 focus:outline-none focus:border-palm-400 focus:ring-2 focus:ring-palm-300/40 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-50 dark:placeholder:text-sand-400 dark:focus:border-sun-300 dark:focus:ring-sun-400/30 transition"
+      />
+      <button
+        type="submit"
+        class="inline-flex items-center justify-center gap-2 rounded-md bg-sun-300 px-5 py-3 text-sm font-semibold text-coconut-700 shadow-md hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:shadow-lg dark:shadow-sun-400/20 dark:hover:bg-sun-200 transition disabled:opacity-60 disabled:cursor-not-allowed"
+        data-default-label="Subscribe"
+      >
+        <span data-label>Subscribe</span>
+      </button>
+    </form>
+
+    <p
+      id="email-signup-status"
+      role="status"
+      aria-live="polite"
+      class="mt-4 min-h-[1.5rem] text-sm"
+    >
+    </p>
+  </div>
+</section>
+
+<script is:inline>
+  // Progressive enhancement: when JS is available, submit the Buttondown
+  // form via fetch and surface inline success/error feedback so the visitor
+  // never leaves the page. Without JS, the form falls back to Buttondown's
+  // popup window (the `target` + `onsubmit` attributes on the <form>).
+  (function () {
+    const form = document.getElementById("email-signup-form");
+    if (!form) return;
+    const status = document.getElementById("email-signup-status");
+    const button = form.querySelector("button[type=submit]");
+    const labelEl = button && button.querySelector("[data-label]");
+    const input = form.querySelector("input[name=email]");
+
+    // Strip the no-JS fallbacks so the form posts inline.
+    form.removeAttribute("target");
+    form.removeAttribute("onsubmit");
+
+    function setStatus(text, tone) {
+      if (!status) return;
+      status.textContent = text;
+      status.dataset.tone = tone;
+      // Tone-driven color: success (palm), error (ember), neutral (coconut).
+      status.className =
+        "mt-4 min-h-[1.5rem] text-sm " +
+        (tone === "success"
+          ? "text-palm-500 dark:text-palm-200 font-medium"
+          : tone === "error"
+            ? "text-ember-500 dark:text-ember-300 font-medium"
+            : "text-coconut-400 dark:text-sand-300");
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!input || !input.value) return;
+
+      button.disabled = true;
+      if (labelEl) labelEl.textContent = "Subscribing…";
+      setStatus("", "neutral");
+
+      const body = new FormData();
+      body.append("email", input.value);
+
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body,
+          // Buttondown's embed endpoint sets CORS to allow this, but it
+          // doesn't return a parseable JSON body — opaque response is fine.
+          mode: "no-cors",
+        });
+        // `no-cors` => response.type === "opaque" and status is always 0,
+        // so we can't tell a 200 from a 400 (invalid syntax that slipped
+        // past the HTML5 check, rate limit, server error, etc.) — only
+        // network-layer failures hit the catch below. Soften the copy so
+        // a silently-rejected submission isn't entirely invisible.
+        setStatus(
+          "Thanks — Buttondown should send a confirmation email shortly. If you don't see one in a few minutes, try again.",
+          "success",
+        );
+        form.reset();
+      } catch (err) {
+        setStatus(
+          "Couldn't submit just now. Try again, or email mattgrant33@gmail.com.",
+          "error",
+        );
+      } finally {
+        button.disabled = false;
+        if (labelEl) labelEl.textContent = button.dataset.defaultLabel;
+      }
+    });
+  })();
+</script>

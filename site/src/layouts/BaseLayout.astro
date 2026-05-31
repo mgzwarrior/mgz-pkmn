@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import AnnouncementBanner from "../components/AnnouncementBanner.astro";
 
 interface Props {
   title?: string;
@@ -54,7 +55,8 @@ const ogImage = new URL("/social-preview-tropical.png", Astro.site).toString();
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
   </head>
-  <body class="bg-sand-50 text-coconut-700 dark:bg-zinc-950 dark:text-zinc-100">
+  <body class="bg-sand-50 text-coconut-700 dark:bg-husk-400 dark:text-sand-50">
+    <AnnouncementBanner />
     <slot />
   </body>
 </html>
