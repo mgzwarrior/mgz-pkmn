@@ -32,6 +32,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- API: **`MGZ_PKMN_WARM_ON_STARTUP=1` actually fires again** — the
+  warm bootstrap was wired via `@app.on_event("startup")`, but
+  Starlette silently drops `on_event` handlers when a custom `lifespan`
+  is provided (the one added for Alembic auto-migrate). The deployed
+  instance was reporting `concept_warm_timestamp` and
+  `set_cards_warm_timestamp` as `null` on `/api/v1/cache/stats` despite
+  the env var being set ([#367](https://github.com/mgzwarrior/mgz-pkmn/issues/367)).
+  Folded the warm bootstrap into the existing lifespan async generator
+  and pinned the behavior with `tests/test_warm_on_startup.py` so the
+  next person to add a startup hook can't silently shadow it again.
 - Web: **results table counts now live above the table** — the
   `N matched · N unmatched · N shown` summary moved from below the
   results to the right side of the table toolbar so it's visible
