@@ -1,5 +1,8 @@
 <h1>
-  <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/logo.svg" alt="mgz-pkmn" height="64">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/logo-dark.svg">
+    <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/logo.svg" alt="mgz-pkmn" height="64">
+  </picture>
 </h1>
 
 [![CI](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml/badge.svg)](https://github.com/mgzwarrior/mgz-pkmn/actions/workflows/ci.yml)

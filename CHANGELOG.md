@@ -255,6 +255,29 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Site: **social preview now matches the tropical look** — the
+  Open Graph / Twitter card image (`/social-preview-tropical.png`)
+  was still rendering the old dark zinc background and blue card
+  outline from the pre-tropical era; it's been redrawn on the cream
+  + sun + palm + coconut palette with the new card-and-palm logo,
+  the current "Walk in with a plan, not a hope." headline, and the
+  v1.2 shipping pill. Regenerable from
+  [`site/scripts/social-preview.svg`](site/scripts/social-preview.svg)
+  via `rsvg-convert -w 1280 -h 640 site/scripts/social-preview.svg
+  -o site/public/social-preview-tropical.png`.
+- Repo: **README logo now matches the rest of the brand** —
+  [`assets/logo.svg`](assets/logo.svg) is replaced with the tropical
+  card-and-palm logo (previously only the marketing site + SPA
+  surfaced it). Every reference that uses the canonical
+  `raw.githubusercontent.com/.../assets/logo.svg` URL — the README
+  header, the GitHub Discussion posts that open with the inline
+  logo, the welcome-email drafts — picks up the new mark on cache
+  refresh; no link changes needed. The viewBox is trimmed to
+  `0 0 285 88` (was `0 0 360 88` with ~80px of empty right padding),
+  and a new [`assets/logo-dark.svg`](assets/logo-dark.svg) swaps
+  the wordmark fill to sand-50 for dark surfaces. The README header
+  uses a `<picture>` element so the right variant is picked from
+  the viewer's OS dark-mode preference.
 - Deploy: a transient `pokemontcg.io` timeout during the Docker build's
   `pkmn cache warm-sets` step no longer fails the whole deploy. The set
   catalog fetch now retries transient timeouts with backoff (matching the
