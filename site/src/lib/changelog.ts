@@ -114,13 +114,14 @@ export function renderInlineMarkdown(text: string): string {
     html += escape(text.slice(lastIndex, match.index));
     if (match[1] !== undefined && match[2] !== undefined) {
       // Link: [text](url). Only http(s) URLs match the pattern.
-      html += `<a href="${escape(match[2])}" class="underline decoration-zinc-600 hover:decoration-zinc-300" target="_blank" rel="noopener noreferrer">${escape(match[1])}</a>`;
+      html += `<a href="${escape(match[2])}" class="underline decoration-coconut-300 hover:decoration-palm-500 dark:decoration-sand-400 dark:hover:decoration-sun-300" target="_blank" rel="noopener noreferrer">${escape(match[1])}</a>`;
     } else if (match[3] !== undefined) {
-      // Code span: `code`.
-      html += `<code class="rounded bg-zinc-800 px-1 py-0.5 text-[0.85em] text-zinc-200">${escape(match[3])}</code>`;
+      // Code span: `code`. Cream-on-coconut in light, husk-on-sand in dark
+      // so the chip sits on the surface rather than punching through it.
+      html += `<code class="rounded bg-sand-200 px-1 py-0.5 text-[0.85em] text-coconut-700 dark:bg-husk-100 dark:text-sand-200">${escape(match[3])}</code>`;
     } else if (match[4] !== undefined) {
       // Bold: **emphasis**.
-      html += `<strong class="font-semibold text-coconut-700 dark:text-zinc-100">${escape(match[4])}</strong>`;
+      html += `<strong class="font-semibold text-coconut-700 dark:text-sand-50">${escape(match[4])}</strong>`;
     }
     lastIndex = pattern.lastIndex;
   }

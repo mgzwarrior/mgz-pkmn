@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Site: **Dark mode now on the tropical palette** — the Astro marketing
+  site's dark theme no longer leans on the leftover zinc/blue Tailwind
+  stock palette. Surfaces use the husk coffee-charcoal tokens, body text
+  warm sand, links and CTAs the same sun-yellow that defines light mode,
+  and badge accents map onto palm/sun/ember instead of generic
+  emerald/blue/rose. The header theme toggle behavior is unchanged.
+  Light mode is unchanged. SPA migration follows in a separate PR.
 - Site: **Tropical theme as a light mode** — the Astro marketing site
   now ships both themes: the original zinc/blue palette stays the default
   **dark** mode, and the warm cream + sun + palm + coconut Exeggutor
@@ -43,8 +50,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
   inbox" section on the marketing landing page collects subscribers via
   the [Buttondown](https://buttondown.com) public embed endpoint. Sits
   right under "What you actually walk out with" so visitors who've already
-  seen the value prop have an easy on-ramp. Honors the tropical palette in light mode
-  and the blue/zinc palette in dark. Submits inline via `fetch` with a
+  seen the value prop have an easy on-ramp. Honors the tropical palette in
+  both light and dark mode. Submits inline via `fetch` with a
   success state ("Thanks — check your inbox") when JS is enabled, falling
   back to Buttondown's hosted popup when JS is off. No new runtime
   dependencies; no API key in the client.
