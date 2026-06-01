@@ -262,7 +262,7 @@ class WarmSetsBackgroundBodyTests(unittest.TestCase):
             patch.object(main, "threading") as mock_threading,
             patch.object(main, "TCGClient") as mock_client_cls,
             patch.object(main, "warm_set_images", return_value=fake_result) as mock_warm,
-            patch.object(main._log, "warning") as mock_log,
+            patch.object(main._log, "info") as mock_log,
         ):
             mock_threading.Thread.side_effect = self._make_sync_thread()
             main._warm_sets_in_background()
@@ -316,7 +316,7 @@ class WarmSetsBackgroundBodyTests(unittest.TestCase):
             patch.object(main, "threading") as mock_threading,
             patch.object(main, "TCGClient") as mock_client_cls,
             patch.object(main, "warm_set_images") as mock_warm,
-            patch.object(main._log, "warning") as mock_log_info,
+            patch.object(main._log, "info") as mock_log_info,
         ):
             main._warm_sets_in_background()
 
@@ -375,7 +375,7 @@ class WarmCardsBackgroundBodyTests(unittest.TestCase):
             patch.object(main, "threading") as mock_threading,
             patch.object(main, "TCGClient") as mock_client_cls,
             patch.object(main, "warm_cards", return_value=fake_result) as mock_warm,
-            patch.object(main._log, "warning") as mock_log,
+            patch.object(main._log, "info") as mock_log,
         ):
             mock_threading.Thread.side_effect = self._make_sync_thread()
             main._warm_cards_in_background()
@@ -432,7 +432,7 @@ class WarmCardsBackgroundBodyTests(unittest.TestCase):
             patch.object(main, "threading") as mock_threading,
             patch.object(main, "TCGClient") as mock_client_cls,
             patch.object(main, "warm_cards") as mock_warm,
-            patch.object(main._log, "warning") as mock_log_info,
+            patch.object(main._log, "info") as mock_log_info,
         ):
             main._warm_cards_in_background()
 

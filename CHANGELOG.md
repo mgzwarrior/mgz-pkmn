@@ -24,16 +24,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
   [`docs/deployment.md`](docs/deployment.md) to match the new plan and
   drops the now-obsolete "free-tier cold-start" caveat.
 - API: **Warm-bootstrap log lines now reach Render's log stream**
-  ([#378](https://github.com/mgzwarrior/mgz-pkmn/issues/378)).
-  `api/main.py` never configured the root logger, so Python's default
-  behavior dropped every `_log.info(...)` call from the four warm
-  bootstraps — making the deploy look broken even when warmers were
-  running successfully (`concept cache fresh; skipping startup warm`,
-  `card warm complete: 18500 cards warmed across 173 sets`, etc. were
-  all going to /dev/null). Added a module-level
-  `logging.basicConfig(level=INFO, format="…[%(name)s] %(message)s")`
-  so our log lines interleave cleanly with uvicorn's request stream.
-  Pinned by `tests/test_logging_config.py`.
+  ([#378](https://github.com/mgzwarrior/mgz-pkmn/issues/378),
+  [#382](https://github.com/mgzwarrior/mgz-pkmn/issues/382)).
+  Two compounding bugs were dropping every `_log.info(...)` call from
+  the four warm bootstraps, making the deploy look broken even when
+  warmers were running successfully (`concept cache fresh; skipping
+  startup warm`, `card warm complete: 18500 cards warmed across 173
+  sets`, etc. were all going to /dev/null). **First**, `api/main.py`
+  never configured the root logger, so Python's default behavior
+  dropped INFO records on the floor — fixed by a module-level
+  `logging.basicConfig(level=INFO, format="…[%(name)s] %(message)s")`.
+  **Second**, the alembic env loaded during the startup automigrate
+  called `fileConfig(...)` with its default
+  `disable_existing_loggers=True`, which flips `.disabled = True` on
+  every existing logger that isn't named in `alembic.ini` — including
+  `api.main`, which had been instantiated moments earlier at module
+  import. After that, every warm-bootstrap log call was dropped at
+  `Logger.handle` regardless of level. Fixed by passing
+  `disable_existing_loggers=False` in
+  [`api/migrations/env.py`](api/migrations/env.py). Both branches are
+  pinned by `tests/test_logging_config.py`.
 
 ### Changed
 

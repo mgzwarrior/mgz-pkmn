@@ -217,5 +217,38 @@ class WarmLogCaptureTests(_RootLoggerMixin):
                 )
 
 
+class AlembicEnvLoggingTests(_RootLoggerMixin):
+    """Pin that loading api.migrations.env doesn't disable the
+    `api.main` logger via `fileConfig`'s default `disable_existing_loggers=True`.
+
+    Regression coverage for #382: alembic.ini's `[loggers]` section only
+    names `root, sqlalchemy, alembic`, so the default fileConfig call
+    would flip `.disabled = True` on every other already-instantiated
+    logger — including `api.main`. After that, every `_log.info(...)` /
+    `_log.warning(...)` from the warm bootstraps is dropped at
+    `Logger.handle`, before reaching any handler. The env.py override
+    `disable_existing_loggers=False` is what keeps the warm logs alive
+    across `automigrate -> command.upgrade -> env.py` on every boot.
+    """
+
+    def test_loading_env_does_not_disable_api_main_logger(self) -> None:
+        from logging.config import fileConfig
+
+        _reload_main()
+        api_main = logging.getLogger("api.main")
+        self.assertFalse(api_main.disabled)
+
+        alembic_ini = Path(__file__).resolve().parents[1] / "api" / "alembic.ini"
+        fileConfig(str(alembic_ini), disable_existing_loggers=False)
+
+        self.assertFalse(
+            api_main.disabled,
+            "api.main logger was disabled by fileConfig — env.py must pass "
+            "disable_existing_loggers=False so the warm-bootstrap log lines "
+            "keep emitting after every automigrate (see #382).",
+        )
+        self.assertTrue(api_main.isEnabledFor(logging.INFO))
+
+
 if __name__ == "__main__":
     unittest.main()
