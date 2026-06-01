@@ -101,10 +101,50 @@ same snapshot with snake_case keys:
 }
 ```
 
+## Warm passes
+
+Four CLI commands pre-populate slices of the cache so first-use lookups
+land on a warm disk instead of paying upstream latency:
+
+| Command | What it warms | Manifest | Stale window |
+|---|---|---|---|
+| `pkmn cache warm-concepts` | Concept-name → card-id lookups (~200 names) | `concept_warm.json` | 24 h |
+| `pkmn cache warm-set-cards` | Per-set card-list JSON for every set | `set_cards_warm.json` | 7 d |
+| `pkmn cache warm-sets` | Set logo + symbol images | `sets_warm.json` | 7 d |
+| `pkmn cache warm-cards` | Full per-card structural payload (~18,000 cards) | `card_warm.json` | 7 d |
+
+Each manifest records `timestamp` + a count of what was warmed; the
+freshness gate (`*_warm_is_fresh()`) reads it to skip a re-walk when a
+recent pass is still within the staleness window. The on-startup
+bootstrap in [`api/main.py`](../api/main.py) fires the first three when
+`MGZ_PKMN_WARM_ON_STARTUP=1`. The per-card warm has its own opt-in
+(`MGZ_PKMN_WARM_CARDS_ON_STARTUP=1`) because it's heavier — a fresh
+pass writes one cache entry per card across the full English catalog.
+
+`warm-cards` is Phase 1 of the pre-Scrydex catalog-warm epic
+([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)). Reuses the
+data each set's `search_all` already returns — zero extra HTTP calls
+vs `warm-set-cards`, just one extra disk entry per card so the lookup
+path can resolve directly by card-id once the Phase 3 refactor
+([#372](https://github.com/mgzwarrior/mgz-pkmn/issues/372)) wires it in.
+
+```bash
+# Full English-catalog warm; ~18k entries written, throttled politely.
+pkmn cache warm-cards --throttle-ms 250
+
+# Stage a single new set after a release.
+pkmn cache warm-cards --set sv11 -v
+
+# Bound a partial run on a tight upstream budget.
+pkmn cache warm-cards --max-cards 1000
+```
+
 ## Environment variables
 
 | Variable | Effect |
 |---|---|
 | `MGZ_PKMN_NO_CACHE` | When set to a truthy value (anything other than empty, `0`, `false`, `False`), disables both the API response cache and URL-override lookups for the current process. Reads always miss; writes are no-ops; the on-disk cache is left untouched. The CLI's [`--no-cache`](cli.md#pkmn-lookup-options) flag sets this internally — set it directly when running the FastAPI service or invoking the library from another process where the flag isn't available. `--clear-cache` still wipes the API cache even when this is set; the explicit wipe wins over the implicit skip. |
 | `MGZ_PKMN_CACHE_WARN_BYTES` | Integer byte count for the cache-size soft-warn threshold checked at `pkmn lookup` startup. Defaults to `52428800` (50 MB). Set to `0` (or any non-positive value) to disable the warning entirely. Unparseable values fall back to the default. |
+| `MGZ_PKMN_WARM_ON_STARTUP` | Truthy (`1`, `true`, `True`) enables the runtime warm bootstrap in the FastAPI lifespan for the concept, set-cards, and sets slices. Each slice is gated by its own freshness manifest so containers starting within the staleness window skip the re-walk. Set in `render.yaml` by default on the deployed instance. |
+| `MGZ_PKMN_WARM_CARDS_ON_STARTUP` | Truthy enables the runtime per-card warm bootstrap. Independent of `MGZ_PKMN_WARM_ON_STARTUP` because the per-card pass is heavyweight and should be opted into explicitly. Pair with the persistent-disk deploy so the warm survives redeploys. |
 | `XDG_CACHE_HOME` | Overrides the cache root. The store lives at `$XDG_CACHE_HOME/mgz-pkmn` when set, falling back to `~/.cache/mgz-pkmn` otherwise. Standard XDG semantics — no mgz-pkmn-specific behavior. |

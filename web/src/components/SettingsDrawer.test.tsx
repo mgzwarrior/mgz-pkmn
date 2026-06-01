@@ -52,6 +52,9 @@ describe('SettingsDrawer', () => {
       set_cards_warm_count: 0,
       sets_warm_timestamp: null,
       sets_warm_count: 0,
+      card_warm_timestamp: null,
+      card_warm_count: 0,
+      card_warm_failed_count: 0,
     })
   })
 
@@ -90,6 +93,9 @@ describe('SettingsDrawer', () => {
       set_cards_warm_count: 0,
       sets_warm_timestamp: Date.now() / 1000 - 300, // 5 min ago
       sets_warm_count: 200,
+      card_warm_timestamp: Date.now() / 1000 - 600, // 10 min ago
+      card_warm_count: 18500,
+      card_warm_failed_count: 0,
     })
 
     render(<SettingsDrawer />)
@@ -99,6 +105,7 @@ describe('SettingsDrawer', () => {
     expect(screen.getByText(/173 ·/)).toBeInTheDocument()
     expect(screen.getByText(/47 ·/)).toBeInTheDocument()
     expect(screen.getByText(/200 ·/)).toBeInTheDocument()
+    expect(screen.getByText(/18500 ·/)).toBeInTheDocument()
     // The not-warmed branch renders for set cards (the only null slice).
     expect(screen.getByText(/^not warmed$/)).toBeInTheDocument()
   })

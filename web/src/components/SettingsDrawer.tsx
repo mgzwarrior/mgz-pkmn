@@ -295,6 +295,15 @@ function CacheStatsPanel() {
             }
             warn={stats.sets_warm_timestamp == null}
           />
+          <StatRow
+            label="Cards"
+            value={
+              stats.card_warm_timestamp == null
+                ? 'not warmed'
+                : `${stats.card_warm_count} · ${formatAge(stats.card_warm_timestamp)}`
+            }
+            warn={stats.card_warm_timestamp == null}
+          />
         </dl>
       )}
     </div>

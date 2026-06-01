@@ -721,11 +721,17 @@ class CacheStatsRouteTests(unittest.TestCase):
         self.assertEqual(data["set_cards_warm_count"], 0)
         self.assertIsNone(data["sets_warm_timestamp"])
         self.assertEqual(data["sets_warm_count"], 0)
+        self.assertIsNone(data["card_warm_timestamp"])
+        self.assertEqual(data["card_warm_count"], 0)
+        self.assertEqual(data["card_warm_failed_count"], 0)
 
     def test_warmed_cache_surfaces_manifest_counts(self) -> None:
         cache.write_concept_warm(names_warmed=47, names_failed=[], source="test")
         cache.write_set_cards_warm(sets_warmed=12, sets_failed=[])
         cache.write_sets_warm(sets_warmed=173, logos_cached=173, symbols_cached=170, failures=3)
+        cache.write_card_warm(
+            cards_warmed=18_500, cards_failed=12, sets_attempted=173, sets_failed=[]
+        )
 
         data = client.get("/api/v1/cache/stats").json()
         self.assertEqual(data["concept_warm_names"], 47)
@@ -734,6 +740,9 @@ class CacheStatsRouteTests(unittest.TestCase):
         self.assertIsInstance(data["set_cards_warm_timestamp"], float)
         self.assertEqual(data["sets_warm_count"], 173)
         self.assertIsInstance(data["sets_warm_timestamp"], float)
+        self.assertEqual(data["card_warm_count"], 18_500)
+        self.assertEqual(data["card_warm_failed_count"], 12)
+        self.assertIsInstance(data["card_warm_timestamp"], float)
 
     def test_response_is_not_browser_cached(self) -> None:
         resp = client.get("/api/v1/cache/stats")
@@ -752,6 +761,7 @@ class CacheStatsRouteTests(unittest.TestCase):
         self.assertIsNone(data["concept_warm_timestamp"])
         self.assertIsNone(data["set_cards_warm_timestamp"])
         self.assertIsNone(data["sets_warm_timestamp"])
+        self.assertIsNone(data["card_warm_timestamp"])
         self.assertIsInstance(data["root"], str)
 
     def test_field_names_match_cli_json_shape(self) -> None:
