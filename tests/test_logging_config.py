@@ -1,19 +1,31 @@
-"""Pin that api.main configures the root logger so `_log.info` reaches stderr.
+"""Pin that api.main configures logging so `_log.info` reaches stderr.
 
 Regression coverage for the warm-bootstrap log invisibility on Render
-(#378): without `logging.basicConfig(level=INFO)` at module import,
-every `_log.info(...)` from the warm bootstraps is silently dropped
-because Python's default behavior only emits WARNING and above through
-the "last resort" handler. The deploy looked broken even when the
-warmers were running successfully.
+(#378): without `logging.basicConfig(level=INFO)` plus an explicit
+`_log.setLevel(INFO)` at module import, every `_log.info(...)` from
+the warm bootstraps is silently dropped — Python's default behavior
+only emits WARNING and above through the "last resort" handler, AND a
+pre-configured root logger (pytest's capture, custom uvicorn
+`--log-config`, etc.) typically has WARNING as its level too.
 
-These tests verify the production-equivalent behavior:
+The tests below explicitly drive both branches of api.main's logging
+config — fresh root vs pre-configured root — instead of trusting
+whatever state the test runner happens to leave the root logger in.
+That's the only way to actually pin the production behavior; an
+implicit "pytest configured the root already" precondition would make
+this suite a tautology.
 
-- After importing `api.main`, the root logger has at least one handler.
-- The `api.main` logger is enabled for INFO.
-- An actual `_log.info` call from inside one of the warm bootstraps gets
-  captured (the "already fresh" log line, which fires whenever the
-  freshness gate hits).
+Pattern per test:
+
+1. Snapshot the root logger's handlers + level in setUp.
+2. Reset it to the state the test cares about (clean or
+   pre-configured-with-WARNING) just before reloading api.main.
+3. Reload api.main so its module-level config block runs against the
+   reset state.
+4. Assert against `isEnabledFor(INFO)` — that's the canonical Python
+   check ("would my `_log.info(...)` actually emit?"), not a numeric
+   comparison against `getEffectiveLevel`.
+5. Restore root state in tearDown so other tests aren't perturbed.
 """
 
 from __future__ import annotations
@@ -34,7 +46,8 @@ from mgz_pkmn import cache as disk_cache
 
 
 def _reload_main():
-    """Re-import api.main so the module-level `basicConfig` fires fresh."""
+    """Re-import api.main so its module-level logging config block fires
+    again against the current root-logger state."""
     if "api.main" in sys.modules:
         return importlib.reload(sys.modules["api.main"])
     import api.main as main
@@ -42,50 +55,102 @@ def _reload_main():
     return main
 
 
-class LoggingConfigTests(unittest.TestCase):
+class _RootLoggerMixin(unittest.TestCase):
+    """Snapshot + restore the root logger's handlers and level so each
+    test can deterministically reset root to the precondition it wants
+    to assert against — without polluting later tests in the same
+    runner."""
+
     def setUp(self) -> None:
         self._old_automigrate = os.environ.get("MGZ_PKMN_AUTOMIGRATE")
         os.environ["MGZ_PKMN_AUTOMIGRATE"] = "0"
+        root = logging.getLogger()
+        self._snapshot_handlers = root.handlers[:]
+        self._snapshot_level = root.level
+        # Also snapshot api.main's level — _log.setLevel(INFO) at module
+        # import persists across reloads via the Python logging registry,
+        # so without a restore the next test could see the level our
+        # reload set.
+        self._snapshot_api_main_level = logging.getLogger("api.main").level
 
     def tearDown(self) -> None:
+        root = logging.getLogger()
+        root.handlers[:] = self._snapshot_handlers
+        root.setLevel(self._snapshot_level)
+        logging.getLogger("api.main").setLevel(self._snapshot_api_main_level)
         if self._old_automigrate is None:
             os.environ.pop("MGZ_PKMN_AUTOMIGRATE", None)
         else:
             os.environ["MGZ_PKMN_AUTOMIGRATE"] = self._old_automigrate
 
-    def test_root_logger_has_a_handler_after_import(self) -> None:
-        """basicConfig added a StreamHandler to root; without it our
-        `_log.info` calls drop into the void."""
+    @staticmethod
+    def _reset_root_to_fresh() -> None:
+        """Mimic a clean uvicorn boot: no handlers on root, default level."""
+        root = logging.getLogger()
+        root.handlers.clear()
+        root.setLevel(logging.WARNING)
+        logging.getLogger("api.main").setLevel(logging.NOTSET)
+
+    @staticmethod
+    def _reset_root_to_pre_configured() -> None:
+        """Mimic pytest log capture / custom uvicorn --log-config: root
+        already has a handler, level is WARNING (so naive `basicConfig`
+        is a no-op and `_log.info` would drop without our explicit
+        `_log.setLevel(INFO)`)."""
+        root = logging.getLogger()
+        root.handlers.clear()
+        root.addHandler(logging.NullHandler())
+        root.setLevel(logging.WARNING)
+        logging.getLogger("api.main").setLevel(logging.NOTSET)
+
+
+class LoggingConfigBranchTests(_RootLoggerMixin):
+    def test_fresh_root_gets_a_streamhandler_at_info(self) -> None:
+        """Branch 1 of the two-case setup: clean root → basicConfig
+        adds a handler. After reload, root has a handler and the
+        api.main logger emits INFO."""
+        self._reset_root_to_fresh()
         _reload_main()
-        self.assertGreater(len(logging.getLogger().handlers), 0)
 
-    def test_api_main_logger_emits_info(self) -> None:
-        """End-to-end: getEffectiveLevel <= INFO so `_log.info(...)`
-        propagates. Catches a future regression where someone narrows
-        basicConfig to WARNING-only or removes it."""
+        root = logging.getLogger()
+        self.assertGreater(len(root.handlers), 0)
+        self.assertTrue(logging.getLogger("api.main").isEnabledFor(logging.INFO))
+
+    def test_preconfigured_root_does_not_get_basicConfig_clobber(self) -> None:
+        """Branch 2: root already has handlers + WARNING level. Our
+        explicit `_log.setLevel(INFO)` rescues api.main's emission
+        without touching root's handler list."""
+        self._reset_root_to_pre_configured()
+        root = logging.getLogger()
+        handlers_before = root.handlers[:]
+        level_before = root.level
+
         _reload_main()
-        self.assertLessEqual(
-            logging.getLogger("api.main").getEffectiveLevel(),
-            logging.INFO,
-        )
+
+        # We did not add to root's handler list; the caller's setup
+        # survives untouched.
+        self.assertEqual(root.handlers, handlers_before)
+        self.assertEqual(root.level, level_before)
+        # …but api.main is now enabled for INFO regardless. This is the
+        # load-bearing assertion: if `_log.setLevel(INFO)` ever gets
+        # removed, this test fails even though root looks "configured".
+        self.assertTrue(logging.getLogger("api.main").isEnabledFor(logging.INFO))
 
 
-class WarmLogCaptureTests(unittest.TestCase):
-    """Drives one of the warm bootstraps with a fresh manifest already on
-    disk so the freshness-gate short-circuit fires the "already fresh"
-    log line, and asserts that line is actually captured. This is the
-    real test that warm-pass operators will see something in Render.
-
-    Same isolation pattern as `tests/test_warm_sets_manifest.py`."""
+class WarmLogCaptureTests(_RootLoggerMixin):
+    """End-to-end: drive the warm bootstraps with a fresh manifest so
+    the freshness-gate short-circuit fires the "already fresh" log
+    line. This is what an operator on Render would actually see —
+    `assertLogs` captures it because our explicit level config makes
+    the log call propagate."""
 
     def setUp(self) -> None:
+        super().setUp()
         self._tmp = tempfile.TemporaryDirectory()
         self._old_xdg = os.environ.get("XDG_CACHE_HOME")
         self._old_no_cache = os.environ.get(disk_cache._NO_CACHE_ENV)
-        self._old_automigrate = os.environ.get("MGZ_PKMN_AUTOMIGRATE")
         os.environ["XDG_CACHE_HOME"] = self._tmp.name
         os.environ.pop(disk_cache._NO_CACHE_ENV, None)
-        os.environ["MGZ_PKMN_AUTOMIGRATE"] = "0"
 
     def tearDown(self) -> None:
         if self._old_xdg is None:
@@ -96,15 +161,13 @@ class WarmLogCaptureTests(unittest.TestCase):
             os.environ.pop(disk_cache._NO_CACHE_ENV, None)
         else:
             os.environ[disk_cache._NO_CACHE_ENV] = self._old_no_cache
-        if self._old_automigrate is None:
-            os.environ.pop("MGZ_PKMN_AUTOMIGRATE", None)
-        else:
-            os.environ["MGZ_PKMN_AUTOMIGRATE"] = self._old_automigrate
         self._tmp.cleanup()
+        super().tearDown()
 
     def test_warm_sets_bootstrap_emits_already_fresh_log(self) -> None:
-        # Seed a fresh sets manifest so the bootstrap's freshness gate
-        # hits and logs the "already fresh" line.
+        # Pre-configured-root precondition is the harder of the two
+        # cases (basicConfig won't run) — pin behavior there.
+        self._reset_root_to_pre_configured()
         disk_cache.write_sets_warm(
             sets_warmed=173, logos_cached=173, symbols_cached=170, failures=0
         )
@@ -113,14 +176,13 @@ class WarmLogCaptureTests(unittest.TestCase):
         with self.assertLogs("api.main", level="INFO") as cm:
             main._warm_sets_in_background()
 
-        # The "fresh" log fires from `_warm_sets_in_background` directly
-        # (not the inner thread), so we don't need to wait on a join.
         self.assertTrue(
             any("sets cache fresh" in line for line in cm.output),
             f"expected 'sets cache fresh' in logs, got: {cm.output}",
         )
 
     def test_warm_cards_bootstrap_emits_already_fresh_log(self) -> None:
+        self._reset_root_to_pre_configured()
         disk_cache.write_card_warm(
             cards_warmed=18_500, cards_failed=0, sets_attempted=173, sets_failed=[]
         )
@@ -134,16 +196,25 @@ class WarmLogCaptureTests(unittest.TestCase):
             f"expected 'card cache fresh' in logs, got: {cm.output}",
         )
 
-    def test_warm_log_call_propagates_through_basicconfig(self) -> None:
-        """Even without `assertLogs` (which adds its own handler), the
-        production logging config should send `_log.info` to a handler.
-
-        Checks `_log.isEnabledFor(INFO)` after the module-level
-        basicConfig has run — the same condition Python uses internally
-        before invoking handlers."""
-        with patch("mgz_pkmn.cache.sets_warm_is_fresh", return_value=True):
-            main = _reload_main()
-            self.assertTrue(main._log.isEnabledFor(logging.INFO))
+    def test_api_main_logger_isenabledfor_info_in_both_root_states(self) -> None:
+        """Independent check that doesn't rely on `assertLogs` (which
+        installs its own handler and would mask config bugs). Drives
+        both root-state branches via subTest so the assertion is the
+        same shape in both."""
+        for label, reset in (
+            ("fresh", self._reset_root_to_fresh),
+            ("pre-configured", self._reset_root_to_pre_configured),
+        ):
+            with self.subTest(root_state=label):
+                reset()
+                # `sets_warm_is_fresh` patch keeps the bootstrap quiet —
+                # we're testing logger state, not warm behavior.
+                with patch("mgz_pkmn.cache.sets_warm_is_fresh", return_value=True):
+                    main = _reload_main()
+                self.assertTrue(
+                    main._log.isEnabledFor(logging.INFO),
+                    f"api.main logger should emit INFO under root_state={label}",
+                )
 
 
 if __name__ == "__main__":

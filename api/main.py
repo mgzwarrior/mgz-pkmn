@@ -56,23 +56,29 @@ from .routes import (
 # it configures its own `uvicorn.*` loggers but leaves the root
 # untouched.
 #
-# Two-step setup so we work in both environments:
+# Two distinct cases to handle, explicitly:
 #
-# 1. `basicConfig` handles the production case — root logger has no
-#    handlers, so this adds a StreamHandler that goes to stderr at INFO
-#    level. Format mirrors uvicorn's own log line so the streams
-#    interleave cleanly in Render.
+# 1. **Fresh root** (production: a clean uvicorn boot has no root
+#    handlers). Run `basicConfig` to add a StreamHandler at INFO so our
+#    messages reach stderr. Format mirrors uvicorn's own log line so the
+#    streams interleave cleanly in Render. The explicit
+#    `hasHandlers()` guard is equivalent to `basicConfig`'s internal
+#    no-op-when-handlers-exist behavior, but spelling it out makes the
+#    two-case story readable.
 #
-# 2. Explicit `_log.setLevel(INFO)` handles the pre-configured-root case
-#    — pytest adds handlers to root before our import, which makes
-#    `basicConfig` a no-op AND inherits root's WARNING-default level.
-#    Without this our logger would be silenced in every test runner
-#    that captures logging, and any future uvicorn `--log-config` that
-#    sets root above INFO would silence us in production too.
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-)
+# 2. **Pre-configured root** (pytest's log capture, custom uvicorn
+#    `--log-config`, or any parent process that touched logging first).
+#    Root already has a handler — but it almost certainly has the
+#    default WARNING level, so a `_log.info(...)` against that root
+#    would still drop. Explicit `_log.setLevel(INFO)` on the
+#    `api.main` logger rescues this without disturbing whatever the
+#    caller set up for root. Runs unconditionally because it's the
+#    load-bearing line for both cases.
+if not logging.getLogger().hasHandlers():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
 
 _log = logging.getLogger(__name__)
 _log.setLevel(logging.INFO)
