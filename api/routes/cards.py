@@ -103,7 +103,7 @@ _PROBE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".svg")
 
 
 @router.get("/cards/{card_id}/image/{size}")
-async def get_card_image(
+def get_card_image(
     card_id: Annotated[str, _CARD_ID_PATH],
     size: Literal["large", "small"],
 ) -> Response:
@@ -120,6 +120,14 @@ async def get_card_image(
     card-image payloads are small (~80-150 KB) and reading them into
     memory keeps the user-controlled `card_id` from flowing into
     FastAPI's file-serving sink.
+
+    Declared as a plain `def` (not `async def`) so FastAPI runs it in
+    its threadpool — the disk reads below are blocking, and an
+    `async def` would stall the event loop under load. The previous
+    `FileResponse`-based shape sidestepped this because
+    `FileResponse` does the read with `sendfile` in a threadpool
+    internally; switching to bytes-in-`Response` lost that, so the
+    plain-def is what restores it (caught in Copilot review of #371).
 
     The route resolves the filename itself rather than delegating to
     `disk_cache.read_image` — `read_image` calls `_safe_image_key`
