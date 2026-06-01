@@ -202,6 +202,9 @@ class CacheStatsCommandTests(unittest.TestCase):
                 "set_cards_warm_count",
                 "sets_warm_timestamp",
                 "sets_warm_count",
+                "card_warm_timestamp",
+                "card_warm_count",
+                "card_warm_failed_count",
                 "root",
             },
         )
@@ -803,6 +806,93 @@ class LookupCurrencyWarningTests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertNotIn("currency-blind", result.output)
+
+
+# ---------------------------------------------------------------------------
+# `pkmn cache warm-cards` — Phase 1 of the pre-Scrydex catalog-warm epic
+# (#370). Mirrors the warm-sets CLI tests above: mock the upstream
+# `warm_cards` call, assert the CLI reports the result + writes the
+# manifest.
+# ---------------------------------------------------------------------------
+
+
+class CacheWarmCardsCommandTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+
+    def test_warm_cards_writes_manifest_and_reports_counts(self) -> None:
+        from unittest.mock import patch as _patch
+
+        from mgz_pkmn.lookup import WarmCardsResult
+
+        fake_result = WarmCardsResult(
+            sets_attempted=2,
+            cards_warmed=42,
+            cards_failed=0,
+            sets_failed=[],
+        )
+
+        with _patch("mgz_pkmn.cli.warm_cards", return_value=fake_result):
+            result = CliRunner().invoke(
+                cli, ["cache", "warm-cards", "--set", "sv8", "--set", "sv7"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("2 sets", result.output)
+        self.assertIn("42 cards warmed", result.output)
+
+        # Manifest landed on disk with the result counts.
+        manifest = cache.read_card_warm()
+        self.assertIsNotNone(manifest)
+        assert manifest is not None
+        self.assertEqual(manifest["cards_warmed"], 42)
+        self.assertEqual(manifest["sets_attempted"], 2)
+        self.assertEqual(manifest["cards_failed"], 0)
+
+    def test_warm_cards_surfaces_request_failure(self) -> None:
+        from unittest.mock import patch as _patch
+
+        import requests as _requests
+
+        with _patch(
+            "mgz_pkmn.cli.warm_cards", side_effect=_requests.ConnectionError("network down")
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-cards"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("card warm failed", result.output)
+        self.assertIn("network down", result.output)
+
+    def test_warm_cards_rejects_empty_pass(self) -> None:
+        from unittest.mock import patch as _patch
+
+        from mgz_pkmn.lookup import WarmCardsResult
+
+        with _patch(
+            "mgz_pkmn.cli.warm_cards",
+            return_value=WarmCardsResult(
+                sets_attempted=0, cards_warmed=0, cards_failed=0, sets_failed=[]
+            ),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-cards"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("no sets to warm", result.output)
 
 
 if __name__ == "__main__":

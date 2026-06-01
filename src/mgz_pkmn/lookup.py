@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -808,4 +809,142 @@ def warm_set_cards(
         sets_attempted=total,
         sets_warmed=warmed,
         sets_failed=failed,
+    )
+
+
+# ---------------------------------------------------------------------------
+# warm_cards — Phase 1 of the pre-Scrydex catalog-warm epic (#368).
+# Walks every English Pokémon TCG set and fan-out-writes per-card cache
+# entries to the API disk slice. Reuses the data already in each set's
+# search response — zero extra HTTP calls vs warm_set_cards — so the cost
+# is the same as the set-cards pass, but the resulting cache has one
+# entry per card-id (URL-keyed on `/v2/cards/{id}`) which Phase 3
+# (#372) can resolve directly without a search query.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class WarmCardsResult:
+    """Outcome of a `warm_cards` run.
+
+    `sets_attempted` is the number of sets walked. `sets_failed` lists
+    set ids whose search returned no results (likely retired or
+    mistyped).
+
+    `cards_warmed` counts cards whose per-card cache entry was either
+    newly written or already present (when `skip_existing=True`); both
+    count as "warmed" because the post-condition is the same — the entry
+    is on disk after the pass.
+
+    `cards_failed` counts cards where the disk write raised — usually a
+    full filesystem; rare in practice, but we surface it so an operator
+    can spot a partial pass."""
+
+    sets_attempted: int
+    cards_warmed: int
+    cards_failed: int
+    sets_failed: list[str] = field(default_factory=list)
+
+
+def warm_cards(
+    pkmn: TCGClient,
+    *,
+    set_ids: list[str] | None = None,
+    max_cards: int | None = None,
+    skip_existing: bool = True,
+    throttle_ms: int = 0,
+    on_progress: Callable[[int, int, str], None] | None = None,
+) -> WarmCardsResult:
+    """Walk every set's card list and write per-card cache entries.
+
+    `set_ids`, when provided, restricts the walk to that subset — handy
+    for `--sets` in the CLI. When None, walks the full Pokémon TCG
+    catalog via `fetch_set_ids`.
+
+    `max_cards` caps the number of *cards* written across the whole
+    pass (not per-set). Useful for incremental warming on a tight
+    upstream budget or for `--max-cards` in the CLI to do a partial
+    walk. When None (default), every card in every walked set is
+    processed.
+
+    `skip_existing` (default True) probes `disk_cache.read_api` before
+    writing — so a re-run only re-writes the cards that have fallen out
+    of the cache. The skipped entries still count toward `cards_warmed`
+    in the result, since the post-condition (entry exists on disk) is
+    satisfied either way.
+
+    `throttle_ms`, when > 0, sleeps for that many milliseconds between
+    set fetches. The per-card writes themselves don't hit upstream
+    (they fan out from the set search response we already paid for),
+    so the throttle only governs the set-level cadence — matters when
+    you're inside pokemontcg.io's free-tier 30 rpm and want to stretch
+    a full warm over multiple minutes/hours.
+
+    `on_progress`, when provided, is invoked once per set with
+    `(index, total, set_id)` so the CLI can render a progress bar.
+
+    The disk cache key for each per-card entry is the URL
+    `{API_BASE}/cards/{card_id}` — synthesized to match the shape a
+    Phase 3 (#372) per-id read path will use. The payload is wrapped in
+    a list (`[card]`) for consistency with the existing API-slice
+    convention (every entry is a list of card objects)."""
+    from .sources.pokemontcg import API_BASE
+
+    ids = set_ids if set_ids is not None else fetch_set_ids(pkmn)
+    total = len(ids)
+    cards_warmed = 0
+    cards_failed = 0
+    sets_failed: list[str] = []
+
+    for index, set_id in enumerate(ids, start=1):
+        if on_progress is not None:
+            on_progress(index, total, set_id)
+
+        # Same query shape as warm_set_cards / api/routes/sets.py — the
+        # disk-cache hit on `set.id:"X"` lets the set-cards endpoint
+        # serve from disk for free. The data we get back is also what
+        # we fan out into per-card entries below.
+        query = f'set.id:"{set_id}"'
+        cards = pkmn.search_all(query)
+        if not cards:
+            sets_failed.append(set_id)
+            if throttle_ms > 0:
+                time.sleep(throttle_ms / 1000.0)
+            continue
+
+        for card in cards:
+            card_id = card.get("id")
+            if not card_id:
+                cards_failed += 1
+                continue
+            card_url = f"{API_BASE}/cards/{card_id}"
+
+            if skip_existing and disk_cache.read_api(card_url) is not None:
+                cards_warmed += 1
+            else:
+                try:
+                    # Wrap in a list to match the existing API-slice
+                    # convention (every cached entry is a list of card
+                    # objects, including single-result responses).
+                    disk_cache.write_api(card_url, [card])
+                    cards_warmed += 1
+                except OSError:
+                    cards_failed += 1
+
+            if max_cards is not None and cards_warmed >= max_cards:
+                return WarmCardsResult(
+                    sets_attempted=index,
+                    cards_warmed=cards_warmed,
+                    cards_failed=cards_failed,
+                    sets_failed=sets_failed,
+                )
+
+        if throttle_ms > 0:
+            time.sleep(throttle_ms / 1000.0)
+
+    return WarmCardsResult(
+        sets_attempted=total,
+        cards_warmed=cards_warmed,
+        cards_failed=cards_failed,
+        sets_failed=sets_failed,
     )

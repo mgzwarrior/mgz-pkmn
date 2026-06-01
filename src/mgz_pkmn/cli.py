@@ -19,7 +19,14 @@ from . import cache as disk_cache
 from .binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from .checklist import write_checklist_pdf
 from .images import download_image
-from .lookup import WARM_SOURCES, find_card, find_top_cards, warm_concepts, warm_set_cards
+from .lookup import (
+    WARM_SOURCES,
+    find_card,
+    find_top_cards,
+    warm_cards,
+    warm_concepts,
+    warm_set_cards,
+)
 from .parser import CardQuery, read_input
 from .pricing import Pricing, extract_pricing
 from .report import build_json_report
@@ -1069,6 +1076,28 @@ def cache_stats_command(as_json: bool) -> None:
             + f"{s.sets_warm_count} sets · warmed "
             + f"{_format_age(s.sets_warm_timestamp)}"
         )
+    # Per-card structural warm slice — sourced from `card_warm.json`,
+    # written by `pkmn cache warm-cards` (Phase 1 of #368). Tracks how
+    # many full card objects have been primed into the API slice as
+    # standalone per-card entries so the Phase 3 lookup refactor can
+    # resolve directly by card-id without a search round-trip.
+    if s.card_warm_timestamp is None:
+        click.echo(
+            "  "
+            + click.style("Cards:         ", fg="bright_black")
+            + click.style("not warmed", fg="yellow")
+            + " · run `pkmn cache warm-cards` to prime"
+        )
+    else:
+        line = (
+            "  "
+            + click.style("Cards:         ", fg="bright_black")
+            + f"{s.card_warm_count} cards · warmed "
+            + f"{_format_age(s.card_warm_timestamp)}"
+        )
+        if s.card_warm_failed_count:
+            line += click.style(f" · {s.card_warm_failed_count} failed", fg="yellow")
+        click.echo(line)
 
 
 @cache_group.command(name="clear", context_settings={"help_option_names": ["-h", "--help"]})
@@ -1341,6 +1370,146 @@ def cache_warm_set_cards_command(
         + click.style(f"{result.sets_warmed} warmed", fg="cyan")
         + (
             click.style(f" · {len(result.sets_failed)} missed", fg="yellow")
+            if result.sets_failed
+            else ""
+        )
+    )
+    if result.sets_failed and verbose:
+        click.echo(
+            "  " + click.style("missed: ", fg="bright_black") + ", ".join(result.sets_failed)
+        )
+
+    click.echo()
+    click.secho("Done!", fg="green", bold=True)
+
+
+@cache_group.command(
+    name="warm-cards",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+@click.option(
+    "--api-key",
+    envvar="POKEMONTCG_IO_API_KEY",
+    default=None,
+    help="pokemontcg.io API key (or set POKEMONTCG_IO_API_KEY).",
+)
+@click.option(
+    "--set",
+    "set_ids",
+    multiple=True,
+    metavar="SET_ID",
+    help=(
+        "Restrict the warm pass to specific set ids (e.g. --set sv8 --set sv9). "
+        "Repeatable. When omitted, every set in the Pokémon TCG catalog is warmed."
+    ),
+)
+@click.option(
+    "--max-cards",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Cap the total cards warmed across the whole pass. Useful for incremental warming.",
+)
+@click.option(
+    "--skip-existing/--no-skip-existing",
+    default=True,
+    show_default=True,
+    help="Skip cards whose per-card cache entry is already on disk. Re-runs are cheap by default.",
+)
+@click.option(
+    "--throttle-ms",
+    type=int,
+    default=0,
+    metavar="MS",
+    help="Sleep between sets to stay inside upstream rate limits (default: no throttle).",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print each set as it warms.")
+def cache_warm_cards_command(
+    api_key: str | None,
+    set_ids: tuple[str, ...],
+    max_cards: int | None,
+    skip_existing: bool,
+    throttle_ms: int,
+    verbose: bool,
+) -> None:
+    """Pre-warm the per-card structural cache for the entire English catalog.
+
+    Phase 1 of the pre-Scrydex catalog-warm epic (#368). Walks every
+    set, then fan-out-writes a per-card cache entry for every card in
+    the set's payload. Reuses the data each set's search already
+    returns — no extra HTTP calls vs `warm-set-cards`, just one extra
+    disk entry per card so the Phase 3 lookup refactor can resolve
+    cards directly by id.
+
+    A full pass walks ~170 sets and writes one cache entry per card
+    (~18,000 entries total for English). Re-runs honor
+    `--skip-existing` (default on) so only the cards that have fallen
+    out of the cache get re-written.
+
+    Pass `--set <id>` (repeatable) to warm only specific sets — useful
+    for staging a single new set release.
+
+    Pass `--max-cards N` to do a partial warm bounded by total card
+    count — useful for staging the first pass over multiple days if
+    you're inside pokemontcg.io's free-tier rate limit.
+    """
+    _print_banner(__version__)
+
+    pkmn = TCGClient(api_key=api_key, verbose=verbose)
+
+    section = "Warming per-card cache"
+    if set_ids:
+        section += f" · {len(set_ids)} set(s)"
+    if max_cards is not None:
+        section += f" · max {max_cards} cards"
+    _print_section(section)
+
+    def _progress(index: int, total: int, set_id: str) -> None:
+        if not verbose:
+            return
+        click.echo(
+            click.style(f"  [{index}/{total}] ", fg="bright_black") + set_id,
+            err=False,
+        )
+
+    try:
+        result = warm_cards(
+            pkmn,
+            set_ids=list(set_ids) if set_ids else None,
+            max_cards=max_cards,
+            skip_existing=skip_existing,
+            throttle_ms=throttle_ms,
+            on_progress=_progress,
+        )
+    except requests.RequestException as exc:
+        raise click.ClickException(f"card warm failed: {exc}") from exc
+
+    if result.sets_attempted == 0:
+        raise click.ClickException(
+            "no sets to warm — check `--set` ids or upstream catalog availability"
+        )
+
+    # Persist the manifest so `pkmn cache stats` and the freshness gate
+    # (`card_warm_is_fresh`) can report status and skip re-walks within
+    # the staleness window. Matches the concept / set-cards / sets flow.
+    disk_cache.write_card_warm(
+        cards_warmed=result.cards_warmed,
+        cards_failed=result.cards_failed,
+        sets_attempted=result.sets_attempted,
+        sets_failed=result.sets_failed,
+    )
+
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(
+        f"{result.sets_attempted} sets · "
+        + click.style(f"{result.cards_warmed} cards warmed", fg="cyan")
+        + (
+            click.style(f" · {result.cards_failed} failed", fg="yellow")
+            if result.cards_failed
+            else ""
+        )
+        + (
+            click.style(f" · {len(result.sets_failed)} sets missed", fg="yellow")
             if result.sets_failed
             else ""
         )

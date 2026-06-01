@@ -24,7 +24,7 @@ from starlette.responses import Response
 
 from mgz_pkmn import __version__
 from mgz_pkmn import cache as disk_cache
-from mgz_pkmn.lookup import warm_concepts, warm_set_cards
+from mgz_pkmn.lookup import warm_cards, warm_concepts, warm_set_cards
 from mgz_pkmn.set_cards import warm_set_images
 from mgz_pkmn.sources import TCGClient, TCGDexClient
 
@@ -50,6 +50,11 @@ from .routes import (
 _log = logging.getLogger(__name__)
 
 _WARM_ON_STARTUP_ENV = "MGZ_PKMN_WARM_ON_STARTUP"
+# Separate env var for the per-card structural warm pass (Phase 1 of #368)
+# because it's much heavier than the existing three — a full pass writes
+# ~18,000 per-card cache entries. Opt-in only; default off so a generic
+# `MGZ_PKMN_WARM_ON_STARTUP=1` deploy doesn't accidentally trip it.
+_WARM_CARDS_ON_STARTUP_ENV = "MGZ_PKMN_WARM_CARDS_ON_STARTUP"
 
 
 def _warm_concepts_in_background() -> None:
@@ -161,6 +166,47 @@ def _warm_sets_in_background() -> None:
     threading.Thread(target=_run, name="sets-warm", daemon=True).start()
 
 
+def _warm_cards_in_background() -> None:
+    """Run the per-card structural warm pass on a daemon thread.
+
+    Phase 1 of the pre-Scrydex catalog-warm epic (#368). Gated by the
+    on-disk `card_warm.json` freshness manifest — if a warm pass landed
+    within the last week, skip and log "already fresh". Errors are
+    logged and swallowed so a failed warm doesn't crash the service.
+
+    Heavyweight relative to the other three warmers: a fresh pass writes
+    one cache entry per card across the full English catalog
+    (~18,000 entries). Always opt-in via the separate
+    `MGZ_PKMN_WARM_CARDS_ON_STARTUP` env var so a generic
+    `MGZ_PKMN_WARM_ON_STARTUP=1` flag doesn't accidentally trigger it."""
+    if disk_cache.card_warm_is_fresh():
+        _log.info("card cache fresh; skipping startup warm")
+        return
+
+    def _run() -> None:
+        try:
+            pkmn = TCGClient(api_key=os.environ.get("POKEMONTCG_IO_API_KEY"))
+            result = warm_cards(pkmn)
+            disk_cache.write_card_warm(
+                cards_warmed=result.cards_warmed,
+                cards_failed=result.cards_failed,
+                sets_attempted=result.sets_attempted,
+                sets_failed=result.sets_failed,
+            )
+            _log.info(
+                "card warm complete: %d cards warmed across %d sets "
+                "(%d cards failed, %d sets missed)",
+                result.cards_warmed,
+                result.sets_attempted,
+                result.cards_failed,
+                len(result.sets_failed),
+            )
+        except Exception:
+            _log.exception("card warm failed; service running without primed per-card entries")
+
+    threading.Thread(target=_run, name="card-warm", daemon=True).start()
+
+
 class SPAStaticFiles(StaticFiles):
     """StaticFiles that disables browser caching for ``index.html``.
 
@@ -193,6 +239,16 @@ def _warm_on_startup_enabled() -> bool:
     return os.environ.get(_WARM_ON_STARTUP_ENV, "").strip() in ("1", "true", "True")
 
 
+def _warm_cards_on_startup_enabled() -> bool:
+    """True when `MGZ_PKMN_WARM_CARDS_ON_STARTUP` is set to a truthy value.
+
+    Same parse rules as `_warm_on_startup_enabled`. Separate env var (and
+    default-off) because the per-card warm pass is heavyweight (~18,000
+    cache entries on a fresh disk) and we don't want it firing implicitly
+    every time someone flips on the standard `MGZ_PKMN_WARM_ON_STARTUP`."""
+    return os.environ.get(_WARM_CARDS_ON_STARTUP_ENV, "").strip() in ("1", "true", "True")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Startup/shutdown hook.
@@ -218,6 +274,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
        staying `null` on `GET /api/v1/cache/stats` despite the env var
        being set. The sets-warm slice was added in #369 to replace the
        Dockerfile's build-time `pkmn cache warm-sets` step.
+    3. If `MGZ_PKMN_WARM_CARDS_ON_STARTUP` is truthy (see
+       `_warm_cards_on_startup_enabled`), additionally kicks off the
+       per-card structural warm pass on a background daemon thread.
+       Separate env var because it's heavier than the other three
+       (~18k cache entries on a fresh disk) and we don't want it
+       implicitly enabled by the standard `MGZ_PKMN_WARM_ON_STARTUP`
+       flag. Phase 1 of the pre-Scrydex catalog-warm epic (#368).
     """
     if migrate.automigrate_enabled():
         try:
@@ -232,6 +295,12 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         _warm_concepts_in_background()
         _warm_set_cards_in_background()
         _warm_sets_in_background()
+
+    # Independent opt-in: the per-card structural warm is heavy enough
+    # (~18k cache entries on a fresh disk) that it gets its own env var
+    # rather than riding the standard MGZ_PKMN_WARM_ON_STARTUP flag.
+    if _warm_cards_on_startup_enabled():
+        _warm_cards_in_background()
 
     yield
 

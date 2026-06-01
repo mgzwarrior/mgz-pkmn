@@ -9,6 +9,27 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- CLI / API / web: **`pkmn cache warm-cards`** — pre-warms the
+  per-card structural cache for the entire English Pokémon TCG catalog
+  ([#370](https://github.com/mgzwarrior/mgz-pkmn/issues/370), Phase 1
+  of [epic #368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)).
+  Walks every set, then fan-out-writes a per-card cache entry for
+  every card in the set's payload using a synthesized
+  `/v2/cards/{card_id}` URL key — reuses the data each set's search
+  already returns, so zero extra HTTP calls vs `warm-set-cards`. Flags
+  for `--set` (repeatable), `--max-cards` (incremental warming),
+  `--skip-existing/--no-skip-existing` (re-run is cheap by default),
+  `--throttle-ms` (polite pacing against pokemontcg.io's rate limit),
+  and `-v`. Writes a new `card_warm.json` manifest (1-week stale
+  window) so subsequent runs and the runtime startup bootstrap can
+  skip a recent pass. New `card_warm_*` fields on `CacheStats`
+  surfaced on `pkmn cache stats`, `/api/v1/cache/stats`, and the SPA
+  Cache Stats panel.
+- API: new **`MGZ_PKMN_WARM_CARDS_ON_STARTUP`** env var enables the
+  per-card warm in the lifespan bootstrap. Independent of
+  `MGZ_PKMN_WARM_ON_STARTUP` because the per-card pass is heavyweight
+  (~18,000 cache entries on a fresh disk) and should be opted into
+  explicitly.
 - API: **`GET /api/v1/cache/stats`** returns the same JSON shape as
   `pkmn cache stats --json` so operators can introspect a deployed
   instance's cache state without shelling onto the host
