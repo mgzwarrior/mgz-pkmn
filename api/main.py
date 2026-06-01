@@ -281,11 +281,40 @@ def _warm_card_images_in_background() -> None:
     # sleep keeps us safely off any per-IP rate limit Cloudfront might
     # apply during a long sequential pull.
     _DEFAULT_STARTUP_THROTTLE_MS = 500
+    # Heartbeat cadence for the per-set progress callback below. The
+    # full pass walks ~170 sets at ~500 ms throttle + per-card image
+    # fetches (~minutes per set on a fresh disk), so a "log every 20
+    # sets" cadence yields ~8 heartbeat lines over the multi-hour run
+    # — enough signal to confirm the warm is making progress without
+    # spamming the log stream.
+    _PROGRESS_LOG_EVERY_N_SETS = 20
 
     def _run() -> None:
         try:
             pkmn = TCGClient(api_key=os.environ.get("POKEMONTCG_IO_API_KEY"))
-            result = warm_card_images(pkmn, throttle_ms=_DEFAULT_STARTUP_THROTTLE_MS)
+            # Operator-visible "the heavy warm is now running" line so a
+            # Render log stream isn't silent for hours between
+            # "Application startup complete" and the eventual "warm
+            # complete". Pairs with the periodic progress callback below.
+            _log.info(
+                "card-images warm starting on background thread "
+                "(throttle=%dms, log heartbeat every %d sets)",
+                _DEFAULT_STARTUP_THROTTLE_MS,
+                _PROGRESS_LOG_EVERY_N_SETS,
+            )
+
+            def _progress(index: int, total: int, set_id: str) -> None:
+                # First set + every Nth + the final set, so an operator
+                # always sees the initial confirmation and the wrap-up
+                # tick even if total isn't a multiple of the cadence.
+                if index == 1 or index == total or index % _PROGRESS_LOG_EVERY_N_SETS == 0:
+                    _log.info("card-images warm progress: [%d/%d] %s", index, total, set_id)
+
+            result = warm_card_images(
+                pkmn,
+                throttle_ms=_DEFAULT_STARTUP_THROTTLE_MS,
+                on_progress=_progress,
+            )
             disk_cache.write_card_images_warm(
                 images_warmed=result.images_warmed,
                 images_failed=result.images_failed,
