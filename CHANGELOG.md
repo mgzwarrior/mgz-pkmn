@@ -7,6 +7,33 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- API: **Warm-bootstrap log lines now reach Render's log stream**
+  ([#378](https://github.com/mgzwarrior/mgz-pkmn/issues/378)).
+  `api/main.py` never configured the root logger, so Python's default
+  behavior dropped every `_log.info(...)` call from the four warm
+  bootstraps — making the deploy look broken even when warmers were
+  running successfully (`concept cache fresh; skipping startup warm`,
+  `card warm complete: 18500 cards warmed across 173 sets`, etc. were
+  all going to /dev/null). Added a module-level
+  `logging.basicConfig(level=INFO, format="…[%(name)s] %(message)s")`
+  so our log lines interleave cleanly with uvicorn's request stream.
+  Pinned by `tests/test_logging_config.py`.
+
+### Changed
+
+- Deploy: **Phase 1 catalog warm now enabled by default in
+  `render.yaml`** — `MGZ_PKMN_WARM_CARDS_ON_STARTUP=1` joins the
+  three already-enabled warm flags. First boot after this lands runs
+  a full ~30 min background pass writing ~18,000 cache entries; every
+  subsequent boot hits the 1-week `card_warm.json` freshness gate and
+  skips. With persistent disk in place this is the bake-once,
+  serve-forever shape the
+  [pre-Scrydex catalog-warm epic #368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)
+  is built around. Originally added as opt-in in #377 then promoted
+  to default in [#378](https://github.com/mgzwarrior/mgz-pkmn/issues/378).
+
 ### Added
 
 - CLI / API / web: **`pkmn cache warm-cards`** — pre-warms the

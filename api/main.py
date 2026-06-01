@@ -47,6 +47,24 @@ from .routes import (
     sets,
 )
 
+# Configure the root logger so our `_log.info(...)` calls actually reach
+# stdout/stderr. Without this, Python's default behavior is to only emit
+# WARNING and above through the "last resort" handler — every
+# `_log.info("... warm complete: ...")` from the warm bootstraps gets
+# silently dropped, which is why Render's log stream showed no signal
+# even when the warmers were running successfully. uvicorn doesn't touch
+# the root logger by default (it only configures its own `uvicorn.*`
+# loggers), so the app needs to do it itself.
+#
+# `basicConfig` is idempotent: if the root logger already has handlers
+# (e.g. tests configured logging first, or a custom uvicorn --log-config
+# is in play), this is a no-op. Format mirrors uvicorn's own log line so
+# the streams interleave cleanly in Render.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+
 _log = logging.getLogger(__name__)
 
 _WARM_ON_STARTUP_ENV = "MGZ_PKMN_WARM_ON_STARTUP"
