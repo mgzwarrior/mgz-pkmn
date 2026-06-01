@@ -7,6 +7,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -574,6 +575,236 @@ class ImageCacheStatsAndClearTests(_IsolatedCacheDirMixin):
         cache.write_api("k", {"x": 1})
         cache.clear_api_cache()
         self.assertEqual(cache.image_cache_size(), (1, len(b"img-bytes")))
+
+
+# ---------------------------------------------------------------------------
+# Split-cache tests (#372). Structural cached indefinitely; pricing cached
+# for 24h with stale-while-revalidate.
+# ---------------------------------------------------------------------------
+
+
+def _make_card(card_id: str, *, name: str = "Pikachu", with_pricing: bool = True) -> dict:
+    card = {
+        "id": card_id,
+        "name": name,
+        "number": "25/102",
+        "set": {"id": "base1", "name": "Base"},
+        "images": {"small": "u/small.png", "large": "u/large.png"},
+    }
+    if with_pricing:
+        card["tcgplayer"] = {"prices": {"normal": {"market": 10.0}}, "url": "tcg/u"}
+        card["cardmarket"] = {"prices": {"averageSellPrice": 9.5}, "url": "cm/u"}
+    return card
+
+
+def _backdate(path: Path, seconds_ago: float) -> None:
+    """`os.utime` the file to `seconds_ago` in the past."""
+    t = time.time() - seconds_ago
+    os.utime(path, (t, t))
+
+
+class ApiSplitCacheTests(_IsolatedCacheDirMixin):
+    """Round-trip + state-A/B/D coverage for the split read/write path.
+
+    Migration (state C) lives in its own class below for readability."""
+
+    def test_write_split_produces_both_files(self) -> None:
+        cards = [_make_card("a"), _make_card("b")]
+        cache.write_api_split("u", cards)
+        self.assertTrue(cache._api_structural_path("u").exists())
+        self.assertTrue(cache._api_pricing_path("u").exists())
+        # The legacy file is not touched by the split writer.
+        self.assertFalse(cache._api_path("u").exists())
+
+    def test_split_writer_strips_pricing_from_structural_file(self) -> None:
+        cache.write_api_split("u", [_make_card("a")])
+        structurals = json.loads(cache._api_structural_path("u").read_text())
+        self.assertEqual(structurals[0]["name"], "Pikachu")
+        for forbidden in ("tcgplayer", "cardmarket", "_pc_prices", "_pc_url"):
+            self.assertNotIn(forbidden, structurals[0])
+        pricings = json.loads(cache._api_pricing_path("u").read_text())
+        self.assertEqual(pricings[0]["id"], "a")
+        self.assertEqual(pricings[0]["tcgplayer"]["url"], "tcg/u")
+
+    def test_read_split_hit_returns_merged_view_within_ttl(self) -> None:
+        cards = [_make_card("a")]
+        cache.write_api_split("u", cards)
+        result, status = cache.read_api_split("u")
+        self.assertEqual(status, "HIT")
+        assert result is not None  # narrow for mypy
+        self.assertEqual(result[0]["name"], "Pikachu")
+        self.assertEqual(result[0]["tcgplayer"]["prices"]["normal"]["market"], 10.0)
+
+    def test_read_split_stale_returns_merged_view_past_ttl(self) -> None:
+        cache.write_api_split("u", [_make_card("a")])
+        # Back-date pricing past the 24h TTL.
+        _backdate(cache._api_pricing_path("u"), 25 * 3600)
+        result, status = cache.read_api_split("u")
+        self.assertEqual(status, "STALE")
+        assert result is not None
+        # Stale pricing is still merged in — the whole point of SWR.
+        self.assertIn("tcgplayer", result[0])
+
+    def test_read_split_miss_when_neither_file_exists(self) -> None:
+        result, status = cache.read_api_split("u")
+        self.assertEqual(status, "MISS")
+        self.assertIsNone(result)
+
+    def test_structural_without_pricing_reads_as_stale(self) -> None:
+        # Simulate a partial state: structural landed, pricing didn't.
+        cache.write_api_split("u", [_make_card("a")])
+        cache._api_pricing_path("u").unlink()
+        result, status = cache.read_api_split("u")
+        self.assertEqual(status, "STALE")
+        assert result is not None
+        # No pricing fields in the merged view since pricing is absent.
+        self.assertNotIn("tcgplayer", result[0])
+        self.assertEqual(result[0]["name"], "Pikachu")
+
+    def test_no_cache_env_suppresses_split_reads_and_writes(self) -> None:
+        cache.write_api_split("u", [_make_card("a")])  # land a fresh entry first
+        os.environ[cache._NO_CACHE_ENV] = "1"
+        try:
+            # Reads return MISS even with files on disk.
+            result, status = cache.read_api_split("u")
+            self.assertEqual(status, "MISS")
+            self.assertIsNone(result)
+            # Writes are no-ops — clear and verify.
+            cache._api_structural_path("u").unlink()
+            cache._api_pricing_path("u").unlink()
+            cache.write_api_split("u", [_make_card("b")])
+            self.assertFalse(cache._api_structural_path("u").exists())
+            self.assertFalse(cache._api_pricing_path("u").exists())
+        finally:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+
+
+class LazyLegacyMigrationTests(_IsolatedCacheDirMixin):
+    """State C: a pre-split legacy `api/{sha1}.json` file is migrated on
+    first read, with mtime inherited so TTL gates behave consistently."""
+
+    def test_legacy_file_migrates_eagerly_on_read(self) -> None:
+        cache.write_api("u", [_make_card("a")])
+        legacy_mtime = cache._api_path("u").stat().st_mtime
+        result, status = cache.read_api_split("u")
+        # Fresh legacy file (< 24h old) → HIT after migration.
+        self.assertEqual(status, "HIT")
+        assert result is not None
+        self.assertEqual(result[0]["name"], "Pikachu")
+        # Both split files now exist and the legacy file is gone.
+        self.assertTrue(cache._api_structural_path("u").exists())
+        self.assertTrue(cache._api_pricing_path("u").exists())
+        self.assertFalse(cache._api_path("u").exists())
+        # Pricing inherits the legacy mtime so a near-stale legacy file
+        # doesn't reset to fresh on migration.
+        self.assertAlmostEqual(
+            cache._api_pricing_path("u").stat().st_mtime, legacy_mtime, delta=1.0
+        )
+
+    def test_legacy_file_older_than_pricing_ttl_migrates_to_stale(self) -> None:
+        cache.write_api("u", [_make_card("a")])
+        _backdate(cache._api_path("u"), 25 * 3600)
+        _, status = cache.read_api_split("u")
+        self.assertEqual(status, "STALE")
+        # Pricing mtime is inherited; it should still be ~25h old.
+        age = time.time() - cache._api_pricing_path("u").stat().st_mtime
+        self.assertGreater(age, 24 * 3600)
+
+    def test_legacy_file_malformed_deletes_and_returns_miss(self) -> None:
+        cache._api_path("u").write_text("not json {", encoding="utf-8")
+        result, status = cache.read_api_split("u")
+        self.assertEqual(status, "MISS")
+        self.assertIsNone(result)
+        self.assertFalse(cache._api_path("u").exists())
+
+
+class SwrCoordinatorTests(_IsolatedCacheDirMixin):
+    """spawn_pricing_refresh coalesces concurrent triggers + clears inflight on exit."""
+
+    def _patch_thread_sync(self) -> None:
+        """Replace threading.Thread.start with an inline-run shim for this test.
+
+        Restored in tearDown via the cache-mixin's class-level state."""
+        import threading as _t
+
+        self._orig_start = _t.Thread.start
+
+        def _sync_start(thread_self: _t.Thread) -> None:  # type: ignore[override]
+            target = thread_self._target  # type: ignore[attr-defined]
+            args = thread_self._args  # type: ignore[attr-defined]
+            kwargs = thread_self._kwargs  # type: ignore[attr-defined]
+            if target is not None:
+                target(*args, **kwargs)
+
+        _t.Thread.start = _sync_start  # type: ignore[method-assign]
+
+    def tearDown(self) -> None:
+        if hasattr(self, "_orig_start"):
+            import threading as _t
+
+            _t.Thread.start = self._orig_start  # type: ignore[method-assign]
+        # Drain any leftover in-flight keys from sibling tests.
+        with cache._inflight_lock:
+            cache._inflight_pricing.clear()
+        cache.reset_pricing_counters()
+        super().tearDown()
+
+    def test_spawn_pricing_refresh_runs_callable_and_writes_pricing(self) -> None:
+        self._patch_thread_sync()
+        # Pre-land a structural slice so the pricing write has somewhere to land.
+        cache.write_api_split("u", [_make_card("a")])
+        _backdate(cache._api_pricing_path("u"), 30 * 3600)
+        stale_mtime = cache._api_pricing_path("u").stat().st_mtime
+
+        fresh_cards = [_make_card("a", with_pricing=True)]
+        started = cache.spawn_pricing_refresh("u", lambda: fresh_cards)
+        self.assertTrue(started)
+
+        new_mtime = cache._api_pricing_path("u").stat().st_mtime
+        self.assertGreater(new_mtime, stale_mtime)
+        attempts, writes = cache.pricing_counters()
+        self.assertEqual((attempts, writes), (1, 1))
+        # In-flight set drained after completion.
+        self.assertNotIn("u", cache._inflight_pricing)
+
+    def test_spawn_pricing_refresh_coalesces_concurrent_calls(self) -> None:
+        # Pre-occupy the in-flight set so the *next* spawn no-ops.
+        with cache._inflight_lock:
+            cache._inflight_pricing.add("u")
+        try:
+
+            def _should_not_run() -> list[dict[str, Any]]:
+                raise AssertionError("coalesced spawn should not have called refetch")
+
+            started = cache.spawn_pricing_refresh("u", _should_not_run)  # type: ignore[arg-type]
+            self.assertFalse(started)
+        finally:
+            with cache._inflight_lock:
+                cache._inflight_pricing.discard("u")
+
+    def test_spawn_pricing_refresh_clears_inflight_on_exception(self) -> None:
+        self._patch_thread_sync()
+
+        def _boom() -> list[dict[str, Any]]:
+            raise RuntimeError("upstream down")
+
+        cache.spawn_pricing_refresh("u", _boom)  # type: ignore[arg-type]
+        self.assertNotIn("u", cache._inflight_pricing)
+        attempts, writes = cache.pricing_counters()
+        self.assertEqual((attempts, writes), (1, 0))
+
+    def test_spawn_pricing_refresh_no_write_when_refetch_returns_none(self) -> None:
+        self._patch_thread_sync()
+        cache.write_api_split("u", [_make_card("a")])
+        before = cache._api_pricing_path("u").stat().st_mtime
+        time.sleep(0.01)  # ensure mtime resolution gap is visible
+
+        cache.spawn_pricing_refresh("u", lambda: None)
+        after = cache._api_pricing_path("u").stat().st_mtime
+        # Pricing file untouched.
+        self.assertEqual(after, before)
+        attempts, writes = cache.pricing_counters()
+        self.assertEqual((attempts, writes), (1, 0))
 
 
 if __name__ == "__main__":
