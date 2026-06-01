@@ -19,8 +19,16 @@ from api.db.url import resolve_database_url
 
 config = context.config
 
+# `disable_existing_loggers=False` is load-bearing. fileConfig defaults
+# to True, which sets `.disabled = True` on every Logger that already
+# exists but isn't named in alembic.ini's [loggers] section. By the
+# time this runs (FastAPI lifespan -> automigrate -> alembic env), the
+# `api.main` logger and friends have been created at module import, so
+# the default behaviour silently mutes every subsequent _log.info /
+# _log.warning from our own code — including the warm-bootstrap status
+# lines that made #378 look like a deploy regression. See ADR-0013.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Empty `sqlalchemy.url` in alembic.ini is intentional — the URL is
 # resolved at runtime so MGZ_PKMN_DATABASE_URL wins everywhere. Code
