@@ -96,16 +96,23 @@ POKEMONTCG_IO_API_KEY=your-key make docker-run
 # open http://localhost:8000
 ```
 
-## Deploy to Render (free tier)
+## Deploy to Render (Starter)
 
 The repo ships a [`render.yaml`](../render.yaml) blueprint with
 **auto-deploy on**: every push to `main` rebuilds and redeploys
-automatically. One-time setup:
+automatically. The blueprint declares `plan: starter` because the
+persistent disk required by the pre-Scrydex catalog warm
+([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)) isn't
+available on Render's free tier — Render's validator rejects
+`disks are not supported for free tier services` for any blueprint
+that pairs a `disk:` block with `plan: free`.
+
+One-time setup:
 
 1. **Create the service** — in the Render dashboard,
    *New → Blueprint*, point it at this repo. It picks up `render.yaml`
-   and creates a Docker web service on the free plan with `autoDeploy`
-   on.
+   and creates a Docker web service on the Starter plan with `autoDeploy`
+   on and a 10 GB persistent disk attached at `/var/cache`.
 2. **Set the API key** — in the service's *Environment* tab, set
    `POKEMONTCG_IO_API_KEY`.
 3. **(Optional) Capture the deploy hook** — *Settings → Deploy Hook*,
@@ -113,6 +120,10 @@ automatically. One-time setup:
    `RENDER_DEPLOY_HOOK`. This enables the manual *Deploy* GitHub
    Action for forced rebuilds (see below). Not required for routine
    deployment, since auto-deploy handles that.
+
+If you ever switch the blueprint's `plan:` (e.g. downgrading for
+testing), the next blueprint sync may fail validation; flip
+`plan: starter` back and trigger *Manual sync* to recover.
 
 ### Forced rebuilds (when needed)
 
@@ -129,10 +140,11 @@ GitHub → *Actions* → *Deploy* → *Run workflow*, optionally toggling
 *Clear build cache before deploying*. The job POSTs to the deploy
 hook and Render starts a fresh build from `main`.
 
-> **Free-tier caveat:** Render's free web service spins down after
-> ~15 min of idle traffic; the next request takes ~30s to wake it.
-> Fine for hobby use. Upgrade to *Starter* (or move to Fly.io) if cold
-> starts hurt.
+> **Plan note:** The Starter plan stays up between requests (no
+> idle-spin-down), so demo links don't show a 30s cold start. The
+> persistent disk + always-on service is also what makes the
+> [pre-Scrydex catalog warm epic](https://github.com/mgzwarrior/mgz-pkmn/issues/368)
+> viable — every redeploy reuses what previous deploys warmed.
 
 ## Persistent disk + cache location
 
