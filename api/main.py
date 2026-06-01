@@ -47,25 +47,35 @@ from .routes import (
     sets,
 )
 
-# Configure the root logger so our `_log.info(...)` calls actually reach
+# Configure logging so our `_log.info(...)` calls actually reach
 # stdout/stderr. Without this, Python's default behavior is to only emit
 # WARNING and above through the "last resort" handler — every
 # `_log.info("... warm complete: ...")` from the warm bootstraps gets
 # silently dropped, which is why Render's log stream showed no signal
-# even when the warmers were running successfully. uvicorn doesn't touch
-# the root logger by default (it only configures its own `uvicorn.*`
-# loggers), so the app needs to do it itself.
+# even when the warmers were running successfully. uvicorn doesn't help:
+# it configures its own `uvicorn.*` loggers but leaves the root
+# untouched.
 #
-# `basicConfig` is idempotent: if the root logger already has handlers
-# (e.g. tests configured logging first, or a custom uvicorn --log-config
-# is in play), this is a no-op. Format mirrors uvicorn's own log line so
-# the streams interleave cleanly in Render.
+# Two-step setup so we work in both environments:
+#
+# 1. `basicConfig` handles the production case — root logger has no
+#    handlers, so this adds a StreamHandler that goes to stderr at INFO
+#    level. Format mirrors uvicorn's own log line so the streams
+#    interleave cleanly in Render.
+#
+# 2. Explicit `_log.setLevel(INFO)` handles the pre-configured-root case
+#    — pytest adds handlers to root before our import, which makes
+#    `basicConfig` a no-op AND inherits root's WARNING-default level.
+#    Without this our logger would be silenced in every test runner
+#    that captures logging, and any future uvicorn `--log-config` that
+#    sets root above INFO would silence us in production too.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 
 _log = logging.getLogger(__name__)
+_log.setLevel(logging.INFO)
 
 _WARM_ON_STARTUP_ENV = "MGZ_PKMN_WARM_ON_STARTUP"
 # Separate env var for the per-card structural warm pass (Phase 1 of #368)
