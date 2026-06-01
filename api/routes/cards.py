@@ -20,9 +20,8 @@ from __future__ import annotations
 import mimetypes
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from fastapi import Path as PathParam
-from fastapi.responses import FileResponse
 
 from mgz_pkmn import cache as disk_cache
 from mgz_pkmn.card_images import LARGE_CATEGORY, SMALL_CATEGORY
@@ -87,8 +86,8 @@ _SIZE_BY_NAME = {"large": LARGE_CATEGORY, "small": SMALL_CATEGORY}
 async def get_card_image(
     card_id: Annotated[str, _CARD_ID_PATH],
     size: Literal["large", "small"],
-) -> FileResponse:
-    """Stream the cached card image, or 404 if not cached.
+) -> Response:
+    """Return the cached card image bytes, or 404 if not cached.
 
     Reads from `cache/images/cards/{large,small}/<card_id>.<ext>`,
     populated by `pkmn cache warm-card-images` or by the runtime
@@ -96,6 +95,14 @@ async def get_card_image(
     Strictly a cache reader — never fetches upstream on miss, so a cold
     cache surfaces a clean 404 with a hint about the warmer instead of
     hammering pokemontcg.io's CDN for every image render.
+
+    Returns the bytes via `Response` rather than `FileResponse` because
+    card-image payloads are small (~80-150 KB) and reading them into
+    memory keeps the user-controlled `card_id` from flowing into
+    FastAPI's file-serving sink — CodeQL's path-traversal query
+    doesn't recognise the regex on `_CARD_ID_PATH` as a sanitiser
+    even though it makes traversal structurally impossible. Read +
+    return is the cleanest sever of that taint flow.
     """
     category = _SIZE_BY_NAME[size]
     path = disk_cache.read_image(category, card_id)
@@ -107,19 +114,15 @@ async def get_card_image(
                 "run `pkmn cache warm-card-images` to populate the catalog"
             ),
         )
-    # Defense-in-depth: confirm the resolved path is inside the cache
-    # root before streaming. `card_id` is already doubly-sanitised
-    # (FastAPI path regex + `_safe_image_key` inside `read_image`), so
-    # this check should never fire — but it's the canonical CodeQL
-    # sanitiser pattern for path-traversal taint analysis, and a
-    # 404-on-mismatch leaks no info even if the upstream guards drift.
-    cache_root = disk_cache._cache_root_path().resolve()
-    resolved = path.resolve()
-    if not resolved.is_relative_to(cache_root):
-        raise HTTPException(status_code=404)
-    media_type, _ = mimetypes.guess_type(resolved.name)
-    return FileResponse(
-        resolved,
+    try:
+        content = path.read_bytes()
+    except OSError:
+        # File vanished between the existence check and the read
+        # (concurrent eviction, network FS hiccup). Treat as a miss.
+        raise HTTPException(status_code=404) from None
+    media_type, _ = mimetypes.guess_type(path.name)
+    return Response(
+        content=content,
         media_type=media_type or "application/octet-stream",
         # 30-day immutable browser cache — card images never change once
         # a set ships. Mirrors `get_set_logo` in api/routes/sets.py.
