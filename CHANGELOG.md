@@ -48,6 +48,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
   spins a preview environment automatically (see
   [Render's Blueprint spec](https://render.com/docs/blueprint-spec#previews)).
 
+- Deploy: **`render.yaml` blueprint-sync fixes after #389**
+  ([#392](https://github.com/mgzwarrior/mgz-pkmn/issues/392)). The
+  next blueprint sync after [#391](https://github.com/mgzwarrior/mgz-pkmn/pull/391)
+  failed with two errors. (1) The top-level `previews.generation`
+  field added in #389 governs *multi-service* preview environments;
+  for a single-service blueprint the field that actually opts the
+  web service into PR preview deploys is
+  `services[].previews.generation`, so move it there. Hobby
+  workspaces still reject the field at sync time — previews
+  require a paid workspace tier. (2) The persistent disk was
+  resized in-dashboard to 50 GB after the per-card image warm
+  ([#371](https://github.com/mgzwarrior/mgz-pkmn/issues/371))
+  landed ~17 GB on disk; Render disallows shrinking a disk
+  in-place, so the blueprint's `sizeGB: 10` was blocking every
+  sync. Bumped the blueprint to `sizeGB: 50` to match the live
+  disk.
+
 - Web: **Per-line timing chips now persist after a bulk lookup
   finishes** ([#376](https://github.com/mgzwarrior/mgz-pkmn/issues/376)).
   The [ProcessingQueue](web/src/components/ProcessingQueue.tsx) early-
