@@ -23,9 +23,6 @@ Versions follow [Semantic Versioning](https://semver.org/).
   cascaded into the missing-logs symptom in #378. Also refreshes
   [`docs/deployment.md`](docs/deployment.md) to match the new plan and
   drops the now-obsolete "free-tier cold-start" caveat.
-
-### Fixed
-
 - API: **Warm-bootstrap log lines now reach Render's log stream**
   ([#378](https://github.com/mgzwarrior/mgz-pkmn/issues/378)).
   `api/main.py` never configured the root logger, so Python's default
