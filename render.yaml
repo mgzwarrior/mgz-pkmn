@@ -40,3 +40,15 @@ services:
       # until the manifest TTL expires.
       - key: MGZ_PKMN_WARM_ON_STARTUP
         value: "1"
+      # Phase 1 of the pre-Scrydex catalog-warm epic (#368, #370). The
+      # per-card structural warm is heavier than the other three — a
+      # fresh pass writes ~18,000 cache entries while walking ~170 sets
+      # with a 500ms per-set throttle (so a no-API-key deploy can't burst
+      # past pokemontcg.io's 30 rpm). First boot after this lands takes
+      # ~30 min on a background daemon thread (service stays responsive
+      # throughout); every boot after that hits the `card_warm.json`
+      # freshness gate (1-week TTL) and skips the re-walk. With the
+      # persistent disk in place this is exactly the bake-once,
+      # serve-forever shape we want.
+      - key: MGZ_PKMN_WARM_CARDS_ON_STARTUP
+        value: "1"
