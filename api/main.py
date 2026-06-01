@@ -163,7 +163,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
        `MGZ_PKMN_AUTOMIGRATE=0` to skip — useful when migrations are run
        as a prestart step instead (init containers, Render pre-deploy,
        etc.).
-    2. If `MGZ_PKMN_WARM_ON_STARTUP=1`, kicks off the concept and
+    2. If `MGZ_PKMN_WARM_ON_STARTUP` is truthy (`1`, `true`, or `True`
+       — see `_warm_on_startup_enabled`), kicks off the concept and
        set-cards warm passes on background daemon threads so first-use
        lookups land on a warm cache. Each warmer has its own freshness
        manifest (24 h concepts / 1 week set-cards), so containers
