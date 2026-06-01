@@ -126,6 +126,37 @@ describe('SettingsDrawer', () => {
     await waitFor(() => expect(mockFetchCacheStats).toHaveBeenCalledTimes(2))
   })
 
+  it('cache-stats byte counts upcast through KB / MB / GB', async () => {
+    // 17_904_440_414 is the image-warm result from the deployed instance
+    // (#390) — the bug was rendering it as "17073.0 MB" instead of GB.
+    mockFetchCacheStats.mockResolvedValueOnce({
+      root: '/tmp/cache',
+      api_entry_count: 1,
+      api_bytes: 800, // < 1 KB -> "800 B"
+      api_oldest_mtime: null,
+      override_count: 1,
+      override_bytes: 1536, // 1.5 KB
+      image_entry_count: 40_088,
+      image_bytes: 17_904_440_414, // ~16.7 GB
+      concept_warm_timestamp: null,
+      concept_warm_names: 0,
+      set_cards_warm_timestamp: null,
+      set_cards_warm_count: 0,
+      sets_warm_timestamp: null,
+      sets_warm_count: 0,
+      card_warm_timestamp: null,
+      card_warm_count: 0,
+      card_warm_failed_count: 0,
+    })
+
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+
+    await waitFor(() => expect(screen.getByText(/800 B/)).toBeInTheDocument())
+    expect(screen.getByText(/1\.5 KB/)).toBeInTheDocument()
+    expect(screen.getByText(/16\.7 GB/)).toBeInTheDocument()
+  })
+
   it('cache-stats panel surfaces fetch errors without crashing', async () => {
     mockFetchCacheStats.mockRejectedValueOnce(new Error('boom'))
     render(<SettingsDrawer />)

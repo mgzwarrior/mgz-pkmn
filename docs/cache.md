@@ -112,6 +112,7 @@ land on a warm disk instead of paying upstream latency:
 | `pkmn cache warm-set-cards` | Per-set card-list JSON for every set | `set_cards_warm.json` | 7 d |
 | `pkmn cache warm-sets` | Set logo + symbol images | `sets_warm.json` | 7 d |
 | `pkmn cache warm-cards` | Full per-card structural payload (~18,000 cards) | `card_warm.json` | 7 d |
+| `pkmn cache warm-card-images` | `large` + `small` image bytes for every English card (~40,000 files / ~17 GB) | `card_images_warm.json` | 7 d |
 
 Each manifest records `timestamp` + a count of what was warmed; the
 freshness gate (`*_warm_is_fresh()`) reads it to skip a re-walk when a
@@ -120,6 +121,13 @@ bootstrap in [`api/main.py`](../api/main.py) fires the first three when
 `MGZ_PKMN_WARM_ON_STARTUP=1`. The per-card warm has its own opt-in
 (`MGZ_PKMN_WARM_CARDS_ON_STARTUP=1`) because it's heavier — a fresh
 pass writes one cache entry per card across the full English catalog.
+The per-card *image* warm has yet another opt-in
+(`MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP=1`) because it's the heaviest of
+the four — a completed pass on the deployed instance reports
+`card-images warm complete: 40088 images warmed (17904440414 bytes)
+across 173 sets`, so plan disk size and first-deploy duration
+accordingly. Subsequent boots within the 1-week freshness window skip
+the re-walk.
 
 `warm-cards` is Phase 1 of the pre-Scrydex catalog-warm epic
 ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)). Reuses the
@@ -147,4 +155,5 @@ pkmn cache warm-cards --max-cards 1000
 | `MGZ_PKMN_CACHE_WARN_BYTES` | Integer byte count for the cache-size soft-warn threshold checked at `pkmn lookup` startup. Defaults to `52428800` (50 MB). Set to `0` (or any non-positive value) to disable the warning entirely. Unparseable values fall back to the default. |
 | `MGZ_PKMN_WARM_ON_STARTUP` | Truthy (`1`, `true`, `True`) enables the runtime warm bootstrap in the FastAPI lifespan for the concept, set-cards, and sets slices. Each slice is gated by its own freshness manifest so containers starting within the staleness window skip the re-walk. Set in `render.yaml` by default on the deployed instance. |
 | `MGZ_PKMN_WARM_CARDS_ON_STARTUP` | Truthy enables the runtime per-card warm bootstrap. Independent env var because the per-card pass is heavyweight (~18,000 cache entries on a fresh disk), but with the persistent disk in place a single first pass after deploy serves every subsequent deploy via the 1-week `card_warm.json` freshness gate. Also set in `render.yaml` by default. |
+| `MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP` | Truthy enables the runtime per-card *image* warm bootstrap (Phase 2 of [#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)). Heaviest of the warm slices — a completed pass on the deployed instance lands ~40,000 image files / ~17 GB across ~170 sets, so it ships on its own env var (not the umbrella `MGZ_PKMN_WARM_ON_STARTUP`) and a separate `card_images_warm.json` freshness gate. Set in `render.yaml` by default. |
 | `XDG_CACHE_HOME` | Overrides the cache root. The store lives at `$XDG_CACHE_HOME/mgz-pkmn` when set, falling back to `~/.cache/mgz-pkmn` otherwise. Standard XDG semantics — no mgz-pkmn-specific behavior. |
