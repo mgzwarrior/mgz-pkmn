@@ -71,11 +71,13 @@ _CONCEPT_WARM_FILE = "concept_warm.json"
 _SET_CARDS_WARM_FILE = "set_cards_warm.json"
 _SETS_WARM_FILE = "sets_warm.json"
 _CARD_WARM_FILE = "card_warm.json"
+_CARD_IMAGES_WARM_FILE = "card_images_warm.json"
 OVERRIDES_SCHEMA_VERSION = 1
 CONCEPT_WARM_SCHEMA_VERSION = 1
 SET_CARDS_WARM_SCHEMA_VERSION = 1
 SETS_WARM_SCHEMA_VERSION = 1
 CARD_WARM_SCHEMA_VERSION = 1
+CARD_IMAGES_WARM_SCHEMA_VERSION = 1
 _IMAGES_SUBDIR = "images"
 # Allowed image extensions for read-side discovery; write-side derives the
 # extension from the source URL but normalises it through this list so an
@@ -138,6 +140,18 @@ class CacheStats:
     card_warm_timestamp: float | None
     card_warm_count: int
     card_warm_failed_count: int
+    # Card-images warm slice — populated from `card_images_warm.json`,
+    # written by `pkmn cache warm-card-images`. Phase 2 of the
+    # pre-Scrydex catalog-warm epic (#368). `card_images_warm_count` is
+    # how many (card, size) image pairs landed on disk during the most
+    # recent pass; `card_images_warm_bytes` is the cumulative bytes
+    # downloaded by that pass (zero on a fully-skipped re-warm).
+    # `card_images_warm_budget_reached` mirrors whether the pass exited
+    # because `--max-bytes` was hit.
+    card_images_warm_timestamp: float | None
+    card_images_warm_count: int
+    card_images_warm_bytes: int
+    card_images_warm_budget_reached: bool
 
 
 def _disabled() -> bool:
@@ -961,6 +975,95 @@ def card_warm_is_fresh(*, now: float | None = None) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Card-images warm manifest — Phase 2 of the pre-Scrydex catalog-warm
+# epic (#368). Tracks how many per-card image bytes the most recent
+# `pkmn cache warm-card-images` pass landed on disk under
+# `cache/images/cards/{large,small}/`. Mirrors the other warm manifests'
+# shape so the stats projection / freshness gate / CLI rendering stay
+# uniform. Shares `CARD_WARM_STALE_SECONDS` as the staleness window —
+# card-image bytes are at least as immutable as card structural data.
+# ---------------------------------------------------------------------------
+
+
+def _card_images_warm_path() -> Path:
+    return _cache_root_path() / _CARD_IMAGES_WARM_FILE
+
+
+def read_card_images_warm() -> dict[str, Any] | None:
+    """Return the parsed card-images-warm manifest, or None if absent/malformed.
+
+    Schema (v1):
+        {
+            "version": 1,
+            "timestamp": <unix float>,
+            "images_warmed": <int>,
+            "images_failed": <int>,
+            "bytes_written": <int>,
+            "budget_reached": <bool>,
+            "sets_attempted": <int>,
+            "sets_failed": [<set_id>, ...]
+        }
+
+    Same defence-in-depth as the other warm manifests."""
+    path = _card_images_warm_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or data.get("version") != CARD_IMAGES_WARM_SCHEMA_VERSION:
+        return None
+    return data
+
+
+def write_card_images_warm(
+    *,
+    images_warmed: int,
+    images_failed: int,
+    bytes_written: int,
+    budget_reached: bool,
+    sets_attempted: int,
+    sets_failed: list[str],
+) -> None:
+    """Persist the card-images-warm manifest. Best-effort write."""
+    payload = {
+        "version": CARD_IMAGES_WARM_SCHEMA_VERSION,
+        "timestamp": time.time(),
+        "images_warmed": images_warmed,
+        "images_failed": images_failed,
+        "bytes_written": bytes_written,
+        "budget_reached": budget_reached,
+        "sets_attempted": sets_attempted,
+        "sets_failed": sets_failed,
+    }
+    root = cache_root()
+    with contextlib.suppress(OSError):
+        (root / _CARD_IMAGES_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def card_images_warm_is_fresh(*, now: float | None = None) -> bool:
+    """True when a manifest exists, its timestamp is within the staleness
+    window (`CARD_WARM_STALE_SECONDS` — one week), and the manifest
+    recorded at least one warmed image.
+
+    A `budget_reached=True` manifest is still considered fresh: the
+    gate's job is to suppress the next *full* re-walk, not to chase the
+    budget tail on every boot."""
+    manifest = read_card_images_warm()
+    if manifest is None:
+        return False
+    ts = manifest.get("timestamp")
+    if not isinstance(ts, int | float):
+        return False
+    images_warmed = manifest.get("images_warmed")
+    if not isinstance(images_warmed, int) or images_warmed <= 0:
+        return False
+    current = now if now is not None else time.time()
+    return (current - ts) < CARD_WARM_STALE_SECONDS
+
+
+# ---------------------------------------------------------------------------
 # Stats — health snapshot for `pkmn cache stats`.
 # ---------------------------------------------------------------------------
 
@@ -1055,6 +1158,25 @@ def stats() -> CacheStats:
         if isinstance(f, int):
             card_warm_failed_count = f
 
+    card_images_warm_timestamp: float | None = None
+    card_images_warm_count = 0
+    card_images_warm_bytes = 0
+    card_images_warm_budget_reached = False
+    ciw_manifest = read_card_images_warm()
+    if ciw_manifest is not None:
+        ts = ciw_manifest.get("timestamp")
+        if isinstance(ts, int | float):
+            card_images_warm_timestamp = float(ts)
+        n = ciw_manifest.get("images_warmed")
+        if isinstance(n, int):
+            card_images_warm_count = n
+        b = ciw_manifest.get("bytes_written")
+        if isinstance(b, int):
+            card_images_warm_bytes = b
+        br = ciw_manifest.get("budget_reached")
+        if isinstance(br, bool):
+            card_images_warm_budget_reached = br
+
     return CacheStats(
         root=root,
         api_entry_count=api_count,
@@ -1073,4 +1195,8 @@ def stats() -> CacheStats:
         card_warm_timestamp=card_warm_timestamp,
         card_warm_count=card_warm_count,
         card_warm_failed_count=card_warm_failed_count,
+        card_images_warm_timestamp=card_images_warm_timestamp,
+        card_images_warm_count=card_images_warm_count,
+        card_images_warm_bytes=card_images_warm_bytes,
+        card_images_warm_budget_reached=card_images_warm_budget_reached,
     )

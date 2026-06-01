@@ -211,6 +211,74 @@ class WarmCardsLifespanTests(unittest.TestCase):
             mock_cards.assert_called_once()
 
 
+class WarmCardImagesLifespanTests(unittest.TestCase):
+    """Pin that `MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP` is wired through
+    the lifespan and that it stays independent of the other flags —
+    Phase 2 (#371) makes this the heaviest opt-in (~3-5 GB on disk)."""
+
+    def setUp(self) -> None:
+        self._old_warm = os.environ.get("MGZ_PKMN_WARM_ON_STARTUP")
+        self._old_warm_cards = os.environ.get("MGZ_PKMN_WARM_CARDS_ON_STARTUP")
+        self._old_warm_images = os.environ.get("MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP")
+        self._old_automigrate = os.environ.get("MGZ_PKMN_AUTOMIGRATE")
+        os.environ["MGZ_PKMN_AUTOMIGRATE"] = "0"
+
+    def tearDown(self) -> None:
+        for key, prev in (
+            ("MGZ_PKMN_WARM_ON_STARTUP", self._old_warm),
+            ("MGZ_PKMN_WARM_CARDS_ON_STARTUP", self._old_warm_cards),
+            ("MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP", self._old_warm_images),
+            ("MGZ_PKMN_AUTOMIGRATE", self._old_automigrate),
+        ):
+            if prev is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = prev
+
+    def _reload_main(self):
+        if "api.main" in sys.modules:
+            return importlib.reload(sys.modules["api.main"])
+        import api.main as main
+
+        return main
+
+    def test_card_images_env_set_kicks_off_image_warmer(self) -> None:
+        os.environ["MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP"] = "1"
+        os.environ.pop("MGZ_PKMN_WARM_ON_STARTUP", None)
+        os.environ.pop("MGZ_PKMN_WARM_CARDS_ON_STARTUP", None)
+        main = self._reload_main()
+        with (
+            patch.object(main, "_warm_concepts_in_background") as mock_concepts,
+            patch.object(main, "_warm_set_cards_in_background") as mock_set_cards,
+            patch.object(main, "_warm_sets_in_background") as mock_sets,
+            patch.object(main, "_warm_cards_in_background") as mock_cards,
+            patch.object(main, "_warm_card_images_in_background") as mock_images,
+        ):
+            with TestClient(main.app) as c:
+                self.assertEqual(c.get("/health").status_code, 200)
+            mock_images.assert_called_once()
+            mock_concepts.assert_not_called()
+            mock_set_cards.assert_not_called()
+            mock_sets.assert_not_called()
+            mock_cards.assert_not_called()
+
+    def test_other_warm_envs_alone_do_not_fire_image_warmer(self) -> None:
+        os.environ["MGZ_PKMN_WARM_ON_STARTUP"] = "1"
+        os.environ["MGZ_PKMN_WARM_CARDS_ON_STARTUP"] = "1"
+        os.environ.pop("MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP", None)
+        main = self._reload_main()
+        with (
+            patch.object(main, "_warm_concepts_in_background"),
+            patch.object(main, "_warm_set_cards_in_background"),
+            patch.object(main, "_warm_sets_in_background"),
+            patch.object(main, "_warm_cards_in_background"),
+            patch.object(main, "_warm_card_images_in_background") as mock_images,
+        ):
+            with TestClient(main.app) as c:
+                self.assertEqual(c.get("/health").status_code, 200)
+            mock_images.assert_not_called()
+
+
 class WarmSetsBackgroundBodyTests(unittest.TestCase):
     """Drive the body of `_warm_sets_in_background` synchronously so the
     inner `_run` (TCGClient → warm_set_images → write_sets_warm + log)

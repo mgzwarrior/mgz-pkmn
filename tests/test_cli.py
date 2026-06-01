@@ -205,6 +205,10 @@ class CacheStatsCommandTests(unittest.TestCase):
                 "card_warm_timestamp",
                 "card_warm_count",
                 "card_warm_failed_count",
+                "card_images_warm_timestamp",
+                "card_images_warm_count",
+                "card_images_warm_bytes",
+                "card_images_warm_budget_reached",
                 "root",
             },
         )
