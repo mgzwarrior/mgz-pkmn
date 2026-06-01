@@ -2,7 +2,12 @@ services:
   - type: web
     name: mgz-pkmn
     runtime: docker
-    plan: free
+    # Starter (not free) because the `disk:` block below requires a paid
+    # plan — Render's blueprint validator rejects `disks are not supported
+    # for free tier services` if the declared plan is free, even if the
+    # actual service has been upgraded in the dashboard. The plan in this
+    # file is the source of truth Render syncs against.
+    plan: starter
     region: oregon
     branch: main
     autoDeploy: true
@@ -30,8 +35,8 @@ services:
       - key: XDG_CACHE_HOME
         value: /var/cache
       # Warm the concept + set-cards + set-image caches on startup so the
-      # first user after a deploy (or a free-tier spin-up) gets cache hits
-      # instead of paying the full upstream round trip. The warmers run on
+      # first user after a deploy gets cache hits instead of paying the
+      # full upstream round trip. The warmers run on
       # background daemon threads — startup and the /health check aren't
       # blocked — and their on-disk freshness manifests (24 h concepts /
       # 1 week set-cards / 1 week sets) keep restarts within the window

@@ -9,6 +9,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Deploy: **`render.yaml` declares `plan: starter`** instead of
+  `plan: free` ([#380](https://github.com/mgzwarrior/mgz-pkmn/issues/380)).
+  Render's blueprint validator rejects `disks are not supported for
+  free tier services` whenever a blueprint pairs a `disk:` block with
+  a free plan, so the post-#369 sync had been failing silently — none
+  of the persistent disk, `XDG_CACHE_HOME=/var/cache`,
+  `MGZ_PKMN_WARM_ON_STARTUP` (new addition), or
+  `MGZ_PKMN_WARM_CARDS_ON_STARTUP` env vars from #375 / #377 / #379
+  were actually applied to the live service. The deployed instance
+  was still caching to `/root/.cache/mgz-pkmn` (ephemeral writable
+  layer) and the card warm bootstrap was never triggered, which
+  cascaded into the missing-logs symptom in #378. Also refreshes
+  [`docs/deployment.md`](docs/deployment.md) to match the new plan and
+  drops the now-obsolete "free-tier cold-start" caveat.
+
+### Fixed
+
 - API: **Warm-bootstrap log lines now reach Render's log stream**
   ([#378](https://github.com/mgzwarrior/mgz-pkmn/issues/378)).
   `api/main.py` never configured the root logger, so Python's default
