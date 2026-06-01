@@ -464,13 +464,23 @@ def _api_pricing_path(key: str) -> Path:
 
 
 def _atomic_write_json(path: Path, payload: Any) -> bool:
-    """Write `payload` as JSON via the standard `.tmp` + rename. Returns True on success."""
+    """Write `payload` as JSON via a per-writer tmp file + rename. Returns True on success.
+
+    The tmp filename embeds `pid + thread id` so a foreground writer and a
+    background SWR refresh thread (`spawn_pricing_refresh`) racing on the
+    same key never clobber each other's tmp file. The final rename is
+    POSIX-atomic, so the last successful rename wins — both writes leave a
+    valid file on disk; the loser's payload is simply dropped."""
     try:
-        tmp = path.with_suffix(".tmp")
+        tag = f"{os.getpid()}.{threading.get_ident()}"
+        tmp = path.with_suffix(f".{tag}.tmp")
         tmp.write_text(json.dumps(payload), encoding="utf-8")
         tmp.replace(path)
         return True
     except (OSError, TypeError, ValueError):
+        # Best-effort cleanup of a leaked tmp file (rename failed mid-flight).
+        with contextlib.suppress(OSError, NameError):
+            tmp.unlink(missing_ok=True)
         return False
 
 
@@ -509,6 +519,14 @@ def _migrate_legacy(key: str) -> bool:
     if not _atomic_write_json(_api_structural_path(key), structurals):
         return False
     if not _atomic_write_json(_api_pricing_path(key), pricings):
+        # Partial migration: structural landed but pricing didn't. Without
+        # cleanup, future read_api_split calls would see structural exists
+        # and skip the migration retry — leaving pricing permanently
+        # missing. Roll back the structural write so the legacy file (left
+        # untouched until both writes succeed) remains the authority and
+        # the next read can re-attempt the full migration.
+        with contextlib.suppress(OSError):
+            _api_structural_path(key).unlink()
         return False
     with contextlib.suppress(OSError):
         os.utime(_api_pricing_path(key), (legacy_mtime, legacy_mtime))

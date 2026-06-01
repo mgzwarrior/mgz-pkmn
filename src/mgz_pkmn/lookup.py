@@ -948,7 +948,13 @@ def warm_cards(
                 continue
             card_url = f"{API_BASE}/cards/{card_id}"
 
-            existing, _existing_status = disk_cache.read_api_split(card_url)
+            # `skip_existing=False` overwrites unconditionally, so don't
+            # pay the read-probe cost on the overwrite path. Only probe
+            # when we'd actually skip on a hit.
+            if skip_existing:
+                existing, _existing_status = disk_cache.read_api_split(card_url)
+            else:
+                existing = None
             if skip_existing and existing is not None:
                 cards_warmed += 1
             else:

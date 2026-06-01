@@ -14,7 +14,7 @@ list don't keep re-spending API quota. Two stores live there:
 ## Freshness model
 
 mgz-pkmn treats card data as **two slices with different freshness
-semantics** ([#372](https://github.com/mgzwarrior/pkmn/issues/372),
+semantics** ([#372](https://github.com/mgzwarrior/mgz-pkmn/issues/372),
 [ADR-0018](adr/0018-structural-vs-volatile-cache-with-swr.md)):
 
 - **Structural** fields (name, set, number, rarity, types, attacks,

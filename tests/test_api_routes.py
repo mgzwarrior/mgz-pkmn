@@ -486,7 +486,7 @@ class SetCardsRouteTests(unittest.TestCase):
         def _capture(self_, query):
             del self_  # bound-method shape; we only care about the query string
             captured.append(query)
-            return []
+            return [], "MISS"
 
         with patch("mgz_pkmn.sources.pokemontcg.TCGClient.search_all", _capture):
             _fetch_set_cards("sv8", api_key=None)
