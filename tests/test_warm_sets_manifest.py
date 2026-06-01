@@ -113,6 +113,28 @@ class SetsFreshnessTests(_IsolatedCacheMixin):
         disk_cache.write_sets_warm(sets_warmed=0, logos_cached=0, symbols_cached=0, failures=5)
         self.assertFalse(disk_cache.sets_warm_is_fresh())
 
+    def test_malformed_timestamp_is_not_fresh(self) -> None:
+        # A manifest where the timestamp field exists but isn't a number
+        # (e.g. an older schema, a partial write, or a hand-edited file)
+        # must not be treated as fresh — the gate's job is to protect
+        # against poisoned-but-recent manifests.
+        path = disk_cache._sets_warm_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "version": disk_cache.SETS_WARM_SCHEMA_VERSION,
+                    "timestamp": "yesterday",
+                    "sets_warmed": 173,
+                    "logos_cached": 173,
+                    "symbols_cached": 170,
+                    "failures": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertFalse(disk_cache.sets_warm_is_fresh())
+
 
 class CacheStatsProjectionTests(_IsolatedCacheMixin):
     def test_stats_reflects_sets_warm_manifest(self) -> None:
