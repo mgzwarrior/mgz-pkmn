@@ -209,6 +209,11 @@ class CacheStatsCommandTests(unittest.TestCase):
                 "card_images_warm_count",
                 "card_images_warm_bytes",
                 "card_images_warm_budget_reached",
+                "api_structural_entry_count",
+                "api_structural_bytes",
+                "api_pricing_entry_count",
+                "api_pricing_bytes",
+                "api_pricing_oldest_mtime",
                 "root",
             },
         )

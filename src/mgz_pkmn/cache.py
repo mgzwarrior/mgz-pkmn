@@ -131,6 +131,16 @@ class CacheStats:
     api_entry_count: int
     api_bytes: int
     api_oldest_mtime: float | None
+    # Split API cache (#372). Structural slice is indefinite-TTL — `count` /
+    # `bytes` cover both legacy and split entries; no `oldest` because the
+    # value is meaningless without a TTL. Pricing slice has its own oldest
+    # so operators can see at a glance whether anything is past the 24h
+    # SWR window.
+    api_structural_entry_count: int
+    api_structural_bytes: int
+    api_pricing_entry_count: int
+    api_pricing_bytes: int
+    api_pricing_oldest_mtime: float | None
     override_count: int
     override_bytes: int
     image_entry_count: int
@@ -227,13 +237,19 @@ def cache_size_bytes() -> int:
     Stat-only — no payload reads, no JSON parsing, and no side effects: the
     cache directory is not created if it doesn't exist yet. Safe to call at
     every CLI startup as a cheap pre-flight check. Returns 0 when the cache
-    root is missing (fresh install, post-`rm -rf`, read-only $HOME, etc.)."""
+    root is missing (fresh install, post-`rm -rf`, read-only $HOME, etc.).
+
+    Includes both the legacy `api/` directory and the post-#372 split
+    `api_structural/` + `api_pricing/` directories — operators reading
+    `pkmn cache stats` see the total no matter where their entries live."""
     root = _cache_root_path()
     if not root.exists():
         return 0
     total = 0
-    api_dir = root / "api"
-    if api_dir.exists():
+    for subdir in ("api", _API_STRUCTURAL_SUBDIR, _API_PRICING_SUBDIR):
+        api_dir = root / subdir
+        if not api_dir.exists():
+            continue
         try:
             entries = list(api_dir.iterdir())
         except OSError:
@@ -299,25 +315,27 @@ def read_api(key: str, ttl_seconds: float = DEFAULT_API_TTL_SECONDS) -> Any | No
 def clear_api_cache() -> int:
     """Remove every cached API response. Returns the number of files deleted.
 
-    URL overrides are intentionally preserved — they're user-supplied
-    PriceCharting URLs that take the user real effort to find, while API
-    responses are regenerable on the next run. Use this when a normalizer
-    schema changes (a new field on cards, a tweak to the language detector,
-    etc.) and the cached payloads no longer reflect the current code.
+    Wipes the legacy `api/` directory AND the post-#372 split
+    `api_structural/` + `api_pricing/` directories — the structural slice
+    is harmless to drop too because the next read re-fetches and rebuilds
+    both slices atomically. URL overrides are intentionally preserved —
+    they're user-supplied PriceCharting URLs that take real effort to
+    find, while API responses are regenerable on the next run.
 
     Honoured even when `MGZ_PKMN_NO_CACHE=1` is set: the user explicitly
     asked for a wipe, and a no-op surprise would defeat the purpose."""
-    api_dir = cache_root() / "api"
-    if not api_dir.exists():
-        return 0
     count = 0
-    for entry in api_dir.iterdir():
-        if entry.is_file() and entry.suffix == ".json":
-            try:
-                entry.unlink()
-                count += 1
-            except OSError:
-                continue
+    for subdir in ("api", _API_STRUCTURAL_SUBDIR, _API_PRICING_SUBDIR):
+        api_dir = cache_root() / subdir
+        if not api_dir.exists():
+            continue
+        for entry in api_dir.iterdir():
+            if entry.is_file() and entry.suffix == ".json":
+                try:
+                    entry.unlink()
+                    count += 1
+                except OSError:
+                    continue
     return count
 
 
@@ -1374,22 +1392,29 @@ def stats() -> CacheStats:
     keys."""
     root = cache_root()
 
-    api_dir = root / "api"
-    api_count = 0
-    api_bytes = 0
-    api_oldest: float | None = None
-    if api_dir.exists():
-        for entry in api_dir.iterdir():
+    def _scan_json_dir(dirpath: Path) -> tuple[int, int, float | None]:
+        """Return (count, bytes, oldest_mtime) for `.json` files in a dir."""
+        if not dirpath.exists():
+            return 0, 0, None
+        count = 0
+        total = 0
+        oldest: float | None = None
+        for entry in dirpath.iterdir():
             if not entry.is_file() or entry.suffix != ".json":
                 continue
             try:
                 st = entry.stat()
             except OSError:
                 continue
-            api_count += 1
-            api_bytes += st.st_size
-            if api_oldest is None or st.st_mtime < api_oldest:
-                api_oldest = st.st_mtime
+            count += 1
+            total += st.st_size
+            if oldest is None or st.st_mtime < oldest:
+                oldest = st.st_mtime
+        return count, total, oldest
+
+    api_count, api_bytes, api_oldest = _scan_json_dir(root / "api")
+    structural_count, structural_bytes, _ = _scan_json_dir(root / _API_STRUCTURAL_SUBDIR)
+    pricing_count, pricing_bytes, pricing_oldest = _scan_json_dir(root / _API_PRICING_SUBDIR)
 
     overrides_path = _overrides_path()
     override_count = 0
@@ -1477,6 +1502,11 @@ def stats() -> CacheStats:
         api_entry_count=api_count,
         api_bytes=api_bytes,
         api_oldest_mtime=api_oldest,
+        api_structural_entry_count=structural_count,
+        api_structural_bytes=structural_bytes,
+        api_pricing_entry_count=pricing_count,
+        api_pricing_bytes=pricing_bytes,
+        api_pricing_oldest_mtime=pricing_oldest,
         override_count=override_count,
         override_bytes=override_bytes,
         image_entry_count=image_count,
