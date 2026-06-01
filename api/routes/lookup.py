@@ -17,13 +17,14 @@ from typing import Any
 import requests as req_lib
 from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from mgz_pkmn.lookup import find_card, find_top_cards
 from mgz_pkmn.parser import CardQuery, parse_line
 from mgz_pkmn.pricing import Pricing, extract_pricing
 from mgz_pkmn.sources import PriceChartingClient, TCGClient, TCGDexClient
+from mgz_pkmn.sources.base import worse_cache_status
 from mgz_pkmn.spreadsheet import Row
 
 from ..db.models import Run
@@ -134,12 +135,18 @@ def _do_lookup(
     q: CardQuery,
     settings: Settings,
     on_stage: Callable[[str], None] | None = None,
-) -> list[tuple[Row, str]]:
-    """Run a blocking card lookup and return (Row, reason) pairs.
+) -> tuple[list[tuple[Row, str]], str]:
+    """Run a blocking card lookup and return `(pairs, cache_status)`.
 
-    `reason` mirrors `MatchResult.reason` for single lookups
+    `pairs` is a list of (Row, reason) tuples; `reason` mirrors
+    `MatchResult.reason` for single lookups
     ("matched" | "no_candidates" | "set_mismatch") and uses synthetic values
     for bulk / error paths ("matched" | "no_results" | "error").
+
+    `cache_status` aggregates the worst split-cache outcome
+    (`HIT` / `STALE` / `MISS`) across every disk-cache read this lookup
+    touched. Threaded up so the `/lookup` route can attach an `X-Cache`
+    response header (#310 / #372). MISS dominates STALE dominates HIT.
 
     `on_stage`, when provided, is forwarded into the lookup coordinator so the
     caller can stream finer-grained per-line progress (see `LOOKUP_STAGES`).
@@ -147,12 +154,25 @@ def _do_lookup(
     back onto the event loop.
     """
     out: list[tuple[Row, str]] = []
+    # Accumulate the worst cache status the lookup sees. Default HIT so a
+    # lookup that never touches disk (e.g. PriceCharting URL hint) doesn't
+    # falsely surface as MISS; the per-source MatchResult.cache_status
+    # default of MISS still wins when no L2 lookup was attempted.
+    status_acc: list[str] = ["HIT"]
+
+    def _bump_status(s: str) -> None:
+        status_acc[0] = worse_cache_status(status_acc[0], s)
 
     if q.bulk_top or q.bulk_all:
         try:
             effective_limit = None if q.bulk_all else q.bulk_top
             top = find_top_cards(
-                pkmn, q, limit=effective_limit, max_price=settings.max_price, on_stage=on_stage
+                pkmn,
+                q,
+                limit=effective_limit,
+                max_price=settings.max_price,
+                on_stage=on_stage,
+                on_cache_status=_bump_status,
             )
             err = False
         except req_lib.RequestException:
@@ -171,6 +191,7 @@ def _do_lookup(
             from mgz_pkmn.sources.base import MatchResult
 
             result = MatchResult(None, "error")
+        _bump_status(result.cache_status)
         if result.card:
             if on_stage is not None:
                 on_stage("pricing")
@@ -189,7 +210,7 @@ def _do_lookup(
                 )
             )
 
-    return out
+    return out, status_acc[0]
 
 
 # ---------------------------------------------------------------------------
@@ -210,24 +231,37 @@ def _unparseable_row(line: str, tag: str) -> Row:
 
 
 @router.post("/lookup")
-async def lookup(req: LookupRequest) -> dict:
+async def lookup(req: LookupRequest) -> JSONResponse:
     """Look up a single card line and return resolved rows.
 
     A bulk query (top-N) expands into multiple rows. A regular query returns
     exactly one row (matched or unmatched). Blank / comment lines return
     no rows.
+
+    Sets an `X-Cache` response header (`HIT` / `STALE` / `MISS`) per #372 /
+    #310: HIT means every disk-cache lookup was within TTL; STALE means at
+    least one read served stale pricing and kicked off a background
+    refresh; MISS means at least one read hit upstream. The skippable /
+    unparseable branches default to MISS — there was no L2 lookup to
+    grade.
     """
     if _is_skippable(req.line):
-        return {"rows": []}
+        return JSONResponse(content={"rows": []}, headers={"X-Cache": "MISS"})
 
     q = parse_line(req.line)
     if q is None:
         row = _unparseable_row(req.line, req.settings.tag)
-        return {"rows": [_row_to_dict(row, "unparseable")]}
+        return JSONResponse(
+            content={"rows": [_row_to_dict(row, "unparseable")]},
+            headers={"X-Cache": "MISS"},
+        )
 
     pkmn, tcgdex, pc = _make_clients(req.settings)
-    pairs = await run_in_threadpool(_do_lookup, pkmn, tcgdex, pc, q, req.settings)
-    return {"rows": [_row_to_dict(r, reason) for r, reason in pairs]}
+    pairs, cache_status = await run_in_threadpool(_do_lookup, pkmn, tcgdex, pc, q, req.settings)
+    return JSONResponse(
+        content={"rows": [_row_to_dict(r, reason) for r, reason in pairs]},
+        headers={"X-Cache": cache_status},
+    )
 
 
 def _stage_frame(index: int, total: int, stage: str) -> str:
@@ -318,7 +352,13 @@ async def bulk(req: BulkRequest) -> StreamingResponse:
                     break
                 yield _stage_frame(stream_idx, total, item)
 
-            for row, reason in task.result():
+            # `_do_lookup` now returns (pairs, cache_status); the SSE
+            # stream consumes per-row pairs and drops the aggregate status
+            # — `X-Cache` is set at response-header level by the /lookup
+            # route, not per-event in the stream. SSE coverage is deferred
+            # to the #310 follow-up.
+            pairs, _ = task.result()
+            for row, reason in pairs:
                 resolved.append(row)
                 payload = {
                     "index": stream_idx,

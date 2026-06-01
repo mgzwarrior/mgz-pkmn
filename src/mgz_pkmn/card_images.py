@@ -138,7 +138,7 @@ def warm_card_images(
         # a freshly-warmed `card_warm.json` / `set_cards_warm.json`
         # neighbour slice.
         query = f'set.id:"{set_id}"'
-        cards = pkmn.search_all(query)
+        cards, _status = pkmn.search_all(query)
         if not cards:
             sets_failed.append(set_id)
             if throttle_ms > 0:

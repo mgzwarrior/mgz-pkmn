@@ -180,7 +180,10 @@ class BulkPersistenceTests(_IsolatedDbMixin):
             from mgz_pkmn.pricing import Pricing
             from mgz_pkmn.spreadsheet import Row
 
-            return [(Row(query=q, card=None, pricing=Pricing(), tag=settings.tag), "no_candidates")]
+            return (
+                [(Row(query=q, card=None, pricing=Pricing(), tag=settings.tag), "no_candidates")],
+                "MISS",
+            )
 
         with patch.object(lookup_route, "_do_lookup", side_effect=fake_do_lookup):
             from api.main import app

@@ -174,7 +174,7 @@ class WarmCardsTests(_IsolatedCacheMixin):
         with patch.object(
             TCGClient,
             "search_all",
-            side_effect=lambda q, **_kw: sets[q.split('"')[1]],
+            side_effect=lambda q, **_kw: (sets[q.split('"')[1]], "HIT"),
         ):
             result = warm_cards(TCGClient(), set_ids=list(sets))
 
@@ -183,10 +183,10 @@ class WarmCardsTests(_IsolatedCacheMixin):
         self.assertEqual(result.cards_failed, 0)
         self.assertEqual(result.sets_failed, [])
 
-        # Each card landed at its synthesized URL key.
+        # Each card landed at its synthesized URL key (via the split path).
         for cards in sets.values():
             for card in cards:
-                payload = disk_cache.read_api(f"{API_BASE}/cards/{card['id']}")
+                payload, _ = disk_cache.read_api_split(f"{API_BASE}/cards/{card['id']}")
                 self.assertIsNotNone(payload, f"missing entry for {card['id']}")
                 assert payload is not None
                 self.assertEqual(payload[0]["id"], card["id"])
@@ -197,14 +197,16 @@ class WarmCardsTests(_IsolatedCacheMixin):
         sets = {"sv8": self._set_payload("sv8", 3)}
         pre_card = sets["sv8"][0]
         pre_url = f"{API_BASE}/cards/{pre_card['id']}"
-        disk_cache.write_api(pre_url, [{"id": pre_card["id"], "name": "Stale"}])
+        disk_cache.write_api_split(pre_url, [{"id": pre_card["id"], "name": "Stale"}])
 
-        with patch.object(TCGClient, "search_all", side_effect=lambda q, **_kw: sets["sv8"]):
+        with patch.object(
+            TCGClient, "search_all", side_effect=lambda q, **_kw: (sets["sv8"], "HIT")
+        ):
             result = warm_cards(TCGClient(), set_ids=["sv8"], skip_existing=True)
 
         self.assertEqual(result.cards_warmed, 3)
         # Pre-existing entry was NOT overwritten with the fresh payload.
-        cached = disk_cache.read_api(pre_url)
+        cached, _ = disk_cache.read_api_split(pre_url)
         assert cached is not None
         self.assertEqual(cached[0]["name"], "Stale")
 
@@ -212,13 +214,15 @@ class WarmCardsTests(_IsolatedCacheMixin):
         sets = {"sv8": self._set_payload("sv8", 1)}
         pre_card = sets["sv8"][0]
         pre_url = f"{API_BASE}/cards/{pre_card['id']}"
-        disk_cache.write_api(pre_url, [{"id": pre_card["id"], "name": "Stale"}])
+        disk_cache.write_api_split(pre_url, [{"id": pre_card["id"], "name": "Stale"}])
 
-        with patch.object(TCGClient, "search_all", side_effect=lambda q, **_kw: sets["sv8"]):
+        with patch.object(
+            TCGClient, "search_all", side_effect=lambda q, **_kw: (sets["sv8"], "HIT")
+        ):
             warm_cards(TCGClient(), set_ids=["sv8"], skip_existing=False)
 
         # Pre-existing entry got rewritten with the fresh payload.
-        cached = disk_cache.read_api(pre_url)
+        cached, _ = disk_cache.read_api_split(pre_url)
         assert cached is not None
         self.assertEqual(cached[0]["name"], "Card1")
 
@@ -227,7 +231,7 @@ class WarmCardsTests(_IsolatedCacheMixin):
         with patch.object(
             TCGClient,
             "search_all",
-            side_effect=lambda q, **_kw: sets[q.split('"')[1]],
+            side_effect=lambda q, **_kw: (sets[q.split('"')[1]], "HIT"),
         ):
             result = warm_cards(TCGClient(), set_ids=list(sets), max_cards=3)
 
@@ -241,7 +245,7 @@ class WarmCardsTests(_IsolatedCacheMixin):
         with patch.object(
             TCGClient,
             "search_all",
-            side_effect=lambda q, **_kw: sets[q.split('"')[1]],
+            side_effect=lambda q, **_kw: (sets[q.split('"')[1]], "HIT"),
         ):
             result = warm_cards(TCGClient(), set_ids=list(sets))
 
@@ -249,28 +253,30 @@ class WarmCardsTests(_IsolatedCacheMixin):
         self.assertEqual(result.sets_failed, ["ghost"])
 
     def test_write_failure_counts_as_failed_not_warmed(self) -> None:
-        """Read-back verification: when `write_api` silently fails (it swallows
-        OSError/TypeError/ValueError internally), warm_cards must not lie about
-        success. The card lands in `cards_failed`, not `cards_warmed`, so the
-        freshness gate's `cards_warmed > 0` guard doesn't suppress retries
-        when the disk is broken."""
+        """Read-back verification: when `write_api_split` silently fails (it
+        swallows OSError/TypeError/ValueError internally), warm_cards must
+        not lie about success. The card lands in `cards_failed`, not
+        `cards_warmed`, so the freshness gate's `cards_warmed > 0` guard
+        doesn't suppress retries when the disk is broken."""
         sets = {"sv8": self._set_payload("sv8", 2)}
 
-        # First write succeeds normally; second has `write_api` silently no-op
-        # (simulating a serialization failure or read-only fs). Because
-        # write_api swallows the error, the read-back is the only signal.
-        original_write = disk_cache.write_api
+        # First write succeeds normally; second has `write_api_split` silently
+        # no-op (simulating a serialization failure or read-only fs). The
+        # read-back via `read_api_split` is the only signal.
+        original_write = disk_cache.write_api_split
         call_count = {"n": 0}
 
         def flaky_write(key: str, data) -> None:
             call_count["n"] += 1
             if call_count["n"] == 2:
-                return  # silent failure — file never lands
+                return  # silent failure — files never land
             original_write(key, data)
 
         with (
-            patch.object(TCGClient, "search_all", side_effect=lambda q, **_kw: sets["sv8"]),
-            patch.object(disk_cache, "write_api", side_effect=flaky_write),
+            patch.object(
+                TCGClient, "search_all", side_effect=lambda q, **_kw: (sets["sv8"], "HIT")
+            ),
+            patch.object(disk_cache, "write_api_split", side_effect=flaky_write),
         ):
             result = warm_cards(TCGClient(), set_ids=["sv8"], skip_existing=False)
 
@@ -289,7 +295,7 @@ class WarmCardsTests(_IsolatedCacheMixin):
             patch.object(
                 TCGClient,
                 "search_all",
-                side_effect=lambda q, **_kw: sets[q.split('"')[1]],
+                side_effect=lambda q, **_kw: (sets[q.split('"')[1]], "HIT"),
             ),
             patch.object(lookup_mod.time, "sleep") as mock_sleep,
         ):
@@ -307,7 +313,7 @@ class WarmCardsTests(_IsolatedCacheMixin):
         from mgz_pkmn import lookup as lookup_mod
 
         with (
-            patch.object(TCGClient, "search_all", return_value=[]),
+            patch.object(TCGClient, "search_all", return_value=([], "MISS")),
             patch.object(lookup_mod.time, "sleep") as mock_sleep,
         ):
             warm_cards(TCGClient(), set_ids=["ghost"], throttle_ms=100)
@@ -322,7 +328,7 @@ class WarmCardsTests(_IsolatedCacheMixin):
         with patch.object(
             TCGClient,
             "search_all",
-            return_value=[bad_card, good_card],
+            return_value=([bad_card, good_card], "HIT"),
         ):
             result = warm_cards(TCGClient(), set_ids=["sv8"])
 
@@ -336,7 +342,7 @@ class WarmCardsTests(_IsolatedCacheMixin):
         with patch.object(
             TCGClient,
             "search_all",
-            side_effect=lambda q, **_kw: sets[q.split('"')[1]],
+            side_effect=lambda q, **_kw: (sets[q.split('"')[1]], "HIT"),
         ):
             warm_cards(
                 TCGClient(),

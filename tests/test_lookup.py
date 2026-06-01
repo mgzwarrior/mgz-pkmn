@@ -33,11 +33,14 @@ class _StubTCGClient:
         self.cards_by_query = cards_by_query or {}
         self.queries: list[str] = []
 
-    def search_all(self, query: str, **_: object) -> list[dict]:
+    def search_all(self, query: str, **_: object) -> tuple[list[dict], str]:
         self.queries.append(query)
-        return list(self.cards_by_query.get(query, []))
+        cards = list(self.cards_by_query.get(query, []))
+        # Stub treats every response as a HIT — tests that need a different
+        # cache_status override the method on the instance.
+        return cards, "HIT"
 
-    def search(self, query: str, **_: object) -> list[dict]:
+    def search(self, query: str, **_: object) -> tuple[list[dict], str]:
         return self.search_all(query)
 
 
@@ -650,6 +653,61 @@ class StageCallbackTests(unittest.TestCase):
             client, _NullTCGDexClient(), _StubPCClient(MatchResult(None, "no_candidates")), q
         )
         self.assertIsNotNone(result.card)
+
+
+class CacheStatusPropagationTests(unittest.TestCase):
+    """`MatchResult.cache_status` carries the worst split-cache outcome from
+    the source layer up through `find_card`. The /lookup route uses this to
+    set the `X-Cache` response header (#372 / #310)."""
+
+    def _stub_with_status(self, cards: list[dict], status: str) -> _StubTCGClient:
+        """Build a _StubTCGClient whose search()/search_all() return `status`."""
+        client = _StubTCGClient()
+
+        def _search_all(query: str, **_: object) -> tuple[list[dict], str]:
+            client.queries.append(query)
+            return cards, status
+
+        client.search_all = _search_all  # type: ignore[method-assign]
+        client.search = _search_all  # type: ignore[method-assign]
+        return client
+
+    def _charizard(self) -> dict:
+        return _card("base1-4", "Charizard", 100.0)
+
+    def test_hit_status_propagates_to_match_result(self) -> None:
+        client = self._stub_with_status([self._charizard()], "HIT")
+        q = CardQuery(raw="Charizard", name="Charizard")
+        result = find_card(
+            client, _NullTCGDexClient(), _StubPCClient(MatchResult(None, "no_candidates")), q
+        )
+        self.assertEqual(result.reason, "matched")
+        self.assertEqual(result.cache_status, "HIT")
+
+    def test_stale_status_propagates_to_match_result(self) -> None:
+        client = self._stub_with_status([self._charizard()], "STALE")
+        q = CardQuery(raw="Charizard", name="Charizard")
+        result = find_card(
+            client, _NullTCGDexClient(), _StubPCClient(MatchResult(None, "no_candidates")), q
+        )
+        self.assertEqual(result.cache_status, "STALE")
+
+    def test_miss_status_propagates_to_match_result(self) -> None:
+        client = self._stub_with_status([self._charizard()], "MISS")
+        q = CardQuery(raw="Charizard", name="Charizard")
+        result = find_card(
+            client, _NullTCGDexClient(), _StubPCClient(MatchResult(None, "no_candidates")), q
+        )
+        self.assertEqual(result.cache_status, "MISS")
+
+    def test_find_top_cards_on_cache_status_aggregates_worst_across_queries(self) -> None:
+        # Subtype-driven path issues exactly one query for 'tag team'.
+        # Use the same stub to surface STALE on that query.
+        client = self._stub_with_status([self._charizard()], "STALE")
+        q = CardQuery(raw="top:1 tag team", name="tag team", bulk_top=1)
+        seen: list[str] = []
+        find_top_cards(client, q, limit=1, on_cache_status=seen.append)
+        self.assertIn("STALE", seen)
 
 
 if __name__ == "__main__":

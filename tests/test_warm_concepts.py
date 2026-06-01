@@ -28,7 +28,7 @@ class _CountingTCGClient:
     def __init__(self) -> None:
         self.queries: list[str] = []
 
-    def search_all(self, query: str, **_: object) -> list[dict]:
+    def search_all(self, query: str, **_: object) -> tuple[list[dict], str]:
         self.queries.append(query)
         # Return a single plausible card — search_pokemontcg's scorer needs
         # name + set so the result counts as "found".
@@ -41,9 +41,9 @@ class _CountingTCGClient:
                 "subtypes": [],
                 "rarity": "Rare Holo",
             }
-        ]
+        ], "HIT"
 
-    def search(self, query: str, **kwargs: object) -> list[dict]:
+    def search(self, query: str, **kwargs: object) -> tuple[list[dict], str]:
         return self.search_all(query, **kwargs)
 
 
@@ -53,11 +53,11 @@ class _EmptyTCGClient:
     def __init__(self) -> None:
         self.queries: list[str] = []
 
-    def search_all(self, query: str, **_: object) -> list[dict]:
+    def search_all(self, query: str, **_: object) -> tuple[list[dict], str]:
         self.queries.append(query)
-        return []
+        return [], "MISS"
 
-    def search(self, query: str, **kwargs: object) -> list[dict]:
+    def search(self, query: str, **kwargs: object) -> tuple[list[dict], str]:
         return self.search_all(query, **kwargs)
 
 

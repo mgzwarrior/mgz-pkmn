@@ -206,7 +206,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
     def test_writes_one_image_per_size_per_card(self) -> None:
         cards = [_card("sv8", 1), _card("sv8", 2)]
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             self._patch_download(),
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"])
@@ -228,7 +228,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
         disk_cache.write_image(LARGE_CATEGORY, cards[0]["id"], b"existing-lg", ext=".png")
         disk_cache.write_image(SMALL_CATEGORY, cards[0]["id"], b"existing-sm", ext=".png")
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             patch.object(card_images_mod, "_download_bytes") as mock_download,
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"])
@@ -249,7 +249,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
         # Expected: 1 image written, 1024 bytes_written, budget_reached.
         cards = [_card("sv8", 1)]
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             self._patch_download(),  # default 1024 bytes per image
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"], max_bytes=1500)
@@ -265,7 +265,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
         # → exactly 2 images land, the rest are skipped, budget_reached=True.
         cards = [_card("sv8", 1), _card("sv8", 2)]
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             self._patch_download(),
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"], max_bytes=2048)
@@ -287,7 +287,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
         disk_cache.write_image(LARGE_CATEGORY, cards[0]["id"], b"pre", ext=".png")
         disk_cache.write_image(SMALL_CATEGORY, cards[0]["id"], b"pre", ext=".png")
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             self._patch_download(),
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"], max_bytes=2048)
@@ -299,7 +299,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
     def test_sizes_filter_restricts_what_gets_warmed(self) -> None:
         cards = [_card("sv8", 1)]
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             self._patch_download(),
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"], sizes=("small",))
@@ -311,7 +311,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
     def test_card_without_images_dict_is_skipped(self) -> None:
         no_images_card = {"id": "sv8-99", "name": "Promo"}  # no images key
         with (
-            patch.object(TCGClient, "search_all", return_value=[no_images_card]),
+            patch.object(TCGClient, "search_all", return_value=([no_images_card], "HIT")),
             self._patch_download(),
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"])
@@ -321,7 +321,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
     def test_download_failure_increments_images_failed(self) -> None:
         cards = [_card("sv8", 1)]
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             patch.object(card_images_mod, "_download_bytes", return_value=None),
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"])
@@ -333,7 +333,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
 
     def test_set_returning_no_cards_lands_in_sets_failed(self) -> None:
         with (
-            patch.object(TCGClient, "search_all", return_value=[]),
+            patch.object(TCGClient, "search_all", return_value=([], "MISS")),
             self._patch_download(),
         ):
             result = warm_card_images(TCGClient(), set_ids=["ghost"])
@@ -345,7 +345,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
         cards = [_card("sv8", 1)]
         calls: list[tuple[int, int, str]] = []
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             self._patch_download(),
         ):
             warm_card_images(
@@ -363,7 +363,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
             patch.object(
                 TCGClient,
                 "search_all",
-                side_effect=[[_card("sv8", 1)], []],  # one populated, one empty
+                side_effect=[([_card("sv8", 1)], "HIT"), ([], "MISS")],
             ),
             self._patch_download(),
             patch.object(card_images_mod_local.time, "sleep") as mock_sleep,
@@ -377,7 +377,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
     def test_card_without_id_is_skipped(self) -> None:
         cards = [{"id": None, "images": {"small": "https://x/sm.png"}}]
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             self._patch_download(),
         ):
             result = warm_card_images(TCGClient(), set_ids=["sv8"])
@@ -389,7 +389,7 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
         # bug), the warmer must not count the image as warmed.
         cards = [_card("sv8", 1)]
         with (
-            patch.object(TCGClient, "search_all", return_value=cards),
+            patch.object(TCGClient, "search_all", return_value=(cards, "HIT")),
             self._patch_download(),
             patch.object(disk_cache, "write_image", return_value=None),
         ):
