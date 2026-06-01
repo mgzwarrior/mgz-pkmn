@@ -47,7 +47,41 @@ from .routes import (
     sets,
 )
 
+# Configure logging so our `_log.info(...)` calls actually reach
+# stdout/stderr. Without this, Python's default behavior is to only emit
+# WARNING and above through the "last resort" handler — every
+# `_log.info("... warm complete: ...")` from the warm bootstraps gets
+# silently dropped, which is why Render's log stream showed no signal
+# even when the warmers were running successfully. uvicorn doesn't help:
+# it configures its own `uvicorn.*` loggers but leaves the root
+# untouched.
+#
+# Two distinct cases to handle, explicitly:
+#
+# 1. **Fresh root** (production: a clean uvicorn boot has no root
+#    handlers). Run `basicConfig` to add a StreamHandler at INFO so our
+#    messages reach stderr. Format mirrors uvicorn's own log line so the
+#    streams interleave cleanly in Render. The explicit
+#    `hasHandlers()` guard is equivalent to `basicConfig`'s internal
+#    no-op-when-handlers-exist behavior, but spelling it out makes the
+#    two-case story readable.
+#
+# 2. **Pre-configured root** (pytest's log capture, custom uvicorn
+#    `--log-config`, or any parent process that touched logging first).
+#    Root already has a handler — but it almost certainly has the
+#    default WARNING level, so a `_log.info(...)` against that root
+#    would still drop. Explicit `_log.setLevel(INFO)` on the
+#    `api.main` logger rescues this without disturbing whatever the
+#    caller set up for root. Runs unconditionally because it's the
+#    load-bearing line for both cases.
+if not logging.getLogger().hasHandlers():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+
 _log = logging.getLogger(__name__)
+_log.setLevel(logging.INFO)
 
 _WARM_ON_STARTUP_ENV = "MGZ_PKMN_WARM_ON_STARTUP"
 # Separate env var for the per-card structural warm pass (Phase 1 of #368)
