@@ -1,3 +1,9 @@
+# Auto-spin a preview environment for every PR against main. Omitting this
+# block defaults to off and Render disables previews on each blueprint sync
+# (#389). See https://render.com/docs/blueprint-spec#previews.
+previews:
+  generation: automatic
+
 services:
   - type: web
     name: mgz-pkmn

@@ -39,6 +39,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Deploy: **`render.yaml` re-enables PR preview environments**
+  ([#389](https://github.com/mgzwarrior/mgz-pkmn/issues/389)). The
+  blueprint had no `previews` block, so each sync against Render
+  reverted preview generation to `off` and pull requests stopped
+  getting their own preview deploys. Added a top-level
+  `previews: generation: automatic` so every PR against `main` now
+  spins a preview environment automatically (see
+  [Render's Blueprint spec](https://render.com/docs/blueprint-spec#previews)).
+
 - Web: **Per-line timing chips now persist after a bulk lookup
   finishes** ([#376](https://github.com/mgzwarrior/mgz-pkmn/issues/376)).
   The [ProcessingQueue](web/src/components/ProcessingQueue.tsx) early-
