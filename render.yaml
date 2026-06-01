@@ -57,3 +57,18 @@ services:
       # serve-forever shape we want.
       - key: MGZ_PKMN_WARM_CARDS_ON_STARTUP
         value: "1"
+      # Phase 2 of the pre-Scrydex catalog-warm epic (#368, #371). The
+      # per-card *image* warm is the heaviest of all the warmers — a
+      # fresh pass downloads ~36K image files (large + small for the
+      # ~18K-card English catalog), totalling ~3-5 GB on the 10 GB
+      # persistent disk above. First boot after this lands takes
+      # *hours* on a background daemon thread (service stays responsive
+      # throughout — /health doesn't gate on warm completion); every
+      # boot after that hits the `card_images_warm.json` freshness gate
+      # (1-week TTL) and skips. With the persistent disk in place this
+      # delivers the SPA snappiness win the epic is built around —
+      # every `<img>` tag in the results table, card detail modal, and
+      # Browse grid now serves from /api/v1/cards/{id}/image/{size}
+      # instead of round-tripping to pokemontcg.io's CDN.
+      - key: MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP
+        value: "1"
