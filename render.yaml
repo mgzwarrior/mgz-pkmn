@@ -1,9 +1,3 @@
-# Auto-spin a preview environment for every PR against main. Omitting this
-# block defaults to off and Render disables previews on each blueprint sync
-# (#389). See https://render.com/docs/blueprint-spec#previews.
-previews:
-  generation: automatic
-
 services:
   - type: web
     name: mgz-pkmn
@@ -18,17 +12,26 @@ services:
     branch: main
     autoDeploy: true
     healthCheckPath: /health
+    # Opt this service into a PR preview deploy on every pull request against
+    # main. Per-service `previews.generation` is what controls individual PR
+    # previews; omitting it defaults to off and Render disables previews on
+    # each blueprint sync (#389). Requires a paid workspace tier — Hobby
+    # workspaces reject the field at sync time. See
+    # https://render.com/docs/blueprint-spec#previews.
+    previews:
+      generation: automatic
     # Persistent disk so the cache survives redeploys (see #369). The mount
     # path matches the `XDG_CACHE_HOME` env var below; the cache module
     # (`src/mgz_pkmn/cache.py::_cache_root_path`) reads `XDG_CACHE_HOME` as
     # the *parent* directory and appends `mgz-pkmn`, so this resolves to
-    # `/var/cache/mgz-pkmn`. 10 GB is comfortable headroom for the full
-    # English-card catalog warm planned in epic #368 (~90-180 MB structural
-    # JSON + ~3-5 GB images + run-history SQLite + manifests).
+    # `/var/cache/mgz-pkmn`. Bumped to 50 GB after the per-card image warm
+    # (#371) landed ~17 GB on top of the structural cache, leaving headroom
+    # for the full English catalog plus future Scrydex-era additions.
+    # Render disallows shrinking a disk in-place — only increases sync.
     disk:
       name: cache
       mountPath: /var/cache
-      sizeGB: 10
+      sizeGB: 50
     envVars:
       # Live API key for lookups against pokemontcg.io. Build-time use of
       # this var was retired in #369 along with the Dockerfile's
