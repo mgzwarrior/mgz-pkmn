@@ -7,19 +7,36 @@ services:
     branch: main
     autoDeploy: true
     healthCheckPath: /health
+    # Persistent disk so the cache survives redeploys (see #369). The mount
+    # path matches the `XDG_CACHE_HOME` env var below; the cache module
+    # (`src/mgz_pkmn/cache.py::_cache_root_path`) reads `XDG_CACHE_HOME` as
+    # the *parent* directory and appends `mgz-pkmn`, so this resolves to
+    # `/var/cache/mgz-pkmn`. 10 GB is comfortable headroom for the full
+    # English-card catalog warm planned in epic #368 (~90-180 MB structural
+    # JSON + ~3-5 GB images + run-history SQLite + manifests).
+    disk:
+      name: cache
+      mountPath: /var/cache
+      sizeGB: 10
     envVars:
-      # Used at both build time (the Dockerfile's `pkmn cache warm-sets`
-      # step bakes set logos+symbols into the image) and runtime (the API
-      # uses it for live lookups). Render automatically passes envVars to
-      # the Docker build as build args when the Dockerfile declares them
-      # via `ARG`, so a single entry covers both.
+      # Live API key for lookups against pokemontcg.io. Build-time use of
+      # this var was retired in #369 along with the Dockerfile's
+      # `warm-sets` bake; runtime warming on persistent disk took over.
       - key: POKEMONTCG_IO_API_KEY
         sync: false
-      # Warm the concept + set-cards API caches on startup so the first
-      # user after a deploy (or a free-tier spin-up) gets cache hits
+      # Point the cache module at the persistent disk mount. Without this,
+      # the cache root falls back to `~/.cache/mgz-pkmn` (the container's
+      # ephemeral writable layer) and nothing survives a redeploy.
+      - key: XDG_CACHE_HOME
+        value: /var/cache
+      # Warm the concept + set-cards + set-image caches on startup so the
+      # first user after a deploy (or a free-tier spin-up) gets cache hits
       # instead of paying the full upstream round trip. The warmers run on
       # background daemon threads — startup and the /health check aren't
       # blocked — and their on-disk freshness manifests (24 h concepts /
-      # 1 week set-cards) keep restarts within the window from re-walking.
+      # 1 week set-cards / 1 week sets) keep restarts within the window
+      # from re-walking. With the persistent disk above, a single warm
+      # pass after the first deploy now serves every subsequent deploy
+      # until the manifest TTL expires.
       - key: MGZ_PKMN_WARM_ON_STARTUP
         value: "1"

@@ -25,6 +25,7 @@ from starlette.responses import Response
 from mgz_pkmn import __version__
 from mgz_pkmn import cache as disk_cache
 from mgz_pkmn.lookup import warm_concepts, warm_set_cards
+from mgz_pkmn.set_cards import warm_set_images
 from mgz_pkmn.sources import TCGClient, TCGDexClient
 
 # Import the module (not the names) so tests can monkeypatch
@@ -120,6 +121,46 @@ def _warm_set_cards_in_background() -> None:
     threading.Thread(target=_run, name="set-cards-warm", daemon=True).start()
 
 
+def _warm_sets_in_background() -> None:
+    """Run the set-image (logos + symbols) warm pass on a daemon thread.
+
+    Mirrors the concept and set-cards warmers. Gated by the on-disk
+    `sets_warm.json` freshness manifest — if a warm pass landed within
+    the last week, skip and log "already fresh". Errors are logged and
+    swallowed so a failed warm doesn't crash the service.
+
+    This bootstrap is what replaces the build-time `pkmn cache warm-sets`
+    step that used to live in the Dockerfile. With #369 dropping the
+    bake, set logos and symbols are warmed at runtime onto the persistent
+    disk — meaning a single warm pass after the first deploy serves
+    every subsequent deploy until the manifest's TTL expires."""
+    if disk_cache.sets_warm_is_fresh():
+        _log.info("sets cache fresh; skipping startup warm")
+        return
+
+    def _run() -> None:
+        try:
+            pkmn = TCGClient(api_key=os.environ.get("POKEMONTCG_IO_API_KEY"))
+            result = warm_set_images(pkmn)
+            disk_cache.write_sets_warm(
+                sets_warmed=result.sets,
+                logos_cached=result.logos_cached,
+                symbols_cached=result.symbols_cached,
+                failures=result.failures,
+            )
+            _log.info(
+                "sets warm complete: %d sets · %d logos · %d symbols · %d failures",
+                result.sets,
+                result.logos_cached,
+                result.symbols_cached,
+                result.failures,
+            )
+        except Exception:
+            _log.exception("sets warm failed; service running without primed set images")
+
+    threading.Thread(target=_run, name="sets-warm", daemon=True).start()
+
+
 class SPAStaticFiles(StaticFiles):
     """StaticFiles that disables browser caching for ``index.html``.
 
@@ -164,17 +205,19 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
        as a prestart step instead (init containers, Render pre-deploy,
        etc.).
     2. If `MGZ_PKMN_WARM_ON_STARTUP` is truthy (`1`, `true`, or `True`
-       — see `_warm_on_startup_enabled`), kicks off the concept and
-       set-cards warm passes on background daemon threads so first-use
-       lookups land on a warm cache. Each warmer has its own freshness
-       manifest (24 h concepts / 1 week set-cards), so containers
-       starting within the window skip the re-walk and log "already
-       fresh". These were previously wired via `@app.on_event("startup")`
-       but Starlette silently drops `on_event` handlers when a custom
-       `lifespan` is provided (see #367), so the warm pass never fired
-       on a deployed instance — visible as `concept_warm_timestamp` /
-       `set_cards_warm_timestamp` staying `null` on
-       `GET /api/v1/cache/stats` despite the env var being set.
+       — see `_warm_on_startup_enabled`), kicks off the concept,
+       set-cards, and set-image warm passes on background daemon threads
+       so first-use lookups land on a warm cache. Each warmer has its
+       own freshness manifest (24 h concepts / 1 week set-cards / 1
+       week sets), so containers starting within the window skip the
+       re-walk and log "already fresh". These were previously wired via
+       `@app.on_event("startup")` but Starlette silently drops
+       `on_event` handlers when a custom `lifespan` is provided (see
+       #367), so the warm pass never fired on a deployed instance —
+       visible as `concept_warm_timestamp` / `set_cards_warm_timestamp`
+       staying `null` on `GET /api/v1/cache/stats` despite the env var
+       being set. The sets-warm slice was added in #369 to replace the
+       Dockerfile's build-time `pkmn cache warm-sets` step.
     """
     if migrate.automigrate_enabled():
         try:
@@ -188,6 +231,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     if _warm_on_startup_enabled():
         _warm_concepts_in_background()
         _warm_set_cards_in_background()
+        _warm_sets_in_background()
 
     yield
 

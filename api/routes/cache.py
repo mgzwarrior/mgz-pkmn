@@ -47,6 +47,8 @@ def _zeroed_snapshot() -> disk_cache.CacheStats:
         concept_warm_names=0,
         set_cards_warm_timestamp=None,
         set_cards_warm_count=0,
+        sets_warm_timestamp=None,
+        sets_warm_count=0,
     )
 
 

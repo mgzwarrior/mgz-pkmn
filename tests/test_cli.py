@@ -200,6 +200,8 @@ class CacheStatsCommandTests(unittest.TestCase):
                 "concept_warm_names",
                 "set_cards_warm_timestamp",
                 "set_cards_warm_count",
+                "sets_warm_timestamp",
+                "sets_warm_count",
                 "root",
             },
         )
@@ -258,6 +260,16 @@ class CacheStatsCommandTests(unittest.TestCase):
         self.assertIsNotNone(cache.read_image("sets/logo", "sv7"))
         self.assertIsNotNone(cache.read_image("sets/symbol", "sv8"))
         self.assertIsNone(cache.read_image("sets/symbol", "sv7"))
+        # Manifest is written so `sets_warm_is_fresh()` returns True for
+        # the next caller (e.g. the lifespan startup bootstrap). Without
+        # this, every restart would re-walk upstream.
+        manifest = cache.read_sets_warm()
+        self.assertIsNotNone(manifest)
+        assert manifest is not None  # narrow for type checkers
+        self.assertEqual(manifest["sets_warmed"], 2)
+        self.assertEqual(manifest["logos_cached"], 2)
+        self.assertEqual(manifest["symbols_cached"], 1)
+        self.assertEqual(manifest["failures"], 0)
 
     def test_warm_sets_verbose_prints_per_set_progress(self) -> None:
         # `-v` should fire the on_progress callback so each set's id lands

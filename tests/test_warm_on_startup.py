@@ -66,11 +66,13 @@ class WarmOnStartupTests(unittest.TestCase):
         with (
             patch.object(main, "_warm_concepts_in_background") as mock_concepts,
             patch.object(main, "_warm_set_cards_in_background") as mock_set_cards,
+            patch.object(main, "_warm_sets_in_background") as mock_sets,
         ):
             with TestClient(main.app) as c:
                 self.assertEqual(c.get("/health").status_code, 200)
             mock_concepts.assert_called_once()
             mock_set_cards.assert_called_once()
+            mock_sets.assert_called_once()
 
     def test_warm_env_unset_skips_warmers(self) -> None:
         os.environ.pop("MGZ_PKMN_WARM_ON_STARTUP", None)
@@ -78,11 +80,13 @@ class WarmOnStartupTests(unittest.TestCase):
         with (
             patch.object(main, "_warm_concepts_in_background") as mock_concepts,
             patch.object(main, "_warm_set_cards_in_background") as mock_set_cards,
+            patch.object(main, "_warm_sets_in_background") as mock_sets,
         ):
             with TestClient(main.app) as c:
                 self.assertEqual(c.get("/health").status_code, 200)
             mock_concepts.assert_not_called()
             mock_set_cards.assert_not_called()
+            mock_sets.assert_not_called()
 
     def test_warm_env_truthy_variants_all_fire(self) -> None:
         """Pin the env-var parse rules so future churn doesn't drop a variant."""
@@ -93,11 +97,13 @@ class WarmOnStartupTests(unittest.TestCase):
                 with (
                     patch.object(main, "_warm_concepts_in_background") as mock_concepts,
                     patch.object(main, "_warm_set_cards_in_background") as mock_set_cards,
+                    patch.object(main, "_warm_sets_in_background") as mock_sets,
                 ):
                     with TestClient(main.app) as c:
                         self.assertEqual(c.get("/health").status_code, 200)
                     mock_concepts.assert_called_once()
                     mock_set_cards.assert_called_once()
+                    mock_sets.assert_called_once()
 
     def test_warm_env_falsy_variants_all_skip(self) -> None:
         """Same as above for the other side — empty / 0 / false do not fire."""
@@ -108,11 +114,13 @@ class WarmOnStartupTests(unittest.TestCase):
                 with (
                     patch.object(main, "_warm_concepts_in_background") as mock_concepts,
                     patch.object(main, "_warm_set_cards_in_background") as mock_set_cards,
+                    patch.object(main, "_warm_sets_in_background") as mock_sets,
                 ):
                     with TestClient(main.app) as c:
                         self.assertEqual(c.get("/health").status_code, 200)
                     mock_concepts.assert_not_called()
                     mock_set_cards.assert_not_called()
+                    mock_sets.assert_not_called()
 
 
 if __name__ == "__main__":

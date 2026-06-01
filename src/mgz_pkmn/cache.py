@@ -52,14 +52,21 @@ CONCEPT_WARM_STALE_SECONDS = 24 * 60 * 60  # one day — once-per-day startup ga
 # response cache's own TTL: once a set-cards warm pass lands, every
 # entry it primed survives until the API cache itself expires.
 SET_CARDS_WARM_STALE_SECONDS = 7 * 24 * 60 * 60  # one week
+# Set-image warm pass (set logos + symbols, ~200 sets x 2 images = ~400
+# HTTP requests). Same weekly cadence as set-cards: indefinite TTL on the
+# image bytes themselves, but the manifest's freshness gate keeps the
+# runtime lifespan bootstrap from re-walking every container restart.
+SETS_WARM_STALE_SECONDS = 7 * 24 * 60 * 60  # one week
 _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
 _WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
 _CONCEPT_WARM_FILE = "concept_warm.json"
 _SET_CARDS_WARM_FILE = "set_cards_warm.json"
+_SETS_WARM_FILE = "sets_warm.json"
 OVERRIDES_SCHEMA_VERSION = 1
 CONCEPT_WARM_SCHEMA_VERSION = 1
 SET_CARDS_WARM_SCHEMA_VERSION = 1
+SETS_WARM_SCHEMA_VERSION = 1
 _IMAGES_SUBDIR = "images"
 # Allowed image extensions for read-side discovery; write-side derives the
 # extension from the source URL but normalises it through this list so an
@@ -105,6 +112,14 @@ class CacheStats:
     # sets had their full card list primed during the most recent pass.
     set_cards_warm_timestamp: float | None
     set_cards_warm_count: int
+    # Sets (logos/symbols) warm slice — populated from `sets_warm.json`,
+    # written by `pkmn cache warm-sets` and by the runtime startup warm
+    # bootstrap. Tracks how many sets had their logo + symbol images
+    # primed during the most recent pass. None timestamp renders as
+    # "not warmed". Image bytes themselves still carry indefinite TTL —
+    # this manifest only gates the *re-walk* of upstream metadata.
+    sets_warm_timestamp: float | None
+    sets_warm_count: int
 
 
 def _disabled() -> bool:
@@ -750,6 +765,98 @@ def set_cards_warm_is_fresh(*, now: float | None = None) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Sets-warm manifest — records the most recent `warm-sets` (logos+symbols)
+# run. Mirrors the set-cards manifest shape so the stats projection and the
+# freshness gate stay uniform across the three warm slices.
+#
+# This manifest exists because we moved set-image warming from a one-shot
+# build-time step in the Dockerfile to a runtime lifespan bootstrap (see
+# `api.main._warm_sets_in_background` and #369). Without a freshness gate,
+# every container start would re-walk ~200 sets x 2 images — wasted work
+# when the previous pass landed an hour ago. The week-long stale window
+# matches the set-cards slice; both are stable upstream data that only
+# moves when new sets ship.
+# ---------------------------------------------------------------------------
+
+
+def _sets_warm_path() -> Path:
+    return _cache_root_path() / _SETS_WARM_FILE
+
+
+def read_sets_warm() -> dict[str, Any] | None:
+    """Return the parsed sets-warm manifest, or None when absent/malformed.
+
+    Schema (v1):
+        {
+            "version": 1,
+            "timestamp": <unix float>,
+            "sets_warmed": <int>,
+            "logos_cached": <int>,
+            "symbols_cached": <int>,
+            "failures": <int>
+        }
+
+    Same defence-in-depth as the other warm manifests: corrupt files or
+    wrong schema versions are treated as "no manifest" so a bad write
+    doesn't poison the freshness gate."""
+    path = _sets_warm_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or data.get("version") != SETS_WARM_SCHEMA_VERSION:
+        return None
+    return data
+
+
+def write_sets_warm(
+    *,
+    sets_warmed: int,
+    logos_cached: int,
+    symbols_cached: int,
+    failures: int,
+) -> None:
+    """Persist the sets-warm manifest. Best-effort write — failures are
+    silent so a read-only filesystem doesn't crash a successful warm pass
+    that's about to return its result to the caller."""
+    payload = {
+        "version": SETS_WARM_SCHEMA_VERSION,
+        "timestamp": time.time(),
+        "sets_warmed": sets_warmed,
+        "logos_cached": logos_cached,
+        "symbols_cached": symbols_cached,
+        "failures": failures,
+    }
+    root = cache_root()
+    with contextlib.suppress(OSError):
+        (root / _SETS_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def sets_warm_is_fresh(*, now: float | None = None) -> bool:
+    """True when a manifest exists, its timestamp is within the staleness
+    window (1 week, see `SETS_WARM_STALE_SECONDS`), and it recorded at
+    least one successful set walk.
+
+    Same `sets_warmed > 0` guard as the other warm gates — a manifest
+    written after a fully-failed pass (e.g. transient upstream outage)
+    must not suppress the next retry for a full week with no logos on
+    disk."""
+    manifest = read_sets_warm()
+    if manifest is None:
+        return False
+    ts = manifest.get("timestamp")
+    if not isinstance(ts, int | float):
+        return False
+    sets_warmed = manifest.get("sets_warmed")
+    if not isinstance(sets_warmed, int) or sets_warmed <= 0:
+        return False
+    current = now if now is not None else time.time()
+    return (current - ts) < SETS_WARM_STALE_SECONDS
+
+
+# ---------------------------------------------------------------------------
 # Stats — health snapshot for `pkmn cache stats`.
 # ---------------------------------------------------------------------------
 
@@ -818,6 +925,17 @@ def stats() -> CacheStats:
         if isinstance(n, int):
             set_cards_warm_count = n
 
+    sets_warm_timestamp: float | None = None
+    sets_warm_count = 0
+    sw_manifest = read_sets_warm()
+    if sw_manifest is not None:
+        ts = sw_manifest.get("timestamp")
+        if isinstance(ts, int | float):
+            sets_warm_timestamp = float(ts)
+        n = sw_manifest.get("sets_warmed")
+        if isinstance(n, int):
+            sets_warm_count = n
+
     return CacheStats(
         root=root,
         api_entry_count=api_count,
@@ -831,4 +949,6 @@ def stats() -> CacheStats:
         concept_warm_names=concept_warm_names,
         set_cards_warm_timestamp=set_cards_warm_timestamp,
         set_cards_warm_count=set_cards_warm_count,
+        sets_warm_timestamp=sets_warm_timestamp,
+        sets_warm_count=sets_warm_count,
     )

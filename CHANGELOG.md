@@ -30,6 +30,35 @@ Versions follow [Semantic Versioning](https://semver.org/).
   warmed" in amber for the concept and set-cards slices when the
   manifests are missing.
 
+### Changed
+
+- Deploy: **Persistent disk + runtime-only cache warming** — the Render
+  deployment now provisions a 10 GB persistent disk mounted at
+  `/var/cache` and points `XDG_CACHE_HOME` at it
+  ([#369](https://github.com/mgzwarrior/mgz-pkmn/issues/369)). The
+  cache root resolves to `/var/cache/mgz-pkmn`, so every slice
+  (API responses, set images, card images, URL overrides, the
+  run-history SQLite file, all three warm-pass manifests) now survives
+  redeploys instead of being thrown away on every push to `main`. The
+  Dockerfile's build-time `pkmn cache warm-sets` step is retired in
+  favor of a runtime lifespan bootstrap (`_warm_sets_in_background`)
+  gated by a new `sets_warm.json` freshness manifest (1-week TTL).
+  Image is ~20 MB smaller and builds ~30s faster as a result; a single
+  warm pass after the first deploy now serves every subsequent deploy
+  until the manifest expires. Foundation for the
+  [pre-Scrydex catalog-warm epic #368](https://github.com/mgzwarrior/mgz-pkmn/issues/368).
+
+### Added
+
+- CLI / API / web: **`sets_warm.json` manifest + new `sets_warm_*`
+  fields** on `CacheStats`. Surfaced as a new line on
+  [`pkmn cache stats`](src/mgz_pkmn/cli.py) ("Sets: 173 sets · warmed
+  Xh ago" or "not warmed"), a new row on the SPA's Cache Stats panel
+  ([`web/src/components/SettingsDrawer.tsx`](web/src/components/SettingsDrawer.tsx)),
+  and two new fields on `GET /api/v1/cache/stats`. Operators now have
+  the same freshness signal for the set-image slice that the concept
+  and set-cards slices already had.
+
 ### Fixed
 
 - API: **`MGZ_PKMN_WARM_ON_STARTUP=1` actually fires again** — the

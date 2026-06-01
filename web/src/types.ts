@@ -202,11 +202,12 @@ export interface ChangelogRelease {
 
 /**
  * Snapshot returned by `GET /api/v1/cache/stats` — same shape as
- * `pkmn cache stats --json`. Counts are always present. Three fields
+ * `pkmn cache stats --json`. Counts are always present. Four fields
  * can be `null`:
  * - `api_oldest_mtime` when the API cache holds no entries
  * - `concept_warm_timestamp` when no concept-warm pass has been recorded
  * - `set_cards_warm_timestamp` when no set-cards-warm pass has been recorded
+ * - `sets_warm_timestamp` when no sets-warm pass has been recorded
  */
 export interface CacheStats {
   root: string
@@ -221,6 +222,8 @@ export interface CacheStats {
   concept_warm_names: number
   set_cards_warm_timestamp: number | null
   set_cards_warm_count: number
+  sets_warm_timestamp: number | null
+  sets_warm_count: number
 }
 
 /**
