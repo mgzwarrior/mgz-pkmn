@@ -18,6 +18,8 @@ Phase 2 of the pre-Scrydex catalog-warm epic (#368) — partner of the
 from __future__ import annotations
 
 import mimetypes
+import os
+import re
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Response
@@ -81,6 +83,18 @@ _CARD_ID_PATH = PathParam(pattern=r"^[A-Za-z0-9_-]{1,96}$", max_length=96)
 # error rather than a 404 the operator has to debug.
 _SIZE_BY_NAME = {"large": LARGE_CATEGORY, "small": SMALL_CATEGORY}
 
+# Re-validation regex used by the route. FastAPI's `_CARD_ID_PATH`
+# already enforces the same pattern at request parse time, but the
+# explicit `re.fullmatch` inside the handler is the canonical
+# sanitiser shape CodeQL's path-injection query recognises — and the
+# guard is genuinely cheap, so the belt-and-braces is free.
+_SAFE_CARD_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,96}$")
+
+# Extensions to probe in cache lookup order. Mirrors
+# `cache._IMAGE_EXTENSIONS` but kept local so the route never imports
+# a path-shaped value from a tainted code path.
+_PROBE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+
 
 @router.get("/cards/{card_id}/image/{size}")
 async def get_card_image(
@@ -99,32 +113,61 @@ async def get_card_image(
     Returns the bytes via `Response` rather than `FileResponse` because
     card-image payloads are small (~80-150 KB) and reading them into
     memory keeps the user-controlled `card_id` from flowing into
-    FastAPI's file-serving sink — CodeQL's path-traversal query
-    doesn't recognise the regex on `_CARD_ID_PATH` as a sanitiser
-    even though it makes traversal structurally impossible. Read +
-    return is the cleanest sever of that taint flow.
+    FastAPI's file-serving sink.
+
+    The route resolves the filename itself rather than delegating to
+    `disk_cache.read_image` — `read_image` calls `_safe_image_key`
+    (an `re.sub`-based collapse), which is a real sanitiser but is
+    not one CodeQL's path-injection query recognises. The explicit
+    `re.fullmatch` guard + `os.path.commonpath` containment check
+    below ARE recognised sanitisers, so the analyzer can prove the
+    file open is safe.
     """
+    # Re-validate explicitly. FastAPI's path regex already enforced
+    # this, but the in-handler check is what CodeQL's tainted_path
+    # query needs to see as a sanitiser barrier.
+    if not _SAFE_CARD_ID_RE.fullmatch(card_id):
+        raise HTTPException(status_code=404)
+
     category = _SIZE_BY_NAME[size]
-    path = disk_cache.read_image(category, card_id)
-    if path is None:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                f"no cached {size} image for card '{card_id}' — "
-                "run `pkmn cache warm-card-images` to populate the catalog"
-            ),
+    cache_dir = os.path.realpath(
+        os.path.join(str(disk_cache._cache_root_path()), "images", category)
+    )
+
+    for ext in _PROBE_EXTENSIONS:
+        candidate = os.path.realpath(os.path.join(cache_dir, card_id + ext))
+        # `os.path.commonpath([safe_root, candidate]) == safe_root` is
+        # the canonical CodeQL-recognised containment check. After it
+        # passes, `candidate` is provably inside `cache_dir`.
+        try:
+            if os.path.commonpath([cache_dir, candidate]) != cache_dir:
+                continue
+        except ValueError:
+            # commonpath raises on mixed drives (Windows) — treat as miss.
+            continue
+        if not os.path.isfile(candidate):
+            continue
+        try:
+            with open(candidate, "rb") as f:
+                content = f.read()
+        except OSError:
+            # File vanished between the existence check and the read
+            # (concurrent eviction, network FS hiccup). Treat as a miss.
+            continue
+        media_type, _ = mimetypes.guess_type(candidate)
+        return Response(
+            content=content,
+            media_type=media_type or "application/octet-stream",
+            # 30-day immutable browser cache — card images never change
+            # once a set ships. Mirrors `get_set_logo` in
+            # api/routes/sets.py.
+            headers={"Cache-Control": "public, max-age=2592000, immutable"},
         )
-    try:
-        content = path.read_bytes()
-    except OSError:
-        # File vanished between the existence check and the read
-        # (concurrent eviction, network FS hiccup). Treat as a miss.
-        raise HTTPException(status_code=404) from None
-    media_type, _ = mimetypes.guess_type(path.name)
-    return Response(
-        content=content,
-        media_type=media_type or "application/octet-stream",
-        # 30-day immutable browser cache — card images never change once
-        # a set ships. Mirrors `get_set_logo` in api/routes/sets.py.
-        headers={"Cache-Control": "public, max-age=2592000, immutable"},
+
+    raise HTTPException(
+        status_code=404,
+        detail=(
+            f"no cached {size} image for card '{card_id}' — "
+            "run `pkmn cache warm-card-images` to populate the catalog"
+        ),
     )
