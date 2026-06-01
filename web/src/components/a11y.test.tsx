@@ -46,6 +46,8 @@ vi.mock('../api/client', () => ({
     concept_warm_names: 0,
     set_cards_warm_timestamp: null,
     set_cards_warm_count: 0,
+    sets_warm_timestamp: null,
+    sets_warm_count: 0,
   }),
 }))
 

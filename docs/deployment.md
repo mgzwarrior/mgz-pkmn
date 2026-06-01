@@ -134,6 +134,39 @@ hook and Render starts a fresh build from `main`.
 > Fine for hobby use. Upgrade to *Starter* (or move to Fly.io) if cold
 > starts hurt.
 
+## Persistent disk + cache location
+
+The deployment provisions a Render persistent disk mounted at
+`/var/cache` (declared in [`render.yaml`](../render.yaml)). `XDG_CACHE_HOME`
+is set to that same mount path, and [`src/mgz_pkmn/cache.py::_cache_root_path`](../src/mgz_pkmn/cache.py)
+reads `XDG_CACHE_HOME` as the *parent* directory and appends `mgz-pkmn`,
+so the project cache root resolves to `/var/cache/mgz-pkmn` on the
+deployed instance. Everything under that path — API response cache,
+image cache (set logos/symbols, card art), URL overrides, the run-history
+SQLite file, the three warm-pass manifests — persists across redeploys.
+
+If you change the mount path in Render, update `XDG_CACHE_HOME` to match
+in the same edit. The cache module appends `mgz-pkmn` itself, so always
+point the env var at the *parent* directory; pointing it at
+`/var/cache/mgz-pkmn` would produce `/var/cache/mgz-pkmn/mgz-pkmn`.
+
+### Cache warming
+
+Three runtime warm passes fire on startup when `MGZ_PKMN_WARM_ON_STARTUP=1`
+(set by default in `render.yaml`). Each writes its own freshness manifest
+so container restarts within the staleness window skip the re-walk:
+
+| Pass | Manifest | Stale window | Walks |
+|---|---|---|---|
+| Concepts | `concept_warm.json` | 24 h | ~200 concept-name → card-id lookups |
+| Set cards | `set_cards_warm.json` | 7 d | Per-set card-list JSON (~170 sets) |
+| Sets (images) | `sets_warm.json` | 7 d | Set logo + symbol images (~200 × 2) |
+
+The set-image warm previously lived as a Dockerfile build-time step.
+With the persistent disk in place it runs at runtime onto durable
+storage — a single warm after the first deploy serves every subsequent
+deploy until the manifest TTL expires.
+
 ## Inspecting deployed cache state
 
 `pkmn cache stats` reads `~/.cache/mgz-pkmn` on the local filesystem, so
@@ -146,8 +179,8 @@ curl -s https://mgz-pkmn.onrender.com/api/v1/cache/stats | jq
 
 Same field names as `pkmn cache stats --json`, so the two surfaces are
 pipe-compatible. Use it to confirm `MGZ_PKMN_WARM_ON_STARTUP` actually
-landed (`concept_warm_timestamp` / `set_cards_warm_timestamp` are
-non-null after a successful warm pass) and to spot drift between the
-entry counts you expected and what's actually on disk. The response is
-served with `Cache-Control: no-store` because the underlying state
-changes on every warm pass and cache write.
+landed (`concept_warm_timestamp` / `set_cards_warm_timestamp` /
+`sets_warm_timestamp` are non-null after a successful warm pass) and to
+spot drift between the entry counts you expected and what's actually on
+disk. The response is served with `Cache-Control: no-store` because the
+underlying state changes on every warm pass and cache write.

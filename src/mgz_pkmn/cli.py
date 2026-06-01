@@ -1050,6 +1050,25 @@ def cache_stats_command(as_json: bool) -> None:
             + f"{s.set_cards_warm_count} sets · warmed "
             + f"{_format_age(s.set_cards_warm_timestamp)}"
         )
+    # Set-images warm slice — sourced from `sets_warm.json`, written by
+    # both `pkmn cache warm-sets` and the runtime startup bootstrap. The
+    # image bytes themselves have indefinite TTL (Images: line above), but
+    # this manifest tracks when the catalog was last walked end-to-end so
+    # operators can see whether new sets have been picked up.
+    if s.sets_warm_timestamp is None:
+        click.echo(
+            "  "
+            + click.style("Sets:          ", fg="bright_black")
+            + click.style("not warmed", fg="yellow")
+            + " · run `pkmn cache warm-sets` to prime"
+        )
+    else:
+        click.echo(
+            "  "
+            + click.style("Sets:          ", fg="bright_black")
+            + f"{s.sets_warm_count} sets · warmed "
+            + f"{_format_age(s.sets_warm_timestamp)}"
+        )
 
 
 @cache_group.command(name="clear", context_settings={"help_option_names": ["-h", "--help"]})
@@ -1121,6 +1140,17 @@ def cache_warm_sets_command(api_key: str | None, verbose: bool) -> None:
 
     if result.sets == 0:
         raise click.ClickException("pokemontcg.io returned no sets")
+
+    # Persist the manifest so `pkmn cache stats` and the runtime startup
+    # gate (`sets_warm_is_fresh`) can report freshness and skip re-walks
+    # within the staleness window. Matches the concept-warm / set-cards-
+    # warm flow.
+    disk_cache.write_sets_warm(
+        sets_warmed=result.sets,
+        logos_cached=result.logos_cached,
+        symbols_cached=result.symbols_cached,
+        failures=result.failures,
+    )
 
     click.secho("  ✓ ", fg="green", nl=False)
     click.echo(

@@ -38,34 +38,16 @@ COPY CHANGELOG.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --extra api --no-dev --frozen
 
-# Bake a warmed set-image cache into the image so the deployed service starts
-# hot. Render's free plan has no persistent disk, so without this every cold
-# start (deploy or post-idle spin-up) pays the full image-download cost on
-# the first set lookup. The warm pass walks pokemontcg.io's set catalog
-# (~200 sets) and persists each logo+symbol — ~20 MB total on disk.
-#
-# `POKEMONTCG_IO_API_KEY` is passed in as a build arg (Render reads it from
-# the service's envVars). When unset (e.g. a local `docker build` with no
-# key), the warm step is skipped cleanly so the image still builds — it just
-# starts with a cold cache.
-#
-# The warm step is best-effort: `warm-sets` already retries transient
-# pokemontcg.io timeouts, but a sustained upstream outage would still exit
-# non-zero. A cold cache is an acceptable degraded state (see the no-key
-# branch below), so trap that exit with `|| echo` rather than letting a
-# flaky API fail the whole deploy.
-#
-# Sits before `COPY api/` and `COPY --from=web-builder` so layer caching
-# isn't invalidated by every api/ or web/ change — only by src/ or deps.
-ARG POKEMONTCG_IO_API_KEY=""
-ENV XDG_CACHE_HOME=/app/.cache
-RUN if [ -n "$POKEMONTCG_IO_API_KEY" ]; then \
-        POKEMONTCG_IO_API_KEY="$POKEMONTCG_IO_API_KEY" \
-            uv run pkmn cache warm-sets \
-            || echo "cache warm failed (pokemontcg.io unreachable?); image will start with a cold cache"; \
-    else \
-        echo "POKEMONTCG_IO_API_KEY not set at build time; skipping cache warm (image will start with a cold cache)"; \
-    fi
+# Note: the previous Dockerfile baked a warmed set-image cache into the
+# image with a build-time `pkmn cache warm-sets` step. That made sense when
+# Render's free tier reset the writable filesystem on every redeploy. With
+# the persistent disk allocated in #369 (mounted at `/var/cache`, with
+# `XDG_CACHE_HOME=/var/cache` in render.yaml's envVars), set logos and
+# symbols are now warmed at runtime by the lifespan bootstrap in
+# `api.main._warm_sets_in_background` onto durable storage — a single warm
+# pass after the first deploy serves every subsequent deploy until the
+# `sets_warm.json` manifest's TTL (1 week) expires. Image is ~20 MB smaller
+# and builds ~30 s faster as a result.
 
 # Copy API code and the built SPA from stage 1.
 COPY api/ ./api/
