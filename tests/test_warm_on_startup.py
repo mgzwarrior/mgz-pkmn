@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 
 from mgz_pkmn import cache as disk_cache
+from mgz_pkmn.card_images import WarmCardImagesResult
 from mgz_pkmn.lookup import WarmCardsResult
 from mgz_pkmn.set_cards import WarmResult
 
@@ -503,6 +504,121 @@ class WarmCardsBackgroundBodyTests(unittest.TestCase):
             patch.object(main._log, "info") as mock_log_info,
         ):
             main._warm_cards_in_background()
+
+        mock_client_cls.assert_not_called()
+        mock_warm.assert_not_called()
+        mock_threading.Thread.assert_not_called()
+        fresh_logs = [call for call in mock_log_info.call_args_list if "fresh" in str(call)]
+        self.assertEqual(len(fresh_logs), 1)
+
+
+class WarmCardImagesBackgroundBodyTests(unittest.TestCase):
+    """Same pattern as WarmCardsBackgroundBodyTests — drive the body of
+    `_warm_card_images_in_background` synchronously by patching
+    `threading.Thread` so `.start()` invokes the target inline. Covers
+    the inner _run (TCGClient → warm_card_images → write_card_images_warm
+    + log) that the lifespan-level tests mock at the boundary."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(disk_cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(disk_cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[disk_cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+
+    def _make_sync_thread(self):
+        def _thread_factory(*, target=None, name=None, daemon=None, **_kwargs):
+            instance = MagicMock()
+            instance.start.side_effect = lambda: target() if target else None
+            return instance
+
+        return _thread_factory
+
+    def test_card_images_warm_body_passes_throttle_and_writes_manifest(self) -> None:
+        from api import main
+
+        fake_result = WarmCardImagesResult(
+            sets_attempted=173,
+            images_warmed=36_000,
+            images_failed=4,
+            bytes_written=3_500_000_000,
+            budget_reached=False,
+            sets_failed=["ghost"],
+        )
+        with (
+            patch.object(main, "threading") as mock_threading,
+            patch.object(main, "TCGClient") as mock_client_cls,
+            patch.object(main, "warm_card_images", return_value=fake_result) as mock_warm,
+            patch.object(main._log, "info") as mock_log,
+        ):
+            mock_threading.Thread.side_effect = self._make_sync_thread()
+            main._warm_card_images_in_background()
+
+        mock_client_cls.assert_called_once()
+        # Throttle is non-zero so a no-API-key deploy doesn't burst
+        # through pokemontcg.io's image CDN rate limit during a fresh
+        # multi-hour pass.
+        mock_warm.assert_called_once()
+        _, kwargs = mock_warm.call_args
+        self.assertGreater(kwargs.get("throttle_ms", 0), 0)
+
+        manifest = disk_cache.read_card_images_warm()
+        self.assertIsNotNone(manifest)
+        assert manifest is not None
+        self.assertEqual(manifest["images_warmed"], 36_000)
+        self.assertEqual(manifest["images_failed"], 4)
+        self.assertEqual(manifest["bytes_written"], 3_500_000_000)
+        self.assertFalse(manifest["budget_reached"])
+        self.assertEqual(manifest["sets_failed"], ["ghost"])
+
+        complete_logs = [call for call in mock_log.call_args_list if "complete" in str(call)]
+        self.assertEqual(len(complete_logs), 1)
+
+    def test_card_images_warm_body_swallows_upstream_exception(self) -> None:
+        from api import main
+
+        with (
+            patch.object(main, "threading") as mock_threading,
+            patch.object(main, "TCGClient"),
+            patch.object(main, "warm_card_images", side_effect=RuntimeError("CDN down")),
+            patch.object(main._log, "exception") as mock_log_exception,
+        ):
+            mock_threading.Thread.side_effect = self._make_sync_thread()
+            main._warm_card_images_in_background()
+
+        self.assertIsNone(disk_cache.read_card_images_warm())
+        mock_log_exception.assert_called_once()
+
+    def test_card_images_warm_skipped_when_manifest_is_fresh(self) -> None:
+        from api import main
+
+        disk_cache.write_card_images_warm(
+            images_warmed=36_000,
+            images_failed=0,
+            bytes_written=3_500_000_000,
+            budget_reached=False,
+            sets_attempted=173,
+            sets_failed=[],
+        )
+
+        with (
+            patch.object(main, "threading") as mock_threading,
+            patch.object(main, "TCGClient") as mock_client_cls,
+            patch.object(main, "warm_card_images") as mock_warm,
+            patch.object(main._log, "info") as mock_log_info,
+        ):
+            main._warm_card_images_in_background()
 
         mock_client_cls.assert_not_called()
         mock_warm.assert_not_called()

@@ -946,5 +946,227 @@ class CacheWarmCardsCommandTests(unittest.TestCase):
         self.assertIn("no sets to warm", result.output)
 
 
+# ---------------------------------------------------------------------------
+# `pkmn cache warm-card-images` — Phase 2 of the pre-Scrydex catalog-warm
+# epic (#371). Mirrors CacheWarmCardsCommandTests above: mock the upstream
+# `warm_card_images` call, assert the CLI reports the result + writes the
+# manifest, and exercise the flag parsers (--sizes / --max-bytes).
+# ---------------------------------------------------------------------------
+
+
+class CacheWarmCardImagesCommandTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+
+    def test_warm_card_images_writes_manifest_and_reports_summary(self) -> None:
+        from unittest.mock import patch as _patch
+
+        from mgz_pkmn.card_images import WarmCardImagesResult
+
+        fake_result = WarmCardImagesResult(
+            sets_attempted=3,
+            images_warmed=120,
+            images_failed=2,
+            bytes_written=10 * 1024 * 1024,
+            budget_reached=False,
+            sets_failed=[],
+        )
+        with _patch("mgz_pkmn.cli.warm_card_images", return_value=fake_result):
+            result = CliRunner().invoke(
+                cli, ["cache", "warm-card-images", "--set", "sv8", "--set", "sv7", "--set", "base1"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("3 sets", result.output)
+        self.assertIn("120 images warmed", result.output)
+        self.assertIn("10.0 MB downloaded", result.output)
+        self.assertIn("2 failed", result.output)
+
+        manifest = cache.read_card_images_warm()
+        self.assertIsNotNone(manifest)
+        assert manifest is not None
+        self.assertEqual(manifest["images_warmed"], 120)
+        self.assertEqual(manifest["bytes_written"], 10 * 1024 * 1024)
+        self.assertFalse(manifest["budget_reached"])
+
+    def test_warm_card_images_max_bytes_and_sizes_parsers(self) -> None:
+        """Exercise --max-bytes (parses 100MB → bytes) and --sizes small."""
+        from unittest.mock import patch as _patch
+
+        from mgz_pkmn.card_images import WarmCardImagesResult
+
+        captured: dict = {}
+
+        def fake_warm(pkmn, **kwargs):
+            captured.update(kwargs)
+            return WarmCardImagesResult(
+                sets_attempted=1,
+                images_warmed=1,
+                images_failed=0,
+                bytes_written=500,
+                budget_reached=True,
+                sets_failed=[],
+            )
+
+        with _patch("mgz_pkmn.cli.warm_card_images", side_effect=fake_warm):
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "cache",
+                    "warm-card-images",
+                    "--set",
+                    "sv8",
+                    "--max-bytes",
+                    "100MB",
+                    "--sizes",
+                    "small",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(captured["max_bytes"], 100 * 1024 * 1024)
+        self.assertEqual(captured["sizes"], ("small",))
+        # Section header reflects both flags.
+        self.assertIn("sizes=small", result.output)
+        self.assertIn("max 100.0 MB", result.output)
+        # `budget_reached=True` lands in the result line.
+        self.assertIn("budget reached", result.output)
+
+    def test_warm_card_images_invalid_sizes_rejected_at_parse_time(self) -> None:
+        result = CliRunner().invoke(cli, ["cache", "warm-card-images", "--sizes", "huge"])
+        self.assertNotEqual(result.exit_code, 0)
+        # Click renders BadParameter as 'Invalid value for ...'.
+        self.assertIn("unknown size", result.output.lower())
+
+    def test_warm_card_images_invalid_max_bytes_rejected_at_parse_time(self) -> None:
+        result = CliRunner().invoke(
+            cli, ["cache", "warm-card-images", "--max-bytes", "five gigabytes"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("invalid byte budget", result.output.lower())
+
+    def test_warm_card_images_verbose_prints_per_set_progress_and_missed_dump(self) -> None:
+        from unittest.mock import patch as _patch
+
+        from mgz_pkmn.card_images import WarmCardImagesResult
+
+        def fake_warm(pkmn, **kwargs):
+            kwargs["on_progress"](1, 2, "sv8")
+            kwargs["on_progress"](2, 2, "ghost")
+            return WarmCardImagesResult(
+                sets_attempted=2,
+                images_warmed=4,
+                images_failed=0,
+                bytes_written=4096,
+                budget_reached=False,
+                sets_failed=["ghost"],
+            )
+
+        with _patch("mgz_pkmn.cli.warm_card_images", side_effect=fake_warm):
+            result = CliRunner().invoke(
+                cli,
+                ["cache", "warm-card-images", "--set", "sv8", "--set", "ghost", "-v"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("[1/2]", result.output)
+        self.assertIn("sv8", result.output)
+        self.assertIn("[2/2]", result.output)
+        self.assertIn("missed:", result.output)
+        self.assertIn("ghost", result.output)
+
+    def test_warm_card_images_surfaces_request_failure(self) -> None:
+        from unittest.mock import patch as _patch
+
+        import requests as _requests
+
+        with _patch(
+            "mgz_pkmn.cli.warm_card_images",
+            side_effect=_requests.ConnectionError("network down"),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-card-images"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("card-image warm failed", result.output)
+        self.assertIn("network down", result.output)
+
+    def test_warm_card_images_rejects_empty_pass(self) -> None:
+        from unittest.mock import patch as _patch
+
+        from mgz_pkmn.card_images import WarmCardImagesResult
+
+        with _patch(
+            "mgz_pkmn.cli.warm_card_images",
+            return_value=WarmCardImagesResult(
+                sets_attempted=0,
+                images_warmed=0,
+                images_failed=0,
+                bytes_written=0,
+                budget_reached=False,
+                sets_failed=[],
+            ),
+        ):
+            result = CliRunner().invoke(cli, ["cache", "warm-card-images"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("no sets to warm", result.output)
+
+
+# ---------------------------------------------------------------------------
+# `pkmn cache stats` rendering of the card_images warm slice (#371).
+# ---------------------------------------------------------------------------
+
+
+class CacheStatsCardImagesRowTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        self._tmp.cleanup()
+
+    def test_stats_shows_not_warmed_when_no_manifest(self) -> None:
+        result = CliRunner().invoke(cli, ["cache", "stats"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Card images:", result.output)
+        self.assertIn("not warmed", result.output)
+        self.assertIn("warm-card-images", result.output)
+
+    def test_stats_shows_count_bytes_and_budget_when_manifest_present(self) -> None:
+        cache.write_card_images_warm(
+            images_warmed=200,
+            images_failed=0,
+            bytes_written=3 * 1024 * 1024 * 1024,
+            budget_reached=True,
+            sets_attempted=10,
+            sets_failed=[],
+        )
+        result = CliRunner().invoke(cli, ["cache", "stats"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("200 images", result.output)
+        self.assertIn("3.0 GB", result.output)
+        self.assertIn("budget reached", result.output)
+
+
 if __name__ == "__main__":
     unittest.main()

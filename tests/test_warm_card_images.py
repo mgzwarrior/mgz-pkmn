@@ -341,6 +341,95 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
         self.assertEqual(result.sets_failed, ["ghost"])
         self.assertEqual(result.images_warmed, 0)
 
+    def test_progress_callback_fires_once_per_set(self) -> None:
+        cards = [_card("sv8", 1)]
+        calls: list[tuple[int, int, str]] = []
+        with (
+            patch.object(TCGClient, "search_all", return_value=cards),
+            self._patch_download(),
+        ):
+            warm_card_images(
+                TCGClient(),
+                set_ids=["sv8", "sv7"],
+                on_progress=lambda i, t, s: calls.append((i, t, s)),
+            )
+        self.assertEqual([c[2] for c in calls], ["sv8", "sv7"])
+        self.assertEqual(calls[0][:2], (1, 2))
+
+    def test_throttle_sleeps_between_sets_including_empty(self) -> None:
+        from mgz_pkmn import card_images as card_images_mod_local
+
+        with (
+            patch.object(
+                TCGClient,
+                "search_all",
+                side_effect=[[_card("sv8", 1)], []],  # one populated, one empty
+            ),
+            self._patch_download(),
+            patch.object(card_images_mod_local.time, "sleep") as mock_sleep,
+        ):
+            warm_card_images(TCGClient(), set_ids=["sv8", "ghost"], throttle_ms=100)
+        # One sleep after the populated set, one after the empty set.
+        self.assertEqual(mock_sleep.call_count, 2)
+        for call in mock_sleep.call_args_list:
+            self.assertAlmostEqual(call.args[0], 0.1, places=3)
+
+    def test_card_without_id_is_skipped(self) -> None:
+        cards = [{"id": None, "images": {"small": "https://x/sm.png"}}]
+        with (
+            patch.object(TCGClient, "search_all", return_value=cards),
+            self._patch_download(),
+        ):
+            result = warm_card_images(TCGClient(), set_ids=["sv8"])
+        self.assertEqual(result.images_warmed, 0)
+        self.assertEqual(result.images_failed, 0)
+
+    def test_write_image_failure_counts_as_images_failed(self) -> None:
+        # If disk_cache.write_image returns None (read-only fs, serialisation
+        # bug), the warmer must not count the image as warmed.
+        cards = [_card("sv8", 1)]
+        with (
+            patch.object(TCGClient, "search_all", return_value=cards),
+            self._patch_download(),
+            patch.object(disk_cache, "write_image", return_value=None),
+        ):
+            result = warm_card_images(TCGClient(), set_ids=["sv8"])
+        self.assertEqual(result.images_warmed, 0)
+        self.assertEqual(result.images_failed, 2)
+
+
+class DownloadBytesTests(unittest.TestCase):
+    """Exercise the real `_download_bytes` helper with a stub session so
+    both the success and the RequestException branches are covered."""
+
+    def test_returns_response_content_on_success(self) -> None:
+        from mgz_pkmn import card_images as card_images_mod_local
+
+        class StubResp:
+            content = b"hello"
+
+            def raise_for_status(self):
+                pass
+
+        class StubSession:
+            def get(self, _url, timeout=30.0):
+                return StubResp()
+
+        out = card_images_mod_local._download_bytes(StubSession(), "https://x/y.png")
+        self.assertEqual(out, b"hello")
+
+    def test_returns_none_on_requests_exception(self) -> None:
+        import requests as req_lib
+
+        from mgz_pkmn import card_images as card_images_mod_local
+
+        class StubSession:
+            def get(self, _url, timeout=30.0):
+                raise req_lib.ConnectionError("down")
+
+        out = card_images_mod_local._download_bytes(StubSession(), "https://x/y.png")
+        self.assertIsNone(out)
+
 
 # ---------------------------------------------------------------------------
 # parse_bytes_budget
@@ -380,6 +469,14 @@ class ParseBytesBudgetTests(unittest.TestCase):
             parse_bytes_budget("-1")
         with self.assertRaises(ValueError):
             parse_bytes_budget("-1024")
+
+    def test_non_numeric_with_suffix_raises(self) -> None:
+        # The numeric prefix must parse as float — `foo MB` hits the
+        # except ValueError inside the suffix branch.
+        with self.assertRaises(ValueError):
+            parse_bytes_budget("foo MB")
+        with self.assertRaises(ValueError):
+            parse_bytes_budget("abcGB")
 
 
 # ---------------------------------------------------------------------------

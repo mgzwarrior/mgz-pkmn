@@ -16,6 +16,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -99,6 +100,25 @@ class CardImageRouteTests(_IsolatedCacheMixin):
             # only allows `[A-Za-z0-9_-]`).
             resp = client.get("/api/v1/cards/..%2Fevil/image/large")
         self.assertIn(resp.status_code, (404, 422))
+
+    def test_oserror_on_read_falls_through_to_404(self) -> None:
+        # File is on disk at probe time but raises OSError on open
+        # (concurrent eviction, NFS hiccup). Route must treat as a
+        # miss rather than 500.
+        disk_cache.write_image(LARGE_CATEGORY, "sv8-2", b"x", ext=".png")
+        original_open = open
+
+        def flaky_open(path, *args, **kwargs):
+            if "sv8-2.png" in str(path):
+                raise OSError("evicted between isfile and read")
+            return original_open(path, *args, **kwargs)
+
+        with (
+            unittest.mock.patch("api.routes.cards.open", side_effect=flaky_open),
+            TestClient(app) as client,
+        ):
+            resp = client.get("/api/v1/cards/sv8-2/image/large")
+        self.assertEqual(resp.status_code, 404)
 
 
 # ---------------------------------------------------------------------------
