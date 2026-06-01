@@ -142,14 +142,39 @@ class SPAStaticFiles(StaticFiles):
         return response
 
 
+def _warm_on_startup_enabled() -> bool:
+    """True when `MGZ_PKMN_WARM_ON_STARTUP` is set to a truthy value.
+
+    Centralised so the lifespan hook and any future caller (tests, an
+    admin endpoint) share the same parse rules instead of re-implementing
+    them inline.
+    """
+    return os.environ.get(_WARM_ON_STARTUP_ENV, "").strip() in ("1", "true", "True")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Startup/shutdown hook.
 
-    On startup, runs `alembic upgrade head` against the configured DB under
-    a cross-worker lock (see ADR-0013 and `api.db.migrate`). Set
-    `MGZ_PKMN_AUTOMIGRATE=0` to skip — useful when migrations are run as a
-    prestart step instead (init containers, Render pre-deploy, etc.).
+    On startup, in order:
+
+    1. Runs `alembic upgrade head` against the configured DB under a
+       cross-worker lock (see ADR-0013 and `api.db.migrate`). Set
+       `MGZ_PKMN_AUTOMIGRATE=0` to skip — useful when migrations are run
+       as a prestart step instead (init containers, Render pre-deploy,
+       etc.).
+    2. If `MGZ_PKMN_WARM_ON_STARTUP` is truthy (`1`, `true`, or `True`
+       — see `_warm_on_startup_enabled`), kicks off the concept and
+       set-cards warm passes on background daemon threads so first-use
+       lookups land on a warm cache. Each warmer has its own freshness
+       manifest (24 h concepts / 1 week set-cards), so containers
+       starting within the window skip the re-walk and log "already
+       fresh". These were previously wired via `@app.on_event("startup")`
+       but Starlette silently drops `on_event` handlers when a custom
+       `lifespan` is provided (see #367), so the warm pass never fired
+       on a deployed instance — visible as `concept_warm_timestamp` /
+       `set_cards_warm_timestamp` staying `null` on
+       `GET /api/v1/cache/stats` despite the env var being set.
     """
     if migrate.automigrate_enabled():
         try:
@@ -159,6 +184,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             raise
     else:
         _log.info("MGZ_PKMN_AUTOMIGRATE=0 — skipping startup migrations")
+
+    if _warm_on_startup_enabled():
+        _warm_concepts_in_background()
+        _warm_set_cards_in_background()
+
     yield
 
 
@@ -183,19 +213,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Opt-in startup hook: when MGZ_PKMN_WARM_ON_STARTUP=1, kick off both the
-# concept warm and the set-cards warm in the background so first-use
-# lookups served by this process are cache hits. Each warmer has its own
-# freshness manifest (24 h for concepts, 1 week for set cards) so the
-# heavier one doesn't re-thrash on every `uvicorn --reload` cycle.
-if os.environ.get(_WARM_ON_STARTUP_ENV, "").strip() in ("1", "true", "True"):
-
-    @app.on_event("startup")
-    def _startup_warm() -> None:
-        _warm_concepts_in_background()
-        _warm_set_cards_in_background()
-
 
 app.include_router(parse.router, prefix="/api/v1", tags=["parse"])
 app.include_router(lookup.router, prefix="/api/v1", tags=["lookup"])
