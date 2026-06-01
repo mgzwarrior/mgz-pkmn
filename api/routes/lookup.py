@@ -29,6 +29,7 @@ from mgz_pkmn.spreadsheet import Row
 from ..db.models import Run
 from ..db.serialize import build_run_summary, row_to_run_row
 from ..db.session import get_session_factory
+from .cards import rewrite_card_image_urls
 
 logger = logging.getLogger(__name__)
 
@@ -112,9 +113,12 @@ def _terminal_stage(matched: bool, reason: str) -> str:
 def _row_to_dict(row: Row, reason: str) -> dict[str, Any]:
     card = row.card or {}
     matched = row.card is not None
+    # Rewrite cached image URLs to our self-hosted route (#371). Cache
+    # miss leaves the upstream URL in place so the SPA still renders.
+    serialised_card = rewrite_card_image_urls(card if card else None)
     return {
         "query": _query_to_dict(row.query),
-        "card": card if card else None,
+        "card": serialised_card,
         "pricing": _pricing_to_dict(row.pricing),
         "tag": row.tag,
         "matched": matched,

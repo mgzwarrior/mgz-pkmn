@@ -37,6 +37,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from mgz_pkmn import cache as disk_cache
+from mgz_pkmn.card_images import SMALL_CATEGORY
 from mgz_pkmn.pricing import extract_pricing
 from mgz_pkmn.sources import TCGClient
 
@@ -165,19 +166,25 @@ def _trim_card(card: dict[str, Any]) -> dict[str, Any]:
     grid, filter chips, or add-to-list bridge actually uses."""
     images = card.get("images") or {}
     pricing = extract_pricing(card, None)
+    card_id = card.get("id")
+    # `images.small` is the thumbnail-sized variant pokemontcg.io
+    # exposes (~245x342). The grid uses it directly — no extra
+    # server-side resize. `large` is intentionally omitted; the
+    # full-size art lives behind a single-card hover/click.
+    thumb = images.get("small")
+    # Phase 2 (#371): rewrite to our self-hosted route when the image
+    # is cached on disk. Cache miss leaves the upstream URL in place
+    # so a cold cache still renders a working thumb.
+    if thumb and card_id and disk_cache.read_image(SMALL_CATEGORY, card_id) is not None:
+        thumb = f"/api/v1/cards/{card_id}/image/small"
     return {
-        "id": card.get("id"),
+        "id": card_id,
         "name": card.get("name"),
         "number": card.get("number"),
         "rarity": card.get("rarity"),
         "supertype": card.get("supertype"),
         "subtypes": card.get("subtypes") or [],
-        # `images.small` is the thumbnail-sized variant pokemontcg.io
-        # exposes (~245x342). The grid uses it directly — no extra
-        # server-side resize. `large` is intentionally omitted; the
-        # full-size art lives behind a single-card hover/click and can
-        # be lazy-fetched from pokemontcg.io's CDN directly.
-        "thumb": images.get("small"),
+        "thumb": thumb,
         "market": pricing.market,
     }
 

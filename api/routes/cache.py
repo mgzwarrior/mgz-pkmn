@@ -52,6 +52,10 @@ def _zeroed_snapshot() -> disk_cache.CacheStats:
         card_warm_timestamp=None,
         card_warm_count=0,
         card_warm_failed_count=0,
+        card_images_warm_timestamp=None,
+        card_images_warm_count=0,
+        card_images_warm_bytes=0,
+        card_images_warm_budget_reached=False,
     )
 
 
