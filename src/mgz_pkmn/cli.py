@@ -17,6 +17,7 @@ import requests
 from . import __version__
 from . import cache as disk_cache
 from .binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
+from .card_images import DEFAULT_SIZES, parse_bytes_budget, warm_card_images
 from .checklist import write_checklist_pdf
 from .images import download_image
 from .lookup import (
@@ -1098,6 +1099,30 @@ def cache_stats_command(as_json: bool) -> None:
         if s.card_warm_failed_count:
             line += click.style(f" · {s.card_warm_failed_count} failed", fg="yellow")
         click.echo(line)
+    # Card-images warm slice — sourced from `card_images_warm.json`,
+    # written by `pkmn cache warm-card-images` (Phase 2 of #368). Tracks
+    # how many (card, size) image pairs landed on disk during the most
+    # recent pass plus the total bytes downloaded — the latter is the
+    # one number operators actually want when deciding whether the
+    # persistent disk has headroom for another pass.
+    if s.card_images_warm_timestamp is None:
+        click.echo(
+            "  "
+            + click.style("Card images:   ", fg="bright_black")
+            + click.style("not warmed", fg="yellow")
+            + " · run `pkmn cache warm-card-images` to prime"
+        )
+    else:
+        line = (
+            "  "
+            + click.style("Card images:   ", fg="bright_black")
+            + f"{s.card_images_warm_count} images · "
+            + f"{_format_bytes(s.card_images_warm_bytes)} · warmed "
+            + f"{_format_age(s.card_images_warm_timestamp)}"
+        )
+        if s.card_images_warm_budget_reached:
+            line += click.style(" · budget reached", fg="yellow")
+        click.echo(line)
 
 
 @cache_group.command(name="clear", context_settings={"help_option_names": ["-h", "--help"]})
@@ -1514,6 +1539,193 @@ def cache_warm_cards_command(
             else ""
         )
     )
+    if result.sets_failed and verbose:
+        click.echo(
+            "  " + click.style("missed: ", fg="bright_black") + ", ".join(result.sets_failed)
+        )
+
+    click.echo()
+    click.secho("Done!", fg="green", bold=True)
+
+
+def _parse_sizes(ctx: click.Context, param: click.Parameter, value: str) -> tuple[str, ...]:
+    """Validate / normalise the --sizes flag.
+
+    Comma-separated list of `large` / `small` (in any order). Empty
+    tokens are dropped (so `--sizes large,` doesn't fail). Unknown
+    sizes raise a click parse error so the operator notices the typo
+    at submit time, not partway through a multi-hour warm pass."""
+    parsed: list[str] = []
+    for raw in value.split(","):
+        token = raw.strip().lower()
+        if not token:
+            continue
+        if token not in DEFAULT_SIZES:
+            raise click.BadParameter(
+                f"unknown size {token!r}; expected one of {','.join(DEFAULT_SIZES)}"
+            )
+        if token not in parsed:
+            parsed.append(token)
+    if not parsed:
+        raise click.BadParameter("at least one size required")
+    return tuple(parsed)
+
+
+def _parse_max_bytes(ctx: click.Context, param: click.Parameter, value: str | None) -> int | None:
+    """Validate / parse --max-bytes via card_images.parse_bytes_budget."""
+    if value is None:
+        return None
+    try:
+        return parse_bytes_budget(value)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc)) from exc
+
+
+@cache_group.command(
+    name="warm-card-images",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+@click.option(
+    "--api-key",
+    envvar="POKEMONTCG_IO_API_KEY",
+    default=None,
+    help="pokemontcg.io API key (or set POKEMONTCG_IO_API_KEY).",
+)
+@click.option(
+    "--set",
+    "set_ids",
+    multiple=True,
+    metavar="SET_ID",
+    help=(
+        "Restrict the warm pass to specific set ids (e.g. --set sv8 --set sv9). "
+        "Repeatable. When omitted, every set in the Pokémon TCG catalog is warmed."
+    ),
+)
+@click.option(
+    "--sizes",
+    callback=_parse_sizes,
+    default=",".join(DEFAULT_SIZES),
+    show_default=True,
+    metavar="LIST",
+    help="Comma-separated image sizes to warm: any subset of large,small.",
+)
+@click.option(
+    "--max-bytes",
+    callback=_parse_max_bytes,
+    default=None,
+    metavar="SIZE",
+    help=(
+        "Hard cap on cumulative downloaded bytes for this pass "
+        "(suffixes: KB, MB, GB, TB). Stops cleanly when reached."
+    ),
+)
+@click.option(
+    "--skip-existing/--no-skip-existing",
+    default=True,
+    show_default=True,
+    help="Skip images already on disk. Re-runs are cheap by default.",
+)
+@click.option(
+    "--throttle-ms",
+    type=int,
+    default=0,
+    metavar="MS",
+    help="Sleep between set fetches (default: no throttle).",
+)
+@click.option(
+    "--prefer-popular",
+    is_flag=True,
+    default=False,
+    help=(
+        "Reserved for future lookup-frequency-aware ordering (see issue #371). Currently a no-op."
+    ),
+)
+@click.option("-v", "--verbose", is_flag=True, help="Print each set as it warms.")
+def cache_warm_card_images_command(
+    api_key: str | None,
+    set_ids: tuple[str, ...],
+    sizes: tuple[str, ...],
+    max_bytes: int | None,
+    skip_existing: bool,
+    throttle_ms: int,
+    prefer_popular: bool,
+    verbose: bool,
+) -> None:
+    """Pre-download per-card image bytes to the persistent disk image cache.
+
+    Phase 2 of the pre-Scrydex catalog-warm epic (#368). Walks every
+    set, then for each card fetches the requested `--sizes`
+    (`large,small` by default) and persists the bytes under
+    `cache/images/cards/{size}/<card_id>.<ext>`. The API serving route
+    at `/api/v1/cards/{id}/image/{size}` streams those files directly,
+    and the SPA's `<img>` tags are transparently rewritten to use it.
+
+    First-pass cost: ~36K image fetches (~18K cards x large + small)
+    at ~80-150 KB each -> 3-5 GB on disk. `--max-bytes` caps the
+    budget so a runaway pass can't fill the persistent disk; staging
+    across multiple runs is supported by the default `--skip-existing`."""
+    _print_banner(__version__)
+    _ = prefer_popular  # currently a no-op; see issue #371.
+
+    pkmn = TCGClient(api_key=api_key, verbose=verbose)
+
+    section = "Warming card images"
+    if set_ids:
+        section += f" · {len(set_ids)} set(s)"
+    section += f" · sizes={','.join(sizes)}"
+    if max_bytes is not None:
+        section += f" · max {_format_bytes(max_bytes)}"
+    _print_section(section)
+
+    def _progress(index: int, total: int, set_id: str) -> None:
+        if not verbose:
+            return
+        click.echo(
+            click.style(f"  [{index}/{total}] ", fg="bright_black") + set_id,
+            err=False,
+        )
+
+    try:
+        result = warm_card_images(
+            pkmn,
+            set_ids=list(set_ids) if set_ids else None,
+            sizes=sizes,
+            max_bytes=max_bytes,
+            skip_existing=skip_existing,
+            throttle_ms=throttle_ms,
+            on_progress=_progress,
+        )
+    except requests.RequestException as exc:
+        raise click.ClickException(f"card-image warm failed: {exc}") from exc
+
+    if result.sets_attempted == 0:
+        raise click.ClickException(
+            "no sets to warm — check `--set` ids or upstream catalog availability"
+        )
+
+    disk_cache.write_card_images_warm(
+        images_warmed=result.images_warmed,
+        images_failed=result.images_failed,
+        bytes_written=result.bytes_written,
+        budget_reached=result.budget_reached,
+        sets_attempted=result.sets_attempted,
+        sets_failed=result.sets_failed,
+    )
+
+    click.secho("  ✓ ", fg="green", nl=False)
+    summary = (
+        f"{result.sets_attempted} sets · "
+        + click.style(f"{result.images_warmed} images warmed", fg="cyan")
+        + f" · {_format_bytes(result.bytes_written)} downloaded"
+    )
+    if result.images_failed:
+        summary += click.style(f" · {result.images_failed} failed", fg="yellow")
+    if result.sets_failed:
+        summary += click.style(f" · {len(result.sets_failed)} sets missed", fg="yellow")
+    if result.budget_reached:
+        summary += click.style(" · budget reached", fg="yellow")
+    click.echo(summary)
+
     if result.sets_failed and verbose:
         click.echo(
             "  " + click.style("missed: ", fg="bright_black") + ", ".join(result.sets_failed)

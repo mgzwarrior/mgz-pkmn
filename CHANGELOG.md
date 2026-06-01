@@ -7,6 +7,36 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- API + CLI: **Self-hosted per-card images via `pkmn cache warm-card-images`**
+  ([#371](https://github.com/mgzwarrior/mgz-pkmn/issues/371)). Phase 2
+  of the pre-Scrydex catalog-warm epic
+  ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)). Three
+  pieces wired together so the SPA gets self-hosted card images
+  transparently: (1) a new `pkmn cache warm-card-images` subcommand
+  with `--sizes / --max-bytes / --skip-existing / --throttle-ms /
+  --prefer-popular` flags walks the catalog and downloads `large` and
+  `small` image bytes into `cache/images/cards/{size}/<card_id>.<ext>`
+  on the persistent disk (warmer in
+  [`src/mgz_pkmn/card_images.py`](src/mgz_pkmn/card_images.py)); (2)
+  a new `GET /api/v1/cards/{card_id}/image/{size}` route in
+  [`api/routes/cards.py`](api/routes/cards.py) streams those files
+  with a 30-day immutable browser-cache header, mirroring the existing
+  `get_set_logo` route's 404-on-miss contract; (3) the lookup
+  response and `/sets/{id}/cards` trim now rewrite
+  `images.{large,small}` and `thumb` URLs to point at that route
+  whenever the file is cached on disk — cache miss leaves the upstream
+  pokemontcg.io URL in place so cold deploys still serve a working
+  `<img>`. A new `MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP=1` env var
+  (default off, separate from the existing two warm flags) opts a
+  deploy into the runtime image warm bootstrap. New `CacheStats`
+  fields (`card_images_warm_timestamp`, `card_images_warm_count`,
+  `card_images_warm_bytes`, `card_images_warm_budget_reached`)
+  surface state in `pkmn cache stats` and `GET /api/v1/cache/stats`.
+  Pinned by 25+ tests in `tests/test_warm_card_images.py` and
+  `tests/test_card_images_api.py`.
+
 ### Fixed
 
 - Web: **Per-line timing chips now persist after a bulk lookup

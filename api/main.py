@@ -24,6 +24,7 @@ from starlette.responses import Response
 
 from mgz_pkmn import __version__
 from mgz_pkmn import cache as disk_cache
+from mgz_pkmn.card_images import warm_card_images
 from mgz_pkmn.lookup import warm_cards, warm_concepts, warm_set_cards
 from mgz_pkmn.set_cards import warm_set_images
 from mgz_pkmn.sources import TCGClient, TCGDexClient
@@ -37,6 +38,7 @@ from .routes import (
     cache as cache_route,
 )
 from .routes import (
+    cards,
     changelog,
     export,
     lookup,
@@ -89,6 +91,10 @@ _WARM_ON_STARTUP_ENV = "MGZ_PKMN_WARM_ON_STARTUP"
 # ~18,000 per-card cache entries. Opt-in only; default off so a generic
 # `MGZ_PKMN_WARM_ON_STARTUP=1` deploy doesn't accidentally trip it.
 _WARM_CARDS_ON_STARTUP_ENV = "MGZ_PKMN_WARM_CARDS_ON_STARTUP"
+# Separate env var for the per-card *image* warm pass (Phase 2 of #368)
+# because it's even heavier than the structural warm — a full pass
+# downloads ~36K image files (~3-5 GB on disk). Always opt-in.
+_WARM_CARD_IMAGES_ON_STARTUP_ENV = "MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP"
 
 
 def _warm_concepts_in_background() -> None:
@@ -251,6 +257,59 @@ def _warm_cards_in_background() -> None:
     threading.Thread(target=_run, name="card-warm", daemon=True).start()
 
 
+def _warm_card_images_in_background() -> None:
+    """Run the per-card image warm pass on a daemon thread.
+
+    Phase 2 of the pre-Scrydex catalog-warm epic (#368). Gated by the
+    on-disk `card_images_warm.json` freshness manifest — if a warm
+    pass landed within the last week, skip and log "already fresh".
+    Errors are logged and swallowed so a failed warm doesn't crash the
+    service.
+
+    Heaviest of all the warmers by an order of magnitude: a fresh pass
+    downloads ~36K image files (large + small for ~18K cards) for a
+    cumulative ~3-5 GB on disk. Always opt-in via the separate
+    `MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP` env var — even a deploy
+    with the standard `MGZ_PKMN_WARM_ON_STARTUP=1` and
+    `MGZ_PKMN_WARM_CARDS_ON_STARTUP=1` won't trigger it accidentally."""
+    if disk_cache.card_images_warm_is_fresh():
+        _log.info("card-images cache fresh; skipping startup warm")
+        return
+
+    # Same throttle reasoning as `_warm_cards_in_background`. The image
+    # CDN is more forgiving than the API surface, but a 500 ms set-level
+    # sleep keeps us safely off any per-IP rate limit Cloudfront might
+    # apply during a long sequential pull.
+    _DEFAULT_STARTUP_THROTTLE_MS = 500
+
+    def _run() -> None:
+        try:
+            pkmn = TCGClient(api_key=os.environ.get("POKEMONTCG_IO_API_KEY"))
+            result = warm_card_images(pkmn, throttle_ms=_DEFAULT_STARTUP_THROTTLE_MS)
+            disk_cache.write_card_images_warm(
+                images_warmed=result.images_warmed,
+                images_failed=result.images_failed,
+                bytes_written=result.bytes_written,
+                budget_reached=result.budget_reached,
+                sets_attempted=result.sets_attempted,
+                sets_failed=result.sets_failed,
+            )
+            _log.info(
+                "card-images warm complete: %d images warmed (%d bytes) "
+                "across %d sets (%d failed, %d sets missed, budget_reached=%s)",
+                result.images_warmed,
+                result.bytes_written,
+                result.sets_attempted,
+                result.images_failed,
+                len(result.sets_failed),
+                result.budget_reached,
+            )
+        except Exception:
+            _log.exception("card-images warm failed; service running without primed card images")
+
+    threading.Thread(target=_run, name="card-images-warm", daemon=True).start()
+
+
 class SPAStaticFiles(StaticFiles):
     """StaticFiles that disables browser caching for ``index.html``.
 
@@ -291,6 +350,19 @@ def _warm_cards_on_startup_enabled() -> bool:
     cache entries on a fresh disk) and we don't want it firing implicitly
     every time someone flips on the standard `MGZ_PKMN_WARM_ON_STARTUP`."""
     return os.environ.get(_WARM_CARDS_ON_STARTUP_ENV, "").strip() in ("1", "true", "True")
+
+
+def _warm_card_images_on_startup_enabled() -> bool:
+    """True when `MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP` is set truthy.
+
+    Same parse rules as the other gates. Always opt-in because the
+    image warm pass is the heaviest of all (~3-5 GB on disk for the
+    full catalog) — see Phase 2 of #368."""
+    return os.environ.get(_WARM_CARD_IMAGES_ON_STARTUP_ENV, "").strip() in (
+        "1",
+        "true",
+        "True",
+    )
 
 
 @asynccontextmanager
@@ -346,6 +418,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     if _warm_cards_on_startup_enabled():
         _warm_cards_in_background()
 
+    # Heaviest of all: ~36K image downloads (~3-5 GB) on a cold disk.
+    # Always behind its own flag — see Phase 2 of #368.
+    if _warm_card_images_on_startup_enabled():
+        _warm_card_images_in_background()
+
     yield
 
 
@@ -376,6 +453,7 @@ app.include_router(lookup.router, prefix="/api/v1", tags=["lookup"])
 app.include_router(export.router, prefix="/api/v1", tags=["export"])
 app.include_router(sets.router, prefix="/api/v1", tags=["sets"])
 app.include_router(set_cards.router, prefix="/api/v1", tags=["set-cards"])
+app.include_router(cards.router, prefix="/api/v1", tags=["cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
 app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
