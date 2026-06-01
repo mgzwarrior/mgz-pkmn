@@ -264,11 +264,31 @@ def find_card(
     for lang in langs:
         result = search_tcgdex(tcgdex, q, lang)
         if result.card:
-            return _apply_price_bounds(result, q)
+            # TCGdex has no disk persistence today, so its MatchResult
+            # cache_status is always MISS. Inherit pokemontcg.io's L2
+            # status when we have a match — the user's lookup *was*
+            # served via the cache path even if the eventual answer came
+            # from TCGdex's in-memory layer. Disk persistence on TCGdex
+            # is tracked separately; this branch will update naturally
+            # when that lands.
+            return _apply_price_bounds(
+                MatchResult(
+                    result.card, result.reason, url=result.url, cache_status=primary.cache_status
+                ),
+                q,
+            )
         if result.reason == "set_mismatch":
             saw_set_mismatch = True
 
-    return MatchResult(None, "set_mismatch" if saw_set_mismatch else "no_candidates")
+    # Empty result: preserve the cache_status the pokemontcg.io read
+    # actually observed. Without this the no_candidates / set_mismatch
+    # path resets to the MatchResult default "MISS" and the /lookup route
+    # reports a false MISS on a cached empty payload.
+    return MatchResult(
+        None,
+        "set_mismatch" if saw_set_mismatch else "no_candidates",
+        cache_status=primary.cache_status,
+    )
 
 
 def _set_fallback_queries(subject: str) -> list[str]:
