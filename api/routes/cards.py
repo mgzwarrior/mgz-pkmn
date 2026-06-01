@@ -52,23 +52,29 @@ def rewrite_card_image_urls(card: dict | None, *, card_id: str | None = None) ->
     id or a `None` card short-circuits to the input unchanged — we
     never invent a route for something we can't address.
 
-    Mutates and returns the same dict (no deep copy) — every caller in
-    the boundary already projects card data into a new dict before
-    serialising, so the mutation can't leak into shared state."""
+    Always returns a *fresh* dict (never mutates the input). The
+    `Row.card` payload that flows through `lookup._row_to_dict` is
+    later persisted via `row_to_run_row(card_json=row.card)` when the
+    `/bulk` SSE stream completes, and in-place rewriting would leak
+    `/api/v1/cards/...` URLs into stored run history (caught in
+    Copilot review of #371). The shallow copy is cheap (cards are
+    small dicts) and bounds the side effect to this single response.
+    """
     if card is None:
         return None
     images = card.get("images")
-    if not isinstance(images, dict):
-        return card
     resolved_id = card_id or card.get("id")
-    if not resolved_id:
-        return card
-    rewritten = dict(images)
+    if not isinstance(images, dict) or not resolved_id:
+        # No rewrite to do — still return a copy so callers don't have
+        # to reason about whether we returned the input or a fresh dict.
+        return dict(card)
+    rewritten_images = dict(images)
     for size, category in (("large", LARGE_CATEGORY), ("small", SMALL_CATEGORY)):
-        if rewritten.get(size) and disk_cache.read_image(category, resolved_id) is not None:
-            rewritten[size] = _CARD_IMAGE_URL_TEMPLATE.format(card_id=resolved_id, size=size)
-    card["images"] = rewritten
-    return card
+        if rewritten_images.get(size) and disk_cache.read_image(category, resolved_id) is not None:
+            rewritten_images[size] = _CARD_IMAGE_URL_TEMPLATE.format(card_id=resolved_id, size=size)
+    result = dict(card)
+    result["images"] = rewritten_images
+    return result
 
 
 # Pokemon TCG card ids are short alphanumeric strings with a `-` between
@@ -93,7 +99,7 @@ _SAFE_CARD_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,96}$")
 # Extensions to probe in cache lookup order. Mirrors
 # `cache._IMAGE_EXTENSIONS` but kept local so the route never imports
 # a path-shaped value from a tainted code path.
-_PROBE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+_PROBE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".svg")
 
 
 @router.get("/cards/{card_id}/image/{size}")

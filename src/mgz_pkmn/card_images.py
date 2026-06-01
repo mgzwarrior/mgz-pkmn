@@ -174,6 +174,23 @@ def warm_card_images(
                     images_failed += 1
                     continue
 
+                # Post-download, pre-write budget check. The pre-check
+                # above stops cleanly when we're already at the cap, but
+                # it can't see *this* download's size — and a download
+                # larger than the remaining budget would otherwise push
+                # us past the hard cap. This second check enforces the
+                # docstring's "would the next write push us over?"
+                # contract exactly (caught in Copilot review of #371).
+                if max_bytes is not None and bytes_written + len(content) > max_bytes:
+                    return WarmCardImagesResult(
+                        sets_attempted=index,
+                        images_warmed=images_warmed,
+                        images_failed=images_failed,
+                        bytes_written=bytes_written,
+                        budget_reached=True,
+                        sets_failed=sets_failed,
+                    )
+
                 path = disk_cache.write_image(category, card_id, content, ext=url)
                 if path is None:
                     images_failed += 1
@@ -239,9 +256,17 @@ def parse_bytes_budget(raw: str) -> int:
                 raise ValueError(f"byte budget must be non-negative: {raw!r}")
             return int(value * multipliers[suffix])
     try:
-        return int(s)
+        value = int(s)
     except ValueError as exc:
         raise ValueError(f"invalid byte budget: {raw!r}") from exc
+    # The suffix branch above already rejects negative values; mirror
+    # that here for the raw-int path so `--max-bytes -1` fails fast
+    # instead of silently producing a negative budget that short-
+    # circuits the warmer with budget_reached=True (caught in Copilot
+    # review of #371).
+    if value < 0:
+        raise ValueError(f"byte budget must be non-negative: {raw!r}")
+    return value
 
 
 __all__ = [

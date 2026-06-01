@@ -139,6 +139,28 @@ class RewriteCardImageURLsTests(_IsolatedCacheMixin):
         self.assertEqual(rewritten["images"]["small"], "/api/v1/cards/sv8-1/image/small")
         self.assertEqual(rewritten["images"]["large"], "https://images.example/upstream_lg.png")
 
+    def test_does_not_mutate_input_card(self) -> None:
+        # Regression for Copilot review on #371: _row_to_dict passes
+        # `row.card` directly, and the same Row is later persisted via
+        # row_to_run_row(card_json=row.card). In-place mutation would
+        # leak `/api/v1/cards/.../image/...` URLs into run history.
+        disk_cache.write_image(SMALL_CATEGORY, "sv8-1", b"sm", ext=".png")
+        original = self._card_with_upstream_urls()
+        before = {
+            "id": original["id"],
+            "name": original["name"],
+            "images": dict(original["images"]),
+        }
+        result = rewrite_card_image_urls(original)
+        # The input dict is untouched.
+        self.assertEqual(original["images"], before["images"])
+        # The returned dict has the rewritten URL.
+        assert result is not None
+        self.assertEqual(result["images"]["small"], "/api/v1/cards/sv8-1/image/small")
+        # And it's a fresh dict — mutating it doesn't affect the input.
+        result["images"]["small"] = "mutated"
+        self.assertEqual(original["images"]["small"], before["images"]["small"])
+
     def test_none_input_returns_none(self) -> None:
         self.assertIsNone(rewrite_card_image_urls(None))
 

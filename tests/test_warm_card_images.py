@@ -239,6 +239,27 @@ class WarmCardImagesTests(_IsolatedCacheMixin):
         self.assertEqual(result.images_warmed, 2)
         self.assertEqual(result.bytes_written, 0)
 
+    def test_max_bytes_never_exceeded_when_next_download_too_large(self) -> None:
+        # Regression for Copilot review on #371: the pre-download
+        # check stops only when `bytes_written >= max_bytes`. Without
+        # a post-download check, a download larger than the remaining
+        # budget would still be written and push us past the cap.
+        # Here: budget is 1500, first image is 1024 (fits, leaves 476
+        # remaining), second image is 1024 (would push to 2048).
+        # Expected: 1 image written, 1024 bytes_written, budget_reached.
+        cards = [_card("sv8", 1)]
+        with (
+            patch.object(TCGClient, "search_all", return_value=cards),
+            self._patch_download(),  # default 1024 bytes per image
+        ):
+            result = warm_card_images(TCGClient(), set_ids=["sv8"], max_bytes=1500)
+        # First image (large) fits within 1500; second (small) would
+        # push to 2048 > 1500 → not written.
+        self.assertEqual(result.images_warmed, 1)
+        self.assertEqual(result.bytes_written, 1024)
+        self.assertTrue(result.budget_reached)
+        self.assertLessEqual(result.bytes_written, 1500)
+
     def test_max_bytes_stops_cleanly_without_partial_write(self) -> None:
         # 4 image fetches at 1 KB each would download 4 KB; cap at 2 KB
         # → exactly 2 images land, the rest are skipped, budget_reached=True.
@@ -350,6 +371,15 @@ class ParseBytesBudgetTests(unittest.TestCase):
             parse_bytes_budget("")
         with self.assertRaises(ValueError):
             parse_bytes_budget("-1MB")
+
+    def test_raw_negative_int_raises(self) -> None:
+        # Regression for Copilot review on #371: a raw negative int
+        # like `-1` used to bypass the negative-value guard because it
+        # took the no-suffix `int(s)` branch.
+        with self.assertRaises(ValueError):
+            parse_bytes_budget("-1")
+        with self.assertRaises(ValueError):
+            parse_bytes_budget("-1024")
 
 
 # ---------------------------------------------------------------------------
