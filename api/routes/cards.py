@@ -107,9 +107,19 @@ async def get_card_image(
                 "run `pkmn cache warm-card-images` to populate the catalog"
             ),
         )
-    media_type, _ = mimetypes.guess_type(path.name)
+    # Defense-in-depth: confirm the resolved path is inside the cache
+    # root before streaming. `card_id` is already doubly-sanitised
+    # (FastAPI path regex + `_safe_image_key` inside `read_image`), so
+    # this check should never fire — but it's the canonical CodeQL
+    # sanitiser pattern for path-traversal taint analysis, and a
+    # 404-on-mismatch leaks no info even if the upstream guards drift.
+    cache_root = disk_cache._cache_root_path().resolve()
+    resolved = path.resolve()
+    if not resolved.is_relative_to(cache_root):
+        raise HTTPException(status_code=404)
+    media_type, _ = mimetypes.guess_type(resolved.name)
     return FileResponse(
-        path,
+        resolved,
         media_type=media_type or "application/octet-stream",
         # 30-day immutable browser cache — card images never change once
         # a set ships. Mirrors `get_set_logo` in api/routes/sets.py.
