@@ -100,7 +100,7 @@ def _warm_concepts_in_background() -> None:
     swallowed: a failed warm should not crash the service, only leave the
     cache cold for this run."""
     if disk_cache.concept_warm_is_fresh():
-        _log.info("concept cache fresh; skipping startup warm")
+        _log.warning("concept cache fresh; skipping startup warm")
         return
 
     def _run() -> None:
@@ -113,7 +113,7 @@ def _warm_concepts_in_background() -> None:
                 names_failed=result.names_failed,
                 source="all",
             )
-            _log.info(
+            _log.warning(
                 "concept warm complete: %d names attempted, %d warmed, %d missed",
                 result.names_attempted,
                 result.names_warmed,
@@ -137,7 +137,7 @@ def _warm_set_cards_in_background() -> None:
     prices drift, and that's already covered by the 1-day browser
     cache on the endpoint), so the weekly cadence is generous."""
     if disk_cache.set_cards_warm_is_fresh():
-        _log.info("set-cards cache fresh; skipping startup warm")
+        _log.warning("set-cards cache fresh; skipping startup warm")
         return
 
     def _run() -> None:
@@ -148,7 +148,7 @@ def _warm_set_cards_in_background() -> None:
                 sets_warmed=result.sets_warmed,
                 sets_failed=result.sets_failed,
             )
-            _log.info(
+            _log.warning(
                 "set-cards warm complete: %d sets attempted, %d warmed, %d missed",
                 result.sets_attempted,
                 result.sets_warmed,
@@ -174,7 +174,7 @@ def _warm_sets_in_background() -> None:
     disk — meaning a single warm pass after the first deploy serves
     every subsequent deploy until the manifest's TTL expires."""
     if disk_cache.sets_warm_is_fresh():
-        _log.info("sets cache fresh; skipping startup warm")
+        _log.warning("sets cache fresh; skipping startup warm")
         return
 
     def _run() -> None:
@@ -187,7 +187,7 @@ def _warm_sets_in_background() -> None:
                 symbols_cached=result.symbols_cached,
                 failures=result.failures,
             )
-            _log.info(
+            _log.warning(
                 "sets warm complete: %d sets · %d logos · %d symbols · %d failures",
                 result.sets,
                 result.logos_cached,
@@ -214,7 +214,7 @@ def _warm_cards_in_background() -> None:
     `MGZ_PKMN_WARM_CARDS_ON_STARTUP` env var so a generic
     `MGZ_PKMN_WARM_ON_STARTUP=1` flag doesn't accidentally trigger it."""
     if disk_cache.card_warm_is_fresh():
-        _log.info("card cache fresh; skipping startup warm")
+        _log.warning("card cache fresh; skipping startup warm")
         return
 
     # Throttle the startup warm so a no-API-key deploy doesn't burst
@@ -237,7 +237,7 @@ def _warm_cards_in_background() -> None:
                 sets_attempted=result.sets_attempted,
                 sets_failed=result.sets_failed,
             )
-            _log.info(
+            _log.warning(
                 "card warm complete: %d cards warmed across %d sets "
                 "(%d cards failed, %d sets missed)",
                 result.cards_warmed,
