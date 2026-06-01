@@ -1,12 +1,13 @@
 /**
- * ProcessingQueue — per-line status panel shown while a bulk lookup is
- * in flight. Each input line moves through the lookup pipeline one stage
- * at a time (parsed → looking up → fallback / URL hint → pricing →
- * resolved / no match / error), driven by the `stage` field on the SSE
- * stream. The chip's color and label reflect the latest stage; a hover
- * tooltip reports how long the line has spent in it. The panel unmounts
- * as soon as the run finishes (whether by completion, Stop, or error) so
- * abandoned pending entries don't spin indefinitely.
+ * ProcessingQueue — per-line status panel for a bulk lookup. Each input
+ * line moves through the lookup pipeline one stage at a time (parsed →
+ * looking up → fallback / URL hint → pricing → resolved / no match /
+ * error), driven by the `stage` field on the SSE stream. The chip's
+ * color and label reflect the latest stage; a hover tooltip reports
+ * how long the line spent in it. The panel stays mounted after a run
+ * completes so per-line elapsed badges remain readable for benchmarking
+ * — see #376. Spinner animation freezes once the run ends so any line
+ * that was abandoned mid-stage (Stop, SSE error) doesn't spin forever.
  */
 import { useEffect, useState } from 'react'
 import {
@@ -76,18 +77,15 @@ export function ProcessingQueue() {
   const now = useNow(isRunning)
 
   if (processingLines.length === 0) return null
-  // Hide as soon as the run finishes — covers both the success case
-  // (where every line is already resolved/error) and the abort/error
-  // case (where some lines would otherwise stay pending forever).
-  if (!isRunning) return null
 
   const done = processingLines.filter((l) => l.status !== 'pending').length
   const total = processingLines.length
+  const heading = isRunning ? 'Looking up cards…' : 'Last lookup'
 
   return (
     <div className="rounded-md border border-sand-300 bg-sand-100 dark:border-husk-50 dark:bg-husk-200/60 px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-coconut-500 dark:text-sand-300">Looking up cards…</span>
+        <span className="text-xs font-medium text-coconut-500 dark:text-sand-300">{heading}</span>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -115,6 +113,7 @@ export function ProcessingQueue() {
             runStartedAt={runStartedAt}
             showTimer={settings.showTimer}
             now={now}
+            isRunning={isRunning}
           />
         ))}
       </ul>
@@ -142,15 +141,19 @@ function StageLegend() {
   )
 }
 
-function stageIcon(line: ProcessingLine) {
+function stageIcon(line: ProcessingLine, isRunning: boolean) {
+  // Freeze the spinner once the run ends — an abandoned mid-stage line
+  // (Stop, SSE error) shouldn't spin indefinitely now that the queue
+  // persists post-run.
+  const spinClass = isRunning ? 'animate-spin' : ''
   // Before the first stage frame arrives, fall back to the generic
   // in-flight spinner (matches the historical pending appearance).
   if (!line.stage) {
-    return <Loader2 size={12} className="flex-shrink-0 animate-spin text-sky-500 dark:text-sky-300" />
+    return <Loader2 size={12} className={`flex-shrink-0 ${spinClass} text-sky-500 dark:text-sky-300`} />
   }
   const cfg = STAGE_CONFIG[line.stage]
   if (!cfg.terminal) {
-    return <Loader2 size={12} className={`flex-shrink-0 animate-spin ${cfg.color}`} />
+    return <Loader2 size={12} className={`flex-shrink-0 ${spinClass} ${cfg.color}`} />
   }
   if (line.stage === 'resolved') {
     return <CheckCircle2 size={12} className={`flex-shrink-0 ${cfg.color}`} />
@@ -166,11 +169,13 @@ function LineStatus({
   runStartedAt,
   showTimer,
   now,
+  isRunning,
 }: {
   line: ProcessingLine
   runStartedAt: number | null
   showTimer: boolean
   now: number
+  isRunning: boolean
 }) {
   const cfg = line.stage ? STAGE_CONFIG[line.stage] : null
 
@@ -201,7 +206,7 @@ function LineStatus({
       title={tooltip}
       aria-label={tooltip ? `${line.line} — ${tooltip}` : undefined}
     >
-      {stageIcon(line)}
+      {stageIcon(line, isRunning)}
       <span className="truncate">{line.line}</span>
       {cfg && (
         <span className={`ml-auto flex-shrink-0 text-[10px] ${cfg.color}`}>{cfg.label}</span>

@@ -38,6 +38,16 @@ vi.mock('../store', () => ({
 }))
 
 describe('ProcessingQueue', () => {
+  beforeEach(() => {
+    mockState.isRunning = true
+    mockState.runStartedAt = 1000
+    mockState.processingLines = [
+      { line: 'Charizard | Base Set | 4', status: 'resolved' as const, endedAt: 1500 },
+      { line: 'Pikachu | Jungle', status: 'error' as const, endedAt: 1800 },
+      { line: 'top:5 Mew ex', status: 'pending' as const },
+    ] as Array<Record<string, unknown>>
+  })
+
   it('renders one entry per input line and a done/total count', () => {
     mockState.settings.showTimer = false
     render(<ProcessingQueue />)
@@ -78,6 +88,7 @@ describe('ProcessingQueue', () => {
 describe('ProcessingQueue stage chips', () => {
   beforeEach(() => {
     mockState.settings = { ...baseSettings }
+    mockState.isRunning = true
     mockState.processingLines = [
       { line: 'Charizard | Base Set | 4', status: 'pending', stage: 'looking_up', stageStartedAt: 1000 },
       { line: 'Mew', status: 'pending', stage: 'fallback', stageStartedAt: 1000 },
@@ -129,5 +140,48 @@ describe('ProcessingQueue stage chips', () => {
     // Open: the legend lists every stage, including ones no line is in.
     expect(screen.getByText('URL hint')).toBeInTheDocument()
     expect(screen.getByText('Pricing')).toBeInTheDocument()
+  })
+})
+
+describe('ProcessingQueue post-run persistence (#376)', () => {
+  beforeEach(() => {
+    mockState.settings = { ...baseSettings, showTimer: true }
+    mockState.isRunning = false
+    mockState.runStartedAt = 1000
+    mockState.processingLines = [
+      { line: 'Charizard', status: 'resolved', stage: 'resolved', stageStartedAt: 1400, endedAt: 1500 },
+      { line: 'Pikachu', status: 'error', stage: 'error', stageStartedAt: 1700, endedAt: 1800 },
+      // A mid-stage pending line — what an abandoned Stop / SSE error
+      // leaves behind. Should still render (no early-return) but its
+      // spinner must not animate now that the run is over.
+      { line: 'Mew', status: 'pending', stage: 'looking_up', stageStartedAt: 1200 },
+    ]
+  })
+
+  it('keeps the queue mounted with per-line elapsed badges after the run completes', () => {
+    render(<ProcessingQueue />)
+    expect(screen.getByText(/last lookup/i)).toBeInTheDocument()
+    expect(screen.queryByText(/looking up cards/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Charizard')).toBeInTheDocument()
+    expect(screen.getByText('Pikachu')).toBeInTheDocument()
+    // 1500 - 1000 = 500ms, 1800 - 1000 = 800ms — the timing data that
+    // the bug report needs surfaced after the run.
+    expect(screen.getByText('500ms')).toBeInTheDocument()
+    expect(screen.getByText('800ms')).toBeInTheDocument()
+  })
+
+  it('freezes the spinner for abandoned mid-stage lines once the run ends', () => {
+    const { container } = render(<ProcessingQueue />)
+    // Stage-color class `text-sky-500` belongs to `looking_up`; that
+    // chip is the Mew line still spinning conceptually. After the run
+    // we want the icon present but not animating.
+    const spinning = container.querySelectorAll('.animate-spin')
+    expect(spinning.length).toBe(0)
+  })
+
+  it('still hides the queue entirely when there are no lines to show', () => {
+    mockState.processingLines = []
+    const { container } = render(<ProcessingQueue />)
+    expect(container.firstChild).toBeNull()
   })
 })

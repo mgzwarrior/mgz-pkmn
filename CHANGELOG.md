@@ -9,6 +9,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Web: **Per-line timing chips now persist after a bulk lookup
+  finishes** ([#376](https://github.com/mgzwarrior/mgz-pkmn/issues/376)).
+  The [ProcessingQueue](web/src/components/ProcessingQueue.tsx) early-
+  returned `null` the moment `isRunning` flipped to false, so the per-
+  stage chips and their elapsed-time badges vanished as soon as the
+  SSE stream ended — making it impossible to compare individual queries
+  against each other after the fact (cache-hit vs upstream-fetch
+  benchmarks, slow-outlier debugging, etc.). The panel now stays
+  mounted post-run with the heading "Last lookup", and any spinner on
+  a line that was abandoned mid-stage (Stop, SSE error) freezes
+  instead of animating indefinitely. The global `LookupTimer` summary
+  and during-run UX are unchanged. Pinned by three new tests in
+  [ProcessingQueue.test.tsx](web/src/components/ProcessingQueue.test.tsx).
+
 - Deploy: **`render.yaml` declares `plan: starter`** instead of
   `plan: free` ([#380](https://github.com/mgzwarrior/mgz-pkmn/issues/380)).
   Render's blueprint validator rejects `disks are not supported for
