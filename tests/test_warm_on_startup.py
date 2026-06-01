@@ -584,6 +584,56 @@ class WarmCardImagesBackgroundBodyTests(unittest.TestCase):
 
         complete_logs = [call for call in mock_log.call_args_list if "complete" in str(call)]
         self.assertEqual(len(complete_logs), 1)
+        # Operator-visible "starting" line fires before warm_card_images
+        # is invoked, so a Render log stream isn't silent for hours
+        # between "Application startup complete" and "warm complete".
+        starting_logs = [call for call in mock_log.call_args_list if "starting" in str(call)]
+        self.assertEqual(len(starting_logs), 1)
+
+    def test_card_images_warm_body_emits_heartbeat_progress(self) -> None:
+        """The on_progress callback wired into the warmer logs the first
+        set, every 20th, and the final one — confirming the heartbeat
+        cadence holds across a realistic catalog size."""
+        from api import main
+
+        # Drive the progress callback for a realistic 173-set catalog
+        # so we can assert the exact heartbeat indices that should log.
+        def fake_warm(_client, **kwargs):
+            on_progress = kwargs["on_progress"]
+            for i in range(1, 174):
+                on_progress(i, 173, f"sv{i}")
+            from mgz_pkmn.card_images import WarmCardImagesResult
+
+            return WarmCardImagesResult(
+                sets_attempted=173,
+                images_warmed=10,
+                images_failed=0,
+                bytes_written=1024,
+                budget_reached=False,
+                sets_failed=[],
+            )
+
+        with (
+            patch.object(main, "threading") as mock_threading,
+            patch.object(main, "TCGClient"),
+            patch.object(main, "warm_card_images", side_effect=fake_warm),
+            patch.object(main._log, "info") as mock_log,
+        ):
+            mock_threading.Thread.side_effect = self._make_sync_thread()
+            main._warm_card_images_in_background()
+
+        progress_logs = [call for call in mock_log.call_args_list if "progress" in str(call)]
+        # First (1), every 20th (20, 40, 60, 80, 100, 120, 140, 160),
+        # and the final (173) — 10 progress lines total.
+        self.assertEqual(len(progress_logs), 10)
+        # Confirm the indices via the positional args (the message uses
+        # `%d` placeholders so the formatted string isn't in the call).
+        first_args = progress_logs[0].args
+        last_args = progress_logs[-1].args
+        self.assertEqual(first_args[1], 1)  # index
+        self.assertEqual(first_args[2], 173)  # total
+        self.assertEqual(last_args[1], 173)
+        self.assertEqual(last_args[2], 173)
 
     def test_card_images_warm_body_swallows_upstream_exception(self) -> None:
         from api import main
