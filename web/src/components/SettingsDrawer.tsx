@@ -267,7 +267,7 @@ function CacheStatsPanel() {
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
           <StatRow label="API responses" value={`${stats.api_entry_count} · ${formatBytes(stats.api_bytes)}`} />
           <StatRow label="Images" value={`${stats.image_entry_count} · ${formatBytes(stats.image_bytes)}`} />
-          <StatRow label="Overrides" value={`${stats.override_count} · ${formatBytes(stats.override_bytes)}`} />
+          <StatRow label="URL overrides" value={`${stats.override_count} · ${formatBytes(stats.override_bytes)}`} />
           <StatRow
             label="Concepts"
             value={
@@ -327,10 +327,20 @@ function StatRow({ label, value, warn = false }: { label: string; value: string;
   )
 }
 
+// Mirrors `_format_bytes` in src/mgz_pkmn/cli.py — powers-of-1024 to match
+// `du -h`, one decimal once we leave the B range. Now that the per-card
+// image warm (#371) routinely lands the image cache in the multi-GB range,
+// capping at MB read as "17000.0 MB" instead of "17.5 GB".
 function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let size = n
+  for (let i = 0; i < units.length; i++) {
+    if (size < 1024 || i === units.length - 1) {
+      return units[i] === 'B' ? `${Math.trunc(size)} B` : `${size.toFixed(1)} ${units[i]}`
+    }
+    size /= 1024
+  }
+  return `${size.toFixed(1)} ${units[units.length - 1]}`
 }
 
 function formatAge(epochSeconds: number): string {

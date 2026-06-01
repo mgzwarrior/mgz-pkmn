@@ -39,6 +39,35 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Web: **Cache-stats panel upcasts byte counts through GB / TB**
+  ([#390](https://github.com/mgzwarrior/mgz-pkmn/issues/390)). The
+  `formatBytes` helper in
+  [SettingsDrawer.tsx](web/src/components/SettingsDrawer.tsx) capped
+  at MB, so once the per-card image warm
+  ([#371](https://github.com/mgzwarrior/mgz-pkmn/issues/371))
+  landed ~17 GB on disk the *Images* row read as `17073.0 MB`
+  instead of `16.7 GB`. Function now mirrors the CLI's
+  `_format_bytes` (powers-of-1024, B / KB / MB / GB / TB,
+  one decimal once we leave the B range). Same pass renames the
+  *Overrides* row to *URL overrides* to match the CLI label —
+  the row tracks sticky `(name, set_hint) → PriceCharting URL`
+  entries from `url_overrides.json`, not a generic override
+  bucket. Pinned by a new test in
+  [SettingsDrawer.test.tsx](web/src/components/SettingsDrawer.test.tsx)
+  asserting B / KB / GB upcasting against the deployed instance's
+  17 GB image-warm result.
+
+- Docs: **`docs/cache.md` documents `pkmn cache warm-card-images`**
+  ([#390](https://github.com/mgzwarrior/mgz-pkmn/issues/390)). The
+  warm-passes table and env-variable reference were both missing
+  Phase 2 of the catalog-warm epic
+  ([#371](https://github.com/mgzwarrior/mgz-pkmn/issues/371)).
+  Added rows for the `warm-card-images` command and the
+  `MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP` env var, plus the
+  deployed-instance final result (`40088 images warmed
+  (17904440414 bytes) across 173 sets`) as a planning reference
+  for disk size and first-deploy duration.
+
 - Deploy: **`render.yaml` re-enables PR preview environments**
   ([#389](https://github.com/mgzwarrior/mgz-pkmn/issues/389)). The
   blueprint had no `previews` block, so each sync against Render
