@@ -183,10 +183,20 @@ def _warm_cards_in_background() -> None:
         _log.info("card cache fresh; skipping startup warm")
         return
 
+    # Throttle the startup warm so a no-API-key deploy doesn't burst
+    # through pokemontcg.io's 30-rpm free-tier ceiling, hit 429s, end up
+    # with mostly-empty pages, and write a partially-warmed manifest
+    # that the freshness gate then trusts for a week. With an API key
+    # the throttle is harmless overhead; without one, it's the
+    # difference between a successful pass and a poisoned manifest.
+    # 500 ms x ~170 sets ~= 1.5 minutes of throttle overhead per fresh
+    # pass — negligible against the 1-week stale window.
+    _DEFAULT_STARTUP_THROTTLE_MS = 500
+
     def _run() -> None:
         try:
             pkmn = TCGClient(api_key=os.environ.get("POKEMONTCG_IO_API_KEY"))
-            result = warm_cards(pkmn)
+            result = warm_cards(pkmn, throttle_ms=_DEFAULT_STARTUP_THROTTLE_MS)
             disk_cache.write_card_warm(
                 cards_warmed=result.cards_warmed,
                 cards_failed=result.cards_failed,

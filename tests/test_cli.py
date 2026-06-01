@@ -878,6 +878,53 @@ class CacheWarmCardsCommandTests(unittest.TestCase):
         self.assertIn("card warm failed", result.output)
         self.assertIn("network down", result.output)
 
+    def test_warm_cards_verbose_prints_per_set_progress_and_missed_dump(self) -> None:
+        """`-v` exercises the on_progress callback and the missed-sets dump
+        at the end. Also drives `--max-cards` so the section header reflects
+        the cap."""
+        from unittest.mock import patch as _patch
+
+        from mgz_pkmn.lookup import WarmCardsResult
+
+        def fake_warm(pkmn, *, set_ids, max_cards, skip_existing, throttle_ms, on_progress):
+            # Drive the progress callback so the verbose branch (lines 1468-1470)
+            # fires for both sets the CLI passed in.
+            on_progress(1, 2, "sv8")
+            on_progress(2, 2, "ghost")
+            return WarmCardsResult(
+                sets_attempted=2,
+                cards_warmed=5,
+                cards_failed=0,
+                sets_failed=["ghost"],
+            )
+
+        with _patch("mgz_pkmn.cli.warm_cards", side_effect=fake_warm):
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "cache",
+                    "warm-cards",
+                    "--set",
+                    "sv8",
+                    "--set",
+                    "ghost",
+                    "--max-cards",
+                    "5",
+                    "-v",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        # `--max-cards 5` lands in the section header.
+        self.assertIn("max 5 cards", result.output)
+        # Per-set progress lines fired.
+        self.assertIn("[1/2]", result.output)
+        self.assertIn("sv8", result.output)
+        self.assertIn("[2/2]", result.output)
+        # Missed-sets dump fired at the end.
+        self.assertIn("missed:", result.output)
+        self.assertIn("ghost", result.output)
+
     def test_warm_cards_rejects_empty_pass(self) -> None:
         from unittest.mock import patch as _patch
 

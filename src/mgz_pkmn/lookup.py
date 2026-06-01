@@ -922,13 +922,24 @@ def warm_cards(
             if skip_existing and disk_cache.read_api(card_url) is not None:
                 cards_warmed += 1
             else:
-                try:
-                    # Wrap in a list to match the existing API-slice
-                    # convention (every cached entry is a list of card
-                    # objects, including single-result responses).
-                    disk_cache.write_api(card_url, [card])
+                # Wrap in a list to match the existing API-slice
+                # convention (every cached entry is a list of card
+                # objects, including single-result responses).
+                #
+                # `disk_cache.write_api` is best-effort and swallows
+                # OSError/TypeError/ValueError internally, so a try/except
+                # around the call wouldn't catch anything. Verify the
+                # write landed by reading the entry back — costs a stat
+                # per card but ensures `cards_warmed` reflects what's
+                # actually on disk. Without this, a read-only filesystem
+                # or a serialization failure would write a "successful"
+                # manifest and the freshness gate would suppress retries
+                # for a week with the entries absent (the issue Copilot
+                # flagged in #377's review).
+                disk_cache.write_api(card_url, [card])
+                if disk_cache.read_api(card_url) is not None:
                     cards_warmed += 1
-                except OSError:
+                else:
                     cards_failed += 1
 
             if max_cards is not None and cards_warmed >= max_cards:

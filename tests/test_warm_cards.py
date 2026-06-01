@@ -248,6 +248,87 @@ class WarmCardsTests(_IsolatedCacheMixin):
         self.assertEqual(result.cards_warmed, 2)
         self.assertEqual(result.sets_failed, ["ghost"])
 
+    def test_write_failure_counts_as_failed_not_warmed(self) -> None:
+        """Read-back verification: when `write_api` silently fails (it swallows
+        OSError/TypeError/ValueError internally), warm_cards must not lie about
+        success. The card lands in `cards_failed`, not `cards_warmed`, so the
+        freshness gate's `cards_warmed > 0` guard doesn't suppress retries
+        when the disk is broken."""
+        sets = {"sv8": self._set_payload("sv8", 2)}
+
+        # First write succeeds normally; second has `write_api` silently no-op
+        # (simulating a serialization failure or read-only fs). Because
+        # write_api swallows the error, the read-back is the only signal.
+        original_write = disk_cache.write_api
+        call_count = {"n": 0}
+
+        def flaky_write(key: str, data) -> None:
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                return  # silent failure — file never lands
+            original_write(key, data)
+
+        with (
+            patch.object(TCGClient, "search_all", side_effect=lambda q, **_kw: sets["sv8"]),
+            patch.object(disk_cache, "write_api", side_effect=flaky_write),
+        ):
+            result = warm_cards(TCGClient(), set_ids=["sv8"], skip_existing=False)
+
+        self.assertEqual(result.cards_warmed, 1)
+        self.assertEqual(result.cards_failed, 1)
+
+    def test_throttle_ms_sleeps_between_sets(self) -> None:
+        """`throttle_ms` paces the set-level walk so a no-API-key deploy
+        doesn't burst through pokemontcg.io's 30-rpm free-tier ceiling.
+        Patches `time.sleep` to observe the calls without actually sleeping."""
+        from mgz_pkmn import lookup as lookup_mod
+
+        sets = {"sv8": self._set_payload("sv8", 1), "sv7": self._set_payload("sv7", 1)}
+
+        with (
+            patch.object(
+                TCGClient,
+                "search_all",
+                side_effect=lambda q, **_kw: sets[q.split('"')[1]],
+            ),
+            patch.object(lookup_mod.time, "sleep") as mock_sleep,
+        ):
+            warm_cards(TCGClient(), set_ids=list(sets), throttle_ms=250)
+
+        # One sleep per set walked (both succeed). 250 ms == 0.25 s.
+        self.assertEqual(mock_sleep.call_count, 2)
+        for call in mock_sleep.call_args_list:
+            self.assertAlmostEqual(call.args[0], 0.25, places=3)
+
+    def test_throttle_ms_also_sleeps_after_empty_set(self) -> None:
+        """A set whose search returns no cards still gets a throttle sleep
+        before moving to the next id — the upstream call happened either
+        way, so the rate-limit budget got spent."""
+        from mgz_pkmn import lookup as lookup_mod
+
+        with (
+            patch.object(TCGClient, "search_all", return_value=[]),
+            patch.object(lookup_mod.time, "sleep") as mock_sleep,
+        ):
+            warm_cards(TCGClient(), set_ids=["ghost"], throttle_ms=100)
+
+        self.assertEqual(mock_sleep.call_count, 1)
+
+    def test_card_without_id_lands_in_failed(self) -> None:
+        """A malformed card object (no `id` field) increments `cards_failed`
+        rather than silently dropping it. Catches upstream schema drift."""
+        bad_card = {"name": "Mystery"}  # no id
+        good_card = {"id": "sv8-1", "name": "Card1"}
+        with patch.object(
+            TCGClient,
+            "search_all",
+            return_value=[bad_card, good_card],
+        ):
+            result = warm_cards(TCGClient(), set_ids=["sv8"])
+
+        self.assertEqual(result.cards_warmed, 1)
+        self.assertEqual(result.cards_failed, 1)
+
     def test_progress_callback_fires_once_per_set(self) -> None:
         sets = {"sv8": self._set_payload("sv8", 1), "sv7": self._set_payload("sv7", 1)}
         calls: list[tuple[int, int, str]] = []
