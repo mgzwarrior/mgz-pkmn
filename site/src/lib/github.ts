@@ -234,10 +234,13 @@ function compareVersions(a: string, b: string): number {
 /**
  * Pick the three milestones that drive the roadmap teaser:
  *   - `done`: the most recently closed milestone
- *   - `active`: the open milestone with the soonest due date (ties broken
- *     by lowest number); falls back to the lowest-numbered open milestone
- *     when none are dated
- *   - `planned`: the next open milestone after the active one, by number
+ *   - `active`: the open milestone with the soonest due date, ties broken
+ *     by semver-ordered title then by GitHub milestone number for stability;
+ *     falls back to the lowest semver-ordered open milestone when none are
+ *     dated
+ *   - `planned`: the open milestone whose version is the smallest greater
+ *     than `active`'s — i.e. the next version after the active one, never
+ *     a lower version even when `active` was picked by due-date
  *
  * Returns `null` when any of the three slots can't be filled or the
  * GitHub call fails; the caller renders the hard-coded fallback in that
@@ -254,22 +257,31 @@ export async function fetchRoadmapMilestones(): Promise<RoadmapMilestone[] | nul
   const open = data
     .filter((m) => m.state === "open")
     .sort((a, b) => {
-      // Dated milestones first, soonest due wins; undated fall back to
-      // semver-ordered title so `v1.4` lands before `v2.0`.
-      if (a.due_on && b.due_on) return a.due_on.localeCompare(b.due_on);
-      if (a.due_on) return -1;
-      if (b.due_on) return 1;
-      return compareVersions(a.title, b.title);
+      // Dated milestones first, soonest due wins; ties on due_on (and
+      // any two undated milestones) fall back to semver-ordered title
+      // so `v1.4` lands before `v2.0`, with milestone number as a final
+      // stable tie-break.
+      if (a.due_on && b.due_on) {
+        const dueDiff = a.due_on.localeCompare(b.due_on);
+        if (dueDiff !== 0) return dueDiff;
+      } else if (a.due_on) return -1;
+      else if (b.due_on) return 1;
+      const semverDiff = compareVersions(a.title, b.title);
+      if (semverDiff !== 0) return semverDiff;
+      return a.number - b.number;
     });
 
   const done = closed[0];
   const active = open[0];
-  // "Next open milestone after active" is the version that immediately
-  // follows the active one — pick by semver title order, not GitHub's
-  // internal milestone number.
-  const planned = open
-    .slice(1)
-    .sort((a, b) => compareVersions(a.title, b.title))[0];
+  // "Next open milestone after active" is the smallest open version
+  // strictly greater than active's — never a lower version even when
+  // active was picked by due-date (e.g. an actively-dated `v2.0` should
+  // not produce a `v1.4` planned card).
+  const planned = active
+    ? open
+        .filter((m) => m !== active && compareVersions(m.title, active.title) > 0)
+        .sort((a, b) => compareVersions(a.title, b.title))[0]
+    : undefined;
   if (!done || !active || !planned) return null;
 
   const toCard = (m: GhMilestone, state: RoadmapState): RoadmapMilestone => ({
