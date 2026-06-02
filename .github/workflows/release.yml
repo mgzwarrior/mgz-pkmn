@@ -86,3 +86,23 @@ jobs:
             ```bash
             pip install mgz-pkmn==${{ steps.pypi.outputs.version }}
             ```
+
+  rebuild-site:
+    name: Rebuild marketing site
+    needs: github-release
+    runs-on: ubuntu-latest
+    # Don't fail the release if the hook is missing or the rebuild trigger
+    # bounces — the GitHub Release is already cut and PyPI is published.
+    continue-on-error: true
+    steps:
+      - name: Trigger Cloudflare Pages deploy hook
+        env:
+          HOOK: ${{ secrets.CF_PAGES_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::CF_PAGES_DEPLOY_HOOK not set; skipping site rebuild."
+            echo "Set the secret to: Cloudflare Pages → site → Settings → Build & deployments → Deploy hooks."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST "$HOOK"
+          echo "Cloudflare Pages rebuild triggered."

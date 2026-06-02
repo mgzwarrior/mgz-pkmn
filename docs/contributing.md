@@ -419,6 +419,10 @@ need an explicit release action:
 
 - **Marketing site** (`site/`) → Cloudflare Pages auto-deploys on
   push to `main` ([ADR-0011](adr/0011-marketing-site-stack.md)).
+  `release.yml` *also* fires the Pages deploy hook after the GitHub
+  Release is cut, so the hero pill and roadmap teaser pick up the new
+  version once the demo API has rotated. Requires the
+  [`CF_PAGES_DEPLOY_HOOK`](#cloudflare-pages-deploy-hook) secret.
 - **Demo API + SPA** (`api/` + `web/`) → Render auto-deploys on
   push to `main` from the [`render.yaml`](../render.yaml) blueprint
   ([ADR-0016](adr/0016-deployment-topology.md), [docs/deployment.md](deployment.md)).
@@ -426,7 +430,10 @@ need an explicit release action:
   in-app "What's new" panel both read from
   `GET /api/v1/changelog`, which parses `CHANGELOG.md` — so as
   long as the release PR's changelog rotation lands, those
-  surfaces self-update on the next deploy.
+  surfaces self-update on the next deploy. The roadmap teaser
+  ("Where it's going.") pulls its three cards from the GitHub
+  milestones API at build time and falls back to a hard-coded set
+  if the call fails.
 
 ### Running this from Claude Code
 
@@ -516,3 +523,16 @@ Scope the PAT to this repository with **Contents: read and write**.
 Rotate it on the standard cadence and update the
 `RELEASE_PAT` secret under repo Settings → Secrets and variables →
 Actions.
+
+### Cloudflare Pages deploy hook
+
+The `rebuild-site` job in `release.yml` curls a Cloudflare Pages
+deploy hook so the marketing site rebuilds against the freshly
+published changelog (otherwise the hero pill and roadmap teaser keep
+showing the previous version until the next `site/**` push).
+
+Capture the hook from the Cloudflare Pages dashboard → site →
+**Settings → Build & deployments → Deploy hooks**, and store the
+returned URL as the repo secret `CF_PAGES_DEPLOY_HOOK`. The job is
+`continue-on-error: true` and warns (without failing) if the secret
+is unset, so the release itself is never blocked on the rebuild.

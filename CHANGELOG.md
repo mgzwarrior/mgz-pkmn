@@ -72,6 +72,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
   Pinned by 25+ tests in `tests/test_warm_card_images.py` and
   `tests/test_card_images_api.py`.
 
+- Release + site: **Marketing site auto-rebuilds after a release, and
+  the "Where it's going." teaser is now milestone-driven**
+  ([#362](https://github.com/mgzwarrior/mgz-pkmn/issues/362)).
+  `release.yml` now fires a Cloudflare Pages deploy hook
+  (`CF_PAGES_DEPLOY_HOOK`) after the GitHub Release is cut, so the
+  hero pill and roadmap teaser pick up the new version once the demo
+  API has rotated rather than waiting for the next `site/**` push.
+  [RoadmapTeaser.astro](site/src/components/RoadmapTeaser.astro)
+  now build-time-fetches the repo's milestones via the GitHub API and
+  renders the most-recently-closed milestone as **Shipped**, the open
+  milestone with the soonest due date as **In flight**, and the next
+  open milestone as **Planned** — body copy comes from each
+  milestone's description, falling back to a generic per-state line
+  when empty. The previous hard-coded cards remain as the fallback
+  when the GitHub call fails, matching the changelog helper's
+  fail-open pattern. The rebuild job is `continue-on-error: true`,
+  so a missing or bouncing deploy hook never blocks the release.
+
 ### Fixed
 
 - Web: **Cache-stats panel upcasts byte counts through GB / TB**

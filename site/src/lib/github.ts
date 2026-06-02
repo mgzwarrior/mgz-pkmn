@@ -175,6 +175,113 @@ export async function fetchContributors(limit = 12): Promise<Contributor[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Roadmap milestones — drives the "Where it's going." teaser on the
+// landing page. We pull `state=all` so the most-recently-closed milestone
+// shows as the "done" card alongside the active/planned open ones.
+// ---------------------------------------------------------------------------
+
+export type RoadmapState = "done" | "active" | "planned";
+
+export interface RoadmapMilestone {
+  state: RoadmapState;
+  /** Milestone title with the leading `v` stripped (e.g. `1.2`). */
+  title: string;
+  /** Milestone description, or `null` when empty. */
+  body: string | null;
+  url: string;
+}
+
+interface GhMilestone {
+  number: number;
+  title: string;
+  description: string | null;
+  state: "open" | "closed";
+  due_on: string | null;
+  closed_at: string | null;
+  html_url: string;
+}
+
+function stripVPrefix(title: string): string {
+  return title.replace(/^v/i, "");
+}
+
+/**
+ * Tuple key for ordering semver-shaped milestone titles (`v1.4`, `v2.0`,
+ * `v1.10`) by version rather than string or GitHub milestone number.
+ * Non-numeric segments fall through to lexical compare so unusual titles
+ * still sort deterministically.
+ */
+function versionKey(title: string): number[] {
+  return stripVPrefix(title)
+    .split(".")
+    .map((part) => {
+      const n = Number.parseInt(part, 10);
+      return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+    });
+}
+
+function compareVersions(a: string, b: string): number {
+  const ak = versionKey(a);
+  const bk = versionKey(b);
+  const len = Math.max(ak.length, bk.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (ak[i] ?? 0) - (bk[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return a.localeCompare(b);
+}
+
+/**
+ * Pick the three milestones that drive the roadmap teaser:
+ *   - `done`: the most recently closed milestone
+ *   - `active`: the open milestone with the soonest due date (ties broken
+ *     by lowest number); falls back to the lowest-numbered open milestone
+ *     when none are dated
+ *   - `planned`: the next open milestone after the active one, by number
+ *
+ * Returns `null` when any of the three slots can't be filled or the
+ * GitHub call fails; the caller renders the hard-coded fallback in that
+ * case.
+ */
+export async function fetchRoadmapMilestones(): Promise<RoadmapMilestone[] | null> {
+  const url = `${API}/repos/${OWNER}/${REPO}/milestones?state=all&per_page=100`;
+  const data = await safeFetchJson<GhMilestone[]>(url);
+  if (!data) return null;
+
+  const closed = data
+    .filter((m) => m.state === "closed" && m.closed_at)
+    .sort((a, b) => (b.closed_at ?? "").localeCompare(a.closed_at ?? ""));
+  const open = data
+    .filter((m) => m.state === "open")
+    .sort((a, b) => {
+      // Dated milestones first, soonest due wins; undated fall back to
+      // semver-ordered title so `v1.4` lands before `v2.0`.
+      if (a.due_on && b.due_on) return a.due_on.localeCompare(b.due_on);
+      if (a.due_on) return -1;
+      if (b.due_on) return 1;
+      return compareVersions(a.title, b.title);
+    });
+
+  const done = closed[0];
+  const active = open[0];
+  // "Next open milestone after active" is the version that immediately
+  // follows the active one — pick by semver title order, not GitHub's
+  // internal milestone number.
+  const planned = open
+    .slice(1)
+    .sort((a, b) => compareVersions(a.title, b.title))[0];
+  if (!done || !active || !planned) return null;
+
+  const toCard = (m: GhMilestone, state: RoadmapState): RoadmapMilestone => ({
+    state,
+    title: stripVPrefix(m.title),
+    body: m.description?.trim() ? m.description.trim() : null,
+    url: m.html_url,
+  });
+  return [toCard(done, "done"), toCard(active, "active"), toCard(planned, "planned")];
+}
+
+// ---------------------------------------------------------------------------
 // Relative-time formatter shared across the three surfaces.
 // ---------------------------------------------------------------------------
 
