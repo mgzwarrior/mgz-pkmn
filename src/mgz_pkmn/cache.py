@@ -1411,13 +1411,21 @@ def stats() -> CacheStats:
     root = cache_root()
 
     def _scan_json_dir(dirpath: Path) -> tuple[int, int, float | None]:
-        """Return (count, bytes, oldest_mtime) for `.json` files in a dir."""
+        """Return (count, bytes, oldest_mtime) for `.json` files in a dir.
+
+        An unreadable directory (permission denied, transient FS error)
+        is treated as empty so the stats endpoint doesn't crash on a
+        misconfigured deploy — mirrors `cache_size_bytes()`."""
         if not dirpath.exists():
+            return 0, 0, None
+        try:
+            entries = list(dirpath.iterdir())
+        except OSError:
             return 0, 0, None
         count = 0
         total = 0
         oldest: float | None = None
-        for entry in dirpath.iterdir():
+        for entry in entries:
             if not entry.is_file() or entry.suffix != ".json":
                 continue
             try:

@@ -154,10 +154,14 @@ def _do_lookup(
     back onto the event loop.
     """
     out: list[tuple[Row, str]] = []
-    # Accumulate the worst cache status the lookup sees. Default HIT so a
-    # lookup that never touches disk (e.g. PriceCharting URL hint) doesn't
-    # falsely surface as MISS; the per-source MatchResult.cache_status
-    # default of MISS still wins when no L2 lookup was attempted.
+    # Aggregate the worst cache status observed across the lookup via
+    # `worse_cache_status` (MISS > STALE > HIT). Seed at "HIT" — every
+    # branch below calls `_bump_status` at least once, so the seed is
+    # immediately overwritten by the first observation; it just makes
+    # the aggregate well-defined if a future refactor adds a branch
+    # that doesn't bump. Sources without a disk cache (PriceCharting,
+    # TCGdex today) default their MatchResult.cache_status to "MISS",
+    # which correctly surfaces as MISS — those calls *did* hit upstream.
     status_acc: list[str] = ["HIT"]
 
     def _bump_status(s: str) -> None:
