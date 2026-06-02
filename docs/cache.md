@@ -6,8 +6,50 @@ list don't keep re-spending API quota. Two stores live there:
 
 | Path | What it holds | TTL |
 |---|---|---|
-| `api/<sha1>.json` | One file per pokemontcg.io request URL. | 7 days (mtime-based). |
+| `api_structural/<sha1>.json` | Structural fields per cached request URL — name, set, number, rarity, attacks, images, etc. Anything that doesn't change once a card is printed. | None — indefinite. |
+| `api_pricing/<sha1>.json` | Volatile pricing fields per cached request URL — `tcgplayer.prices`, `cardmarket.prices`, `_pc_prices`, `_pc_url`. | 24 h (mtime-based). Stale reads return the cached value while a background refresh runs. |
+| `api/<sha1>.json` | **Legacy** — pre-#372 combined payload. Migrated to the split form lazily on first read; new writes go directly to `api_structural/` + `api_pricing/`. | 7 days (mtime-based). |
 | `url_overrides.json` | `(name, set_hint)` → PriceCharting URL, recorded whenever you paste a PC URL on a line. | None — sticky until you overwrite or delete. |
+
+## Freshness model
+
+mgz-pkmn treats card data as **two slices with different freshness
+semantics** ([#372](https://github.com/mgzwarrior/mgz-pkmn/issues/372),
+[ADR-0018](adr/0018-structural-vs-volatile-cache-with-swr.md)):
+
+- **Structural** fields (name, set, number, rarity, types, attacks,
+  weaknesses, resistances, retreat cost, legalities, ancient trait,
+  image URLs, …) are cached **indefinitely** under
+  `api_structural/`. Cards don't change after they're printed; we
+  serve them from disk forever.
+- **Volatile pricing** fields (`tcgplayer.prices`,
+  `cardmarket.prices`, `_pc_prices`, `_pc_url`) live in
+  `api_pricing/` with a **24 h TTL**. Past the TTL the cached value
+  is returned **immediately** and a background thread re-fetches
+  the upstream URL and writes a fresh pricing slice for the next
+  request. This is the **stale-while-revalidate** pattern.
+
+`/api/v1/lookup` advertises which path served the request through
+an **`X-Cache`** response header:
+
+| Value | Meaning |
+|---|---|
+| `HIT` | Both slices on disk; pricing within the 24 h TTL. No upstream call. |
+| `STALE` | Both slices on disk, pricing older than 24 h. Cached value returned immediately; background refresh kicked off. |
+| `MISS` | At least one slice not on disk (or a paged search hit a fresh page). Upstream was consulted. |
+
+Concurrent stale reads on the same key **coalesce** to one background
+refresh — the in-flight set is process-local and a single
+`threading.Lock` guards the add/remove. Multi-process refresh
+coalescing is not attempted; atomic writes keep the file uncorrupted
+and the worst-case cost is 2× upstream for an affected key.
+
+Legacy `api/<sha1>.json` entries from before the split are migrated
+**lazily** on first read: the legacy file is parsed, split into both
+new locations atomically, the pricing file's mtime is preserved via
+`os.utime` (so a 9 d-old legacy entry is correctly STALE after
+migration), and the legacy file is unlinked. After migration the
+entry behaves identically to a fresh split write.
 
 ## Behavior
 

@@ -100,7 +100,10 @@ class LookupRouteTests(unittest.TestCase):
         placeholder_q = CardQuery(raw="Pikachu", name="Pikachu")
         unmatched_row = Row(query=placeholder_q, card=None, pricing=Pricing(), tag="")
 
-        with patch("api.routes.lookup._do_lookup", return_value=[(unmatched_row, "no_candidates")]):
+        with patch(
+            "api.routes.lookup._do_lookup",
+            return_value=([(unmatched_row, "no_candidates")], "MISS"),
+        ):
             resp = client.post("/api/v1/lookup", json={"line": "Pikachu"})
 
         self.assertEqual(resp.status_code, 200)
@@ -108,6 +111,32 @@ class LookupRouteTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertFalse(rows[0]["matched"])
         self.assertEqual(rows[0]["reason"], "no_candidates")
+
+    def test_lookup_route_sets_x_cache_header_on_hit_miss_stale(self) -> None:
+        """`X-Cache` mirrors `_do_lookup`'s aggregated cache status (#372)."""
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        row = Row(
+            query=CardQuery(raw="Pikachu", name="Pikachu"),
+            card={"id": "base1-25", "name": "Pikachu"},
+            pricing=Pricing(market=10.0),
+            tag="",
+        )
+        for status in ("HIT", "STALE", "MISS"):
+            with patch(
+                "api.routes.lookup._do_lookup",
+                return_value=([(row, "matched")], status),
+            ):
+                resp = client.post("/api/v1/lookup", json={"line": "Pikachu"})
+            self.assertEqual(resp.status_code, 200, msg=f"status={status}")
+            self.assertEqual(resp.headers["X-Cache"], status, msg=f"status={status}")
+
+    def test_lookup_route_x_cache_is_miss_for_skippable_and_unparseable_lines(self) -> None:
+        # Blank line → skipped (no rows, no L2 lookup): default to MISS.
+        resp = client.post("/api/v1/lookup", json={"line": "   "})
+        self.assertEqual(resp.headers["X-Cache"], "MISS")
 
     def test_matched_line_returns_matched_row(self) -> None:
         from mgz_pkmn.parser import CardQuery
@@ -118,7 +147,10 @@ class LookupRouteTests(unittest.TestCase):
         q = CardQuery(raw="Charizard", name="Charizard")
         matched_row = Row(query=q, card=card, pricing=Pricing(market=100.0), tag="")
 
-        with patch("api.routes.lookup._do_lookup", return_value=[(matched_row, "matched")]):
+        with patch(
+            "api.routes.lookup._do_lookup",
+            return_value=([(matched_row, "matched")], "HIT"),
+        ):
             resp = client.post("/api/v1/lookup", json={"line": "Charizard"})
 
         self.assertEqual(resp.status_code, 200)
@@ -174,7 +206,10 @@ class BulkStageStreamTests(unittest.TestCase):
                 on_stage("looking_up")
                 on_stage("fallback")
             card = {"id": "base1-4", "name": "Charizard"}
-            return [(Row(query=q, card=card, pricing=Pricing(market=100.0), tag=""), "matched")]
+            return (
+                [(Row(query=q, card=card, pricing=Pricing(market=100.0), tag=""), "matched")],
+                "HIT",
+            )
 
         with patch("api.routes.lookup._do_lookup", side_effect=fake):
             resp = client.post("/api/v1/bulk", json={"lines": ["Charizard"]})
@@ -199,7 +234,7 @@ class BulkStageStreamTests(unittest.TestCase):
         def fake(pkmn, tcgdex, pc, q, settings, on_stage=None):
             if on_stage is not None:
                 on_stage("looking_up")
-            return [(Row(query=q, card=None, pricing=Pricing(), tag=""), "no_candidates")]
+            return [(Row(query=q, card=None, pricing=Pricing(), tag=""), "no_candidates")], "MISS"
 
         with patch("api.routes.lookup._do_lookup", side_effect=fake):
             resp = client.post("/api/v1/bulk", json={"lines": ["Nonsense"]})
@@ -451,7 +486,7 @@ class SetCardsRouteTests(unittest.TestCase):
         def _capture(self_, query):
             del self_  # bound-method shape; we only care about the query string
             captured.append(query)
-            return []
+            return [], "MISS"
 
         with patch("mgz_pkmn.sources.pokemontcg.TCGClient.search_all", _capture):
             _fetch_set_cards("sv8", api_key=None)

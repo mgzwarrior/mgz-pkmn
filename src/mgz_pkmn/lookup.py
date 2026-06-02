@@ -170,18 +170,18 @@ def _apply_price_bounds(result: MatchResult, q: CardQuery) -> MatchResult:
     if q.price_min is not None:
         if q.price_min_exclusive:
             if pricing.market <= q.price_min:
-                return MatchResult(None, "price_mismatch")
+                return MatchResult(None, "price_mismatch", cache_status=result.cache_status)
         else:
             if pricing.market < q.price_min:
-                return MatchResult(None, "price_mismatch")
+                return MatchResult(None, "price_mismatch", cache_status=result.cache_status)
 
     if q.price_max is not None:
         if q.price_max_exclusive:
             if pricing.market >= q.price_max:
-                return MatchResult(None, "price_mismatch")
+                return MatchResult(None, "price_mismatch", cache_status=result.cache_status)
         else:
             if pricing.market > q.price_max:
-                return MatchResult(None, "price_mismatch")
+                return MatchResult(None, "price_mismatch", cache_status=result.cache_status)
 
     return result
 
@@ -264,11 +264,31 @@ def find_card(
     for lang in langs:
         result = search_tcgdex(tcgdex, q, lang)
         if result.card:
-            return _apply_price_bounds(result, q)
+            # TCGdex has no disk persistence today, so its MatchResult
+            # cache_status is always MISS. Inherit pokemontcg.io's L2
+            # status when we have a match — the user's lookup *was*
+            # served via the cache path even if the eventual answer came
+            # from TCGdex's in-memory layer. Disk persistence on TCGdex
+            # is tracked separately; this branch will update naturally
+            # when that lands.
+            return _apply_price_bounds(
+                MatchResult(
+                    result.card, result.reason, url=result.url, cache_status=primary.cache_status
+                ),
+                q,
+            )
         if result.reason == "set_mismatch":
             saw_set_mismatch = True
 
-    return MatchResult(None, "set_mismatch" if saw_set_mismatch else "no_candidates")
+    # Empty result: preserve the cache_status the pokemontcg.io read
+    # actually observed. Without this the no_candidates / set_mismatch
+    # path resets to the MatchResult default "MISS" and the /lookup route
+    # reports a false MISS on a cached empty payload.
+    return MatchResult(
+        None,
+        "set_mismatch" if saw_set_mismatch else "no_candidates",
+        cache_status=primary.cache_status,
+    )
 
 
 def _set_fallback_queries(subject: str) -> list[str]:
@@ -377,6 +397,7 @@ def find_top_cards(
     limit: int | None = 5,
     max_price: float | None = None,
     on_stage: StageCallback | None = None,
+    on_cache_status: Callable[[str], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Return up to `limit` chase cards for a name, ranked by market price.
 
@@ -411,6 +432,14 @@ def find_top_cards(
     seen_ids: set[str] = set()
     pool: list[dict[str, Any]] = []
 
+    def _search_all_with_status(query: str) -> list[dict[str, Any]]:
+        """Wrap `pkmn.search_all` so the per-query cache status flows out
+        through `on_cache_status` even when the result is iterated inline."""
+        cards, status = pkmn.search_all(query)
+        if on_cache_status is not None:
+            on_cache_status(status)
+        return cards
+
     set_clause = f' set.name:"{q.set_hint}"' if q.set_hint else ""
     series_clause = f' set.series:"{q.set_hint}"' if q.set_hint else ""
 
@@ -440,7 +469,7 @@ def find_top_cards(
             else [subtype_clause]
         )
         for query in dict.fromkeys(subtype_queries):
-            for card in pkmn.search_all(query):
+            for card in _search_all_with_status(query):
                 cid = card.get("id")
                 if not cid or cid in seen_ids:
                     continue
@@ -480,7 +509,7 @@ def find_top_cards(
                 queries.append(f"name:{head_safe}*")
 
         for query in dict.fromkeys(queries):
-            for card in pkmn.search_all(query):
+            for card in _search_all_with_status(query):
                 cid = card.get("id")
                 if not cid or cid in seen_ids:
                     continue
@@ -509,7 +538,7 @@ def find_top_cards(
     # to land on the unrelated "Mega Evolution" set.
     if not pool and not q.set_hint and not name_search_skipped and not is_concept:
         for set_query in _set_fallback_queries(cleaned):
-            for card in pkmn.search_all(set_query):
+            for card in _search_all_with_status(set_query):
                 cid = card.get("id")
                 if not cid or cid in seen_ids:
                     continue
@@ -539,7 +568,7 @@ def find_top_cards(
             flavor_query = f'flavorText:"{term}"'
             if q.set_hint:
                 flavor_query += set_clause
-            for card in pkmn.search_all(flavor_query):
+            for card in _search_all_with_status(flavor_query):
                 cid = card.get("id")
                 if not cid or cid in seen_ids:
                     continue
@@ -693,7 +722,7 @@ def warm_concepts(
             # MUST mirror `find_top_cards`' query shape so the cache keys
             # line up. See the section comment above.
             query = name_clause(name)
-            results = pkmn.search_all(query)
+            results, _status = pkmn.search_all(query)
             if results:
                 hit = True
         # Fall through to TCGdex on miss (or always, when source="tcgdex").
@@ -800,7 +829,7 @@ def warm_set_cards(
             on_progress(index, total, set_id)
         # MUST mirror `_fetch_set_cards` so the disk-cache key lines up.
         query = f'set.id:"{set_id}"'
-        results = pkmn.search_all(query)
+        results, _status = pkmn.search_all(query)
         if results:
             warmed += 1
         else:
@@ -867,7 +896,7 @@ def warm_cards(
     walk. When None (default), every card in every walked set is
     processed.
 
-    `skip_existing` (default True) probes `disk_cache.read_api` before
+    `skip_existing` (default True) probes the split cache before
     writing — so a re-run only re-writes the cards that have fallen out
     of the cache. The skipped entries still count toward `cards_warmed`
     in the result, since the post-condition (entry exists on disk) is
@@ -905,7 +934,7 @@ def warm_cards(
         # serve from disk for free. The data we get back is also what
         # we fan out into per-card entries below.
         query = f'set.id:"{set_id}"'
-        cards = pkmn.search_all(query)
+        cards, _status = pkmn.search_all(query)
         if not cards:
             sets_failed.append(set_id)
             if throttle_ms > 0:
@@ -919,16 +948,22 @@ def warm_cards(
                 continue
             card_url = f"{API_BASE}/cards/{card_id}"
 
-            if skip_existing and disk_cache.read_api(card_url) is not None:
+            # `skip_existing=False` overwrites unconditionally, so don't
+            # pay the read-probe cost on the overwrite path. Only probe
+            # when we'd actually skip on a hit.
+            if skip_existing:
+                existing, _existing_status = disk_cache.read_api_split(card_url)
+            else:
+                existing = None
+            if skip_existing and existing is not None:
                 cards_warmed += 1
             else:
                 # Wrap in a list to match the existing API-slice
                 # convention (every cached entry is a list of card
                 # objects, including single-result responses).
                 #
-                # `disk_cache.write_api` is best-effort and swallows
-                # OSError/TypeError/ValueError internally, so a try/except
-                # around the call wouldn't catch anything. Verify the
+                # `disk_cache.write_api_split` is best-effort and swallows
+                # OSError/TypeError/ValueError internally. Verify the
                 # write landed by reading the entry back — costs a stat
                 # per card but ensures `cards_warmed` reflects what's
                 # actually on disk. Without this, a read-only filesystem
@@ -936,8 +971,9 @@ def warm_cards(
                 # manifest and the freshness gate would suppress retries
                 # for a week with the entries absent (the issue Copilot
                 # flagged in #377's review).
-                disk_cache.write_api(card_url, [card])
-                if disk_cache.read_api(card_url) is not None:
+                disk_cache.write_api_split(card_url, [card])
+                verify, _verify_status = disk_cache.read_api_split(card_url)
+                if verify is not None:
                     cards_warmed += 1
                 else:
                     cards_failed += 1

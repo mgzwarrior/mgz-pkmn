@@ -12,7 +12,7 @@ import requests
 from .. import cache as disk_cache
 from ..parser import CardQuery, detect_card_language, strip_noise
 from ._common import USER_AGENT
-from .base import MatchResult, name_clause, score_card, set_overlap
+from .base import MatchResult, name_clause, score_card, set_overlap, worse_cache_status
 
 API_BASE = "https://api.pokemontcg.io/v2"
 
@@ -26,9 +26,13 @@ class TCGClient:
         if api_key:
             self.session.headers["X-Api-Key"] = api_key
         self.verbose = verbose
-        self._cache: dict[str, list[dict[str, Any]]] = {}
+        # L1 in-memory cache. Stores (cards, status) — status is the worst
+        # disk-cache outcome we observed when first populating this entry,
+        # so an L1 hit reports its original L2 freshness instead of falsely
+        # promoting STALE/MISS to HIT on the second call within a process.
+        self._cache: dict[str, tuple[list[dict[str, Any]], str]] = {}
 
-    def search(self, query: str, page_size: int = 12) -> list[dict[str, Any]]:
+    def search(self, query: str, page_size: int = 12) -> tuple[list[dict[str, Any]], str]:
         return self._fetch_page(query, page=1, page_size=page_size)
 
     def search_all(
@@ -36,48 +40,75 @@ class TCGClient:
         query: str,
         page_size: int = 50,
         max_pages: int = 12,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], str]:
         """Paginate through every match for `query` (up to max_pages * page_size).
 
         Necessary for "top N from a set" queries — sets often have 200+ cards
         and the highest-priced chase variants (secret-rare alt arts, hyper
         rares) typically have the highest card numbers, so they fall past
-        page 1 of a default-sized search."""
+        page 1 of a default-sized search.
+
+        Returns `(cards, status)` where `status` is the worst page-level
+        cache outcome across the walk (MISS > STALE > HIT). A single MISS
+        page upgrades the whole call's status to MISS."""
         cache_key = f"all:{query}:{page_size}:{max_pages}"
         if cache_key in self._cache:
             return self._cache[cache_key]
 
         all_cards: list[dict[str, Any]] = []
+        status = "HIT"
         for page in range(1, max_pages + 1):
-            data = self._fetch_page(query, page=page, page_size=page_size)
+            data, page_status = self._fetch_page(query, page=page, page_size=page_size)
+            status = worse_cache_status(status, page_status)
             if not data:
                 break
             all_cards.extend(data)
             if len(data) < page_size:
                 break  # short page → last page
-        self._cache[cache_key] = all_cards
-        return all_cards
+        self._cache[cache_key] = (all_cards, status)
+        return all_cards, status
 
-    def _fetch_page(self, query: str, *, page: int, page_size: int) -> list[dict[str, Any]]:
+    def _fetch_page(
+        self, query: str, *, page: int, page_size: int
+    ) -> tuple[list[dict[str, Any]], str]:
         cache_key = f"page:{query}:{page}:{page_size}"
         if cache_key in self._cache:
             return self._cache[cache_key]
         url = f"{API_BASE}/cards?q={quote(query)}&pageSize={page_size}&page={page}"
-        # L2 disk cache (TTL'd by mtime). The in-memory `_cache` above is the
-        # L1, but disk persists across runs so iterating on a card list
-        # doesn't re-spend API quota for queries we already answered. Misses
-        # and disabled-cache states both fall through to the network fetch.
-        cached = disk_cache.read_api(url)
-        if cached is not None:
+        # L2 disk cache (#372 split: structural indefinite, pricing 24h SWR).
+        # The in-memory `_cache` above is the L1, but disk persists across
+        # runs so iterating on a card list doesn't re-spend API quota for
+        # queries we already answered. HIT returns immediately; STALE
+        # returns the cached value AND kicks off a background pricing
+        # refresh; MISS falls through to the network fetch.
+        cached, status = disk_cache.read_api_split(url)
+        if cached is not None and status == "HIT":
             if self.verbose:
                 print(f"  cached {url}", file=sys.stderr)
-            self._cache[cache_key] = cached
-            return cached
+            self._cache[cache_key] = (cached, "HIT")
+            return cached, "HIT"
+        if cached is not None and status == "STALE":
+            if self.verbose:
+                print(f"  stale {url} (background refresh kicked off)", file=sys.stderr)
+            disk_cache.spawn_pricing_refresh(url, lambda u=url: self._refetch_for_pricing(u))
+            self._cache[cache_key] = (cached, "STALE")
+            return cached, "STALE"
         if self.verbose:
             print(f"  GET {url}", file=sys.stderr)
-        # Polite throttle: free tier is 30 rpm without a key. The pokemontcg.io
-        # API is occasionally slow on big set queries, so allow a longer
-        # per-request timeout and retry transient timeouts.
+        data = self._network_fetch(url)
+        if data is None:
+            # Transient failure already swallowed below; return empty MISS so
+            # callers see "no candidates" without poisoning the cache.
+            self._cache[cache_key] = ([], "MISS")
+            return [], "MISS"
+        self._cache[cache_key] = (data, "MISS")
+        disk_cache.write_api_split(url, data)
+        return data, "MISS"
+
+    def _network_fetch(self, url: str) -> list[dict[str, Any]] | None:
+        """Issue the upstream GET with 429-aware retry. Returns the `data`
+        array on success, None on a transient failure (timeout / connection
+        error after retries). Raises on persistent non-retryable errors."""
         for attempt in range(4):
             try:
                 resp = self.session.get(url, timeout=60)
@@ -85,19 +116,24 @@ class TCGClient:
                     time.sleep(2**attempt)
                     continue
                 resp.raise_for_status()
-                data = resp.json().get("data", [])
-                self._cache[cache_key] = data
-                disk_cache.write_api(url, data)
-                return data
+                return resp.json().get("data", [])
             except (requests.Timeout, requests.ConnectionError):
                 if attempt == 3:
-                    return []  # silently give up on this page rather than crash
+                    return None
                 time.sleep(1 + attempt)
             except requests.RequestException:
                 if attempt == 3:
                     raise
                 time.sleep(1 + attempt)
-        return []
+        return None
+
+    def _refetch_for_pricing(self, url: str) -> list[dict[str, Any]] | None:
+        """Closure target for `spawn_pricing_refresh`.
+
+        Re-issues the upstream GET for `url` and returns the fresh `data`
+        list. The split-cache write itself happens in
+        `disk_cache.write_pricing_only`; this method only owns the fetch."""
+        return self._network_fetch(url)
 
 
 def search_pokemontcg(client: TCGClient, q: CardQuery) -> MatchResult:
@@ -131,17 +167,21 @@ def search_pokemontcg(client: TCGClient, q: CardQuery) -> MatchResult:
 
     seen: set[str] = set()
     all_candidates: list[dict[str, Any]] = []
+    # Track the worst cache status across the queries we actually tried —
+    # one MISS anywhere in the fallback chain makes the whole lookup MISS.
+    aggregate_status = "HIT"
     for query in queries:
         if query in seen:
             continue
         seen.add(query)
-        candidates = client.search(query)
+        candidates, status = client.search(query)
+        aggregate_status = worse_cache_status(aggregate_status, status)
         if candidates:
             all_candidates = candidates
             break
 
     if not all_candidates:
-        return MatchResult(None, "no_candidates")
+        return MatchResult(None, "no_candidates", cache_status=aggregate_status)
 
     for c in all_candidates:
         c.setdefault("_database", "pokemontcg.io")
@@ -153,7 +193,15 @@ def search_pokemontcg(client: TCGClient, q: CardQuery) -> MatchResult:
     if q.set_hint:
         in_set = [c for c in all_candidates if set_overlap(c, q.set_hint)]
         if not in_set:
-            return MatchResult(None, "set_mismatch")
-        return MatchResult(max(in_set, key=lambda c: score_card(c, q)), "matched")
+            return MatchResult(None, "set_mismatch", cache_status=aggregate_status)
+        return MatchResult(
+            max(in_set, key=lambda c: score_card(c, q)),
+            "matched",
+            cache_status=aggregate_status,
+        )
 
-    return MatchResult(max(all_candidates, key=lambda c: score_card(c, q)), "matched")
+    return MatchResult(
+        max(all_candidates, key=lambda c: score_card(c, q)),
+        "matched",
+        cache_status=aggregate_status,
+    )

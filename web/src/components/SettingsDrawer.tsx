@@ -264,8 +264,20 @@ function CacheStatsPanel() {
       )}
 
       {stats && (
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1.5 text-xs">
           <StatRow label="API responses" value={`${stats.api_entry_count} · ${formatBytes(stats.api_bytes)}`} />
+          <StatRow
+            label="Structural"
+            value={`${stats.api_structural_entry_count} · ${formatBytes(stats.api_structural_bytes)}`}
+          />
+          <StatRow
+            label="Pricing (24h)"
+            value={
+              stats.api_pricing_oldest_mtime == null
+                ? `${stats.api_pricing_entry_count} · ${formatBytes(stats.api_pricing_bytes)}`
+                : `${stats.api_pricing_entry_count} · ${formatBytes(stats.api_pricing_bytes)} · ${formatAge(stats.api_pricing_oldest_mtime)}`
+            }
+          />
           <StatRow label="Images" value={`${stats.image_entry_count} · ${formatBytes(stats.image_bytes)}`} />
           <StatRow label="URL overrides" value={`${stats.override_count} · ${formatBytes(stats.override_bytes)}`} />
           <StatRow

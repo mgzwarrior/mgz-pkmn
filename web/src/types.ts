@@ -215,6 +215,13 @@ export interface CacheStats {
   api_entry_count: number
   api_bytes: number
   api_oldest_mtime: number | null
+  /** Structural-slice fields, post-#372 split. Indefinite TTL — no oldest. */
+  api_structural_entry_count: number
+  api_structural_bytes: number
+  /** Pricing-slice fields, post-#372 split. 24h SWR; oldest mtime surfaces freshness. */
+  api_pricing_entry_count: number
+  api_pricing_bytes: number
+  api_pricing_oldest_mtime: number | null
   override_count: number
   override_bytes: number
   image_entry_count: number

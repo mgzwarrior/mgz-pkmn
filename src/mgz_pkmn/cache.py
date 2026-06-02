@@ -31,10 +31,13 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import logging
 import os
 import re
 import sys
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -42,7 +45,17 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import requests
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_API_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
+# Split API cache (#372): structural fields cached indefinitely, pricing
+# fields cached for 24h with stale-while-revalidate. See ADR-0018.
+DEFAULT_PRICING_TTL_SECONDS = 24 * 60 * 60  # one day
+# Card-dict keys that carry volatile price data. Everything else is
+# structural. Order is irrelevant; existence checks drive the split.
+_PRICING_KEYS: tuple[str, ...] = ("tcgplayer", "cardmarket", "_pc_prices", "_pc_url")
+_API_STRUCTURAL_SUBDIR = "api_structural"
+_API_PRICING_SUBDIR = "api_pricing"
 DEFAULT_CACHE_WARN_BYTES = 50 * 1024 * 1024  # 50 MB
 CONCEPT_WARM_STALE_SECONDS = 24 * 60 * 60  # one day — once-per-day startup gate
 # Set-cards warm pass is much heavier (~500 HTTP requests for the whole
@@ -90,6 +103,17 @@ _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".svg")
 _api_hits = 0
 _api_fetches = 0
 
+# SWR coordination (#372). `_inflight_pricing` is a process-local set of
+# cache keys with an outstanding background pricing refresh; the lock
+# guards add/remove so concurrent stale reads on the same key coalesce to
+# a single spawned thread. Multi-process coalescing is not attempted —
+# atomic writes keep files uncorrupted, and a 2x upstream cost on rare
+# cross-process races is cheaper than coordinating across processes.
+_inflight_pricing: set[str] = set()
+_inflight_lock = threading.Lock()
+_pricing_refresh_attempts = 0
+_pricing_refresh_writes = 0
+
 
 @dataclass(frozen=True)
 class CacheStats:
@@ -107,6 +131,16 @@ class CacheStats:
     api_entry_count: int
     api_bytes: int
     api_oldest_mtime: float | None
+    # Split API cache (#372). Structural slice is indefinite-TTL — `count` /
+    # `bytes` cover both legacy and split entries; no `oldest` because the
+    # value is meaningless without a TTL. Pricing slice has its own oldest
+    # so operators can see at a glance whether anything is past the 24h
+    # SWR window.
+    api_structural_entry_count: int
+    api_structural_bytes: int
+    api_pricing_entry_count: int
+    api_pricing_bytes: int
+    api_pricing_oldest_mtime: float | None
     override_count: int
     override_bytes: int
     image_entry_count: int
@@ -203,13 +237,19 @@ def cache_size_bytes() -> int:
     Stat-only — no payload reads, no JSON parsing, and no side effects: the
     cache directory is not created if it doesn't exist yet. Safe to call at
     every CLI startup as a cheap pre-flight check. Returns 0 when the cache
-    root is missing (fresh install, post-`rm -rf`, read-only $HOME, etc.)."""
+    root is missing (fresh install, post-`rm -rf`, read-only $HOME, etc.).
+
+    Includes both the legacy `api/` directory and the post-#372 split
+    `api_structural/` + `api_pricing/` directories — operators reading
+    `pkmn cache stats` see the total no matter where their entries live."""
     root = _cache_root_path()
     if not root.exists():
         return 0
     total = 0
-    api_dir = root / "api"
-    if api_dir.exists():
+    for subdir in ("api", _API_STRUCTURAL_SUBDIR, _API_PRICING_SUBDIR):
+        api_dir = root / subdir
+        if not api_dir.exists():
+            continue
         try:
             entries = list(api_dir.iterdir())
         except OSError:
@@ -275,25 +315,27 @@ def read_api(key: str, ttl_seconds: float = DEFAULT_API_TTL_SECONDS) -> Any | No
 def clear_api_cache() -> int:
     """Remove every cached API response. Returns the number of files deleted.
 
-    URL overrides are intentionally preserved — they're user-supplied
-    PriceCharting URLs that take the user real effort to find, while API
-    responses are regenerable on the next run. Use this when a normalizer
-    schema changes (a new field on cards, a tweak to the language detector,
-    etc.) and the cached payloads no longer reflect the current code.
+    Wipes the legacy `api/` directory AND the post-#372 split
+    `api_structural/` + `api_pricing/` directories — the structural slice
+    is harmless to drop too because the next read re-fetches and rebuilds
+    both slices atomically. URL overrides are intentionally preserved —
+    they're user-supplied PriceCharting URLs that take real effort to
+    find, while API responses are regenerable on the next run.
 
     Honoured even when `MGZ_PKMN_NO_CACHE=1` is set: the user explicitly
     asked for a wipe, and a no-op surprise would defeat the purpose."""
-    api_dir = cache_root() / "api"
-    if not api_dir.exists():
-        return 0
     count = 0
-    for entry in api_dir.iterdir():
-        if entry.is_file() and entry.suffix == ".json":
-            try:
-                entry.unlink()
-                count += 1
-            except OSError:
-                continue
+    for subdir in ("api", _API_STRUCTURAL_SUBDIR, _API_PRICING_SUBDIR):
+        api_dir = cache_root() / subdir
+        if not api_dir.exists():
+            continue
+        for entry in api_dir.iterdir():
+            if entry.is_file() and entry.suffix == ".json":
+                try:
+                    entry.unlink()
+                    count += 1
+                except OSError:
+                    continue
     return count
 
 
@@ -335,6 +377,295 @@ def api_counters() -> tuple[int, int]:
     a freshly-fetched payload. The CLI summary reads this snapshot to render
     the `· N cached / M fetched` tail."""
     return (_api_hits, _api_fetches)
+
+
+# ---------------------------------------------------------------------------
+# Split API cache (structural + pricing, stale-while-revalidate). #372.
+#
+# Producers (TCGClient._fetch_page, warm_cards) hand a card list to
+# `write_api_split(key, cards)`. Each card is split into a structural slice
+# (everything except `tcgplayer` / `cardmarket` / `_pc_prices` / `_pc_url`)
+# and a pricing slice. The two slices are written to parallel directories:
+#   - `cache/api_structural/{sha1}.json` — list of structural dicts. No TTL.
+#   - `cache/api_pricing/{sha1}.json`    — list of {id, ...pricing keys}. 24h TTL.
+#
+# `read_api_split(key)` returns `(merged_cards, status)` where status is
+# `HIT` / `STALE` / `MISS`. A STALE return is a successful read with stale
+# pricing; the caller is expected to call `spawn_pricing_refresh(key, refetch)`
+# to kick off a background refresh that lands a fresh pricing slice. The
+# structural slice is left untouched on refresh — it doesn't change once a
+# card is printed.
+# ---------------------------------------------------------------------------
+
+
+def _split_card(card: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Partition a card dict into (structural, pricing) slices.
+
+    Pricing slice carries the card `id` so a later merge keys correctly;
+    callers expect lists of slices, paired by position OR by id.
+    """
+    structural = {k: v for k, v in card.items() if k not in _PRICING_KEYS}
+    pricing: dict[str, Any] = {}
+    if "id" in card:
+        pricing["id"] = card["id"]
+    for k in _PRICING_KEYS:
+        if k in card:
+            pricing[k] = card[k]
+    return structural, pricing
+
+
+def _merge_card(structural: dict[str, Any], pricing: dict[str, Any] | None) -> dict[str, Any]:
+    """Reassemble a card dict from its slices. Pricing fields overlay structural."""
+    merged = dict(structural)
+    if not pricing:
+        return merged
+    for k in _PRICING_KEYS:
+        if k in pricing:
+            merged[k] = pricing[k]
+    return merged
+
+
+def _merge_card_lists(
+    structural_list: list[dict[str, Any]], pricing_list: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
+    """Merge two parallel slice lists by `id` when present, else by position.
+
+    Pricing-only entries with no matching structural id are dropped — the
+    structural list is the source of truth for "which cards are in this
+    cached query".
+    """
+    if not pricing_list:
+        return [_merge_card(s, None) for s in structural_list]
+    by_id = {p.get("id"): p for p in pricing_list if p.get("id") is not None}
+    merged: list[dict[str, Any]] = []
+    for i, s in enumerate(structural_list):
+        pricing = by_id.get(s.get("id"))
+        if pricing is None and i < len(pricing_list):
+            # Position fallback for legacy entries that lacked an id.
+            pricing = pricing_list[i]
+        merged.append(_merge_card(s, pricing))
+    return merged
+
+
+def _digest(key: str) -> str:
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()
+
+
+def _api_structural_path(key: str) -> Path:
+    d = cache_root() / _API_STRUCTURAL_SUBDIR
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{_digest(key)}.json"
+
+
+def _api_pricing_path(key: str) -> Path:
+    d = cache_root() / _API_PRICING_SUBDIR
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{_digest(key)}.json"
+
+
+def _atomic_write_json(path: Path, payload: Any) -> bool:
+    """Write `payload` as JSON via a per-writer tmp file + rename. Returns True on success.
+
+    The tmp filename embeds `pid + thread id` so a foreground writer and a
+    background SWR refresh thread (`spawn_pricing_refresh`) racing on the
+    same key never clobber each other's tmp file. The final rename is
+    POSIX-atomic, so the last successful rename wins — both writes leave a
+    valid file on disk; the loser's payload is simply dropped."""
+    try:
+        tag = f"{os.getpid()}.{threading.get_ident()}"
+        tmp = path.with_suffix(f".{tag}.tmp")
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.replace(path)
+        return True
+    except (OSError, TypeError, ValueError):
+        # Best-effort cleanup of a leaked tmp file (rename failed mid-flight).
+        with contextlib.suppress(OSError, NameError):
+            tmp.unlink(missing_ok=True)
+        return False
+
+
+def _migrate_legacy(key: str) -> bool:
+    """Convert a legacy `api/{sha1}.json` entry into split form, preserving mtime.
+
+    Pricing slice inherits the legacy file's mtime via `os.utime` so a
+    9-day-old legacy entry correctly reads as STALE for pricing (older than
+    the 24h TTL) but HIT for structural. The legacy file is unlinked on
+    success. Returns True iff the migration completed (both split files
+    written and the legacy file gone). A malformed legacy file is deleted
+    and False returned — the entry is lost but won't keep stumbling.
+    """
+    legacy = _api_path(key)
+    if not legacy.exists():
+        return False
+    try:
+        raw = json.loads(legacy.read_text(encoding="utf-8"))
+        legacy_mtime = legacy.stat().st_mtime
+    except (OSError, json.JSONDecodeError):
+        with contextlib.suppress(OSError):
+            legacy.unlink()
+        return False
+    if not isinstance(raw, list):
+        # Non-list payloads can't be split; they aren't card-list shaped.
+        # Leave them in the legacy store for the existing read_api path.
+        return False
+    structurals: list[dict[str, Any]] = []
+    pricings: list[dict[str, Any]] = []
+    for card in raw:
+        if not isinstance(card, dict):
+            continue
+        s, p = _split_card(card)
+        structurals.append(s)
+        pricings.append(p)
+    if not _atomic_write_json(_api_structural_path(key), structurals):
+        return False
+    if not _atomic_write_json(_api_pricing_path(key), pricings):
+        # Partial migration: structural landed but pricing didn't. Without
+        # cleanup, future read_api_split calls would see structural exists
+        # and skip the migration retry — leaving pricing permanently
+        # missing. Roll back the structural write so the legacy file (left
+        # untouched until both writes succeed) remains the authority and
+        # the next read can re-attempt the full migration.
+        with contextlib.suppress(OSError):
+            _api_structural_path(key).unlink()
+        return False
+    with contextlib.suppress(OSError):
+        os.utime(_api_pricing_path(key), (legacy_mtime, legacy_mtime))
+    with contextlib.suppress(OSError):
+        legacy.unlink()
+    return True
+
+
+def read_api_split(
+    key: str, *, pricing_ttl_seconds: float = DEFAULT_PRICING_TTL_SECONDS
+) -> tuple[list[dict[str, Any]] | None, str]:
+    """Return `(merged_cards, status)` for a split-cache key.
+
+    `status` is one of:
+      - `"HIT"`   — both slices present, pricing within TTL.
+      - `"STALE"` — structural present and either pricing missing or older
+                    than TTL. Caller should spawn a background refresh.
+      - `"MISS"`  — nothing on disk (or `MGZ_PKMN_NO_CACHE=1`).
+
+    Lazy migration: if a legacy `api/{sha1}.json` exists and no split files
+    do, the legacy entry is migrated in place and we recurse into the
+    split-present branch. The pricing file inherits the legacy mtime so the
+    TTL gate stays honest across the migration.
+
+    Bumps `_api_hits` on a non-MISS return so the existing `api_counters()`
+    summary line keeps working post-split."""
+    if _disabled():
+        return (None, "MISS")
+    struct_path = _api_structural_path(key)
+    pricing_path = _api_pricing_path(key)
+    legacy_path = _api_path(key)
+
+    if not struct_path.exists() and legacy_path.exists():
+        # Lazy migrate then fall through to the split branch.
+        _migrate_legacy(key)
+
+    if not struct_path.exists():
+        return (None, "MISS")
+
+    try:
+        structurals = json.loads(struct_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return (None, "MISS")
+    if not isinstance(structurals, list):
+        return (None, "MISS")
+
+    pricings: list[dict[str, Any]] | None = None
+    pricing_status = "STALE"
+    if pricing_path.exists():
+        try:
+            pricings_raw = json.loads(pricing_path.read_text(encoding="utf-8"))
+            if isinstance(pricings_raw, list):
+                pricings = pricings_raw
+                age = time.time() - pricing_path.stat().st_mtime
+                pricing_status = "HIT" if age <= pricing_ttl_seconds else "STALE"
+        except (OSError, json.JSONDecodeError):
+            pricings = None
+            pricing_status = "STALE"
+
+    merged = _merge_card_lists(structurals, pricings)
+    global _api_hits
+    _api_hits += 1
+    return (merged, pricing_status)
+
+
+def write_api_split(key: str, cards: list[dict[str, Any]]) -> None:
+    """Split `cards` and atomically write both slices.
+
+    Bumps `_api_fetches` once per call (one upstream fetch = one write,
+    regardless of how many cards land on disk)."""
+    if _disabled():
+        return
+    structurals: list[dict[str, Any]] = []
+    pricings: list[dict[str, Any]] = []
+    for card in cards:
+        s, p = _split_card(card)
+        structurals.append(s)
+        pricings.append(p)
+    ok_s = _atomic_write_json(_api_structural_path(key), structurals)
+    ok_p = _atomic_write_json(_api_pricing_path(key), pricings)
+    if ok_s and ok_p:
+        global _api_fetches
+        _api_fetches += 1
+
+
+def write_pricing_only(key: str, cards: list[dict[str, Any]]) -> None:
+    """Write just the pricing slice for `key`, refreshing its mtime.
+
+    Used by the SWR background refresh — the structural slice doesn't
+    change once a card is printed, so a refresh only touches pricing.
+    Does *not* bump `_api_fetches` (that counter tracks foreground
+    requests); background refreshes are tracked via `pricing_counters()`."""
+    if _disabled():
+        return
+    pricings = [_split_card(card)[1] for card in cards]
+    _atomic_write_json(_api_pricing_path(key), pricings)
+
+
+def spawn_pricing_refresh(key: str, refetch: Callable[[], list[dict[str, Any]] | None]) -> bool:
+    """Spawn a daemon thread that re-fetches `key` and writes a fresh pricing slice.
+
+    Coalesces concurrent stale reads on the same key: if a refresh is
+    already in flight, returns False and does nothing. Otherwise registers
+    the key, starts the thread, and returns True. The thread always
+    discards the key from the in-flight set on exit (success or failure).
+    """
+    with _inflight_lock:
+        if key in _inflight_pricing:
+            return False
+        _inflight_pricing.add(key)
+
+    def _run() -> None:
+        global _pricing_refresh_attempts, _pricing_refresh_writes
+        _pricing_refresh_attempts += 1
+        try:
+            fresh = refetch()
+            if fresh is not None:
+                write_pricing_only(key, fresh)
+                _pricing_refresh_writes += 1
+        except Exception:
+            logger.exception("background pricing refresh failed for key=%s", key)
+        finally:
+            with _inflight_lock:
+                _inflight_pricing.discard(key)
+
+    threading.Thread(target=_run, name=f"pricing-refresh-{_digest(key)[:8]}", daemon=True).start()
+    return True
+
+
+def reset_pricing_counters() -> None:
+    """Zero the per-run pricing-refresh counters. Mirrors `reset_api_counters`."""
+    global _pricing_refresh_attempts, _pricing_refresh_writes
+    _pricing_refresh_attempts = 0
+    _pricing_refresh_writes = 0
+
+
+def pricing_counters() -> tuple[int, int]:
+    """Return `(attempts, writes)` for background pricing refreshes."""
+    return (_pricing_refresh_attempts, _pricing_refresh_writes)
 
 
 # ---------------------------------------------------------------------------
@@ -1079,22 +1410,37 @@ def stats() -> CacheStats:
     keys."""
     root = cache_root()
 
-    api_dir = root / "api"
-    api_count = 0
-    api_bytes = 0
-    api_oldest: float | None = None
-    if api_dir.exists():
-        for entry in api_dir.iterdir():
+    def _scan_json_dir(dirpath: Path) -> tuple[int, int, float | None]:
+        """Return (count, bytes, oldest_mtime) for `.json` files in a dir.
+
+        An unreadable directory (permission denied, transient FS error)
+        is treated as empty so the stats endpoint doesn't crash on a
+        misconfigured deploy — mirrors `cache_size_bytes()`."""
+        if not dirpath.exists():
+            return 0, 0, None
+        try:
+            entries = list(dirpath.iterdir())
+        except OSError:
+            return 0, 0, None
+        count = 0
+        total = 0
+        oldest: float | None = None
+        for entry in entries:
             if not entry.is_file() or entry.suffix != ".json":
                 continue
             try:
                 st = entry.stat()
             except OSError:
                 continue
-            api_count += 1
-            api_bytes += st.st_size
-            if api_oldest is None or st.st_mtime < api_oldest:
-                api_oldest = st.st_mtime
+            count += 1
+            total += st.st_size
+            if oldest is None or st.st_mtime < oldest:
+                oldest = st.st_mtime
+        return count, total, oldest
+
+    api_count, api_bytes, api_oldest = _scan_json_dir(root / "api")
+    structural_count, structural_bytes, _ = _scan_json_dir(root / _API_STRUCTURAL_SUBDIR)
+    pricing_count, pricing_bytes, pricing_oldest = _scan_json_dir(root / _API_PRICING_SUBDIR)
 
     overrides_path = _overrides_path()
     override_count = 0
@@ -1182,6 +1528,11 @@ def stats() -> CacheStats:
         api_entry_count=api_count,
         api_bytes=api_bytes,
         api_oldest_mtime=api_oldest,
+        api_structural_entry_count=structural_count,
+        api_structural_bytes=structural_bytes,
+        api_pricing_entry_count=pricing_count,
+        api_pricing_bytes=pricing_bytes,
+        api_pricing_oldest_mtime=pricing_oldest,
         override_count=override_count,
         override_bytes=override_bytes,
         image_entry_count=image_count,

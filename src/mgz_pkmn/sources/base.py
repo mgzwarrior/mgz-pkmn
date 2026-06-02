@@ -21,6 +21,21 @@ class MatchResult:
     # Set when reason="scrape_failed" so callers can name the URL in error
     # messages. Left None for the other reasons.
     url: str | None = None
+    # Split-cache freshness signal (#372). One of "HIT" / "STALE" / "MISS".
+    # Threaded up from `TCGClient._fetch_page` so route handlers can attach
+    # an `X-Cache` response header (#310). Default "MISS" covers paths that
+    # bypass the disk-cache layer entirely (PriceCharting scrape, TCGdex —
+    # neither has disk persistence today).
+    cache_status: str = "MISS"
+
+
+def worse_cache_status(*statuses: str) -> str:
+    """Aggregate cache statuses across multiple reads. MISS > STALE > HIT.
+
+    Used when a single response combines several cache lookups (e.g. paged
+    `search_all` results, or multi-query lookup fallback chains)."""
+    priority = {"MISS": 2, "STALE": 1, "HIT": 0}
+    return max(statuses, key=lambda s: priority.get(s, 2))
 
 
 def set_overlap(card: dict[str, Any], hint: str) -> bool:

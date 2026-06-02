@@ -48,9 +48,9 @@ class _StubTCGClient:
         # silent live HTTP call.
         self.session = None
 
-    def search_all(self, query: str, **_: object) -> list[dict]:
+    def search_all(self, query: str, **_: object) -> tuple[list[dict], str]:
         self.queries.append(query)
-        return self.cards_by_query.get(query, [])
+        return self.cards_by_query.get(query, []), "HIT"
 
 
 # ---------------------------------------------------------------------------

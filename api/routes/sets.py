@@ -199,7 +199,10 @@ def _fetch_set_cards(set_id: str, api_key: str | None) -> list[dict[str, Any]]:
     filter; ids are short alnum so quoting isn't strictly needed but
     we include it for defence against future ids with special chars."""
     client = TCGClient(api_key=api_key)
-    cards = client.search_all(f'set.id:"{set_id}"')
+    # `search_all` returns (cards, cache_status) post-#372; the cache_status
+    # is unused here. Surfacing it on `/sets/{set_id}/cards` is the
+    # remaining slice of #310 (follow-up to this PR).
+    cards, _status = client.search_all(f'set.id:"{set_id}"')
     return [_trim_card(c) for c in cards]
 
 

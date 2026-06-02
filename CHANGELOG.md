@@ -9,6 +9,41 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- API + CLI: **Split lookup cache + stale-while-revalidate on pricing**
+  ([#372](https://github.com/mgzwarrior/mgz-pkmn/issues/372)). Phase 3
+  of the pre-Scrydex catalog-warm epic
+  ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)) — the
+  architectural shift that makes Phases 1 + 2's pre-warm pay off. The
+  on-disk lookup cache now stores card payloads as **two slices**:
+  structural fields (name, set, number, rarity, attacks, images, …)
+  live under `cache/api_structural/` with **no TTL**, while volatile
+  pricing fields (`tcgplayer.prices`, `cardmarket.prices`, `_pc_prices`,
+  `_pc_url`) live under `cache/api_pricing/` with a **24 h TTL** and
+  **stale-while-revalidate**. Stale reads return the cached value
+  immediately and spawn a background daemon thread that re-fetches
+  upstream and writes a fresh pricing slice for the next request.
+  Concurrent stale reads on the same key coalesce to a single refresh
+  via a process-local in-flight set guarded by one `threading.Lock`.
+  Legacy `cache/api/{sha1}.json` entries from before the split migrate
+  lazily on first read — the legacy file is parsed, written to both
+  new locations atomically, pricing mtime preserved via `os.utime` so
+  a 9d-old legacy entry stays correctly STALE, and the legacy file is
+  unlinked. `/api/v1/lookup` now advertises which path served the
+  request through an **`X-Cache` response header**
+  (`HIT` / `STALE` / `MISS`), closing the backend half of
+  [#310](https://github.com/mgzwarrior/mgz-pkmn/issues/310);
+  `/sets/{set_id}/cards` + SPA chip are tracked as a tight follow-up.
+  New `CacheStats` fields (`api_structural_entry_count`,
+  `api_structural_bytes`, `api_pricing_entry_count`,
+  `api_pricing_bytes`, `api_pricing_oldest_mtime`) surface in
+  `pkmn cache stats`, `GET /api/v1/cache/stats`, and two new rows in
+  the SettingsDrawer cache-stats panel. New ADR-0018 records the
+  freshness-model decision; `docs/cache.md` documents the contract.
+  Pinned by 20 new tests in `tests/test_cache.py` covering State A/B/C
+  split reads, lazy migration with mtime inheritance, SWR coalescing,
+  inflight cleanup on success/failure, and the `X-Cache` header on
+  HIT / STALE / MISS for `/api/v1/lookup`.
+
 - API + CLI: **Self-hosted per-card images via `pkmn cache warm-card-images`**
   ([#371](https://github.com/mgzwarrior/mgz-pkmn/issues/371)). Phase 2
   of the pre-Scrydex catalog-warm epic

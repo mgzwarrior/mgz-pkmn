@@ -996,7 +996,13 @@ def cache_stats_command(as_json: bool) -> None:
         click.echo(json.dumps(payload, indent=2))
         return
 
-    total_bytes = s.api_bytes + s.override_bytes + s.image_bytes
+    total_bytes = (
+        s.api_bytes
+        + s.api_structural_bytes
+        + s.api_pricing_bytes
+        + s.override_bytes
+        + s.image_bytes
+    )
 
     _print_section("Cache stats")
     click.echo("  " + click.style("Location:      ", fg="bright_black") + str(s.root))
@@ -1015,6 +1021,22 @@ def cache_stats_command(as_json: bool) -> None:
         "  "
         + click.style("URL overrides: ", fg="bright_black")
         + f"{s.override_count} entries · {_format_bytes(s.override_bytes)}"
+    )
+    # Split API cache (#372): structural fields cached indefinitely,
+    # pricing fields on a 24h SWR. Surface as two rows so operators can
+    # see at a glance whether the pricing slice is past its TTL.
+    click.echo(
+        "  "
+        + click.style("Structural:    ", fg="bright_black")
+        + f"{s.api_structural_entry_count} entries · "
+        + f"{_format_bytes(s.api_structural_bytes)} · indefinite TTL"
+    )
+    pricing_age = _format_age(s.api_pricing_oldest_mtime)
+    click.echo(
+        "  "
+        + click.style("Pricing:       ", fg="bright_black")
+        + f"{s.api_pricing_entry_count} entries · "
+        + f"{_format_bytes(s.api_pricing_bytes)} · oldest {pricing_age} · 24h SWR"
     )
     # Indefinite-TTL slice (set logos, set symbols, future card art). Lives
     # in its own line so it's visible even when zero — when it's non-zero
