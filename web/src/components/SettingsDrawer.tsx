@@ -264,7 +264,7 @@ function CacheStatsPanel() {
       )}
 
       {stats && (
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1.5 text-xs">
           <StatRow label="API responses" value={`${stats.api_entry_count} · ${formatBytes(stats.api_bytes)}`} />
           <StatRow
             label="Structural"
