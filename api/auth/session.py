@@ -64,14 +64,28 @@ def _is_production() -> bool:
 def resolve_session_secret() -> str:
     """Return the itsdangerous signing key for ``SessionMiddleware``.
 
-    - Env var set → use it.
-    - Env var missing in production → ``RuntimeError`` (refuses to boot).
-    - Env var missing in dev → log a loud warning, return the fixed
-      dev fallback. Sessions issued under the fallback are not portable
-      across machines / restarts that flip back to a real secret."""
+    Behaviour depends on whether auth is actually on:
+
+    - **Auth off** → return the dev fallback silently. The middleware
+      still mounts (so ``request.session`` always exists for downstream
+      routes that expect it), but nothing reads or writes the session,
+      so the secret is never exercised. Self-hosters with the default
+      off-posture don't need to configure anything and don't see a
+      startup warning for a secret they wouldn't use.
+    - **Auth on, env var set** → use it.
+    - **Auth on, env var missing, production** → ``RuntimeError``
+      (refuses to boot). Production sessions must be portable across
+      redeploys, which requires a stable real secret.
+    - **Auth on, env var missing, dev** → loud warning + dev fallback.
+      Sessions issued under the fallback are not portable across
+      machines / restarts that flip back to a real secret."""
     secret = os.environ.get(SESSION_SECRET_ENV, "").strip()
     if secret:
         return secret
+    if not auth_enabled():
+        # Mount still happens for consistent middleware shape; the
+        # placeholder will never be used to verify a real session.
+        return _DEV_SESSION_SECRET_FALLBACK
     if _is_production():
         raise RuntimeError(
             f"{SESSION_SECRET_ENV} must be set when {AUTH_ENABLED_ENV}=1 in production"
@@ -94,11 +108,13 @@ def install_session_middleware(app: FastAPI) -> None:
     """Mount Starlette's ``SessionMiddleware`` on ``app``.
 
     Called from ``api.main`` exactly once during app construction.
-    Mounting unconditionally (even when auth is off) is harmless — the
-    middleware just attaches a ``request.session`` ``MutableMapping``
-    that nothing writes to — and keeps the request pipeline shape
-    consistent across the two modes so tests don't have to special-case
-    the off branch."""
+    Mounts unconditionally so ``request.session`` always exists for
+    downstream routes — but ``resolve_session_secret`` returns a silent
+    dev placeholder when auth is off, so self-hosters with the default
+    off-posture never need to configure ``MGZ_PKMN_SESSION_SECRET`` and
+    don't see a warning for a secret nothing reads. The real
+    production-refusal / dev-warning kicks in only when auth is on,
+    which is the only path that ever exercises the secret."""
     app.add_middleware(
         SessionMiddleware,
         secret_key=resolve_session_secret(),
@@ -106,6 +122,7 @@ def install_session_middleware(app: FastAPI) -> None:
         same_site="lax",
         https_only=_is_production(),
     )
+    _log.info("SessionMiddleware mounted (auth enabled=%s)", auth_enabled())
 
 
 # FastAPI dependency aliases keep ``Depends(...)`` out of default-arg
