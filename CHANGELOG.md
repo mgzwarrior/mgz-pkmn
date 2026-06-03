@@ -7,6 +7,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Release: **`rebuild-site` waits for the demo API to rotate before
+  firing the Pages deploy hook**
+  ([#399](https://github.com/mgzwarrior/mgz-pkmn/issues/399)). Cutting
+  v1.3.0 fired the hook ~5 seconds after the GitHub Release was
+  cut — before Render had finished rolling out the new API — so
+  Astro's build-time call to `GET /api/v1/changelog` baked the
+  previous version into the static HTML and the hero pill stayed
+  on `Now shipping 1.2.0` until the hook was re-fired manually.
+  `release.yml` now polls `https://mgz-pkmn.onrender.com/version` until it reports the
+  new tag's version (15 s interval, 10 min budget) before firing
+  the hook, with a warn-and-continue fall-through so a slow or
+  stuck Render rollout never blocks the rebuild indefinitely.
+
 ## [1.3.0] - 2026-06-02
 
 ### Added
