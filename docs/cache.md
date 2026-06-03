@@ -2,13 +2,33 @@
 
 The CLI keeps a small disk cache under `$XDG_CACHE_HOME/mgz-pkmn`
 (`~/.cache/mgz-pkmn` by default) so consecutive runs over the same card
-list don't keep re-spending API quota. Two stores live there:
+list don't keep re-spending API quota.
 
-| Path | What it holds | TTL |
+## Two kinds of "expiry" used in this doc
+
+The cache doc talks about two different things that both look like time
+windows. Keep them separate when reading:
+
+- **Entry TTL** — how old a *single cached entry* can be before reads
+  treat it as stale. Applies per-file under `api_structural/`,
+  `api_pricing/`, etc.
+- **Warm-pass freshness window** — how recently the last *batch warm
+  pass* must have completed for the next boot/run to skip re-walking
+  it. Applies per-manifest (`concept_warm.json`, `card_warm.json`, …)
+  and never expires individual entries — those keep whatever TTL their
+  store assigns. See [Warm passes](#warm-passes).
+
+So a warm pass with a 7-day freshness window can populate
+`api_structural/` entries that themselves have no TTL — the 7 days
+governs when to *re-warm*, not when entries go stale.
+
+## Stores on disk
+
+| Path | What it holds | Entry TTL |
 |---|---|---|
 | `api_structural/<sha1>.json` | Structural fields per cached request URL — name, set, number, rarity, attacks, images, etc. Anything that doesn't change once a card is printed. | None — indefinite. |
 | `api_pricing/<sha1>.json` | Volatile pricing fields per cached request URL — `tcgplayer.prices`, `cardmarket.prices`, `_pc_prices`, `_pc_url`. | 24 h (mtime-based). Stale reads return the cached value while a background refresh runs. |
-| `api/<sha1>.json` | **Legacy** — pre-#372 combined payload. Migrated to the split form lazily on first read; new writes go directly to `api_structural/` + `api_pricing/`. | 7 days (mtime-based). |
+| `api/<sha1>.json` | **Legacy** — pre-#372 combined payload. New writes never land here; existing entries are migrated to the split form lazily on first read. | No standalone TTL. On read the legacy file is split, the pricing slice's mtime is preserved, and the legacy file is unlinked — so a pre-existing 9-day-old legacy entry comes out STALE on the pricing side immediately after migration. |
 | `url_overrides.json` | `(name, set_hint)` → PriceCharting URL, recorded whenever you paste a PC URL on a line. | None — sticky until you overwrite or delete. |
 
 ## Freshness model
@@ -47,9 +67,13 @@ and the worst-case cost is 2× upstream for an affected key.
 Legacy `api/<sha1>.json` entries from before the split are migrated
 **lazily** on first read: the legacy file is parsed, split into both
 new locations atomically, the pricing file's mtime is preserved via
-`os.utime` (so a 9 d-old legacy entry is correctly STALE after
-migration), and the legacy file is unlinked. After migration the
-entry behaves identically to a fresh split write.
+`os.utime`, and the legacy file is unlinked. The preserved mtime means
+the pricing slice carries forward whatever age the legacy entry had —
+a 9-day-old legacy file produces a freshly-migrated pricing entry that
+is already STALE under the 24 h pricing TTL and triggers a background
+refresh on first read. After migration, the entry behaves identically
+to a fresh split write; subsequent reads follow the per-slice TTL
+rules above.
 
 ## Behavior
 
@@ -145,10 +169,16 @@ same snapshot with snake_case keys:
 
 ## Warm passes
 
-Four CLI commands pre-populate slices of the cache so first-use lookups
-land on a warm disk instead of paying upstream latency:
+Five CLI commands pre-populate slices of the cache so first-use lookups
+land on a warm disk instead of paying upstream latency. Each command
+writes entries into the normal stores (`api_structural/`, `images/`,
+etc.) — those entries follow the **entry TTL** rules from the table
+above (structural: indefinite; pricing: 24 h SWR). What the warm
+commands add on top is a **freshness window**: a per-manifest skip
+threshold so the next boot/run doesn't re-walk a warm that was
+recently completed.
 
-| Command | What it warms | Manifest | Stale window |
+| Command | What it warms | Manifest | Freshness window |
 |---|---|---|---|
 | `pkmn cache warm-concepts` | Concept-name → card-id lookups (~200 names) | `concept_warm.json` | 24 h |
 | `pkmn cache warm-set-cards` | Per-set card-list JSON for every set | `set_cards_warm.json` | 7 d |
@@ -156,9 +186,19 @@ land on a warm disk instead of paying upstream latency:
 | `pkmn cache warm-cards` | Full per-card structural payload (~18,000 cards) | `card_warm.json` | 7 d |
 | `pkmn cache warm-card-images` | `large` + `small` image bytes for every English card (~40,000 files / ~17 GB) | `card_images_warm.json` | 7 d |
 
+Why concepts is 24 h while the catalog warms are 7 d: the concept walk
+is cheap (a couple hundred lookups) and the underlying set of concept
+names changes more often than the catalog does, so a tighter
+re-walk window is worth the cost. The catalog warms are expensive
+(thousands of HTTP calls or tens of GB of images) but the cards
+themselves don't change once printed — a week between re-walks is a
+good fit for the structural data they populate.
+
 Each manifest records `timestamp` + a count of what was warmed; the
 freshness gate (`*_warm_is_fresh()`) reads it to skip a re-walk when a
-recent pass is still within the staleness window. The on-startup
+recent pass is still within the freshness window. Re-walks do **not**
+touch entries that are already on disk except to refresh them; the
+underlying entries keep their own TTL semantics. The on-startup
 bootstrap in [`api/main.py`](../api/main.py) fires the first three when
 `MGZ_PKMN_WARM_ON_STARTUP=1`. The per-card warm has its own opt-in
 (`MGZ_PKMN_WARM_CARDS_ON_STARTUP=1`) because it's heavier — a fresh
@@ -168,8 +208,9 @@ The per-card *image* warm has yet another opt-in
 the four — a completed pass on the deployed instance reports
 `card-images warm complete: 40088 images warmed (17904440414 bytes)
 across 173 sets`, so plan disk size and first-deploy duration
-accordingly. Subsequent boots within the 1-week freshness window skip
-the re-walk.
+accordingly. Subsequent boots within the 7-day
+`card_images_warm.json` freshness window skip the re-walk; entries
+already on disk remain valid regardless (images carry no TTL).
 
 `warm-cards` is Phase 1 of the pre-Scrydex catalog-warm epic
 ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)). Reuses the

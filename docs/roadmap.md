@@ -25,25 +25,81 @@ live demo), see <https://mgz-pkmn.com>.
   marketing site at <https://mgz-pkmn.com>, mobile + a11y pass on
   the SPA. Released 2026-05-25; see the
   [v1.1 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/2).
-- **V1.2** — **committed**. Marketing-site polish + the web UX
+- **V1.2** — **shipped**. Marketing-site polish + the web UX
   enhancements that landed late in the v1.1 cycle but didn't gate
-  the cut. Tracked on the
+  the cut. See the
   [v1.2 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/4).
-- **V2** — **committed**. Deeper development per area, including
-  the persistence layer (Alembic + SQLAlchemy + `/runs` endpoints)
-  that opens the door to sidebars, collections, and wishlists.
+- **V1.3** — **shipped**. Pre-Scrydex catalog-warm epic
+  ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)) plus the
+  auth foundation (signed-cookie sessions, `/me`, env kill switch —
+  [#414](https://github.com/mgzwarrior/mgz-pkmn/pull/414)). See the
+  [v1.3 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/5)
+  and [v1.3.1 patch](https://github.com/mgzwarrior/mgz-pkmn/milestone/7).
+- **V1.4** — **committed**. Hosted-demo auth UX (provider sign-in,
+  Save-Search nudge, anonymous cache-only mode), CLI maintainability
+  refactor, marketing polish. Tracked on the
+  [v1.4 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/6).
+- **V1.5** — **committed**. **eBay integration epic** — additive sold +
+  active listings as a fourth pricing source via OAuth. Tracked on the
+  [v1.5 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/8)
+  under [`epic:ebay`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aebay).
+- **V1.6** — **committed**. **TCGPlayer integration epic** —
+  first-class TCGPlayer API replacing the embedded `tcgplayer` block
+  from pokemontcg.io. Tracked on the
+  [v1.6 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/9)
+  under [`epic:tcgplayer`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Atcgplayer).
+- **V2** — **committed**. Structured query DSL (dual-mode, see #39
+  re-scope below) + persistence layer (Alembic + SQLAlchemy +
+  `/runs` / `/collections` / `/wishlists`) + hosted-demo identity
+  sign-off. The v2 thesis is *structured + persistent + identity*.
   Tracked per-area on the unified
   [`mgz-pkmn`](https://github.com/users/mgzwarrior/projects/11)
   project (per-area views linked below) and the
   [v2.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/3).
+- **V2.1** — **committed**. **Persistence-at-growth epic** — post-MVP
+  collections/wishlists scaling (Postgres / D1 / Turso spike, retention,
+  per-user export, ops runbooks). Tracked on the
+  [v2.1 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/10)
+  under [`epic:persistence-growth`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Apersistence-growth).
 - **V2.x / Post-V2** — **committed but later**. Currently themed around
   the **free / paid separation and monetization work** — once V2 is
   shipped, the project is mature enough to consider sustainable funding
   models. Free features stay free forever; paid features expand the
-  vendor / power-user surface.
+  vendor / power-user surface. See [ADR-0012](adr/0012-open-core-architecture.md)
+  for the open-core split.
 - **V3 and beyond** — **proposed**. Big ideas (vendor portal,
   marketplace integrations, multi-TCG expansion) that need community
-  input before any commitment. Subject to redirection.
+  input before any commitment. The **vendor card-scanner** (see
+  `epic:vendor-vision` placeholder) lives in this band, in the private
+  `mgz-pkmn-vendor` repo per ADR-0012. Subject to redirection.
+
+## How to read this roadmap
+
+Every committed item below is filed as a GitHub issue, and every
+issue carries the labels that let you filter the board to exactly what
+you're looking for:
+
+- **`area:*`** — which part of the codebase. One of `area:lookup`,
+  `area:web`, `area:cache`, `area:outputs`, `area:site`, `area:devops`.
+- **`type:*`** — what kind of change. One of `type:feature`,
+  `type:bug`, `type:docs`, `type:chore`, `type:test`.
+- **`version:*`** + **milestone** — when. The milestone is the source
+  of truth; the label exists as a coarse filter that survives milestone
+  renames.
+- **`epic:*`** — which epic an issue belongs to, when it's part of one
+  of the umbrella tracks (e.g. `epic:ebay`, `epic:query-dsl`,
+  `epic:persistence-growth`). Each epic has a tracking issue with the
+  full task list.
+- **`specialty:*`** — what skill is most useful for picking it up. One
+  of `specialty:frontend`, `specialty:backend`, `specialty:devops`,
+  `specialty:security`, `specialty:data`, `specialty:design`. Pick
+  whichever matches your background and filter the board to it.
+
+A frontend contributor browsing v1.5 work can run
+`is:open milestone:v1.5 label:specialty:frontend` to find their issues.
+A security-minded contributor can pull `label:specialty:security` across
+all open milestones. The combinations are meant to make self-serve
+contribution easy without anyone having to triage by hand.
 
 ## Project areas
 
@@ -292,6 +348,55 @@ in the v1.1 cycle but didn't gate the release cut. Tracked on the
 
 ---
 
+## V1.5 — committed (epic: eBay integration)
+
+Adds eBay as a fourth pricing source alongside pokemontcg.io / Scrydex
+/ PriceCharting. Slots into the existing source-plugin pattern; the
+existing CLI / API contracts don't change, hence a v1.x rather than v2
+milestone. See [ADR-0020](adr/0020-ebay-pricing-source.md) for the
+acceptance contract and the
+[`epic:ebay`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aebay)
+tracking issue for the live task list.
+
+The epic spans every project area:
+
+- **Lookup engine** — `EbayClient` adapter implementing the existing
+  source contract; `Pricing.source` enum gains `"ebay_sold"` and
+  `"ebay_active"`.
+- **Cache & persistence** — per-source TTL policy (sold listings get a
+  longer freshness window than active listings).
+- **Web UI / API** — results-table column / drawer for eBay comps + a
+  last-N sold sparkline.
+- **DevOps & release** — eBay Developer OAuth client, secret rotation
+  runbook, Render env-var wiring.
+- **Security** — token storage, scope minimization, rate-limit
+  back-pressure.
+- **Tests** — cassette-based integration tests against eBay sandbox.
+
+---
+
+## V1.6 — committed (epic: TCGPlayer integration)
+
+Upgrades the embedded `tcgplayer` price block (today delivered nested
+inside pokemontcg.io responses) to live data from TCGPlayer's API,
+falling through to the embedded block when no credentials are present.
+See [ADR-0021](adr/0021-tcgplayer-first-class-pricing.md) and the
+[`epic:tcgplayer`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Atcgplayer)
+tracking issue.
+
+Pairs with the V2 persistence epic: per-user OAuth tokens land in the
+new persistence schema.
+
+- **Lookup engine** — `TCGPlayerClient` adapter; pricing upgrade path.
+- **Cache & persistence** — SWR window for TCGPlayer market price.
+- **Web UI / API** — "Connect TCGPlayer" settings panel with status.
+- **DevOps & release** — per-user token storage migration.
+- **Security** — OAuth `app/authorizeApplication` flow, refresh-token
+  handling.
+- **Tests** — sandbox / canned-response coverage.
+
+---
+
 ## V2 — committed
 
 Deeper development per area. The kind of work that takes more than an
@@ -300,11 +405,19 @@ its own GitHub issue + PR thread.
 
 ### Lookup engine
 
-- Structured query DSL (`top:N subtype:V,VMAX in "Surging Sparks"
-  rarity:rare>=$50`) — replace the flavor-text fallback with real
-  semantics. ([#39](https://github.com/mgzwarrior/mgz-pkmn/issues/39))
-- eBay sold-listings as a fourth price source (opt-in via `--ebay`).
-  ([#40](https://github.com/mgzwarrior/mgz-pkmn/issues/40))
+- **Structured query DSL — dual-mode + smart auto-detect.**
+  `top:N subtype:V,VMAX in "Surging Sparks" rarity:rare>=$50` runs in
+  DSL mode alongside the existing flavor-text mode. A frontend toggle
+  picks the default; smart auto-detect picks the right mode when input
+  is unambiguous (`key:value` or `>=$` tokens are always DSL even if
+  the toggle says flavor). Tracked under the `epic:query-dsl` umbrella;
+  closes [#39](https://github.com/mgzwarrior/mgz-pkmn/issues/39) when
+  the dual-mode contract ships.
+- eBay sold-listings — has graduated to its own epic in V1.5; see the
+  `epic:ebay` tracking issue and [v1.5 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/8). The
+  original opt-in framing in
+  [#40](https://github.com/mgzwarrior/mgz-pkmn/issues/40) is now a
+  child issue under that epic.
 - Cache TCGdex responses too (today only pokemontcg.io is cached).
   ([#41](https://github.com/mgzwarrior/mgz-pkmn/issues/41))
 - Surface ambiguity in the JSON report
@@ -397,6 +510,28 @@ its own GitHub issue + PR thread.
 
 ---
 
+## V2.1 — committed (epic: persistence at growth)
+
+V2 ships the persistence MVP (collections #244, wishlists #245, runs).
+V2.1 is the layer below — what we do when the single-tenant SQLite
+shape outgrows the hosted demo. Tracked under
+[`epic:persistence-growth`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Apersistence-growth);
+depends on the V2 persistence MVP landing first.
+
+- **Cache & persistence** — Postgres (via Hyperdrive) vs. Turso vs.
+  Cloudflare D1 spike (captured as a follow-up ADR); migration story
+  keeps Alembic and adds a Postgres dialect adapter.
+- **Web UI / API** — per-user data export (`GET /me/export` → JSON
+  dump); "Your data" page listing runs, collections, wishlists with
+  delete + export controls.
+- **DevOps & release** — backup + restore runbook for the hosted demo
+  DB.
+- **Security** — retention policy for `runs` / `run_rows` (90 days
+  anonymous, indefinite signed-in).
+- **Tests** — SQLite ↔ Postgres migration round-trip coverage.
+
+---
+
 ## V2.x — committed but post-V2
 
 Themed around **monetization**. The premise: *every end-user-facing
@@ -446,11 +581,20 @@ yet — items here graduate to issues only after community discussion.
 ### Vendor / power-user portal
 
 A separate persona from the personal-prep tool: someone who *runs* a
-booth, not just attends one.
+booth, not just attends one. Per
+[ADR-0012](adr/0012-open-core-architecture.md), the implementation
+lives in the private `mgz-pkmn-vendor` repo and is the first paid
+surface. The OSS repo carries an
+[`epic:vendor-vision`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Avendor-vision)
+placeholder issue for visibility; substantive work happens in the
+vendor repo.
 
-- **Bulk card recognition.** Camera or upload-based image recognition
-  to identify cards in bulk (set, number, condition hints) and
-  populate inventory. Pairs with Multi-user persistent collections.
+- **Bulk card recognition (vendor scanner).** Camera or upload-based
+  image recognition to identify cards in bulk (set, number, condition
+  hints) and populate inventory. Extends the
+  [breakwater-tcg-scanner](https://github.com/mgzwarrior/breakwater-tcg-scanner)
+  prototype. Lives in `mgz-pkmn-vendor`. Pairs with Multi-user
+  persistent collections.
 - **Booth inventory tracking.** Per-show, per-binder, per-card
   movement: what was on the table at the start of a show, what sold,
   for how much, and what came home.
@@ -510,19 +654,24 @@ lands.
 
 ## How this list becomes work
 
-Each item under V1 / V1.1 / V1.2 / V2 is filed as a GitHub issue with
-two labels: an **area** label (`area:lookup` / `area:outputs` /
-`area:cache` / `area:web` / `area:site` / `area:devops`) and a
-coarse **version** label — only three exist today: `version:v1`,
-`version:v1.x`, `version:v2`. V1.1 and V1.2 both share
-`version:v1.x`; **milestone** is what splits them apart.
-Committed items sit on the matching milestone:
+Each committed item below is filed as a GitHub issue with the labels
+listed in [How to read this roadmap](#how-to-read-this-roadmap) —
+`area:*`, `type:*`, `version:*`, plus `epic:*` and `specialty:*` where
+applicable. **Milestone** is the source of truth for *when* (the
+version label exists as a coarse filter that survives milestone
+renames). All v1.x minor releases share `version:v1.x`; the milestones
+split them apart:
 [v1.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/1) (shipped),
 [v1.1](https://github.com/mgzwarrior/mgz-pkmn/milestone/2) (shipped),
-[v1.2](https://github.com/mgzwarrior/mgz-pkmn/milestone/4), and
-[v2.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/3). A
-`version:v2.x` label gets created when the monetization items
-above graduate from text-only proposals to filed issues.
+[v1.2](https://github.com/mgzwarrior/mgz-pkmn/milestone/4) (shipped),
+[v1.3](https://github.com/mgzwarrior/mgz-pkmn/milestone/5) (shipped),
+[v1.4](https://github.com/mgzwarrior/mgz-pkmn/milestone/6),
+[v1.5](https://github.com/mgzwarrior/mgz-pkmn/milestone/8),
+[v1.6](https://github.com/mgzwarrior/mgz-pkmn/milestone/9),
+[v2.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/3), and
+[v2.1](https://github.com/mgzwarrior/mgz-pkmn/milestone/10). A
+`version:v2.x` label gets created when the monetization items above
+graduate from text-only proposals to filed issues.
 
 V2.x and V3+ items stay in this document as text-only proposals until
 they get promoted to committed work. The "proposed" tag is
