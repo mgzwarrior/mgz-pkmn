@@ -112,7 +112,7 @@ jobs:
           deadline=$(( $(date +%s) + 600 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
             body=$(curl --fail-with-body -sS --max-time 10 "${API_BASE}/version" || true)
-            actual=$(printf '%s' "$body" | jq -r '.version // empty' 2>/dev/null || true)
+            actual=$(printf '%s' "$body" | python3 -c 'import json,sys; data=sys.stdin.read().strip(); print(json.loads(data).get("version", "") if data else "")' 2>/dev/null || true)
             if [ -z "$actual" ]; then
               echo "Demo API /version returned: ${body:-<empty>}"
             fi
