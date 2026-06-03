@@ -1,9 +1,11 @@
 ---
 import { fetchRoadmapMilestones, type RoadmapState } from "../lib/github.ts";
+import { renderInlineMarkdown } from "../lib/changelog.ts";
 
 interface Milestone {
   label: string;
   state: RoadmapState;
+  /** HTML-safe body markup (already run through `renderInlineMarkdown`). */
   body: string;
   href: string;
 }
@@ -11,7 +13,9 @@ interface Milestone {
 // Hard-coded fallback used when the GitHub milestones API is unreachable
 // at build time, or returns fewer than three usable milestones. Mirrors
 // the changelog helper's "fail open, build still succeeds" pattern.
-const fallback: Milestone[] = [
+// Bodies are passed through `renderInlineMarkdown` alongside the live
+// data so any inline links / code / bold render consistently.
+const fallbackRaw: { label: string; state: RoadmapState; body: string; href: string }[] = [
   {
     label: "1.1 — Shipped",
     state: "done",
@@ -31,6 +35,10 @@ const fallback: Milestone[] = [
     href: "https://github.com/mgzwarrior/mgz-pkmn/milestone/3",
   },
 ];
+const fallback: Milestone[] = fallbackRaw.map((m) => ({
+  ...m,
+  body: renderInlineMarkdown(m.body),
+}));
 
 const stateSuffix: Record<RoadmapState, string> = {
   done: "Shipped",
@@ -49,7 +57,10 @@ const milestones: Milestone[] = dynamic
   ? dynamic.map((m) => ({
       label: `${m.title} — ${stateSuffix[m.state]}`,
       state: m.state,
-      body: m.body ?? stateFallbackBody[m.state],
+      // Milestone descriptions support the same inline-markdown subset as
+      // changelog bullets ([text](url), `code`, **bold**); render through
+      // the shared helper so links land as <a>, not literal `[text](url)`.
+      body: renderInlineMarkdown(m.body ?? stateFallbackBody[m.state]),
       href: m.url,
     }))
   : fallback;
@@ -87,7 +98,11 @@ const stateStyle = {
             >
               {m.label}
             </span>
-            <p class="mt-4 text-sm leading-relaxed text-coconut-400 dark:text-sand-300 flex-1">{m.body}</p>
+            <p
+              class="mt-4 text-sm leading-relaxed text-coconut-400 dark:text-sand-300 flex-1"
+              set:html={m.body}
+            />
+
             <a
               href={m.href}
               class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200"
