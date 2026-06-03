@@ -32,6 +32,8 @@ from mgz_pkmn.sources import TCGClient, TCGDexClient
 # Import the module (not the names) so tests can monkeypatch
 # `migrate.run_migrations_with_lock` / `migrate.automigrate_enabled` and
 # have the lifespan see the patched values.
+from .auth import install_session_middleware
+from .auth import routes as auth_routes
 from .db import migrate
 from .db.session import get_engine
 from .routes import (
@@ -462,6 +464,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Session middleware mounts before CORS so `request.session` is set for every
+# request, including OAuth callbacks. `install_session_middleware` is a no-op
+# when `MGZ_PKMN_AUTH_ENABLED` is unset — self-hosters with auth off never
+# need to configure `MGZ_PKMN_SESSION_SECRET` and pay no per-request cookie
+# parse overhead.
+install_session_middleware(app)
+
 # Allow the Vite dev server (and any localhost port) to call the API.
 # In production, restrict this to your actual frontend origin.
 app.add_middleware(
@@ -487,6 +496,7 @@ app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
 app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
+app.include_router(auth_routes.router, prefix="/api/v1", tags=["auth"])
 
 
 @app.get("/health")

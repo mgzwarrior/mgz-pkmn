@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- API: **Auth scaffold foundation** ([#407](https://github.com/mgzwarrior/mgz-pkmn/issues/407)). First slice of the [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61) hosted-demo auth epic, per [ADR-0019](docs/adr/0019-hosted-demo-identity-and-auth.md). New `api/auth/` package mounts Starlette's signed-cookie `SessionMiddleware` (HttpOnly, SameSite=Lax, https-only in production) and exposes `GET /api/v1/me` (200 + user payload signed-in, 204 anon) plus `POST /api/v1/auth/logout`. Alembic migration `9c4f2a7d8e15` extends `users` with `email`, `email_verified_at`, and `display_name` columns (partial-unique index on `email` so the sentinel `default` row with NULL email keeps working). Two new env vars: `MGZ_PKMN_AUTH_ENABLED` (default off, so self-hosters keep today's anonymous-everywhere behaviour with no configuration) and `MGZ_PKMN_SESSION_SECRET` (required in production when auth is on; logs a warning + uses a fixed dev fallback otherwise). No sign-in providers wired yet — those land in [#408](https://github.com/mgzwarrior/mgz-pkmn/issues/408) (GitHub OAuth), [#409](https://github.com/mgzwarrior/mgz-pkmn/issues/409) (magic link), [#410](https://github.com/mgzwarrior/mgz-pkmn/issues/410) (Google OAuth). Pinned by 17 new tests in `tests/test_auth.py` covering the env-flag parse rules, session-secret resolution (env wins, dev fallback warns, production refuses to boot), the `users` migration round-trip, `/me` + `/logout` behaviour, and the `get_current_user` dependency across the auth-off / no-cookie / dangling-id / unparseable-id / happy-path branches.
+
 ## [1.3.1] - 2026-06-02
 
 ### Fixed
