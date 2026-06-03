@@ -28,6 +28,8 @@ not just the shape.
 | [0015](0015-tally-for-surveys.md) | Tally for marketing surveys (with a Buttondown migration clause) | Accepted | 2026-05-31 |
 | [0016](0016-deployment-topology.md) | Production deployment topology — Cloudflare Pages + Render | Accepted | 2026-05-31 |
 | [0017](0017-tropical-design-system.md) | Tropical design system — sun + palm + coconut, paired light/dark tokens | Accepted | 2026-05-31 |
+| [0018](0018-structural-vs-volatile-cache-with-swr.md) | Structural / volatile cache split with stale-while-revalidate on pricing | Accepted | 2026-06-02 |
+| [0019](0019-hosted-demo-identity-and-auth.md) | Hosted-demo identity and auth — cache-only anon, sign-in gates persistence, GitHub + magic-link + Google | Accepted | 2026-06-02 |
 
 ## Adding a new ADR
 
