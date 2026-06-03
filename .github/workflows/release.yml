@@ -111,8 +111,11 @@ jobs:
           expected="${EXPECTED#v}"
           deadline=$(( $(date +%s) + 600 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            actual=$(curl -sS --max-time 10 "${API_BASE}/version" \
-              | jq -r '.version // empty' 2>/dev/null || true)
+            body=$(curl --fail-with-body -sS --max-time 10 "${API_BASE}/version" || true)
+            actual=$(printf '%s' "$body" | jq -r '.version // empty' 2>/dev/null || true)
+            if [ -z "$actual" ]; then
+              echo "Demo API /version returned: ${body:-<empty>}"
+            fi
             if [ "$actual" = "$expected" ]; then
               echo "Demo API rotated to ${actual}."
               exit 0
