@@ -115,9 +115,9 @@ the roadmap, extending the
 prototype. Naming it here pins down which side of the open-core line
 the first non-trivial vendor capability sits on: implementation lives
 in `mgz-pkmn-vendor`; the OSS repo gains no scanner code, only the
-plugin-surface hooks the scanner registers against (e.g. a `pkmn vendor
-scan` entry point and an output-writer hook for the bulk-resolved
-results). An `epic:vendor-vision` placeholder issue exists in the OSS
+plugin-surface hooks the scanner registers against (e.g. a
+`pkmn vendor scan` entry point and an output-writer hook for the
+bulk-resolved results). An `epic:vendor-vision` placeholder issue exists in the OSS
 repo for visibility only; substantive issues live in the vendor repo.
 
 **Explicitly out of scope of this ADR**: specific paid-tier names,

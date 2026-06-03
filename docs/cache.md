@@ -205,7 +205,7 @@ bootstrap in [`api/main.py`](../api/main.py) fires the first three when
 pass writes one cache entry per card across the full English catalog.
 The per-card *image* warm has yet another opt-in
 (`MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP=1`) because it's the heaviest of
-the four — a completed pass on the deployed instance reports
+the five — a completed pass on the deployed instance reports
 `card-images warm complete: 40088 images warmed (17904440414 bytes)
 across 173 sets`, so plan disk size and first-deploy duration
 accordingly. Subsequent boots within the 7-day

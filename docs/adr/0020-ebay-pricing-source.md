@@ -26,13 +26,19 @@ the source-layering decision and the contract.
 
 ## Decision
 
-Add **eBay** as a fourth source in the lookup pipeline, layered
-**after PriceCharting** in the priority order:
+Add **eBay** as a fourth source in the lookup pipeline, slotted **after
+the PriceCharting paths** (explicit URL + saved URL overrides) and
+**after the primary pokemontcg.io / Scrydex catalog**, but before the
+TCGdex multilingual fallback. The full ordering, aligned with
+[ADR-0002](0002-multi-source-lookup-priority.md) and the existing
+behaviour described in [`docs/cache.md`](../cache.md):
 
 1. Explicit URL paste (PriceCharting) — highest, user intent is
    unambiguous.
-2. pokemontcg.io / Scrydex (embedded `tcgplayer` + `cardmarket`).
-3. PriceCharting fallback (URL overrides).
+2. Saved URL overrides (PriceCharting via `url_overrides.json`) —
+   behaves "exactly like a re-pasted URL would" per ADR-0004, so it
+   sits with the explicit-URL path and ahead of pokemontcg.io.
+3. pokemontcg.io / Scrydex (embedded `tcgplayer` + `cardmarket`).
 4. **eBay sold + active** (new).
 5. TCGdex (structural only).
 
