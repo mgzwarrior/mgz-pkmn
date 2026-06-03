@@ -2,130 +2,68 @@
 
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Tags:** auth, hosted-demo, scrydex
+- **Tags:** auth, hosted-demo, persistence
 
 ## Context
 
-[#351](https://github.com/mgzwarrior/mgz-pkmn/issues/351) replaces the
-project's pokemontcg.io upstream with Scrydex. Scrydex's Starter plan
-is paid and capped at 5,000 requests / month. The hosted demo currently
-ships with the maintainer's personal upstream key baked into the
-container — fine for a free upstream, untenable once one shared key is
-the funnel for every anonymous visitor's read traffic.
+The hosted demo has reached the point where every meaningful new capability the project wants to ship requires the server to know *which user it's talking to*. Saved searches (the saved-searches sidebar landing in [#243](https://github.com/mgzwarrior/mgz-pkmn/issues/243) / [#403](https://github.com/mgzwarrior/mgz-pkmn/pull/403)), collections and wishlists ([ADR-0013](0013-sqlite-persistence-for-runs-collections-wishlists.md)), per-user URL overrides, and any future "remember what I did" surface all need a per-user namespace. The persistence layer is already there — `runs` / `run_rows` ship today with a sentinel `users.id=1` row exactly so we can swap real identity in without a wire-format change — but nothing currently produces real `users` rows. That's the actual decision this ADR is making.
+
+A secondary forcing function: [#351](https://github.com/mgzwarrior/mgz-pkmn/issues/351) replaces the pokemontcg.io upstream with Scrydex, whose Starter plan is paid and capped. Once Scrydex is live the read-quota story matters too — knowing who's behind a request is what makes per-account caps, BYO-key flows, and the rest possible. Identity isn't *driven* by Scrydex (we'd be doing this for persistent storage anyway), but it does mean we want identity in place before that migration lands rather than after.
 
 Two constraints frame the decision:
 
-1. **The local CLI stays free, forever.** A user who installs `mgz-pkmn`
-   from source / PyPI and brings their own Scrydex key pays zero. No
-   account, no telemetry gate, no upstream-of-Scrydex API call to log
-   in. The CLI is a different surface and is out of scope for this ADR.
-2. **Cache pre-warming is solved.** Phases 1–3 of the catalog-warm
-   epic ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368),
-   [#370](https://github.com/mgzwarrior/mgz-pkmn/issues/370),
-   [#371](https://github.com/mgzwarrior/mgz-pkmn/issues/371),
-   [#372](https://github.com/mgzwarrior/mgz-pkmn/issues/372)) plus
-   ADR-0018's structural/volatile split mean the hosted demo boots
-   warm against a persistent disk. The interesting Scrydex quota
-   pressure is the *write* / refresh path, not first reads.
-
-What's left is the *identity* question on the hosted surface: who is
-allowed to do what, and how do we know who they are.
+1. **The local CLI stays free, forever.** A user who installs `mgz-pkmn` from source or PyPI pays zero. No account, no telemetry gate, no upstream-of-Scrydex API call to log in. The CLI is a different surface and is out of scope for this ADR.
+2. **Cache pre-warming is already solved.** Phases 1–3 of the catalog-warm epic ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368), [#370](https://github.com/mgzwarrior/mgz-pkmn/issues/370), [#371](https://github.com/mgzwarrior/mgz-pkmn/issues/371), [#372](https://github.com/mgzwarrior/mgz-pkmn/issues/372)) plus ADR-0018's structural/volatile cache split mean the hosted demo boots warm against a persistent disk. Reads are mostly cache hits before auth ever comes into the picture.
 
 ## Decision
 
-**Anonymous visitors get a fully-functional read-only demo against the
-warmed cache.** Lookups, browsing, set-cards, export of the visible
-result — all work without an account. Reads that would force a
-Scrydex round-trip beyond what the warm cache covers degrade
-gracefully (the existing miss / fallback paths already do this).
+**Anonymous visitors keep a fully-functional read-only demo against the warmed cache.** Lookups, browsing, set-cards, export of the visible result — all work without an account. Reads that would force an upstream round-trip beyond what the warm cache covers degrade gracefully via the existing miss/fallback paths. The "click and try it" pitch the project has had since v1 survives.
 
-**Sign-in is required only for persistent-storage actions** on the
-hosted demo:
+**Sign-in is required only for persistent-storage actions** on the hosted demo:
 
-- Saving a search (the saved-searches sidebar; see [#243](https://github.com/mgzwarrior/mgz-pkmn/issues/243)).
-- Anything #243's follow-ups add that writes to the user-owned slice
-  of `runs` / `collections` / `wishlists` (per ADR-0013).
-- Anything subsequent work decides should be per-user (URL overrides,
-  saved exports, etc.) — those become sign-in-gated by default.
+- Saving a search (the saved-searches sidebar; see [#243](https://github.com/mgzwarrior/mgz-pkmn/issues/243) / [#403](https://github.com/mgzwarrior/mgz-pkmn/pull/403)).
+- Anything #243's follow-ups add that writes to the per-user slice of `runs` / `collections` / `wishlists` (per [ADR-0013](0013-sqlite-persistence-for-runs-collections-wishlists.md)).
+- Anything subsequent work decides should be per-user (URL overrides, saved exports, named binder templates, etc.) — sign-in-gated by default.
 
-The Save action on an anonymous session surfaces a sign-in nudge
-("Sign in to keep this run") rather than a hard 401 in the UI.
+The Save action on an anonymous session surfaces a sign-in nudge ("Sign in to keep this run") rather than a hard 401 in the UI. The principle: nobody loses access to anything they had before; sign-in only appears when the user is asking us to remember something on their behalf.
 
 **Sign-in providers (in priority order):**
 
 1. **GitHub OAuth** — most of the project's audience already has one.
-2. **Magic link via email** — reuses Buttondown's existing wiring
-   (ADR-0014) for delivery; covers users without a GitHub account.
-3. **Google OAuth** — broad reach; same off-the-shelf integration
-   shape as GitHub.
+2. **Magic link via email** — reuses Buttondown's existing wiring ([ADR-0014](0014-buttondown-for-email-subscriptions.md)) for delivery; covers users without a GitHub account.
+3. **Google OAuth** — broad reach; same off-the-shelf integration shape as GitHub.
 
-Account linking across providers is **out of scope for the first cut**:
-each provider creates a distinct account keyed on the verified email
-address it returns. If two providers return the same verified email
-they map to the same `users` row. Beyond that, no manual link / merge
-UI in v1.
+Account linking across providers is **out of scope for the first cut**: each provider creates a distinct account keyed on the verified email address it returns. If two providers return the same verified email they map to the same `users` row. Beyond that, no manual link / merge UI in v1.
 
-**Scrydex key storage model is deferred.** We don't yet have Scrydex
-access, so we can't validate the wire format or test the per-account
-quota story. The decision between *BYO per-request*, *stored on
-account*, or *hybrid* is pinned to the ticket that lands Scrydex
-auth-against-Scrydex and is explicitly out of scope here.
+**Scrydex key storage model is deferred.** We don't yet have Scrydex access, so we can't validate the wire format or test the per-account quota story. The decision between *BYO per-request*, *stored on account*, or *hybrid* is pinned to the ticket that lands Scrydex auth-against-Scrydex and is explicitly out of scope here.
 
 ## Consequences
 
 **Positive:**
 
-- Demo stays a "click and try it" surface. The pitch ("paste your
-  list, hit Look up") survives the upstream-cost shift because the
-  warmed cache absorbs anonymous reads.
-- Sign-in friction shows up only where the user is *asking us to
-  remember something* — a context where pasting an email or clicking
-  GitHub feels proportionate.
-- Three providers cover the realistic audience (devs via GitHub,
-  collectors via Google, holdouts via magic link) without committing
-  to password storage.
-- ADR-0013's per-user persistence layer is the natural home for the
-  rows this unlocks — no new storage model needed.
+- Every "remember this" capability the roadmap has been holding back on becomes implementable — saved searches first, then the collections / wishlists / overrides queue that's been sitting behind identity for a year.
+- Demo stays a "click and try it" surface. New users hit the same zero-friction read-only experience they did before.
+- Sign-in friction shows up only where the user is *asking us to remember something* — a context where pasting an email or clicking GitHub feels proportionate to what they're getting in return.
+- Three providers cover the realistic audience (devs via GitHub, collectors via Google, holdouts via magic link) without committing to password storage.
+- When Scrydex lands, identity is already in place and the per-account quota / BYO-key conversations have a real `users` row to hang off of.
+- [ADR-0013](0013-sqlite-persistence-for-runs-collections-wishlists.md)'s per-user persistence layer is the natural home for the rows this unlocks — no new storage model needed.
 
 **Negative:**
 
-- Auth introduces a real attack surface where today there is none
-  (sessions, OAuth callbacks, email verification, account
-  enumeration). Mitigated by leaning on off-the-shelf libraries
-  rather than rolling our own.
-- Three providers is more configuration than one. Each carries its
-  own client-id / secret rotation, callback URL, and provider
-  outages.
-- Email-based account merging is a footgun: two providers returning
-  the same verified email *will* land on the same `users` row.
-  Acceptable in v1; explicit account-merge UI is a follow-up if it
-  bites.
-- We accept that anonymous visitors can still drive *some* Scrydex
-  cost via cache misses on long-tail cards. The catalog warm makes
-  this small, not zero.
+- Auth introduces a real attack surface where today there is none (sessions, OAuth callbacks, email verification, account enumeration). Mitigated by leaning on off-the-shelf libraries rather than rolling our own.
+- Three providers is more configuration than one. Each carries its own client-id / secret rotation, callback URL, and provider outages.
+- Email-based account merging is a footgun: two providers returning the same verified email *will* land on the same `users` row. Acceptable in v1; explicit account-merge UI is a follow-up if it bites.
+- The user-facing copy around the sign-in nudge has to be careful — it must read as "to keep this run", not as "you're being throttled".
 
 **Neutral:**
 
 - Local CLI behaviour is unchanged.
-- ADR-0012 / Discussion #176 (pricing model) still needs an update
-  once Scrydex access lands and the key-storage decision is made,
-  but is no longer blocked by *this* ADR.
+- ADR-0012 / [Discussion #176](https://github.com/mgzwarrior/mgz-pkmn/discussions/176) (pricing model) still needs an update once Scrydex access lands and the key-storage decision is made, but is no longer blocked by *this* ADR.
+- Self-hosted instances get an env kill switch (`MGZ_PKMN_AUTH_ENABLED=0`) so the existing anonymous-everywhere posture is preserved for anyone running their own copy.
 
 ## Alternatives considered
 
-- **Sign-in required for any lookup.** Cleanest cost story, but it
-  kills the unauthenticated demo path that has been the project's
-  marketing pitch since v1. Rejected.
-- **Shared maintainer key with a per-IP daily cap.** Quota is bounded
-  but easy to evade with IP rotation, and the failure mode for honest
-  users (a hard 429 mid-session) is worse than a graceful
-  cache-only degrade. Rejected.
-- **One provider only (GitHub or magic link).** Simpler, but each
-  single-provider choice strands a meaningful slice of the audience.
-  The off-the-shelf stacks (Authlib, FastAPI-Users) treat multiple
-  providers as configuration, not architecture, so the marginal cost
-  of all three is small enough to take.
-- **Decide the Scrydex key-storage model now.** Rejected until we
-  have Scrydex access and can validate the per-account quota story
-  end-to-end. Locking the storage model in before the upstream
-  contract is testable risks an expensive rework.
+- **Sign-in required for any lookup.** Cleanest cost story for the eventual Scrydex bill, but it kills the unauthenticated demo path that has been the project's marketing pitch since v1, and it gates read traffic behind identity even though the warm cache makes reads nearly free. Rejected.
+- **Skip identity entirely and store everything client-side.** Each browser keeps its own saved searches in localStorage. No auth surface, no server complexity. Rejected because it can't span devices, can't survive a cleared profile, and locks out every follow-up feature (shared collections, mobile companion, etc.) that's actually the point of building this on top of persistent server-side rows.
+- **One provider only (GitHub or magic link).** Simpler, but each single-provider choice strands a meaningful slice of the audience. The off-the-shelf stacks (Authlib, FastAPI-Users) treat multiple providers as configuration, not architecture, so the marginal cost of all three is small enough to take.
+- **Decide the Scrydex key-storage model now.** Rejected until we have Scrydex access and can validate the per-account quota story end-to-end. Locking the storage model in before the upstream contract is testable risks an expensive rework.
