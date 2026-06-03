@@ -17,7 +17,9 @@ Two constraints frame the decision:
 
 ## Decision
 
-**Anonymous visitors keep a fully-functional read-only demo against the warmed cache.** Lookups, browsing, set-cards, export of the visible result — all work without an account. Reads that would force an upstream round-trip beyond what the warm cache covers degrade gracefully via the existing miss/fallback paths. The "click and try it" pitch the project has had since v1 survives.
+**Anonymous visitors keep a fully-functional read-only demo against the warmed cache.** Lookups, browsing, set-cards, export of the visible result — all work without an account. The "click and try it" pitch the project has had since v1 survives.
+
+To make this work safely, the lookup path needs an **explicit cache-only mode** for anonymous sessions: on cache miss, return "not in cache" instead of issuing an upstream request. Today's path (`TCGClient._network_fetch` in [`src/mgz_pkmn/sources/pokemontcg.py`](../../src/mgz_pkmn/sources/pokemontcg.py)) retries and then *raises* on persistent non-retryable upstream errors (401 / 403 / 5xx), which would surface as a 500 to the anonymous visitor and bill upstream quota for traffic that should never have left the host. Wiring the cache-only mode is part of the implementation in [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61).
 
 **Sign-in is required only for persistent-storage actions** on the hosted demo:
 
@@ -54,6 +56,7 @@ Account linking across providers is **out of scope for the first cut**: each pro
 - Three providers is more configuration than one. Each carries its own client-id / secret rotation, callback URL, and provider outages.
 - Email-based account merging is a footgun: two providers returning the same verified email *will* land on the same `users` row. Acceptable in v1; explicit account-merge UI is a follow-up if it bites.
 - The user-facing copy around the sign-in nudge has to be careful — it must read as "to keep this run", not as "you're being throttled".
+- The anonymous-cache-only mode is a real implementation requirement, not free-by-default. Until it lands, an anonymous miss can still drive an upstream call (and a 5xx if upstream is unhappy). The expectation is that this mode lands as part of [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61) alongside the auth scaffolding, not as a separate ticket.
 
 **Neutral:**
 
