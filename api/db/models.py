@@ -54,6 +54,14 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+    # Auth columns, populated only when one of the sign-in flows from #61
+    # upserts a row. Nullable so the sentinel `default` user (and any
+    # self-hosted-anonymous future row) keeps working.
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     runs: Mapped[list[Run]] = relationship(back_populates="user")
 
