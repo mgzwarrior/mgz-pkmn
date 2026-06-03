@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-06-02
+
 ### Fixed
 
 - Release: **`rebuild-site` waits for the demo API to rotate before
@@ -897,7 +899,8 @@ UI, multi-source card lookup, all output formats, and release infrastructure.
 - Incomplete URL substring sanitization (CodeQL alerts).
 - Workflow permissions hardening (CodeQL alerts).
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.0...v1.1.1
