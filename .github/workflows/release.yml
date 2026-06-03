@@ -95,6 +95,33 @@ jobs:
     # bounces — the GitHub Release is already cut and PyPI is published.
     continue-on-error: true
     steps:
+      # The marketing site fetches GET /api/v1/changelog at build time
+      # (see site/src/lib/changelog.ts), so kicking the Pages build the
+      # instant the GitHub Release lands can race Render's redeploy and
+      # bake the *previous* version into the static HTML. Poll the demo
+      # API's /version endpoint until it reports the new tag before
+      # firing the deploy hook. Falls through and fires anyway after a
+      # 10-minute budget so the job never blocks indefinitely on a slow
+      # or stuck Render rollout.
+      - name: Wait for demo API to rotate
+        env:
+          EXPECTED: ${{ github.ref_name }}
+          API_BASE: https://mgz-pkmn.onrender.com
+        run: |
+          expected="${EXPECTED#v}"
+          deadline=$(( $(date +%s) + 600 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            actual=$(curl -sS --max-time 10 "${API_BASE}/version" \
+              | jq -r '.version // empty' 2>/dev/null || true)
+            if [ "$actual" = "$expected" ]; then
+              echo "Demo API rotated to ${actual}."
+              exit 0
+            fi
+            echo "Demo API still on '${actual:-unknown}'; waiting…"
+            sleep 15
+          done
+          echo "::warning::Demo API did not rotate to ${expected} within 10 min; firing the deploy hook anyway."
+
       - name: Trigger Cloudflare Pages deploy hook
         env:
           HOOK: ${{ secrets.CF_PAGES_DEPLOY_HOOK }}
