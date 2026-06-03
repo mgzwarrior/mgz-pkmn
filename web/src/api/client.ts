@@ -13,6 +13,8 @@ import type {
   ChangelogRelease,
   ExportFormat,
   Row,
+  RunDetail,
+  RunSummary,
   SetCard,
   SetInfo,
   Settings,
@@ -321,6 +323,74 @@ export async function fetchChangelog(limit = 5): Promise<ChangelogRelease[]> {
   if (!res.ok) throw new Error(`changelog failed: ${res.status}`)
   const data = await res.json()
   return data.releases as ChangelogRelease[]
+}
+
+// ---------------------------------------------------------------------------
+// runs (persisted history)
+// ---------------------------------------------------------------------------
+
+/**
+ * List persisted runs, newest first. The endpoint returns the
+ * lightweight `summary_json` aggregate per row so the sidebar renders
+ * without loading every `run_rows` payload.
+ */
+export async function listRuns(limit = 50, offset = 0): Promise<{ items: RunSummary[]; total: number }> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const res = await fetch(`${BASE}/runs?${params.toString()}`)
+  if (!res.ok) throw new Error(`runs failed: ${res.status}`)
+  return (await res.json()) as { items: RunSummary[]; total: number }
+}
+
+/** Fetch a full run including every persisted row. */
+export async function getRun(runId: number): Promise<RunDetail> {
+  const res = await fetch(`${BASE}/runs/${runId}`)
+  if (!res.ok) throw new Error(`run ${runId} failed: ${res.status}`)
+  return (await res.json()) as RunDetail
+}
+
+/**
+ * Re-export a stored run. Reconstructs the export from the persisted
+ * rows server-side — no re-lookup is performed. Triggers a browser
+ * download just like {@link exportFile}.
+ */
+export async function exportRun(
+  runId: number,
+  format: ExportFormat,
+  options: {
+    maxPrice?: number | null
+    title?: string
+    sort?: SortMode
+    noImages?: boolean
+  } = {},
+): Promise<void> {
+  const res = await fetch(`${BASE}/runs/${runId}/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      format,
+      sort: options.sort ?? 'number',
+      max_price: options.maxPrice ?? null,
+      title: options.title ?? 'cards',
+      no_images: options.noImages ?? true,
+    }),
+  })
+  if (!res.ok) {
+    let detail = `re-export failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = DOWNLOAD_FILENAMES[format]
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 // ---------------------------------------------------------------------------

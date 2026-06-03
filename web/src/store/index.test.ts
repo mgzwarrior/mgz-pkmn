@@ -275,3 +275,41 @@ describe('store: lastSeenChangelogVersion', () => {
     expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1')
   })
 })
+
+describe('store: run history', () => {
+  beforeEach(() => useAppStore.setState({ runs: [], currentRunId: null }))
+
+  it('defaults to empty list and null current id', () => {
+    expect(useAppStore.getState().runs).toEqual([])
+    expect(useAppStore.getState().currentRunId).toBeNull()
+  })
+
+  it('setRuns replaces the list wholesale (server is source of truth)', () => {
+    useAppStore.getState().setRuns([
+      {
+        id: 1,
+        created_at: '2026-06-01T12:00:00Z',
+        elapsed_seconds: 1.2,
+        row_count: 3,
+        summary: {
+          total_rows: 3,
+          matched: 2,
+          missed: 1,
+          priced: 2,
+          totals_by_currency: { USD: 12.5 },
+          tag_counts: { keep: 2 },
+        },
+      },
+    ])
+    expect(useAppStore.getState().runs).toHaveLength(1)
+    useAppStore.getState().setRuns([])
+    expect(useAppStore.getState().runs).toEqual([])
+  })
+
+  it('setCurrentRunId records the loaded run', () => {
+    useAppStore.getState().setCurrentRunId(42)
+    expect(useAppStore.getState().currentRunId).toBe(42)
+    useAppStore.getState().setCurrentRunId(null)
+    expect(useAppStore.getState().currentRunId).toBeNull()
+  })
+})

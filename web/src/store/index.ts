@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ProcessingLine, RecentRun, Row, Settings } from '../types'
+import type { ProcessingLine, RecentRun, Row, RunSummary, Settings } from '../types'
 
 /** Cap on `recentRuns` so persisted localStorage stays small. */
 export const RECENT_RUNS_LIMIT = 10
@@ -98,6 +98,17 @@ interface AppState {
   pushRecentRun: (lines: string[]) => void
   removeRecentRun: (id: string) => void
   clearRecentRuns: () => void
+
+  /**
+   * Server-side run history from `GET /api/v1/runs`. Refreshed on
+   * sidebar mount, after each completed bulk run, and on demand. Not
+   * persisted — the API is the source of truth.
+   */
+  runs: RunSummary[]
+  setRuns: (runs: RunSummary[]) => void
+  /** Id of the run currently loaded into the editor / results, if any. */
+  currentRunId: number | null
+  setCurrentRunId: (id: number | null) => void
 
   /**
    * Latest changelog version the user has seen in the "What's new" panel.
@@ -209,6 +220,11 @@ export const useAppStore = create<AppState>()(
           recentRuns: state.recentRuns.filter((r) => r.id !== id),
         })),
       clearRecentRuns: () => set({ recentRuns: [] }),
+
+      runs: [],
+      setRuns: (runs) => set({ runs }),
+      currentRunId: null,
+      setCurrentRunId: (currentRunId) => set({ currentRunId }),
 
       lastSeenChangelogVersion: null,
       setLastSeenChangelogVersion: (version) =>

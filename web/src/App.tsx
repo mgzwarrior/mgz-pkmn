@@ -23,6 +23,7 @@ import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
 import { RecentRuns } from './components/RecentRuns'
 import { ResultsTable } from './components/ResultsTable'
+import { RunHistorySidebar } from './components/RunHistorySidebar'
 import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
@@ -255,71 +256,81 @@ function App() {
       </header>
 
       {/* Main content */}
-      <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
-        <nav
-          role="tablist"
-          aria-label="Discovery mode"
-          data-tour="discovery-modes"
-          className="flex w-full flex-wrap items-center gap-1 rounded-lg border border-sand-300 bg-sand-100 p-1 dark:border-husk-50 dark:bg-husk-200"
-        >
-          {MODES.map((m) => {
-            const Icon = m.icon
-            const active = mode === m.value
-            return (
-              <button
-                key={m.value}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setMode(m.value)}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors min-w-[120px] ${
-                  active
-                    ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
-                    : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
-                }`}
-              >
-                <Icon size={15} aria-hidden />
-                <span className="font-medium">{m.label}</span>
-                <span className="hidden text-xs text-coconut-400 dark:text-sand-400 sm:inline">
-                  · {m.hint}
-                </span>
-              </button>
-            )
-          })}
-        </nav>
+      <main className="mx-auto max-w-7xl px-4 py-6">
+        <div className="flex gap-4">
+          <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="run-history">
+            <RunHistorySidebar />
+          </div>
+          <div className="flex-1 min-w-0 space-y-6">
+            <nav
+              role="tablist"
+              aria-label="Discovery mode"
+              data-tour="discovery-modes"
+              className="flex w-full flex-wrap items-center gap-1 rounded-lg border border-sand-300 bg-sand-100 p-1 dark:border-husk-50 dark:bg-husk-200"
+            >
+              {MODES.map((m) => {
+                const Icon = m.icon
+                const active = mode === m.value
+                return (
+                  <button
+                    key={m.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setMode(m.value)}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors min-w-[120px] ${
+                      active
+                        ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
+                        : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
+                    }`}
+                  >
+                    <Icon size={15} aria-hidden />
+                    <span className="font-medium">{m.label}</span>
+                    <span className="hidden text-xs text-coconut-400 dark:text-sand-400 sm:inline">
+                      · {m.hint}
+                    </span>
+                  </button>
+                )
+              })}
+            </nav>
 
-        {mode === 'search' && (
-          <>
-            <section data-tour="input">
-              <InputEditor onRun={handleRun} onStop={handleStop} />
-              <div className="mt-3">
-                <RecentRuns onRun={handleRun} />
-              </div>
-            </section>
+            {mode === 'search' && (
+              <>
+                <section data-tour="input">
+                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                    Card list
+                  </h2>
+                  <InputEditor onRun={handleRun} onStop={handleStop} />
+                  <div className="mt-3">
+                    <RecentRuns onRun={handleRun} />
+                  </div>
+                </section>
 
-            <section data-tour="results">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-                Results
-              </h2>
-              <div className="flex flex-col gap-3">
-                <ProcessingQueue />
-                <ResultsTable onRerunLine={handleRerunLine} />
-              </div>
-            </section>
-          </>
-        )}
+                <section data-tour="results">
+                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                    Results
+                  </h2>
+                  <div className="flex flex-col gap-3">
+                    <ProcessingQueue />
+                    <ResultsTable onRerunLine={handleRerunLine} />
+                  </div>
+                </section>
+              </>
+            )}
 
-        {mode === 'browse' && (
-          <section aria-label="Browse cards by set">
-            <BrowsePanel controller={browseController} />
-          </section>
-        )}
+            {mode === 'browse' && (
+              <section aria-label="Browse cards by set">
+                <BrowsePanel controller={browseController} />
+              </section>
+            )}
 
-        {mode === 'swipe' && (
-          <section aria-label="Swipe cards">
-            <SwipePanel active={mode === 'swipe'} />
-          </section>
-        )}
+            {mode === 'swipe' && (
+              <section aria-label="Swipe cards">
+                <SwipePanel active={mode === 'swipe'} />
+              </section>
+            )}
+          </div>
+        </div>
       </main>
 
       {tourOpen && (

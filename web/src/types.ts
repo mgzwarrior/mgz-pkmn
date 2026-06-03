@@ -250,3 +250,51 @@ export interface RecentRun {
   /** The non-empty, non-comment lines the user submitted. */
   lines: string[]
 }
+
+/**
+ * Lightweight aggregate persisted on `runs.summary_json`. Mirrors
+ * `api/db/serialize.build_run_summary`. Cheap to render in the sidebar
+ * without loading the full row payload.
+ */
+export interface RunSummaryAggregate {
+  total_rows: number
+  matched: number
+  missed: number
+  priced: number
+  totals_by_currency: Record<string, number>
+  tag_counts: Record<string, number>
+}
+
+/**
+ * One entry from `GET /api/v1/runs` — the sidebar listing shape. The
+ * full row payload lives on `GET /api/v1/runs/{id}`; this list view
+ * carries only the precomputed summary.
+ */
+export interface RunSummary {
+  id: number
+  created_at: string
+  elapsed_seconds: number | null
+  summary: RunSummaryAggregate
+  row_count: number
+}
+
+/** Persisted-row shape returned by `GET /api/v1/runs/{id}`. */
+export interface RunRowDetail {
+  position: number
+  tag: string
+  market_price: number | null
+  currency: string | null
+  query: CardQuery
+  card: CardData | null
+  pricing: Pricing
+}
+
+/** Full run record returned by `GET /api/v1/runs/{id}`. */
+export interface RunDetail {
+  id: number
+  created_at: string
+  elapsed_seconds: number | null
+  input_text: string
+  summary: RunSummaryAggregate
+  rows: RunRowDetail[]
+}
