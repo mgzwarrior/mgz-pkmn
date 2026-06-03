@@ -43,13 +43,31 @@ function summaryTotal(run: RunSummary): { amount: number; currency: string } | n
 }
 
 export function RunHistorySidebar() {
-  const { runs, setRuns, currentRunId, setCurrentRunId, isRunning, setInputText, setRows, clearRows } =
-    useAppStore()
+  const {
+    runs,
+    setRuns,
+    currentRunId,
+    setCurrentRunId,
+    isRunning,
+    setInputText,
+    setRows,
+    clearRows,
+    setProgress,
+    setProcessingLines,
+    setRunStartedAt,
+    setRunEndedAt,
+  } = useAppStore()
   const [collapsed, setCollapsed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null)
   const [exportingRunId, setExportingRunId] = useState<number | null>(null)
+  // Synchronous guard against rapid-fire concurrent loads. A useState
+  // value would be stale across consecutive native click events in the
+  // same tick — React batches re-renders, so closures captured at
+  // render time still see `loadingRunId === null` on the second click.
+  // A ref updates synchronously and is the right tool for the race.
+  const loadInFlightRef = useRef(false)
 
   // Bumping `refreshKey` triggers the loader effect. Kept as a counter
   // (rather than calling a refresh callback) so the actual fetch +
@@ -93,7 +111,12 @@ export function RunHistorySidebar() {
 
   const handleLoad = useCallback(
     async (run: RunSummary) => {
-      if (isRunning) return
+      // Concurrency guard: bail on any in-flight load (not just this row's)
+      // so rapid-fire clicks on different rows can't race — last response
+      // wins would otherwise hydrate the wrong run. Also no-op while a
+      // bulk lookup is streaming.
+      if (isRunning || loadInFlightRef.current) return
+      loadInFlightRef.current = true
       setLoadingRunId(run.id)
       setError(null)
       try {
@@ -101,14 +124,32 @@ export function RunHistorySidebar() {
         setInputText(detail.input_text)
         clearRows()
         setRows(detail.rows.map(runRowToRow))
+        // Reset ephemeral lookup-progress UI so the ProcessingQueue and
+        // LookupTimer don't reflect an unrelated streaming run after the
+        // hydrate.
+        setProgress(null)
+        setProcessingLines([])
+        setRunStartedAt(null)
+        setRunEndedAt(null)
         setCurrentRunId(detail.id)
       } catch (err) {
         setError(err instanceof Error ? err.message : `Failed to load run ${run.id}`)
       } finally {
         setLoadingRunId(null)
+        loadInFlightRef.current = false
       }
     },
-    [isRunning, setInputText, clearRows, setRows, setCurrentRunId],
+    [
+      isRunning,
+      setInputText,
+      clearRows,
+      setRows,
+      setProgress,
+      setProcessingLines,
+      setRunStartedAt,
+      setRunEndedAt,
+      setCurrentRunId,
+    ],
   )
 
   const handleReexport = useCallback(async (run: RunSummary) => {
@@ -194,7 +235,7 @@ export function RunHistorySidebar() {
               key={run.id}
               run={run}
               isCurrent={run.id === currentRunId}
-              disabled={isRunning || loadingRunId === run.id}
+              disabled={isRunning || loadingRunId !== null}
               isExporting={exportingRunId === run.id}
               onLoad={() => handleLoad(run)}
               onReexport={() => handleReexport(run)}

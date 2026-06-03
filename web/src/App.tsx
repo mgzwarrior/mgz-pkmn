@@ -60,6 +60,7 @@ function App() {
     setRunStartedAt,
     setRunEndedAt,
     pushRecentRun,
+    setCurrentRunId,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -105,6 +106,13 @@ function App() {
     // this at click time (not on completion) so a run the user stops
     // or that errors still leaves a re-runnable entry behind.
     pushRecentRun(nonEmpty)
+    // Drop any "currently loaded saved run" marker — the sidebar's
+    // highlight should follow the visible results, and fresh streamed
+    // rows aren't a saved run any more. The next persisted run won't
+    // pick up a new id here (the `/bulk` SSE doesn't surface one); the
+    // sidebar refreshes from `/api/v1/runs` on stream completion and
+    // the new entry shows up unhighlighted.
+    setCurrentRunId(null)
 
     abortRef.current = new AbortController()
 
@@ -183,6 +191,7 @@ function App() {
     setRunStartedAt,
     setRunEndedAt,
     pushRecentRun,
+    setCurrentRunId,
   ])
 
   const handleStop = useCallback(() => {

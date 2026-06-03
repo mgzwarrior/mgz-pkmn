@@ -62,6 +62,10 @@ function resetStore() {
     inputText: '',
     rows: [],
     isRunning: false,
+    progress: { done: 5, total: 10 },
+    processingLines: [{ line: 'stale', status: 'pending' }],
+    runStartedAt: 1_700_000_000_000,
+    runEndedAt: 1_700_000_001_000,
   })
 }
 
@@ -102,6 +106,49 @@ describe('RunHistorySidebar', () => {
     expect(useAppStore.getState().inputText).toBe('Charizard\nPikachu')
     expect(useAppStore.getState().rows).toHaveLength(1)
     expect(useAppStore.getState().rows[0]?.matched).toBe(true)
+  })
+
+  it('hydrating a saved run clears ephemeral progress + timer state', async () => {
+    vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(7)], total: 1 })
+    vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7))
+    render(<RunHistorySidebar />)
+    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
+
+    fireEvent.click(screen.getByRole('button', { name: /Load run/i }))
+    await waitFor(() => expect(useAppStore.getState().currentRunId).toBe(7))
+
+    // ProcessingQueue + LookupTimer read these; leaving them set would
+    // show stale progress and a stale elapsed value after the hydrate.
+    expect(useAppStore.getState().progress).toBeNull()
+    expect(useAppStore.getState().processingLines).toEqual([])
+    expect(useAppStore.getState().runStartedAt).toBeNull()
+    expect(useAppStore.getState().runEndedAt).toBeNull()
+  })
+
+  it('rapid clicks on different runs do not race — only the first lands', async () => {
+    vi.spyOn(client, 'listRuns').mockResolvedValue({
+      items: [makeRun(7), makeRun(8)],
+      total: 2,
+    })
+    const getSpy = vi.spyOn(client, 'getRun').mockImplementation(
+      (id) =>
+        new Promise((resolve) => {
+          // Resolve asynchronously so the second click happens while the
+          // first request is still in flight.
+          setTimeout(() => resolve(makeDetail(id)), 10)
+        }),
+    )
+    render(<RunHistorySidebar />)
+    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(2))
+
+    const [first, second] = screen.getAllByRole('button', { name: /Load run/i })
+    fireEvent.click(first)
+    fireEvent.click(second)
+
+    await waitFor(() => expect(useAppStore.getState().currentRunId).not.toBeNull())
+    // Only one getRun call should have fired — the second click was
+    // blocked by the in-flight guard.
+    expect(getSpy).toHaveBeenCalledTimes(1)
   })
 
   it('re-export action calls exportRun for the run', async () => {
