@@ -372,12 +372,15 @@ async def bulk(req: BulkRequest) -> StreamingResponse:
                 yield f"data: {json.dumps(payload)}\n\n"
 
         elapsed = time.monotonic() - started
+        run_id: int | None = None
         try:
-            _persist_run(req.lines, resolved, elapsed)
+            run_id = _persist_run(req.lines, resolved, elapsed)
         except Exception:  # pragma: no cover — defensive, persistence is best-effort
             logger.exception("Failed to persist run after /bulk completion")
 
-        yield f"data: {json.dumps({'done': True, 'total': total})}\n\n"
+        # `run_id` surfaces so the SPA can offer a "Save this search" action
+        # against the just-completed run without re-querying the list.
+        yield f"data: {json.dumps({'done': True, 'total': total, 'run_id': run_id})}\n\n"
 
     return StreamingResponse(
         event_stream(),

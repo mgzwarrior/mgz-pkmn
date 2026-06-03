@@ -1,6 +1,28 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ProcessingLine, RecentRun, Row, RunSummary, Settings } from '../types'
+import type {
+  ProcessingLine,
+  RecentRun,
+  Row,
+  RunSummary,
+  SavedViewState,
+  Settings,
+} from '../types'
+
+/** Default ResultsTable view: no sort, no filters, filter row collapsed. */
+export const EMPTY_VIEW_STATE: SavedViewState = {
+  sortColumn: null,
+  sortDir: null,
+  showFilters: false,
+  filters: {
+    name: '',
+    set: '',
+    rarity: '',
+    marketMin: '',
+    marketMax: '',
+    source: '',
+  },
+}
 
 /** Cap on `recentRuns` so persisted localStorage stays small. */
 export const RECENT_RUNS_LIMIT = 10
@@ -100,15 +122,35 @@ interface AppState {
   clearRecentRuns: () => void
 
   /**
-   * Server-side run history from `GET /api/v1/runs`. Refreshed on
-   * sidebar mount, after each completed bulk run, and on demand. Not
-   * persisted — the API is the source of truth.
+   * Saved searches from `GET /api/v1/runs` — the endpoint filters to
+   * runs the user has explicitly saved (named). Refreshed on sidebar
+   * mount, after each completed bulk run, and on demand. Not persisted
+   * locally — the API is the source of truth.
    */
   runs: RunSummary[]
   setRuns: (runs: RunSummary[]) => void
-  /** Id of the run currently loaded into the editor / results, if any. */
+  /** Id of the run currently loaded into the editor / results, if any.
+   * Set on click-to-load *and* on a fresh `/bulk` completion (the SSE
+   * `done` frame surfaces it), so the Save button always knows what to
+   * promote into the saved list. */
   currentRunId: number | null
   setCurrentRunId: (id: number | null) => void
+
+  /**
+   * Live ResultsTable view state — sort + per-column filters + whether
+   * the filter row is open. Lifted into the store so:
+   *
+   * 1. The Save button (rendered outside ResultsTable) can snapshot the
+   *    current view when promoting a run into the saved-search list.
+   * 2. Click-to-load on a saved search can restore the saved snapshot
+   *    without prop-drilling through App / ResultsTable.
+   *
+   * Not persisted to localStorage — the live view is ephemeral; only
+   * deliberately-saved searches carry view state across sessions.
+   */
+  viewState: SavedViewState
+  setViewState: (state: SavedViewState) => void
+  resetViewState: () => void
 
   /**
    * Latest changelog version the user has seen in the "What's new" panel.
@@ -225,6 +267,16 @@ export const useAppStore = create<AppState>()(
       setRuns: (runs) => set({ runs }),
       currentRunId: null,
       setCurrentRunId: (currentRunId) => set({ currentRunId }),
+
+      viewState: { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters } },
+      setViewState: (viewState) => set({ viewState }),
+      resetViewState: () =>
+        set({
+          viewState: {
+            ...EMPTY_VIEW_STATE,
+            filters: { ...EMPTY_VIEW_STATE.filters },
+          },
+        }),
 
       lastSeenChangelogVersion: null,
       setLastSeenChangelogVersion: (version) =>

@@ -92,11 +92,16 @@ export interface RowEvent extends Row {
   done?: false
 }
 
-/** The single terminating SSE frame emitted once all lines are done. */
+/** The single terminating SSE frame emitted once all lines are done.
+ *
+ * `run_id` carries the id of the run the backend just persisted, or
+ * `null` if persistence fell through. The SPA reads it so a "Save this
+ * search" action can target the just-completed run without re-listing. */
 export interface DoneEvent {
   index?: undefined
   total: number
   done: true
+  run_id: number | null
 }
 
 /** Any frame emitted by POST /api/v1/bulk. */
@@ -265,10 +270,42 @@ export interface RunSummaryAggregate {
   tag_counts: Record<string, number>
 }
 
+/** Columns the ResultsTable can sort on. */
+export type ResultsSortColumn = 'name' | 'set' | 'rarity' | 'market' | 'source'
+
+/** Sort direction on the active sort column. */
+export type ResultsSortDir = 'asc' | 'desc'
+
+/** Per-column filter values bound to the ResultsTable filter row. Empty
+ *  string means "no filter on this column". */
+export interface ResultsFilters {
+  name: string
+  set: string
+  rarity: string
+  marketMin: string
+  marketMax: string
+  source: string
+}
+
 /**
- * One entry from `GET /api/v1/runs` — the sidebar listing shape. The
- * full row payload lives on `GET /api/v1/runs/{id}`; this list view
- * carries only the precomputed summary.
+ * Snapshot of the ResultsTable column-sort + column-filter state, stored
+ * server-side on a saved run so click-to-load can replay the exact view
+ * the user was looking at when they saved.
+ *
+ * Schema lives in the SPA — the API treats `view_state` as opaque JSON.
+ */
+export interface SavedViewState {
+  sortColumn: ResultsSortColumn | null
+  sortDir: ResultsSortDir | null
+  showFilters: boolean
+  filters: ResultsFilters
+}
+
+/**
+ * One entry from `GET /api/v1/runs` — the saved-searches sidebar listing
+ * shape. The endpoint filters to runs the user has explicitly *saved*
+ * (named); unnamed streamed runs persist server-side but don't surface
+ * here. The full row payload lives on `GET /api/v1/runs/{id}`.
  */
 export interface RunSummary {
   id: number
@@ -276,6 +313,12 @@ export interface RunSummary {
   elapsed_seconds: number | null
   summary: RunSummaryAggregate
   row_count: number
+  /** Display label set by the user when saving. Never null for entries
+   * returned by `/runs` (the listing is filtered to saved rows). */
+  name: string | null
+  /** ResultsTable view-state snapshot taken at save time. Null when the
+   * user saved before the field landed, or omitted view_state. */
+  view_state: SavedViewState | null
 }
 
 /** Persisted-row shape returned by `GET /api/v1/runs/{id}`. */
@@ -297,4 +340,8 @@ export interface RunDetail {
   input_text: string
   summary: RunSummaryAggregate
   rows: RunRowDetail[]
+  /** Display label, or null for runs that haven't been saved yet. */
+  name: string | null
+  /** ResultsTable view-state snapshot, or null if none was stored. */
+  view_state: SavedViewState | null
 }

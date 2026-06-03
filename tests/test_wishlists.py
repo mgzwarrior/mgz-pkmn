@@ -89,9 +89,9 @@ class WishlistsMigrationTests(_IsolatedDbMixin):
 
         cfg = migrate_mod._alembic_config()
         cfg.set_main_option("sqlalchemy.url", str(engine.url))
-        # Step back one revision to drop just the wishlists tables —
-        # the collections slice underneath should survive.
-        command.downgrade(cfg, "-1")
+        # Step back to the collections revision so the wishlists tables
+        # come down but the collections slice underneath survives.
+        command.downgrade(cfg, "2b9da4eb7e17")
         names = set(inspect(engine).get_table_names())
         self.assertNotIn("wishlists", names)
         self.assertNotIn("wishlist_items", names)

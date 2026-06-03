@@ -23,7 +23,7 @@ import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
 import { RecentRuns } from './components/RecentRuns'
 import { ResultsTable } from './components/ResultsTable'
-import { RunHistorySidebar } from './components/RunHistorySidebar'
+import { SavedSearchesSidebar } from './components/SavedSearchesSidebar'
 import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
@@ -61,6 +61,7 @@ function App() {
     setRunEndedAt,
     pushRecentRun,
     setCurrentRunId,
+    resetViewState,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -108,11 +109,12 @@ function App() {
     pushRecentRun(nonEmpty)
     // Drop any "currently loaded saved run" marker — the sidebar's
     // highlight should follow the visible results, and fresh streamed
-    // rows aren't a saved run any more. The next persisted run won't
-    // pick up a new id here (the `/bulk` SSE doesn't surface one); the
-    // sidebar refreshes from `/api/v1/runs` on stream completion and
-    // the new entry shows up unhighlighted.
+    // rows aren't a saved search yet. The done frame surfaces the
+    // freshly-persisted `run_id` so the Save button has a target.
     setCurrentRunId(null)
+    // Fresh stream → reset the view state so a saved search's sort or
+    // filters don't bleed onto the new run.
+    resetViewState()
 
     abortRef.current = new AbortController()
 
@@ -121,7 +123,14 @@ function App() {
     let firstEventSeen = false
 
     function onEvent(event: BulkEvent) {
-      if ('done' in event && event.done) return
+      if ('done' in event && event.done) {
+        // Capture the persisted run id so the in-page Save button can
+        // promote this run into the saved-search sidebar. `null` is
+        // a legitimate value when persistence fell through server-side
+        // (best-effort) — leave currentRunId unset in that case.
+        if (event.run_id != null) setCurrentRunId(event.run_id)
+        return
+      }
       if (!firstEventSeen) {
         firstEventSeen = true
         setRunStartedAt(Date.now())
@@ -192,6 +201,7 @@ function App() {
     setRunEndedAt,
     pushRecentRun,
     setCurrentRunId,
+    resetViewState,
   ])
 
   const handleStop = useCallback(() => {
@@ -267,8 +277,8 @@ function App() {
       {/* Main content */}
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex gap-4">
-          <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="run-history">
-            <RunHistorySidebar />
+          <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="saved-searches">
+            <SavedSearchesSidebar />
           </div>
           <div className="flex-1 min-w-0 space-y-6">
             <nav

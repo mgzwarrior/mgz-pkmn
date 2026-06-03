@@ -72,9 +72,9 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | `POST` | `/api/v1/overrides` | Record a sticky PriceCharting URL override |
 | `GET`  | `/api/v1/overrides` | List all recorded URL overrides |
 | `GET`  | `/api/v1/set-cards.pdf` | Printable set identification cards PDF (no input needed) |
-| `GET`  | `/api/v1/runs` | Paginated list of persisted lookup runs (summary only) |
+| `GET`  | `/api/v1/runs` | Paginated list of **saved** runs (summary only, filtered to `name IS NOT NULL`) |
 | `GET`  | `/api/v1/runs/{id}` | Full run record including all `run_rows` |
-| `POST` | `/api/v1/runs/{id}/export` | Re-export a stored run in any supported format |
+| `PATCH`| `/api/v1/runs/{id}` | Save / rename a run (sets `name` + ResultsTable view-state snapshot) |
 
 `/bulk` now writes a `runs` row + N `run_rows` to the persistence layer on
 successful stream completion (see [ADR-0013](../docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).

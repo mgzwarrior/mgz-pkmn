@@ -15,6 +15,7 @@ import type {
   Row,
   RunDetail,
   RunSummary,
+  SavedViewState,
   SetCard,
   SetInfo,
   Settings,
@@ -349,33 +350,23 @@ export async function getRun(runId: number): Promise<RunDetail> {
 }
 
 /**
- * Re-export a stored run. Reconstructs the export from the persisted
- * rows server-side — no re-lookup is performed. Triggers a browser
- * download just like {@link exportFile}.
+ * Save (or rename) a run as a *saved search* — the listing endpoint
+ * filters to runs with a non-null `name`, so this is what promotes a
+ * streamed run into the sidebar. The supplied `view_state` is replayed
+ * on the next click-to-load.
  */
-export async function exportRun(
+export async function saveRun(
   runId: number,
-  format: ExportFormat,
-  options: {
-    maxPrice?: number | null
-    title?: string
-    sort?: SortMode
-    noImages?: boolean
-  } = {},
-): Promise<void> {
-  const res = await fetch(`${BASE}/runs/${runId}/export`, {
-    method: 'POST',
+  name: string,
+  viewState: SavedViewState,
+): Promise<RunSummary> {
+  const res = await fetch(`${BASE}/runs/${runId}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      format,
-      sort: options.sort ?? 'number',
-      max_price: options.maxPrice ?? null,
-      title: options.title ?? 'cards',
-      no_images: options.noImages ?? true,
-    }),
+    body: JSON.stringify({ name, view_state: viewState }),
   })
   if (!res.ok) {
-    let detail = `re-export failed: ${res.status}`
+    let detail = `save failed: ${res.status}`
     try {
       const body = await res.json()
       if (body?.detail) detail = body.detail
@@ -384,13 +375,7 @@ export async function exportRun(
     }
     throw new Error(detail)
   }
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = DOWNLOAD_FILENAMES[format]
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
+  return (await res.json()) as RunSummary
 }
 
 // ---------------------------------------------------------------------------

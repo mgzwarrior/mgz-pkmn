@@ -1,23 +1,24 @@
 /**
- * RunHistorySidebar — collapsible left-rail panel listing server-side
- * lookup history persisted under `/api/v1/runs`. Each entry surfaces
- * timestamp, input-line count, total value, and the tag breakdown
- * computed at run-completion time (no `run_rows` payload load needed).
+ * SavedSearchesSidebar — collapsible left-rail panel listing runs the
+ * user has explicitly *saved* (named) via the in-page Save button.
  *
- * Clicking a run fetches the full record from `/api/v1/runs/{id}` and
- * hydrates the editor + results store with its `input_text` and rows —
- * the existing ResultsTable renders the loaded run unmodified. The
- * **Re-export** action posts to `/api/v1/runs/{id}/export`, regenerating
- * the artifact server-side from persisted rows (no re-lookup).
+ * Server-side every completed `/bulk` stream is persisted, but only
+ * runs with a non-null `name` surface here — `/api/v1/runs` filters on
+ * that. The result is a curated list, not a noisy chronological log.
+ *
+ * Clicking a saved search fetches the full record from
+ * `/api/v1/runs/{id}` and hydrates the editor + results store with its
+ * `input_text` and rows. The persisted `view_state` is replayed so the
+ * ResultsTable opens with the exact sort + column filters the user had
+ * when they saved.
  *
  * Distinct from {@link RecentRuns} which lives under the editor and
- * stores submitted *inputs* client-side for quick re-runs. This panel
- * is the canonical "load saved results" surface.
+ * stores submitted *inputs* client-side for quick re-runs.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { History, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { exportRun, getRun, listRuns } from '../api/client'
-import { useAppStore } from '../store'
+import { Bookmark, ChevronLeft, ChevronRight } from 'lucide-react'
+import { getRun, listRuns } from '../api/client'
+import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { formatMoney, formatRelativeTime } from '../utils/format'
 import type { RunDetail, RunRowDetail, RunSummary, Row } from '../types'
 
@@ -42,7 +43,7 @@ function summaryTotal(run: RunSummary): { amount: number; currency: string } | n
   return { amount, currency }
 }
 
-export function RunHistorySidebar() {
+export function SavedSearchesSidebar() {
   const {
     runs,
     setRuns,
@@ -56,12 +57,12 @@ export function RunHistorySidebar() {
     setProcessingLines,
     setRunStartedAt,
     setRunEndedAt,
+    setViewState,
   } = useAppStore()
   const [collapsed, setCollapsed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null)
-  const [exportingRunId, setExportingRunId] = useState<number | null>(null)
   // Synchronous guard against rapid-fire concurrent loads. A useState
   // value would be stale across consecutive native click events in the
   // same tick — React batches re-renders, so closures captured at
@@ -86,7 +87,7 @@ export function RunHistorySidebar() {
         if (!cancelled) setRuns(items)
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load run history')
+          setError(err instanceof Error ? err.message : 'Failed to load saved searches')
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -99,8 +100,8 @@ export function RunHistorySidebar() {
   }, [refreshKey, setRuns])
 
   // Refresh when a streaming run finishes — `/bulk` persists the run on
-  // completion, so the sidebar should reflect the new entry without a
-  // manual reload.
+  // completion, and the user may then save it. Re-listing pulls newly
+  // saved entries without a manual reload.
   const prevRunningRef = useRef(isRunning)
   useEffect(() => {
     if (prevRunningRef.current && !isRunning) {
@@ -132,6 +133,15 @@ export function RunHistorySidebar() {
         setRunStartedAt(null)
         setRunEndedAt(null)
         setCurrentRunId(detail.id)
+        // Replay the saved view (sort + column filters). Older saved
+        // runs may have no view_state — fall back to the empty view so
+        // a stale filter from the previous run doesn't bleed across.
+        setViewState(
+          detail.view_state ?? {
+            ...EMPTY_VIEW_STATE,
+            filters: { ...EMPTY_VIEW_STATE.filters },
+          },
+        )
       } catch (err) {
         setError(err instanceof Error ? err.message : `Failed to load run ${run.id}`)
       } finally {
@@ -149,37 +159,26 @@ export function RunHistorySidebar() {
       setRunStartedAt,
       setRunEndedAt,
       setCurrentRunId,
+      setViewState,
     ],
   )
-
-  const handleReexport = useCallback(async (run: RunSummary) => {
-    setExportingRunId(run.id)
-    setError(null)
-    try {
-      await exportRun(run.id, 'xlsx')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to re-export run ${run.id}`)
-    } finally {
-      setExportingRunId(null)
-    }
-  }, [])
 
   if (collapsed) {
     return (
       <aside
-        aria-label="Run history (collapsed)"
-        className="sticky top-20 flex h-fit flex-col items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-2 py-3"
+        aria-label="Saved searches (collapsed)"
+        className="sticky top-20 flex h-fit w-9 flex-col items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-1 py-2"
       >
         <button
           type="button"
           onClick={() => setCollapsed(false)}
-          aria-label="Expand run history"
+          aria-label="Expand saved searches"
           aria-expanded={false}
-          className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
+          className="flex h-7 w-7 items-center justify-center rounded text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
         >
           <ChevronRight size={16} />
         </button>
-        <History size={14} className="text-coconut-400 dark:text-sand-400" aria-hidden />
+        <Bookmark size={14} className="text-coconut-400 dark:text-sand-400" aria-hidden />
         <span className="text-[10px] font-medium text-coconut-400 dark:text-sand-400 tabular-nums">
           {runs.length}
         </span>
@@ -189,13 +188,13 @@ export function RunHistorySidebar() {
 
   return (
     <aside
-      aria-label="Run history"
+      aria-label="Saved searches"
       className="sticky top-20 flex h-fit max-h-[calc(100vh-6rem)] w-64 flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
     >
       <header className="flex items-center justify-between">
         <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-          <History size={12} aria-hidden />
-          Run history
+          <Bookmark size={12} aria-hidden />
+          Saved searches
           <span className="text-coconut-400 dark:text-sand-400 normal-case font-medium">
             ({runs.length})
           </span>
@@ -203,7 +202,7 @@ export function RunHistorySidebar() {
         <button
           type="button"
           onClick={() => setCollapsed(true)}
-          aria-label="Collapse run history"
+          aria-label="Collapse saved searches"
           aria-expanded={true}
           className="rounded p-1 text-coconut-400 dark:text-sand-400 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
         >
@@ -223,22 +222,20 @@ export function RunHistorySidebar() {
 
       {!loading && runs.length === 0 && !error && (
         <p className="text-xs text-coconut-500 dark:text-sand-300">
-          No saved runs yet. Run a lookup and it&apos;ll appear here so you can
-          re-open or re-export it later.
+          No saved searches yet. Run a lookup, then click <em>Save search</em> on the
+          results to keep it here.
         </p>
       )}
 
       {runs.length > 0 && (
         <ul className="flex flex-col gap-1 overflow-y-auto">
           {runs.map((run) => (
-            <RunRow
+            <SavedSearchRow
               key={run.id}
               run={run}
               isCurrent={run.id === currentRunId}
               disabled={isRunning || loadingRunId !== null}
-              isExporting={exportingRunId === run.id}
               onLoad={() => handleLoad(run)}
-              onReexport={() => handleReexport(run)}
             />
           ))}
         </ul>
@@ -247,20 +244,16 @@ export function RunHistorySidebar() {
   )
 }
 
-function RunRow({
+function SavedSearchRow({
   run,
   isCurrent,
   disabled,
-  isExporting,
   onLoad,
-  onReexport,
 }: {
   run: RunSummary
   isCurrent: boolean
   disabled: boolean
-  isExporting: boolean
   onLoad: () => void
-  onReexport: () => void
 }) {
   const total = summaryTotal(run)
   const createdAt = Date.parse(run.created_at)
@@ -269,6 +262,7 @@ function RunRow({
   const summaryLabel = total
     ? `${run.row_count} ${rowWord} · ${formatMoney(total.amount, total.currency)}`
     : `${run.row_count} ${rowWord}`
+  const label = run.name ?? `Run ${run.id}`
 
   return (
     <li
@@ -282,15 +276,18 @@ function RunRow({
         type="button"
         onClick={onLoad}
         disabled={disabled}
-        aria-label={`Load run from ${formatRelativeTime(createdAt)}: ${summaryLabel}`}
+        aria-label={`Load saved search ${label}: ${summaryLabel}`}
         aria-current={isCurrent ? 'true' : undefined}
-        className="flex w-full items-baseline justify-between gap-2 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full flex-col items-start gap-0.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className="tabular-nums text-coconut-500 dark:text-sand-300">
-          {formatRelativeTime(createdAt)}
+        <span className="w-full truncate font-medium text-coconut-700 dark:text-sand-100">
+          {label}
         </span>
-        <span className="truncate font-mono text-[11px] text-coconut-700 dark:text-sand-200">
-          {summaryLabel}
+        <span className="flex w-full items-baseline justify-between gap-2 font-mono text-[11px]">
+          <span className="tabular-nums text-coconut-400 dark:text-sand-300">
+            {formatRelativeTime(createdAt)}
+          </span>
+          <span className="truncate text-coconut-500 dark:text-sand-300">{summaryLabel}</span>
         </span>
       </button>
       {tagEntries.length > 0 && (
@@ -305,19 +302,6 @@ function RunRow({
           ))}
         </div>
       )}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onReexport}
-          disabled={isExporting}
-          aria-label={`Re-export run ${run.id} as xlsx`}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-coconut-400 dark:text-sand-400 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
-        >
-          <Download size={10} aria-hidden />
-          {isExporting ? 'Re-exporting…' : 'Re-export'}
-        </button>
-      </div>
     </li>
   )
 }
-
