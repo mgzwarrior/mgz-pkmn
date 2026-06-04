@@ -179,8 +179,11 @@ Pages on every push to `main` (see [ADR-0016](adr/0016-deployment-topology.md)).
 
 Adding a new lookup source is a matter of dropping a module under
 `src/mgz_pkmn/sources/` that returns the normalized card shape, then
-wiring it into `lookup.find_card` (or, post-ADR-0023, registering it
-with the source ensemble).
+wiring it into `lookup.find_card`. If the new source also contributes
+pricing data, see [ADR-0023](adr/0023-source-ensemble-pricing.md) for
+the ensemble-display contract — registration of the source itself
+doesn't change, but the ensemble determines how its prices appear
+alongside other sources'.
 
 ## Branch naming
 

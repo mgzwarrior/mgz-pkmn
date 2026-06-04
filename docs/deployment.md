@@ -179,8 +179,10 @@ freshness window skip the re-walk:
 
 The two per-card passes get their own opt-in env vars (separate from
 the umbrella `MGZ_PKMN_WARM_ON_STARTUP`) because they're heavyweight —
-the image warm in particular needs ~17 GB of persistent disk. All three
-env vars are set in `render.yaml` by default.
+the image warm in particular needs the disk size declared in
+`render.yaml`'s `disk` block (the table above gives the order of
+magnitude; check `render.yaml` for the current size and bump as the
+catalog grows). All three env vars are set in `render.yaml` by default.
 
 The set-image warm previously lived as a Dockerfile build-time step.
 With the persistent disk in place all five passes run at runtime onto
