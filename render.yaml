@@ -81,3 +81,31 @@ services:
       # instead of round-tripping to pokemontcg.io's CDN.
       - key: MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP
         value: "1"
+      # Hosted-demo auth scaffold (#61 epic, foundation in #407, GitHub
+      # provider in #408). Toggle is in-blueprint because it's a
+      # reviewable deploy policy decision; the secrets below ride the
+      # `sync: false` pattern so their values stay in the Render
+      # dashboard. With auth on and the demo running in production,
+      # `MGZ_PKMN_SESSION_SECRET` is required — the API refuses to boot
+      # without it (api/auth/session.py:resolve_session_secret). Set the
+      # three secrets in the Render dashboard *before* this block lands
+      # so the post-merge redeploy boots clean instead of crash-looping.
+      - key: MGZ_PKMN_AUTH_ENABLED
+        value: "1"
+      # itsdangerous signing key for the session cookie. Generate once
+      # with `openssl rand -hex 32` and keep stable; rotating it
+      # invalidates every active sign-in. Mark as secret in the
+      # dashboard.
+      - key: MGZ_PKMN_SESSION_SECRET
+        sync: false
+      # GitHub OAuth app credentials. Register the app at
+      # https://github.com/settings/developers with callback URL
+      # `https://mgz-pkmn.onrender.com/api/v1/auth/github/callback`.
+      # Both vars must be set — missing either returns 503 from
+      # `/auth/github/login` (api/auth/github.py:_oauth_client). Client
+      # ID is borderline-public; keeping both as `sync: false` for
+      # consistency.
+      - key: MGZ_PKMN_GITHUB_CLIENT_ID
+        sync: false
+      - key: MGZ_PKMN_GITHUB_CLIENT_SECRET
+        sync: false
