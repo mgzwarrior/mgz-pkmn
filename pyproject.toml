@@ -49,6 +49,13 @@ api = [
     "alembic>=1.13",
     "authlib>=1.3",
     "itsdangerous>=2.2",
+    # Authlib's starlette_client uses httpx for the async OAuth dance
+    # (the AsyncOAuth1Client / AsyncOAuth2Client wrappers). The
+    # `[project.optional-dependencies].api` extra is what Render
+    # installs in production, so httpx must live here — not just in
+    # the dev group — or the API crashes on import with
+    # `ModuleNotFoundError: No module named 'httpx'`.
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]
