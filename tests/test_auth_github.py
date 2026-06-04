@@ -310,6 +310,73 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                 )
                 self.assertEqual(n, 1)
 
+    def test_concurrent_signup_race_is_recovered(self) -> None:
+        """Read-then-insert race recovery: two callbacks for the same
+        verified email both see no row, the second INSERT trips
+        `users.email`'s unique constraint, and the handler must roll
+        back + re-read the winning row instead of 500ing.
+
+        Emulates the race by:
+        1. Seeding the "winner" row directly.
+        2. Patching `_find_user_by_email` to return None on the first
+           call (the handler's existence check) — forces the handler
+           down the INSERT branch even though a row exists.
+        3. Letting the real flush trip the unique constraint on
+           `users.email`. The handler then calls `_find_user_by_email`
+           again, which now returns the real row, and proceeds."""
+        from datetime import UTC, datetime
+
+        from api.main import app
+
+        with TestClient(app) as client:
+            with session_mod.get_session_factory()() as s:
+                winner = User(
+                    name="seed-winner",
+                    email="eve@example.com",
+                    email_verified_at=datetime.now(UTC),
+                    display_name="Eve First",
+                )
+                s.add(winner)
+                s.commit()
+                winner_id = winner.id
+
+            from api.auth import github as github_mod
+
+            real_lookup = github_mod._find_user_by_email
+            calls = {"n": 0}
+
+            def lookup_side_effect(db, email):
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    return None  # force INSERT branch
+                return real_lookup(db, email)
+
+            with patch("api.auth.github._find_user_by_email", side_effect=lookup_side_effect):
+                status, location = self._drive_callback(
+                    client,
+                    GitHubProfile(
+                        login="eve2",
+                        name="Eve Late",
+                        verified_primary_email="eve@example.com",
+                    ),
+                )
+
+            self.assertEqual(status, 302)
+            self.assertEqual(location, "/")
+            self.assertEqual(calls["n"], 2)  # confirms recovery path ran
+            with session_mod.get_session_factory()() as s:
+                # Only the seeded row should still exist; its
+                # display_name must be untouched (race-recover branch
+                # does no display_name update).
+                user = s.get(User, winner_id)
+                assert user is not None
+                self.assertEqual(user.display_name, "Eve First")
+                # And no duplicate was minted.
+                n = s.scalar(
+                    select(func.count()).select_from(User).where(User.email == "eve@example.com")
+                )
+                self.assertEqual(n, 1)
+
     def test_existing_user_without_display_name_gets_one(self) -> None:
         from datetime import UTC, datetime
 

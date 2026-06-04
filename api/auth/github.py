@@ -34,6 +34,7 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from ..db.models import User
 from .session import DbSession, auth_enabled
@@ -123,6 +124,14 @@ def _require_auth_enabled() -> None:
 AuthGate = Annotated[None, Depends(_require_auth_enabled)]
 
 
+def _find_user_by_email(db, email: str) -> User | None:
+    """Existence check for the upsert path. Carved out as a separate
+    function so the race-recovery test can patch the first call to
+    miss and the second to hit, simulating a concurrent INSERT
+    landing in the read-then-insert window."""
+    return db.scalar(select(User).where(User.email == email))
+
+
 async def fetch_github_profile(oauth: OAuth, request: Request, token: dict) -> GitHubProfile:
     """Pull the profile + verified primary email for the signed-in user.
 
@@ -201,7 +210,7 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
         # commit on the unique constraint. Refuse cleanly instead.
         raise HTTPException(status_code=400, detail="no_github_login")
 
-    existing = db.scalar(select(User).where(User.email == profile.verified_primary_email))
+    existing = _find_user_by_email(db, profile.verified_primary_email)
     if existing is None:
         # Fresh signup. `name` must be unique on `User`, so prefix the
         # GitHub login to avoid colliding with the sentinel `default`
@@ -216,7 +225,26 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
             display_name=profile.name or profile.login or None,
         )
         db.add(user)
-        db.flush()  # populate user.id without ending the transaction
+        try:
+            # Flush rather than commit — `get_db` already commits on
+            # normal return. Flush is enough to trigger the unique
+            # constraint on `users.email` and let us recover from the
+            # race below.
+            db.flush()
+        except IntegrityError:
+            # Two callbacks for the same verified email landed within
+            # the read-then-insert window. The other transaction won
+            # the INSERT; roll back and re-read so this request can
+            # proceed idempotently with the existing row. No
+            # display_name / email_verified_at update on this path —
+            # whichever callback committed first already filled them.
+            db.rollback()
+            user = _find_user_by_email(db, profile.verified_primary_email)
+            if user is None:
+                # The unique constraint fired but the row isn't
+                # readable — something unrelated raised the
+                # IntegrityError. Let the original error surface.
+                raise
     else:
         user = existing
         if user.email_verified_at is None:
@@ -227,6 +255,6 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
             # had on first sign-in.
             user.display_name = profile.name or profile.login or None
 
-    db.commit()
+    # `get_db` commits on normal return; no explicit commit here.
     request.session["user_id"] = user.id
     return RedirectResponse(url=POST_SIGNIN_REDIRECT, status_code=302)
