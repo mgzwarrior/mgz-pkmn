@@ -92,6 +92,15 @@ services:
       # so the post-merge redeploy boots clean instead of crash-looping.
       - key: MGZ_PKMN_AUTH_ENABLED
         value: "1"
+      # Marks the deploy as production for the auth scaffold. This is
+      # what `api/auth/session.py::_is_production` keys on to (a) require
+      # `MGZ_PKMN_SESSION_SECRET` (refuses to boot if missing instead of
+      # silently using the dev-only hard-coded fallback) and (b) flip
+      # the session cookie to `Secure` so it only rides https. Without
+      # this, the API would happily boot on a missing secret and issue
+      # non-Secure cookies — the failure mode is silent and dangerous.
+      - key: MGZ_PKMN_ENV
+        value: production
       # itsdangerous signing key for the session cookie. Generate once
       # with `openssl rand -hex 32` and keep stable; rotating it
       # invalidates every active sign-in. Mark as secret in the

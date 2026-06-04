@@ -84,6 +84,10 @@ class LoginGateTests(_IsolatedDbMixin):
         with TestClient(app) as client:
             r = client.get("/api/v1/auth/github/login", follow_redirects=False)
             self.assertEqual(r.status_code, 404)
+            # Body must match Starlette's default 404 exactly — same
+            # casing, same shape — so probes can't distinguish
+            # "auth disabled" from "wrong URL".
+            self.assertEqual(r.json(), {"detail": "Not Found"})
 
     def test_login_returns_503_when_env_vars_missing(self) -> None:
         os.environ[AUTH_ENABLED_ENV] = "1"
@@ -147,6 +151,37 @@ class CallbackErrorTests(_IsolatedDbMixin):
             )
             self.assertEqual(r.status_code, 400)
             self.assertEqual(r.json()["detail"], "no_verified_email")
+
+    def test_callback_empty_login_returns_400(self) -> None:
+        # GitHub's `/user` should always carry a login; if it doesn't,
+        # we can't ground a unique `users.name` row on it. Refuse with
+        # a clean 400 instead of falling back to a colliding constant.
+        from api.main import app
+
+        token = {"access_token": "test-token", "token_type": "bearer"}
+        no_login_profile = GitHubProfile(
+            login="",
+            name="Anon",
+            verified_primary_email="anon@example.com",
+        )
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                new=AsyncMock(return_value=token),
+            ),
+            patch(
+                "api.auth.github.fetch_github_profile",
+                new=AsyncMock(return_value=no_login_profile),
+            ),
+            TestClient(app) as client,
+        ):
+            r = client.get(
+                "/api/v1/auth/github/callback?code=abc&state=anything",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 400)
+            self.assertEqual(r.json()["detail"], "no_github_login")
 
 
 class CallbackHappyPathTests(_IsolatedDbMixin):

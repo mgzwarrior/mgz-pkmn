@@ -114,7 +114,10 @@ def _require_auth_enabled() -> None:
     `include_in_schema=False`, since a configured deploy needs the
     schema entries to be discoverable."""
     if not auth_enabled():
-        raise HTTPException(status_code=404, detail="not found")
+        # Match FastAPI/Starlette's default 404 body exactly so the
+        # response is byte-identical to a route that doesn't exist —
+        # probing can't distinguish "auth disabled" from "wrong URL".
+        raise HTTPException(status_code=404, detail="Not Found")
 
 
 AuthGate = Annotated[None, Depends(_require_auth_enabled)]
@@ -190,15 +193,22 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
         # ADR-0019: account-merge needs an email anchor. No anchor →
         # we refuse rather than minting an anonymous-shaped row.
         raise HTTPException(status_code=400, detail="no_verified_email")
+    if not profile.login:
+        # A valid GitHub `/user` response always carries a login. An
+        # empty one means GitHub gave us something we can't ground a
+        # `users.name` row on — fall back to a constant ("gh:user")
+        # would collide on the next empty-login signup and 500 at
+        # commit on the unique constraint. Refuse cleanly instead.
+        raise HTTPException(status_code=400, detail="no_github_login")
 
     existing = db.scalar(select(User).where(User.email == profile.verified_primary_email))
     if existing is None:
         # Fresh signup. `name` must be unique on `User`, so prefix the
         # GitHub login to avoid colliding with the sentinel `default`
-        # row or a hypothetical future user named the same thing. The
-        # `f"gh:{...}"` string is always at least `"gh:"` (truthy), so
-        # we check `profile.login` directly for the empty fallback.
-        candidate_name = f"gh:{profile.login}"[:64] if profile.login else "gh:user"
+        # row or a hypothetical future user named the same thing.
+        # `profile.login` is guaranteed non-empty here — the callback
+        # refuses earlier with 400 `no_github_login` if it isn't.
+        candidate_name = f"gh:{profile.login}"[:64]
         user = User(
             name=candidate_name,
             email=profile.verified_primary_email,
