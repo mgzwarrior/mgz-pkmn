@@ -201,6 +201,36 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                 self.assertEqual(user.display_name, "Alice Liddell")
                 self.assertIsNotNone(user.email_verified_at)
 
+    def test_callback_issues_session_cookie_that_authenticates_subsequent_requests(
+        self,
+    ) -> None:
+        """Acceptance criterion from #408 — the session cookie set by
+        the callback must actually authenticate the *next* request, not
+        just write a `user_id` the test inspects through ORM. Drive the
+        callback, then call `/me` against the same TestClient (which
+        persists cookies) and confirm it returns 200 with the new
+        user's payload."""
+        from api.main import app
+
+        with TestClient(app) as client:
+            status, _ = self._drive_callback(
+                client,
+                GitHubProfile(
+                    login="dani",
+                    name="Dani Reyes",
+                    verified_primary_email="dani@example.com",
+                ),
+            )
+            self.assertEqual(status, 302)
+            # Cookies set by the callback are carried automatically by
+            # httpx's TestClient cookie jar.
+            me = client.get("/api/v1/me")
+            self.assertEqual(me.status_code, 200)
+            payload = me.json()
+            self.assertEqual(payload["email"], "dani@example.com")
+            self.assertEqual(payload["display_name"], "Dani Reyes")
+            self.assertIsInstance(payload["id"], int)
+
     def test_existing_user_is_reused_display_name_preserved(self) -> None:
         # Seed an existing row that already has a display_name set
         # via some prior sign-in (e.g. magic-link).

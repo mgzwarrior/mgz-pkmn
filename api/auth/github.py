@@ -105,10 +105,14 @@ def _require_auth_enabled() -> None:
     """Refuse OAuth routes when the scaffold is off.
 
     Self-hosters with `MGZ_PKMN_AUTH_ENABLED` unset shouldn't be able to
-    start an OAuth flow that has nowhere to land. 404 (rather than 403)
-    so the URL isn't even visible in the self-hosted OpenAPI surface
-    when auth is off — the routes still exist in the router, but the
-    dependency makes them inert."""
+    start an OAuth flow that has nowhere to land. Returning 404 (rather
+    than 403) keeps probes from leaking signal about whether auth is on
+    or off — both unconfigured and absent look the same. The routes
+    still appear in the OpenAPI schema regardless (FastAPI generates
+    schema from the router, not from dependency results); we accept
+    that trade and document it here rather than hiding the routes with
+    `include_in_schema=False`, since a configured deploy needs the
+    schema entries to be discoverable."""
     if not auth_enabled():
         raise HTTPException(status_code=404, detail="not found")
 
@@ -191,8 +195,10 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
     if existing is None:
         # Fresh signup. `name` must be unique on `User`, so prefix the
         # GitHub login to avoid colliding with the sentinel `default`
-        # row or a hypothetical future user named the same thing.
-        candidate_name = f"gh:{profile.login}"[:64] or "gh:user"
+        # row or a hypothetical future user named the same thing. The
+        # `f"gh:{...}"` string is always at least `"gh:"` (truthy), so
+        # we check `profile.login` directly for the empty fallback.
+        candidate_name = f"gh:{profile.login}"[:64] if profile.login else "gh:user"
         user = User(
             name=candidate_name,
             email=profile.verified_primary_email,
