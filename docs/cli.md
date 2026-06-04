@@ -1,15 +1,30 @@
 # CLI reference
 
-`pkmn` is a Click group exposing three subcommands:
+`pkmn` is a Click group with three subcommands:
 
 - **`pkmn lookup INPUTS...`** — the original card-lookup pipeline (xlsx,
   binder PDFs, checklist, JSON report). Documented below.
 - **`pkmn set-cards`** — generate printable set identification cutouts
   for binder section dividers; takes no positional arguments. See
   [PDF binder → Set identification cards](binder-pdf.md#set-identification-cards-pkmn-set-cards).
-- **`pkmn cache stats`** — print on-disk cache health (total size,
-  oldest API entry, URL-override count). See
-  [Cache → Inspecting the cache](cache.md#inspecting-the-cache).
+- **`pkmn cache`** — disk-cache management group. Subcommands:
+  - `pkmn cache path` — print the cache root (single bare line).
+  - `pkmn cache stats` — on-disk cache health (size, entry count,
+    oldest API entry). `--json` for scripted use.
+  - `pkmn cache clear` — wipe the API response cache (overrides + image
+    cache preserved).
+  - `pkmn cache warm-concepts` — pre-populate concept-name lookups (~200
+    names).
+  - `pkmn cache warm-sets` — pre-populate set logo + symbol images.
+  - `pkmn cache warm-set-cards` — pre-populate per-set card-list JSON.
+  - `pkmn cache warm-cards` — pre-populate full per-card structural
+    payload (~18,000 cards). Phase 1 of [#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368).
+  - `pkmn cache warm-card-images` — pre-populate large + small image
+    bytes for every English card (~40,000 files / ~17 GB).
+    Phase 2 of [#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368).
+
+  See [Cache → Inspecting the cache](cache.md#inspecting-the-cache) and
+  [Cache → Warm passes](cache.md#warm-passes) for details.
 
 For backward compatibility, **invoking `pkmn` with input paths and no
 subcommand is forwarded to `lookup`** — `./pkmn cards.txt` and

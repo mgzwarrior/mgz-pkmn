@@ -107,11 +107,24 @@ when it reuses OSS code. Distinct from cryptographic commit signing
 (intentionally dropped in #153 / [ADR-0010 era](0010-unified-project-with-area-views.md));
 DCO solves a different problem.
 
+**First concrete vendor-track surface** (named for architectural
+clarity, not as a commercial commitment): the **bulk card-recognition
+scanner** described in the V3 *Vendor / power-user portal* section of
+the roadmap, extending the
+[breakwater-tcg-scanner](https://github.com/mgzwarrior/breakwater-tcg-scanner)
+prototype. Naming it here pins down which side of the open-core line
+the first non-trivial vendor capability sits on: implementation lives
+in `mgz-pkmn-vendor`; the OSS repo gains no scanner code, only the
+plugin-surface hooks the scanner registers against (e.g. a
+`pkmn vendor scan` entry point and an output-writer hook for the
+bulk-resolved results). An `epic:vendor-vision` placeholder issue exists in the OSS
+repo for visibility only; substantive issues live in the vendor repo.
+
 **Explicitly out of scope of this ADR**: specific paid-tier names,
-pricing, feature lists, hosted-vs-local SKU packaging, support
-policies. Those are commercial decisions that change frequently
-before launch and don't belong in a public architectural record
-until they're real.
+pricing, feature lists *beyond* the architectural example above,
+hosted-vs-local SKU packaging, support policies. Those are commercial
+decisions that change frequently before launch and don't belong in a
+public architectural record until they're real.
 
 ## Consequences
 

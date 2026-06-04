@@ -1,8 +1,16 @@
 # ADR 0002: Layer three open data sources with explicit priority order
 
-- **Status:** Accepted
+- **Status:** Accepted (pricing-priority aspect partially superseded by [ADR-0023](0023-source-ensemble-pricing.md))
 - **Date:** 2026-05-09
 - **Tags:** lookup, sources, data
+
+> **Amendment (2026-06-03):** The *pricing display* part of this ADR —
+> "the first source that produces a usable match wins" — is superseded
+> by [ADR-0023](0023-source-ensemble-pricing.md), which switches
+> pricing to a multi-source ensemble with user-selectable preferences.
+> This ADR continues to govern **card-object resolution** (which
+> source's metadata is authoritative for structural fields like name,
+> set, number, art) and the failure-message contract.
 
 ## Context
 

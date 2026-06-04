@@ -7,6 +7,66 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: **Q3 2026 grooming pass — second-pass refinements**
+  ([#415](https://github.com/mgzwarrior/mgz-pkmn/issues/415)). Acts on
+  reviewer feedback against the initial grooming PR:
+  - `docs/roadmap.md` — drops the V1.0/V1.1/V1.2 shipped sections from
+    the body (now one-line summaries in the Versioning policy); badges
+    refreshed to in-flight milestones only; V2 entry reframed around
+    the strict-semver trigger ("plugin contract goes live" or
+    "hosted-demo identity becomes required"), naming the current v2.0
+    milestone as a staging area for breakpoint-adjacent epics.
+  - `docs/contributing.md` — Project layout section extended beyond
+    `src/mgz_pkmn/` to cover `api/`, `web/`, `site/`, `tests/`, plus
+    the newer mgz_pkmn modules (`card_images.py`, `set_cards.py`,
+    `branding.py`, `changelog.py`).
+  - `docs/cli.md` — `pkmn cache` is documented as a group with all
+    eight subcommands (path, stats, clear, warm-concepts, warm-sets,
+    warm-set-cards, warm-cards, warm-card-images), not just `stats`.
+  - `docs/cache.md` — new "Entries vs. API calls" section showing why
+    a 20k-entry cache typically represents under 1k catalog API
+    calls (per-card structural fan-out from a handful of paginated
+    search fetches).
+  - `docs/deployment.md` — Cache warming table extended to five
+    passes (was three) with their separate env-var opt-ins.
+  - Two new ADRs as Proposed:
+    [ADR-0023](docs/adr/0023-source-ensemble-pricing.md) (source
+    ensemble for pricing display, partially superseding ADR-0002) and
+    new content in ADR-0020 / ADR-0021 reflecting the ensemble model
+    and the "TCGPlayer may become default if pokemontcg.io is sunset"
+    forward note.
+  - ADR-0002 amended with a Status note pointing to ADR-0023 for the
+    pricing-priority aspect.
+
+- Docs: **Q3 2026 grooming pass — roadmap, ADRs, cache doc cleanup**
+  ([#415](https://github.com/mgzwarrior/mgz-pkmn/issues/415)).
+  `docs/roadmap.md` gains a "How to read this roadmap" intro naming the
+  new `epic:*` and `specialty:*` label families, plus committed
+  sections for **V1.5** (eBay integration), **V1.6** (TCGPlayer
+  integration), and **V2.1** (persistence-at-growth). The V2 entry for
+  [#39](https://github.com/mgzwarrior/mgz-pkmn/issues/39) is re-framed
+  as dual-mode + smart auto-detect, and the V3 *Vendor / power-user
+  portal* section now names the vendor scanner explicitly and links to
+  [ADR-0012](docs/adr/0012-open-core-architecture.md). Three new ADRs
+  land as Proposed: [ADR-0020](docs/adr/0020-ebay-pricing-source.md)
+  (eBay pricing source),
+  [ADR-0021](docs/adr/0021-tcgplayer-first-class-pricing.md) (TCGPlayer
+  first-class pricing), [ADR-0022](docs/adr/0022-query-dsl.md) (query
+  DSL with dual-mode); ADR-0012 is amended to name the bulk
+  card-recognition scanner as the first architectural vendor surface.
+- Docs: **`docs/cache.md` TTL vs. freshness-window cleanup**
+  ([#415](https://github.com/mgzwarrior/mgz-pkmn/issues/415)). The page
+  previously conflated *entry-level TTLs* (structural: none, pricing:
+  24 h SWR) with *per-warm-pass freshness windows* (e.g. 7 d for the
+  catalog warms), which read as if the structural cache had a TTL it
+  doesn't have. A new "Two kinds of 'expiry'" glossary distinguishes
+  the two, the legacy `api/<sha1>.json` row's behaviour after lazy
+  migration is spelled out, and the warm-passes table is re-labelled
+  *Freshness window* with a paragraph explaining why concepts is 24 h
+  while the catalog warms are 7 d.
+
 ### Added
 
 - API: **Auth scaffold foundation** ([#407](https://github.com/mgzwarrior/mgz-pkmn/issues/407)). First slice of the [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61) hosted-demo auth epic, per [ADR-0019](docs/adr/0019-hosted-demo-identity-and-auth.md). New `api/auth/` package mounts Starlette's signed-cookie `SessionMiddleware` (HttpOnly, SameSite=Lax, https-only in production) and exposes `GET /api/v1/me` (200 + user payload signed-in, 204 anon) plus `POST /api/v1/auth/logout`. Alembic migration `9c4f2a7d8e15` extends `users` with `email`, `email_verified_at`, and `display_name` columns (partial-unique index on `email` so the sentinel `default` row with NULL email keeps working). Two new env vars: `MGZ_PKMN_AUTH_ENABLED` (default off, so self-hosters keep today's anonymous-everywhere behaviour with no configuration) and `MGZ_PKMN_SESSION_SECRET` (required in production when auth is on; logs a warning + uses a fixed dev fallback otherwise). No sign-in providers wired yet — those land in [#408](https://github.com/mgzwarrior/mgz-pkmn/issues/408) (GitHub OAuth), [#409](https://github.com/mgzwarrior/mgz-pkmn/issues/409) (magic link), [#410](https://github.com/mgzwarrior/mgz-pkmn/issues/410) (Google OAuth). Pinned by 17 new tests in `tests/test_auth.py` covering the env-flag parse rules, session-secret resolution (env wins, dev fallback warns, production refuses to boot), the `users` migration round-trip, `/me` + `/logout` behaviour, and the `get_current_user` dependency across the auth-off / no-cookie / dangling-id / unparseable-id / happy-path branches.
