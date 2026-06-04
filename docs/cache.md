@@ -108,6 +108,29 @@ rules above.
   to silence the warning entirely. The check is stat-only (no payload
   reads) so it adds negligible startup cost.
 
+### Entries vs. API calls
+
+`pkmn cache stats` reports **entries**, not HTTP calls — the two
+diverge because the lookup pipeline writes one
+`api_structural/<sha1>.json` per resolved card (so the planner can
+re-resolve directly by card id) on top of the paginated search-URL
+entries. A single page-of-250 catalog response → ~251 entries (1 page
++ 250 per-card structural).
+
+Rough HTTP-call accounting for a full warm:
+
+| Pass | HTTP calls (catalog) | Entries written |
+|---|---|---|
+| `warm-concepts` | ~200 | ~200 page entries + a few thousand per-card entries depending on uniqueness |
+| `warm-sets` | ~170 | ~170 set-info + image entries |
+| `warm-set-cards` / `warm-cards` | ~170–340 (one or two pages per set) | ~18,000 (one per English card) |
+| `warm-card-images` | ~40,000 *image* GETs (separate quota; not catalog API) | ~40,000 image files |
+
+So a cache showing **~20k entries on disk** typically represents
+**well under 1,000 catalog API calls** — most of the count is per-card
+structural fan-out from a handful of page fetches plus user lookups
+since the last warm.
+
 ## Inspecting the cache
 
 `pkmn cache path` prints the cache root as a single bare line for shell

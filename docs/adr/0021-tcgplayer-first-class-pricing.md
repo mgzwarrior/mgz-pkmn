@@ -68,6 +68,20 @@ Positive:
 - Per-user tokens land cleanly on the new persistence layer; no
   separate keystore needed.
 
+Forward-looking note:
+
+- **TCGPlayer may become the *default* pricing path** if pokemontcg.io
+  is sunset or the [Scrydex cutover (#351)](https://github.com/mgzwarrior/mgz-pkmn/issues/351)
+  turns out cost-prohibitive after Phase 4 lands. Under
+  [ADR-0023](0023-source-ensemble-pricing.md) the ensemble model is
+  source-agnostic, so the "default" change is just a re-weight of the
+  user-preference defaults rather than an architectural shift. The
+  TCGPlayer adapter is built with that downstream reuse in mind:
+  per-SKU pricing, sealed-product support, and condition-aware
+  pricing are all on the API surface even when we don't show them
+  in v1.6's MVP, so an upgrade to "TCGPlayer + cardmarket only" later
+  doesn't require new adapter work.
+
 Negative:
 
 - TCGPlayer's OAuth flow requires app review and approval. The hosted

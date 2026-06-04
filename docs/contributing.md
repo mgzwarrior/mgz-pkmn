@@ -109,20 +109,43 @@ modules — those benefit from a design discussion first.
 
 ## Project layout
 
+The repo carries four production surfaces (CLI + API + SPA + marketing
+site) plus the usual test / doc / output dirs.
+
+```
+mgz-pkmn/
+├── src/mgz_pkmn/    # Python CLI and lookup pipeline
+├── api/             # FastAPI service + SSE streaming + auth + persistence
+├── web/             # React 19 + Vite SPA (served by api/ in production)
+├── site/            # Astro static marketing site (mgz-pkmn.com)
+├── tests/           # pytest suite for src/ and api/
+├── docs/            # reference + ADRs (canonical; the wiki is a mirror)
+├── input/           # sample input files used by the docs and examples
+├── output/          # tracked example artifacts; refreshed by `make refresh-examples`
+└── assets/          # logos and shared static assets
+```
+
+### `src/mgz_pkmn/` — the CLI and lookup pipeline
+
 ```
 src/mgz_pkmn/
 ├── __init__.py
 ├── __main__.py        # python -m mgz_pkmn
 ├── cli.py             # Click command, top-level orchestration
 ├── parser.py          # parse_line, CardQuery, language + bulk-phrase detection
-├── lookup.py          # find_card + find_top_cards (pokemontcg → URL hint → tcgdex)
+├── lookup.py          # find_card / find_top_cards, plus warm_concepts / warm_set_cards / warm_cards
 ├── pricing.py         # extract_pricing, Pricing, COMP_PERCENTS
-├── images.py          # download + thumbnail
+├── images.py          # download + thumbnail (per-card art)
+├── card_images.py     # batch warm-cache for card images across warmed sets
+├── set_cards.py       # set-cards PDF + warm_set_images
 ├── spreadsheet.py     # write_spreadsheet, HEADERS, Row
 ├── binder.py          # PDF binder layouts (standard 3×3 + condensed 6×4)
 ├── checklist.py       # printable per-tag checklist PDF
 ├── report.py          # JSON report builder (pure)
 ├── sorting.py         # row ordering applied before any output is written
+├── cache.py           # disk cache (split structural / pricing, ADR-0018) + warm manifests
+├── branding.py        # logo + footer rendered into exports
+├── changelog.py       # parses CHANGELOG.md for the /version endpoint
 └── sources/
     ├── __init__.py
     ├── base.py            # MatchResult, scoring, set-overlap
@@ -131,9 +154,33 @@ src/mgz_pkmn/
     └── pricecharting.py   # URL-based scraper for region-exclusive cards
 ```
 
-Adding a new source is a matter of dropping a module under `sources/`
-that returns the normalized card shape, then adding it to
-`lookup.find_card`.
+### `api/` — the FastAPI backend
+
+```
+api/
+├── main.py            # app factory, lifespan, warm bootstrap, static mount
+├── routes/            # /lookup, /bulk (SSE), /parse, /sets, /cards, /runs, /me
+├── auth/              # signed-cookie sessions, /me, env kill switch (ADR-0019)
+├── db/                # SQLAlchemy session + URL resolution
+├── models/            # ORM models (users, runs, run_rows)
+└── migrations/        # Alembic migrations under versions/
+```
+
+### `web/` — the React SPA
+
+Vite + React 19 + TypeScript, TailwindCSS 4, Radix UI primitives,
+Zustand for state, TanStack Query for data fetching. Build output is
+served as a static SPA from the FastAPI app in production.
+
+### `site/` — the marketing site
+
+Astro static site at <https://mgz-pkmn.com>. Deployed to Cloudflare
+Pages on every push to `main` (see [ADR-0016](adr/0016-deployment-topology.md)).
+
+Adding a new lookup source is a matter of dropping a module under
+`src/mgz_pkmn/sources/` that returns the normalized card shape, then
+wiring it into `lookup.find_card` (or, post-ADR-0023, registering it
+with the source ensemble).
 
 ## Branch naming
 

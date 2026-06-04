@@ -33,6 +33,7 @@ not just the shape.
 | [0020](0020-ebay-pricing-source.md) | eBay as a first-class pricing source (sold + active listings, per-source TTL) | Proposed | 2026-06-03 |
 | [0021](0021-tcgplayer-first-class-pricing.md) | First-class TCGPlayer pricing via the TCGPlayer API, with per-user OAuth tokens | Proposed | 2026-06-03 |
 | [0022](0022-query-dsl.md) | Structured query DSL with dual-mode + smart auto-detect (closes #39) | Proposed | 2026-06-03 |
+| [0023](0023-source-ensemble-pricing.md) | Source ensemble for pricing display, with user-selectable preferences (partially supersedes ADR-0002) | Proposed | 2026-06-03 |
 
 ## Adding a new ADR
 

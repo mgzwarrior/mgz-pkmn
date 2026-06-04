@@ -164,20 +164,33 @@ point the env var at the *parent* directory; pointing it at
 
 ### Cache warming
 
-Three runtime warm passes fire on startup when `MGZ_PKMN_WARM_ON_STARTUP=1`
-(set by default in `render.yaml`). Each writes its own freshness manifest
-so container restarts within the staleness window skip the re-walk:
+Five runtime warm passes can fire on startup, gated by three env vars
+so the lighter passes can run independently of the two heaviest. Each
+writes its own freshness manifest so container restarts within the
+freshness window skip the re-walk:
 
-| Pass | Manifest | Stale window | Walks |
-|---|---|---|---|
-| Concepts | `concept_warm.json` | 24 h | ~200 concept-name → card-id lookups |
-| Set cards | `set_cards_warm.json` | 7 d | Per-set card-list JSON (~170 sets) |
-| Sets (images) | `sets_warm.json` | 7 d | Set logo + symbol images (~200 × 2) |
+| Pass | Env var | Manifest | Freshness window | Walks |
+|---|---|---|---|---|
+| Concepts | `MGZ_PKMN_WARM_ON_STARTUP=1` | `concept_warm.json` | 24 h | ~200 concept-name → card-id lookups |
+| Set cards | `MGZ_PKMN_WARM_ON_STARTUP=1` | `set_cards_warm.json` | 7 d | Per-set card-list JSON (~170 sets) |
+| Sets (images) | `MGZ_PKMN_WARM_ON_STARTUP=1` | `sets_warm.json` | 7 d | Set logo + symbol images (~200 × 2) |
+| Per-card structural | `MGZ_PKMN_WARM_CARDS_ON_STARTUP=1` | `card_warm.json` | 7 d | Full per-card structural payload (~18,000 cards) |
+| Per-card images | `MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP=1` | `card_images_warm.json` | 7 d | `large` + `small` image bytes per card (~40,000 files / ~17 GB) |
+
+The two per-card passes get their own opt-in env vars (separate from
+the umbrella `MGZ_PKMN_WARM_ON_STARTUP`) because they're heavyweight —
+the image warm in particular needs ~17 GB of persistent disk. All three
+env vars are set in `render.yaml` by default.
 
 The set-image warm previously lived as a Dockerfile build-time step.
-With the persistent disk in place it runs at runtime onto durable
-storage — a single warm after the first deploy serves every subsequent
-deploy until the manifest TTL expires.
+With the persistent disk in place all five passes run at runtime onto
+durable storage — a single warm after the first deploy serves every
+subsequent deploy until the relevant manifest's freshness window
+expires.
+
+See [Cache → Warm passes](cache.md#warm-passes) for the per-pass
+mechanics, and [Cache → Entries vs. API calls](cache.md#entries-vs-api-calls)
+for why a 20k-entry cache typically represents well under 1k API calls.
 
 ## Inspecting deployed cache state
 
@@ -190,9 +203,10 @@ curl -s https://mgz-pkmn.onrender.com/api/v1/cache/stats | jq
 ```
 
 Same field names as `pkmn cache stats --json`, so the two surfaces are
-pipe-compatible. Use it to confirm `MGZ_PKMN_WARM_ON_STARTUP` actually
-landed (`concept_warm_timestamp` / `set_cards_warm_timestamp` /
-`sets_warm_timestamp` are non-null after a successful warm pass) and to
-spot drift between the entry counts you expected and what's actually on
-disk. The response is served with `Cache-Control: no-store` because the
+pipe-compatible. Use it to confirm the warm
+env vars actually landed (`concept_warm_timestamp` /
+`set_cards_warm_timestamp` / `sets_warm_timestamp` /
+`card_warm_timestamp` / `card_images_warm_timestamp` are non-null after
+a successful warm pass) and to spot drift between the entry counts you
+expected and what's actually on disk. The response is served with `Cache-Control: no-store` because the
 underlying state changes on every warm pass and cache write.

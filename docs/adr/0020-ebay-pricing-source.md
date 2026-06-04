@@ -26,21 +26,17 @@ the source-layering decision and the contract.
 
 ## Decision
 
-Add **eBay** as a fourth source in the lookup pipeline, slotted **after
-the PriceCharting paths** (explicit URL + saved URL overrides) and
-**after the primary pokemontcg.io / Scrydex catalog**, but before the
-TCGdex multilingual fallback. The full ordering, aligned with
-[ADR-0002](0002-multi-source-lookup-priority.md) and the existing
-behaviour described in [`docs/cache.md`](../cache.md):
+Add **eBay** as a new source in the lookup pipeline, contributing
+**sold-listings median + active-listings floor** as independent
+pricing data points. Per
+[ADR-0023](0023-source-ensemble-pricing.md), pricing is computed as an
+ensemble across all configured sources rather than first-source-wins;
+this ADR records the eBay-specific contract (auth, caching, display)
+that the ensemble layer consumes.
 
-1. Explicit URL paste (PriceCharting) — highest, user intent is
-   unambiguous.
-2. Saved URL overrides (PriceCharting via `url_overrides.json`) —
-   behaves "exactly like a re-pasted URL would" per ADR-0004, so it
-   sits with the explicit-URL path and ahead of pokemontcg.io.
-3. pokemontcg.io / Scrydex (embedded `tcgplayer` + `cardmarket`).
-4. **eBay sold + active** (new).
-5. TCGdex (structural only).
+For **card-object resolution** (structural fields), eBay is *not* a
+source — listing titles are too unreliable for structural data. eBay
+only contributes to the pricing ensemble.
 
 The eBay source contributes two new `Pricing.source` enum values:
 `"ebay_sold"` and `"ebay_active"`. Both flow through the existing
@@ -70,8 +66,10 @@ Positive:
 
 - Sold-listings comps give a real price-discovery signal, complementing
   TCGPlayer's spread-based market price.
-- The source-layering pattern in ADR-0002 generalizes cleanly to a
-  fourth source; no architectural change.
+- Plugs into the ensemble model from
+  [ADR-0023](0023-source-ensemble-pricing.md) — sold and active are
+  separate `Pricing.source` enum values so users can toggle them
+  independently in the Settings drawer.
 - Per-source TTL paves the way for the same treatment in
   [ADR-0021](0021-tcgplayer-first-class-pricing.md) (TCGPlayer market
   price is intermediate-volatility).
@@ -97,7 +95,9 @@ Neutral:
 
 - **Skip eBay; rely on TCGPlayer market price as the comp signal.**
   Loses the sold-distribution signal, which is qualitatively different
-  from market price. Rejected — see #40.
+  from market price. Rejected — see the original framing in #40 (now
+  closed in favor of the [`epic:ebay`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aebay)
+  umbrella).
 - **Use only sold listings, skip active.** Active listings are useful
   as a "what's the floor right now" signal at a show. Cheap to fetch;
   worth including.

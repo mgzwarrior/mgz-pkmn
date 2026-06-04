@@ -9,6 +9,37 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Docs: **Q3 2026 grooming pass — second-pass refinements**
+  ([#415](https://github.com/mgzwarrior/mgz-pkmn/issues/415)). Acts on
+  reviewer feedback against the initial grooming PR:
+  - `docs/roadmap.md` — drops the V1.0/V1.1/V1.2 shipped sections from
+    the body (now one-line summaries in the Versioning policy); badges
+    refreshed to in-flight milestones only; V2 entry reframed around
+    the strict-semver trigger ("plugin contract goes live" or
+    "hosted-demo identity becomes required"), naming the current v2.0
+    milestone as a staging area for breakpoint-adjacent epics.
+  - `docs/contributing.md` — Project layout section extended beyond
+    `src/mgz_pkmn/` to cover `api/`, `web/`, `site/`, `tests/`, plus
+    the newer mgz_pkmn modules (`card_images.py`, `set_cards.py`,
+    `branding.py`, `changelog.py`).
+  - `docs/cli.md` — `pkmn cache` is documented as a group with all
+    eight subcommands (path, stats, clear, warm-concepts, warm-sets,
+    warm-set-cards, warm-cards, warm-card-images), not just `stats`.
+  - `docs/cache.md` — new "Entries vs. API calls" section showing why
+    a 20k-entry cache typically represents under 1k catalog API
+    calls (per-card structural fan-out from a handful of paginated
+    search fetches).
+  - `docs/deployment.md` — Cache warming table extended to five
+    passes (was three) with their separate env-var opt-ins.
+  - Two new ADRs as Proposed:
+    [ADR-0023](docs/adr/0023-source-ensemble-pricing.md) (source
+    ensemble for pricing display, partially superseding ADR-0002) and
+    new content in ADR-0020 / ADR-0021 reflecting the ensemble model
+    and the "TCGPlayer may become default if pokemontcg.io is sunset"
+    forward note.
+  - ADR-0002 amended with a Status note pointing to ADR-0023 for the
+    pricing-priority aspect.
+
 - Docs: **Q3 2026 grooming pass — roadmap, ADRs, cache doc cleanup**
   ([#415](https://github.com/mgzwarrior/mgz-pkmn/issues/415)).
   `docs/roadmap.md` gains a "How to read this roadmap" intro naming the
