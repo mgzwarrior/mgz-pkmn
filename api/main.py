@@ -34,6 +34,7 @@ from mgz_pkmn.sources import TCGClient, TCGDexClient
 # have the lifespan see the patched values.
 from .auth import github as auth_github
 from .auth import install_session_middleware
+from .auth import magic as auth_magic
 from .auth import routes as auth_routes
 from .db import migrate
 from .db.session import get_engine
@@ -499,6 +500,7 @@ app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
 app.include_router(auth_routes.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_github.router, prefix="/api/v1", tags=["auth"])
+app.include_router(auth_magic.router, prefix="/api/v1", tags=["auth"])
 
 
 @app.get("/health")
