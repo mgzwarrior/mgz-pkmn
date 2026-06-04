@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- API: **GitHub OAuth sign-in** ([#408](https://github.com/mgzwarrior/mgz-pkmn/issues/408)). Second slice of the [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61) hosted-demo auth epic, per [ADR-0019](docs/adr/0019-hosted-demo-identity-and-auth.md). New `api/auth/github.py` registers an Authlib OAuth client for GitHub via two env vars (`MGZ_PKMN_GITHUB_CLIENT_ID` + `MGZ_PKMN_GITHUB_CLIENT_SECRET`) and exposes `GET /api/v1/auth/github/login` → authorize redirect, `GET /api/v1/auth/github/callback` → token exchange + profile fetch (login, name, and a verified primary email pulled via `/user/emails`) + upsert against the `users` table + session-cookie issue + 302 back to `/`. Account-merge follows ADR-0019 first-set-wins: the row is keyed on the verified primary email, and `display_name` is only populated when the existing row has none — a later magic-link or Google sign-in for the same address reuses the row without overwriting whatever name the user chose first. Both routes 404 cleanly when `MGZ_PKMN_AUTH_ENABLED` is off, and 503 with a friendly message when the env vars aren't set, instead of leaking an Authlib traceback. Pinned by 7 new tests in `tests/test_auth_github.py` covering the login gate (auth-off → 404, env-missing → 503), the callback error branches (Authlib `MismatchingStateError` → 400, missing verified email → 400), and the upsert path (fresh signup creates a row, an existing row with a `display_name` keeps it, an existing row without one is filled).
+
 ### Changed
 
 - Docs: **Q3 2026 grooming pass — second-pass refinements**

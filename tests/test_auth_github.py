@@ -1,0 +1,281 @@
+"""Tests for the GitHub OAuth sign-in slice (#408).
+
+Covers:
+
+- `/auth/github/login` 404s when auth scaffold is off (the routes
+  exist but the dependency makes them inert).
+- `/auth/github/login` returns 503 when the GitHub client env vars
+  aren't set, even with auth on.
+- Callback: state mismatch (OAuthError) → 400.
+- Callback: missing verified primary email → 400.
+- Callback: fresh signup creates a `users` row, sets the session
+  cookie, redirects to `/`.
+- Callback: existing email reuses the row; `display_name` is **not**
+  overwritten when the row already has one (ADR-0019 first-set-wins).
+- Callback: existing row with no display_name *does* get populated.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from authlib.integrations.base_client.errors import MismatchingStateError
+from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+
+from api.auth.github import (
+    GITHUB_CLIENT_ID_ENV,
+    GITHUB_CLIENT_SECRET_ENV,
+    GitHubProfile,
+)
+from api.auth.session import AUTH_ENABLED_ENV, SESSION_SECRET_ENV
+from api.db import session as session_mod
+from api.db.models import User
+
+
+class _IsolatedDbMixin(unittest.TestCase):
+    """Same isolation pattern as test_auth.py — fresh sqlite per test,
+    env restoration on teardown."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._db_path = Path(self._tmp.name) / "test.db"
+        self._saved_env = {
+            k: os.environ.get(k)
+            for k in (
+                "MGZ_PKMN_DATABASE_URL",
+                "MGZ_PKMN_AUTOMIGRATE",
+                AUTH_ENABLED_ENV,
+                SESSION_SECRET_ENV,
+                GITHUB_CLIENT_ID_ENV,
+                GITHUB_CLIENT_SECRET_ENV,
+                "MGZ_PKMN_ENV",
+            )
+        }
+        os.environ["MGZ_PKMN_DATABASE_URL"] = f"sqlite:///{self._db_path}"
+        os.environ[SESSION_SECRET_ENV] = "unit-test-secret-do-not-care"
+        os.environ.pop(AUTH_ENABLED_ENV, None)
+        os.environ.pop(GITHUB_CLIENT_ID_ENV, None)
+        os.environ.pop(GITHUB_CLIENT_SECRET_ENV, None)
+        session_mod.reset_engine()
+
+    def tearDown(self) -> None:
+        session_mod.reset_engine()
+        for k, v in self._saved_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        self._tmp.cleanup()
+
+
+class LoginGateTests(_IsolatedDbMixin):
+    def test_login_returns_404_when_auth_off(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as client:
+            r = client.get("/api/v1/auth/github/login", follow_redirects=False)
+            self.assertEqual(r.status_code, 404)
+
+    def test_login_returns_503_when_env_vars_missing(self) -> None:
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        from api.main import app
+
+        with TestClient(app) as client:
+            r = client.get("/api/v1/auth/github/login", follow_redirects=False)
+            self.assertEqual(r.status_code, 503)
+            self.assertIn("GitHub OAuth not configured", r.json().get("detail", ""))
+
+
+class CallbackErrorTests(_IsolatedDbMixin):
+    """The callback handler relies on Authlib for state validation and
+    on `fetch_github_profile` for the user/email fetch. We patch each
+    to drive the two error branches without standing up a real OAuth
+    server."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        os.environ[GITHUB_CLIENT_ID_ENV] = "test-client-id"
+        os.environ[GITHUB_CLIENT_SECRET_ENV] = "test-client-secret"
+
+    def test_callback_state_mismatch_returns_400(self) -> None:
+        from api.main import app
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                new=AsyncMock(side_effect=MismatchingStateError()),
+            ),
+            TestClient(app) as client,
+        ):
+            r = client.get(
+                "/api/v1/auth/github/callback?code=abc&state=tampered",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 400)
+            self.assertEqual(r.json()["detail"], "oauth_failed")
+
+    def test_callback_no_verified_email_returns_400(self) -> None:
+        from api.main import app
+
+        token = {"access_token": "test-token", "token_type": "bearer"}
+        no_email_profile = GitHubProfile(login="alice", name="Alice", verified_primary_email=None)
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                new=AsyncMock(return_value=token),
+            ),
+            patch(
+                "api.auth.github.fetch_github_profile",
+                new=AsyncMock(return_value=no_email_profile),
+            ),
+            TestClient(app) as client,
+        ):
+            r = client.get(
+                "/api/v1/auth/github/callback?code=abc&state=anything",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 400)
+            self.assertEqual(r.json()["detail"], "no_verified_email")
+
+
+class CallbackHappyPathTests(_IsolatedDbMixin):
+    """End-to-end behaviour with Authlib + GitHub patched out."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        os.environ[GITHUB_CLIENT_ID_ENV] = "test-client-id"
+        os.environ[GITHUB_CLIENT_SECRET_ENV] = "test-client-secret"
+
+    def _drive_callback(self, client: TestClient, profile: GitHubProfile) -> tuple[int, str | None]:
+        """Drive a callback request with the supplied profile patched in.
+
+        The caller owns the `TestClient(app)` context so DB seeding +
+        the request share the lifespan that runs auto-migrations."""
+        token = {"access_token": "test-token", "token_type": "bearer"}
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                new=AsyncMock(return_value=token),
+            ),
+            patch(
+                "api.auth.github.fetch_github_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+        ):
+            r = client.get(
+                "/api/v1/auth/github/callback?code=abc&state=anything",
+                follow_redirects=False,
+            )
+            return r.status_code, r.headers.get("location")
+
+    def test_fresh_signup_creates_user_and_redirects_to_root(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as client:
+            status, location = self._drive_callback(
+                client,
+                GitHubProfile(
+                    login="alice",
+                    name="Alice Liddell",
+                    verified_primary_email="alice@example.com",
+                ),
+            )
+            self.assertEqual(status, 302)
+            self.assertEqual(location, "/")
+            with session_mod.get_session_factory()() as s:
+                user = s.scalar(select(User).where(User.email == "alice@example.com"))
+                assert user is not None
+                self.assertEqual(user.email, "alice@example.com")
+                self.assertEqual(user.display_name, "Alice Liddell")
+                self.assertIsNotNone(user.email_verified_at)
+
+    def test_existing_user_is_reused_display_name_preserved(self) -> None:
+        # Seed an existing row that already has a display_name set
+        # via some prior sign-in (e.g. magic-link).
+        from datetime import UTC, datetime
+
+        from api.main import app
+
+        with TestClient(app) as client:
+            with session_mod.get_session_factory()() as s:
+                existing = User(
+                    name="seed-user",
+                    email="bob@example.com",
+                    email_verified_at=datetime.now(UTC),
+                    display_name="bob-the-builder",
+                )
+                s.add(existing)
+                s.commit()
+                existing_id = existing.id
+
+            # GitHub sign-in for the same email returns a different
+            # name. Per ADR-0019 first-set-wins, the existing
+            # display_name must stick — the GitHub-returned name is
+            # dropped.
+            status, location = self._drive_callback(
+                client,
+                GitHubProfile(
+                    login="bob",
+                    name="Robert Builder",
+                    verified_primary_email="bob@example.com",
+                ),
+            )
+            self.assertEqual(status, 302)
+            self.assertEqual(location, "/")
+            with session_mod.get_session_factory()() as s:
+                user = s.get(User, existing_id)
+                assert user is not None
+                self.assertEqual(user.display_name, "bob-the-builder")
+                self.assertEqual(user.email, "bob@example.com")
+                # Count users with this email — must still be exactly one.
+                n = s.scalar(
+                    select(func.count()).select_from(User).where(User.email == "bob@example.com")
+                )
+                self.assertEqual(n, 1)
+
+    def test_existing_user_without_display_name_gets_one(self) -> None:
+        from datetime import UTC, datetime
+
+        from api.main import app
+
+        with TestClient(app) as client:
+            with session_mod.get_session_factory()() as s:
+                existing = User(
+                    name="seed-user-2",
+                    email="carol@example.com",
+                    email_verified_at=datetime.now(UTC),
+                    display_name=None,
+                )
+                s.add(existing)
+                s.commit()
+                existing_id = existing.id
+
+            status, _ = self._drive_callback(
+                client,
+                GitHubProfile(
+                    login="carol",
+                    name="Carol Danvers",
+                    verified_primary_email="carol@example.com",
+                ),
+            )
+            self.assertEqual(status, 302)
+            with session_mod.get_session_factory()() as s:
+                user = s.get(User, existing_id)
+                assert user is not None
+                self.assertEqual(user.display_name, "Carol Danvers")
+
+
+if __name__ == "__main__":
+    unittest.main()
