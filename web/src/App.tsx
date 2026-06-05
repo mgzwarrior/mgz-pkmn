@@ -325,7 +325,7 @@ function App() {
           rel="noopener noreferrer"
           className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
         >
-          Buy me a coffee
+          Buy me a pizza
         </a>{' '}
         ·{' '}
         <a
