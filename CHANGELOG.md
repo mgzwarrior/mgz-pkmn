@@ -19,6 +19,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Docs: **Tier ladder added to the README's Support the project section** ([#474](https://github.com/mgzwarrior/mgz-pkmn/issues/474)). Replaces the single-paragraph tier mention from [#471](https://github.com/mgzwarrior/mgz-pkmn/pull/471) with a 3-column table showing each membership tier's badge image (left), explicit name + price (center), and a one-line perks summary (right). Versions the brand assets used by the table (and the BMC page itself) under `assets/bmc/` — `cover.svg` + `cover.png` (1600×400 BMC cover banner), `tier-common.svg`/`.png`, `tier-uncommon.svg`/`.png`, `tier-holo-rare.svg`/`.png` (250×150 each). README references images via raw.githubusercontent.com URLs, matching the existing logo block.
+
 - Docs: **Q3 2026 grooming pass — second-pass refinements**
   ([#415](https://github.com/mgzwarrior/mgz-pkmn/issues/415)). Acts on
   reviewer feedback against the initial grooming PR:

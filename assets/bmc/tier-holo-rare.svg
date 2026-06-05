@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 150" width="250" height="150" role="img" aria-label="mgz-pkmn — Holo Rare tier">
+  <title>mgz-pkmn — Holo Rare</title>
+  <defs>
+    <linearGradient id="holo-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBF6E8"/>
+      <stop offset="50%" stop-color="#FBEBA8"/>
+      <stop offset="100%" stop-color="#C9E0B5"/>
+    </linearGradient>
+    <linearGradient id="holo-stripe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F5C94B"/>
+      <stop offset="100%" stop-color="#4A8B3B"/>
+    </linearGradient>
+    <linearGradient id="holo-star" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5C94B"/>
+      <stop offset="100%" stop-color="#E8B028"/>
+    </linearGradient>
+  </defs>
+  <rect width="250" height="150" fill="url(#holo-bg)"/>
+  <!-- Left tier-color stripe: sun→palm holo gradient -->
+  <rect x="0" y="0" width="8" height="150" fill="url(#holo-stripe)"/>
+  <!-- Rarity symbol: Holo Rare = star -->
+  <polygon points="56,50 62.5,68 81,68 66,79 71.5,97 56,86 40.5,97 46,79 31,68 49.5,68"
+           fill="url(#holo-star)" stroke="#386C2C" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Tier name -->
+  <text x="98" y="68"
+        font-family="'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif"
+        font-size="22" font-weight="700" letter-spacing="0.01em" fill="#1F1B16">HOLO RARE</text>
+  <text x="98" y="92"
+        font-family="'DM Sans', ui-sans-serif, system-ui, sans-serif"
+        font-size="13" font-weight="500" letter-spacing="0.08em" fill="#5E420B">mgz-pkmn</text>
+</svg>
