@@ -36,6 +36,7 @@ concern when we add throttling and quota.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import smtplib
@@ -194,13 +195,35 @@ def _build_message(to_email: str, sender: str, link: str) -> EmailMessage:
     return msg
 
 
+def _normalize_email(raw: str) -> str:
+    """Trim whitespace and strip CR/LF before any header / token /
+    DB use.
+
+    Two reasons:
+
+    1. **No dual merge anchor.** `"a@b.com"` and `"a@b.com "` would
+       otherwise sign as different tokens and upsert into different
+       `users` rows, defeating the email-is-the-anchor contract.
+    2. **No `To:` header injection.** A raw `\\n` in `payload.email`
+       would let a sufficiently crafty caller append RFC-5322 headers
+       to the outgoing message (`Bcc:`, etc.). Python's `email.message`
+       does validate header values on write, but raising there would
+       break the route's "always 202" contract — strip the dangerous
+       characters upfront so the well-formed-but-junk path stays
+       indistinguishable from the well-formed-and-real path.
+    """
+    return raw.strip().replace("\r", "").replace("\n", "")
+
+
 def _get_mailer() -> SmtpMailer:
     """Construct a `SmtpMailer` from env vars.
 
-    Raises `HTTPException(503)` if any of the five required env vars
-    is missing. Returned eagerly so the `/request` route can catch
-    the misconfiguration once and return a stable 202 (no leak about
-    whether SMTP is even wired up)."""
+    Raises `HTTPException(503)` if any of the four required SMTP env
+    vars is missing or `MGZ_PKMN_SMTP_PORT` is non-numeric. The 503 is
+    a deploy-time misconfiguration signal — it surfaces to the caller,
+    so callers shouldn't observe it in steady state. Once SMTP is
+    wired up, `/request` returns the stable 202 envelope unconditionally
+    (which is the actual no-enumeration guarantee)."""
     host = os.environ.get(SMTP_HOST_ENV, "").strip()
     port_str = os.environ.get(SMTP_PORT_ENV, "").strip()
     username = os.environ.get(SMTP_USERNAME_ENV, "").strip()
@@ -293,9 +316,12 @@ def magic_request(
     a runtime signal about the requester's email)."""
     mailer = _get_mailer()
     sender = _get_sender()
-    token = sign_token(payload.email)
+    # Normalize once, then use everywhere — token, To: header, and the
+    # downstream callback's merge anchor all see the same string.
+    email = _normalize_email(payload.email)
+    token = sign_token(email)
     link = _build_callback_url(request, token)
-    message = _build_message(payload.email, sender, link)
+    message = _build_message(email, sender, link)
     # Queue the send so the response time is independent of how slow
     # the SMTP relay is — also keeps the response timing flat across
     # found / not-found emails, so the response time itself doesn't
@@ -322,11 +348,16 @@ def magic_callback(
 
     existing = _find_user_by_email(db, email)
     if existing is None:
-        # Fresh signup. `name` must be unique on `User`; prefix with
-        # `magic:` so the choice tells a future maintainer where the
-        # row came from and never collides with the `gh:` prefix the
-        # GitHub provider mints.
-        candidate_name = f"magic:{email}"[:64]
+        # Fresh signup. `name` is `String(64) unique` on `User`. We
+        # can't just truncate `f"magic:{email}"[:64]` — two long
+        # addresses sharing the first ~58 chars would collide and
+        # trip the unique index. Hash the normalized email to a
+        # 48-char SHA-256 prefix (192 bits, collision-resistant) and
+        # tag with the `magic:` provider prefix so the row is
+        # self-identifying in a db browser and stays domain-separated
+        # from the `gh:` prefix `api/auth/github.py` mints.
+        name_suffix = hashlib.sha256(email.encode("utf-8")).hexdigest()[:48]
+        candidate_name = f"magic:{name_suffix}"
         user = User(
             name=candidate_name,
             email=email,
