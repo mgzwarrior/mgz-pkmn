@@ -320,7 +320,7 @@ function App() {
         </a>{' '}
         ·{' '}
         <a
-          href="https://buymeacoffee.com/mgzwarrior"
+          href="https://www.buymeacoffee.com/mgz.pkmn"
           target="_blank"
           rel="noopener noreferrer"
           className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
