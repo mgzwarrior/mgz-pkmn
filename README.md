@@ -152,10 +152,10 @@ Questions, ideas, or want to share what you built? Open a thread in [GitHub Disc
 
 mgz-pkmn is free and MIT-licensed. If it's saved you time at a card show and you'd like to chip in, the [Buy Me a Coffee page](https://www.buymeacoffee.com/mgz.pkmn) takes one-off "buy me a pizza 🍕" tips and runs three recurring membership tiers:
 
-| Tier | What you get |
-|---|---|
-| <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/bmc/tier-common.png" alt="Common tier badge" width="180" /><br>**$3 / month** | Supporters listing, ~24h early peek at release notes, personal thank-you |
-| <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/bmc/tier-uncommon.png" alt="Uncommon tier badge" width="180" /><br>**$8 / month** | Everything in Common, plus members-only Discussions, one monthly roadmap vote, name in the README Supporters section |
-| <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/bmc/tier-holo-rare.png" alt="Holo Rare tier badge" width="180" /><br>**$20 / month** | Everything in Uncommon, plus your logo on the marketing-site supporters strip, priority bug triage (best-effort), early-access booth in the virtual card-show pilot |
+|   | Tier | What you get |
+|---|---|---|
+| <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/bmc/tier-common.png" alt="Common tier badge" width="160" /> | **Common**<br>$3 / month | Supporters listing, ~24h early peek at release notes, personal thank-you |
+| <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/bmc/tier-uncommon.png" alt="Uncommon tier badge" width="160" /> | **Uncommon**<br>$8 / month | Everything in Common, plus members-only Discussions, one monthly roadmap vote, name in the README Supporters section |
+| <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/bmc/tier-holo-rare.png" alt="Holo Rare tier badge" width="160" /> | **Holo Rare**<br>$20 / month | Everything in Uncommon, plus your logo on the marketing-site supporters strip, priority bug triage (best-effort), early-access booth in the virtual card-show pilot |
 
 <a href="https://www.buymeacoffee.com/mgz.pkmn"><img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20some%20pizza&amp;emoji=%F0%9F%8D%95&amp;slug=mgz.pkmn&amp;button_colour=6bac55&amp;font_colour=000000&amp;font_family=Lato&amp;outline_colour=000000&amp;coffee_colour=FFDD00" alt="Buy me a pizza on Buy Me a Coffee" /></a>
