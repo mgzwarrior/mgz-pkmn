@@ -150,9 +150,6 @@ Questions, ideas, or want to share what you built? Open a thread in [GitHub Disc
 
 ## Support the project
 
-mgz-pkmn is free and MIT-licensed. If it's saved you time at a card show and you'd like to chip in:
+mgz-pkmn is free and MIT-licensed. If it's saved you time at a card show and you'd like to chip in: 🍕 **[Buy me a pizza](https://buymeacoffee.com/mgzwarrior)**.
 
-- 🍕 **[Buy me a pizza](https://buymeacoffee.com/mgzwarrior)** — preferred. One-off, no account needed.
-- 💖 **[GitHub Sponsors](https://github.com/sponsors/mgzwarrior)** — recurring, if that's more your speed.
-
-The Buy Me a Coffee page also runs three recurring membership tiers — **Common**, **Uncommon**, and **Holo Rare** — with perks for early-release peeks, monthly roadmap votes, a members-only Discussions category, and (at Holo Rare) a name or logo on the supporters strip.
+The same page runs three recurring membership tiers — **Common**, **Uncommon**, and **Holo Rare** — with perks for early-release peeks, monthly roadmap votes, a members-only Discussions category, and (at Holo Rare) a name or logo on the supporters strip.
