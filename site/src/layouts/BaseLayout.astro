@@ -58,5 +58,19 @@ const ogImage = new URL("/social-preview-tropical.png", Astro.site).toString();
   <body class="bg-sand-50 text-coconut-700 dark:bg-husk-400 dark:text-sand-50">
     <AnnouncementBanner />
     <slot />
+    <!-- Buy Me a Coffee floating widget. Loaded as-is from BMC's CDN; `is:inline` tells Astro not to process or bundle it. Color matches palm-300 to align with the README button. -->
+    <script
+      is:inline
+      data-name="BMC-Widget"
+      data-cfasync="false"
+      src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js"
+      data-id="mgz.pkmn"
+      data-description="Support me on Buy me a coffee!"
+      data-message="Thanks for stopping by 🌴 Want to buy me some pizza to keep the project rolling forward?"
+      data-color="#6BAC55"
+      data-position="Right"
+      data-x_margin="18"
+      data-y_margin="18"
+    ></script>
   </body>
 </html>
