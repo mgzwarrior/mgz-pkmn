@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: **Tier ladder added to the README's Support the project section** ([#474](https://github.com/mgzwarrior/mgz-pkmn/issues/474)). Replaces the single-paragraph tier mention from [#471](https://github.com/mgzwarrior/mgz-pkmn/pull/471) with a 3-row table showing each membership tier's badge image, price, and a one-line perks summary. Versions the brand assets used by the table (and the BMC page itself) under `assets/bmc/` — `cover.svg` + `cover.png` (1600×400 BMC cover banner), `tier-common.svg`/`.png`, `tier-uncommon.svg`/`.png`, `tier-holo-rare.svg`/`.png` (250×150 each). README references images via raw.githubusercontent.com URLs, matching the existing logo block.
+
 ### Fixed
 
 - Docs: **BMC button image now renders in the README** ([#472](https://github.com/mgzwarrior/mgz-pkmn/issues/472)). The Buy Me a Coffee button-api img src added in [#471](https://github.com/mgzwarrior/mgz-pkmn/pull/471) contained raw spaces (`text=Buy me some pizza`) and a raw multibyte emoji (`emoji=🍕`); GitHub's image proxy (camo) silently refuses URLs with those characters and the button rendered as a broken image. URL-encodes `text` (`Buy%20me%20some%20pizza`) and `emoji` (`%F0%9F%8D%95`), and switches the `&` query separators to `&amp;` so the HTML stays well-formed. `curl -sI` on the encoded URL returns `HTTP/2 200` with `content-type: image/svg+xml`.
