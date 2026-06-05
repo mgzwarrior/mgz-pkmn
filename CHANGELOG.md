@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Docs: **BMC button image now renders in the README** ([#472](https://github.com/mgzwarrior/mgz-pkmn/issues/472)). The Buy Me a Coffee button-api img src added in [#471](https://github.com/mgzwarrior/mgz-pkmn/pull/471) contained raw spaces (`text=Buy me some pizza`) and a raw multibyte emoji (`emoji=🍕`); GitHub's image proxy (camo) silently refuses URLs with those characters and the button rendered as a broken image. URL-encodes `text` (`Buy%20me%20some%20pizza`) and `emoji` (`%F0%9F%8D%95`), and switches the `&` query separators to `&amp;` so the HTML stays well-formed. `curl -sI` on the encoded URL returns `HTTP/2 200` with `content-type: image/svg+xml`.
+
 ### Added
 
 - Docs: **Buy Me a Coffee as the sole user-facing funding CTA** ([#469](https://github.com/mgzwarrior/mgz-pkmn/issues/469)). New "Support the project" section in `README.md` embeds the official BMC button image ([🍕 Buy me some pizza](https://www.buymeacoffee.com/mgz.pkmn)) and names the three recurring membership tiers (Common / Uncommon / Holo Rare) with a short summary of perks (early-release peeks, monthly roadmap votes, members-only Discussions, supporters-strip placement at Holo Rare). `.github/FUNDING.yml` gains a `buy_me_a_coffee: mgz.pkmn` entry so the repo sidebar's Sponsor button surfaces alongside the existing GitHub Sponsors entry. The marketing-site footer (`site/src/components/Footer.astro`) adds a Support column linking "Buy me a pizza", the marketing-site `BaseLayout` (`site/src/layouts/BaseLayout.astro`) loads the BMC floating widget on every page (palm-300 brand color, bottom-right, with the "Thanks for stopping by 🌴" message), and the web SPA footer (`web/src/App.tsx`) gains a "Buy me a pizza" entry next to the existing GitHub link. GitHub Sponsors stays configured in `FUNDING.yml` but is no longer surfaced as its own CTA on the README, marketing site, or web app — funnels into the single BMC ask instead. All in-product BMC URLs canonicalize on `https://www.buymeacoffee.com/mgz.pkmn` (the BMC slug had to use `.` instead of `-` since BMC slugs disallow hyphens).
