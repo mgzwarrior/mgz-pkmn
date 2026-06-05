@@ -317,6 +317,24 @@ function App() {
           className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
         >
           GitHub
+        </a>{' '}
+        ·{' '}
+        <a
+          href="https://buymeacoffee.com/mgzwarrior"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+        >
+          Buy me a coffee
+        </a>{' '}
+        ·{' '}
+        <a
+          href="https://github.com/sponsors/mgzwarrior"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+        >
+          Sponsor
         </a>
       </footer>
     </div>
