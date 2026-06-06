@@ -83,6 +83,32 @@ describe('SignInChip (anonymous)', () => {
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument()
   })
 
+  it('drops a magic-link resolution that lands after the picker is closed', async () => {
+    fetchMeMock.mockResolvedValue(null)
+    let resolveRequest!: () => void
+    requestMagicLinkMock.mockReturnValue(new Promise<void>((resolve) => { resolveRequest = resolve }))
+    render(<SignInChip />)
+    const openButton = await screen.findByRole('button', { name: /sign in/i })
+    fireEvent.click(openButton)
+    fireEvent.click(screen.getByRole('button', { name: /email me a magic link/i }))
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'late@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: /send magic link/i }))
+    // Close mid-request — bumps the request-generation guard.
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    // Late resolution lands; the guard discards it.
+    await act(async () => {
+      resolveRequest()
+    })
+    // Re-open: form is collapsed back to the initial state, no stale
+    // "Check your inbox" leaking from the prior generation.
+    fireEvent.click(openButton)
+    expect(await screen.findByRole('button', { name: /email me a magic link/i })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('surfaces an error when the magic-link request fails', async () => {
     fetchMeMock.mockResolvedValue(null)
     requestMagicLinkMock.mockRejectedValue(new Error('boom'))

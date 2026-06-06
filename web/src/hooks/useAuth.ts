@@ -32,8 +32,19 @@ export function useAuth(): UseAuthResult {
     }
   }, [])
 
+  // Always clear the local user, even when the server-side logout call
+  // rejects (network error, transient 5xx). The user's intent is "sign
+  // me out"; preserving the signed-in shape after the click would
+  // surface a confusing state. The server cookie may still be live
+  // until its TTL expires, but clicking Sign in / refreshing recovers.
+  // Swallowing the error also keeps `void signOut()` callers from
+  // emitting unhandled-rejection noise in the console / tests.
   const signOut = useCallback(async () => {
-    await apiLogout()
+    try {
+      await apiLogout()
+    } catch {
+      // intentionally ignored — see comment above.
+    }
     setUser(null)
   }, [])
 

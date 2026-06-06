@@ -17,7 +17,7 @@
  * the hook's mount-time `fetchMe()` flips the chip to the signed-in
  * shape without the SPA having to thread anything through the URL.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { LogIn, LogOut, Mail, X } from 'lucide-react'
@@ -133,8 +133,15 @@ export function ProviderPickerModal({ open, onOpenChange }: ProviderPickerProps)
   const [magicMode, setMagicMode] = useState<'collapsed' | 'form' | 'sent' | 'error'>('collapsed')
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Request-generation guard. Closing the picker mid-request (or
+  // starting a second submit) bumps the ref; the in-flight resolution
+  // handlers compare their captured generation against the current one
+  // and no-op when stale, so a late "sent"/"error" can't leak into a
+  // later picker session.
+  const requestGenRef = useRef(0)
 
   function reset() {
+    requestGenRef.current += 1
     setMagicMode('collapsed')
     setEmail('')
     setSubmitting(false)
@@ -148,14 +155,15 @@ export function ProviderPickerModal({ open, onOpenChange }: ProviderPickerProps)
   async function handleMagicSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!email.trim() || submitting) return
+    const myGen = ++requestGenRef.current
     setSubmitting(true)
     try {
       await requestMagicLink(email.trim())
-      setMagicMode('sent')
+      if (requestGenRef.current === myGen) setMagicMode('sent')
     } catch {
-      setMagicMode('error')
+      if (requestGenRef.current === myGen) setMagicMode('error')
     } finally {
-      setSubmitting(false)
+      if (requestGenRef.current === myGen) setSubmitting(false)
     }
   }
 

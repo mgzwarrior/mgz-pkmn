@@ -49,6 +49,19 @@ describe('useAuth', () => {
     expect(result.current.user).toBeNull()
   })
 
+  it('signOut still clears the user when apiLogout rejects', async () => {
+    fetchMeMock.mockResolvedValue({ id: 1, email: 'x@y.z', display_name: 'X' })
+    logoutMock.mockRejectedValue(new Error('network down'))
+    const { result } = renderHook(() => useAuth())
+    await waitFor(() => expect(result.current.user).not.toBeNull())
+    // Should not raise — the hook swallows the API error so callers
+    // (`onSelect={() => void signOut()}`) don't leak unhandled rejections.
+    await act(async () => {
+      await result.current.signOut()
+    })
+    expect(result.current.user).toBeNull()
+  })
+
   it('signOut calls the logout helper and clears the user', async () => {
     fetchMeMock.mockResolvedValue({ id: 1, email: 'x@y.z', display_name: 'X' })
     logoutMock.mockResolvedValue(undefined)
