@@ -17,6 +17,7 @@ import { bulkLookup, lookupLine } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { BrowsePanel } from './components/BrowsePanel'
 import { CollectionsModal } from './components/CollectionsModal'
+import { WishlistsModal } from './components/WishlistsModal'
 import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
 import { RecentRuns } from './components/RecentRuns'
@@ -62,6 +63,7 @@ function App() {
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   const [collectionsOpen, setCollectionsOpen] = useState(false)
+  const [wishlistsOpen, setWishlistsOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('search')
   // `active` flips when the user switches into browse mode so the
   // controller's reset effect fires.
@@ -227,6 +229,16 @@ function App() {
               <Bookmark size={15} />
               <span className="hidden sm:inline">Collections</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setWishlistsOpen(true)}
+              className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
+              title="Wishlists"
+              aria-label="Wishlists"
+            >
+              <Heart size={15} />
+              <span className="hidden sm:inline">Wishlists</span>
+            </button>
             <div data-tour="exports">
               <ExportBar />
             </div>
@@ -310,6 +322,8 @@ function App() {
       )}
 
       <CollectionsModal open={collectionsOpen} onOpenChange={setCollectionsOpen} />
+
+      <WishlistsModal open={wishlistsOpen} onOpenChange={setWishlistsOpen} />
 
       {/* Easter egg overlay — see handleBrandClick. */}
       {showEgg && (

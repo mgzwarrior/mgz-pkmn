@@ -85,9 +85,11 @@ class CollectionsMigrationTests(_IsolatedDbMixin):
 
         cfg = migrate_mod._alembic_config()
         cfg.set_main_option("sqlalchemy.url", str(engine.url))
-        # Step back one revision to drop just the collections tables —
-        # the auth-foundation slice underneath should survive.
-        command.downgrade(cfg, "-1")
+        # Downgrade to the auth-foundation revision so the collections
+        # slice is dropped regardless of what later slices have been
+        # stacked on top (wishlists, etc.). Targeting a fixed revision
+        # keeps the round-trip stable as the migration chain grows.
+        command.downgrade(cfg, "9c4f2a7d8e15")
         names = set(inspect(engine).get_table_names())
         self.assertNotIn("collections", names)
         self.assertNotIn("collection_items", names)
