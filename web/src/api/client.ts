@@ -339,3 +339,48 @@ export async function fetchCacheStats(): Promise<CacheStats> {
   if (!res.ok) throw new Error(`cache stats failed: ${res.status}`)
   return (await res.json()) as CacheStats
 }
+
+// ---------------------------------------------------------------------------
+// auth
+// ---------------------------------------------------------------------------
+
+/**
+ * Payload returned by `GET /api/v1/me` for a signed-in user. The endpoint
+ * returns 204 (no body) for anonymous sessions; the `useAuth` hook maps
+ * that to `null` so the chip can render the anonymous state without the
+ * caller having to know about the status-code split.
+ */
+export interface Me {
+  id: number
+  email: string | null
+  display_name: string | null
+}
+
+export async function fetchMe(): Promise<Me | null> {
+  const res = await fetch(`${BASE}/me`, { credentials: 'same-origin' })
+  if (res.status === 204) return null
+  if (!res.ok) throw new Error(`me failed: ${res.status}`)
+  return (await res.json()) as Me
+}
+
+export async function logout(): Promise<void> {
+  const res = await fetch(`${BASE}/auth/logout`, {
+    method: 'POST',
+    credentials: 'same-origin',
+  })
+  if (!res.ok && res.status !== 204) throw new Error(`logout failed: ${res.status}`)
+}
+
+/**
+ * Request a magic-link email. The backend always responds 202 once SMTP
+ * is configured (no enumeration leak), so a successful call here means
+ * "request accepted", not "address is known".
+ */
+export async function requestMagicLink(email: string): Promise<void> {
+  const res = await fetch(`${BASE}/auth/magic/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok && res.status !== 202) throw new Error(`magic-link failed: ${res.status}`)
+}

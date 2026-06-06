@@ -24,6 +24,7 @@ import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { HelpModal } from './components/HelpModal'
 import { WhatsNewModal } from './components/WhatsNewModal'
+import { SignInChip } from './components/SignInChip'
 import { ThemeToggle } from './components/ThemeToggle'
 import { Tour } from './components/Tour'
 import { useAppStore } from './store'
@@ -223,6 +224,7 @@ function App() {
               <SettingsDrawer />
             </div>
             <ThemeToggle />
+            <SignInChip />
           </div>
         </div>
       </header>
