@@ -12,10 +12,12 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
-import { Library } from 'lucide-react'
+import { Heart, Library, Search } from 'lucide-react'
 import { bulkLookup, lookupLine } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { BrowseModal } from './components/BrowseModal'
+import { BrowsePanel } from './components/BrowsePanel'
+import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
 import { RecentRuns } from './components/RecentRuns'
 import { ResultsTable } from './components/ResultsTable'
@@ -31,6 +33,14 @@ import { useAppStore } from './store'
 import type { BulkEvent } from './types'
 import logoLightUrl from '../../assets/logo.svg'
 import logoDarkUrl from '../../assets/logo-dark.svg'
+
+type DiscoveryMode = 'search' | 'browse' | 'swipe'
+
+const MODES: { value: DiscoveryMode; label: string; icon: typeof Search; hint: string }[] = [
+  { value: 'search', label: 'Search', icon: Search, hint: 'Paste a want-list' },
+  { value: 'browse', label: 'Browse', icon: Library, hint: 'Walk a set' },
+  { value: 'swipe', label: 'Swipe', icon: Heart, hint: 'Coming soon' },
+]
 
 function App() {
   const {
@@ -52,6 +62,12 @@ function App() {
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   const [browseOpen, setBrowseOpen] = useState(false)
+  const [mode, setMode] = useState<DiscoveryMode>('search')
+  // Drive the inline browse view from the same controller hook the
+  // modal uses — keeps fetch/cache/reset behaviour identical across
+  // surfaces. `active` flips when the user switches into browse mode
+  // so the controller's reset effect fires.
+  const browseController = useBrowseController(mode === 'browse')
 
   // Easter egg: 5 clicks on the brand reveals Exeggutor + claim code
   // EGG-EXEGGCUTE (referencing the six-egg pre-evolution). Reset on
@@ -231,25 +247,69 @@ function App() {
 
       {/* Main content */}
       <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
-        <section data-tour="input">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-            Card list
-          </h2>
-          <InputEditor onRun={handleRun} onStop={handleStop} />
-          <div className="mt-3">
-            <RecentRuns onRun={handleRun} />
-          </div>
-        </section>
+        <nav
+          role="tablist"
+          aria-label="Discovery mode"
+          data-tour="discovery-modes"
+          className="flex w-full flex-wrap items-center gap-1 rounded-lg border border-sand-300 bg-sand-100 p-1 dark:border-husk-50 dark:bg-husk-200"
+        >
+          {MODES.map((m) => {
+            const Icon = m.icon
+            const active = mode === m.value
+            return (
+              <button
+                key={m.value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setMode(m.value)}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm transition-colors min-w-[120px] ${
+                  active
+                    ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
+                    : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
+                }`}
+              >
+                <Icon size={15} aria-hidden />
+                <span className="font-medium">{m.label}</span>
+                <span className="hidden text-xs text-coconut-400 dark:text-sand-400 sm:inline">
+                  · {m.hint}
+                </span>
+              </button>
+            )
+          })}
+        </nav>
 
-        <section data-tour="results">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-            Results
-          </h2>
-          <div className="flex flex-col gap-3">
-            <ProcessingQueue />
-            <ResultsTable onRerunLine={handleRerunLine} />
-          </div>
-        </section>
+        {mode === 'search' && (
+          <>
+            <section data-tour="input">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                Card list
+              </h2>
+              <InputEditor onRun={handleRun} onStop={handleStop} />
+              <div className="mt-3">
+                <RecentRuns onRun={handleRun} />
+              </div>
+            </section>
+
+            <section data-tour="results">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                Results
+              </h2>
+              <div className="flex flex-col gap-3">
+                <ProcessingQueue />
+                <ResultsTable onRerunLine={handleRerunLine} />
+              </div>
+            </section>
+          </>
+        )}
+
+        {mode === 'browse' && (
+          <section aria-label="Browse cards by set">
+            <BrowsePanel controller={browseController} />
+          </section>
+        )}
+
+        {mode === 'swipe' && <SwipePlaceholder />}
       </main>
 
       {tourOpen && (
@@ -331,6 +391,36 @@ function App() {
         </a>
       </footer>
     </div>
+  )
+}
+
+function SwipePlaceholder() {
+  return (
+    <section
+      aria-label="Swipe mode"
+      className="rounded-lg border border-dashed border-sand-300 bg-sand-50 px-6 py-12 text-center dark:border-husk-50 dark:bg-husk-200"
+    >
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sun-400/20 text-sun-500 dark:bg-sun-400/30 dark:text-sun-300">
+        <Heart size={22} aria-hidden />
+      </div>
+      <h2 className="mt-4 text-lg font-semibold text-coconut-700 dark:text-sand-50">
+        Swipe mode is coming
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-coconut-500 dark:text-sand-300">
+        One card at a time — swipe right to save, left to pass, up for more like
+        this. Your taste profile turns into a personalized prep list for the
+        next show.{' '}
+        <a
+          href="https://github.com/mgzwarrior/mgz-pkmn/issues/340"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200"
+        >
+          Track progress on issue #340
+        </a>
+        .
+      </p>
+    </section>
   )
 }
 
