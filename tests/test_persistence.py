@@ -292,6 +292,15 @@ class SavedSearchesTests(_IsolatedDbMixin):
             resp = c.patch(f"/api/v1/runs/{run_id}", json={"name": ""})
             self.assertEqual(resp.status_code, 422)
 
+    def test_patch_save_rejects_whitespace_only_name(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(f"/api/v1/runs/{run_id}", json={"name": "   "})
+            self.assertEqual(resp.status_code, 422)
+            self.assertEqual(c.get("/api/v1/runs").json()["total"], 0)
+
     def test_patch_save_404s_on_missing_id(self) -> None:
         from api.main import app
 

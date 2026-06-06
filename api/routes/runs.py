@@ -173,10 +173,13 @@ def save_run(run_id: int, req: SaveRunRequest, db: DbSession) -> dict:
     saved-search list) and snapshots the ResultsTable view state for
     later replay. ``view_state`` is opaque to the API — the schema lives
     in the SPA."""
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="name must not be blank")
     run = db.scalar(select(Run).where(Run.id == run_id))
     if run is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
-    run.name = req.name.strip()
+    run.name = name
     if req.view_state is not None:
         run.view_state = req.view_state
     db.commit()
