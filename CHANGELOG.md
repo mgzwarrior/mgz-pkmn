@@ -9,6 +9,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Deploy: **Production OAuth callbacks now resolve as `https://`** ([#487](https://github.com/mgzwarrior/mgz-pkmn/issues/487)). The Dockerfile launched uvicorn without `--proxy-headers`, so behind Render's TLS-terminating proxy FastAPI saw the request as `http`. `request.url_for("github_callback")` (and the Google equivalent) then produced an `http://` redirect_uri that didn't match the `https://` URL registered on the OAuth apps — GitHub returned its "redirect_uri is not associated with this application" page, and Google would have failed the same way on first use. Adds `--proxy-headers --forwarded-allow-ips=*` so uvicorn trusts Render's `X-Forwarded-Proto: https` header and `url_for` resolves the scheme correctly.
+
 - Docs: **BMC button image now renders in the README** ([#472](https://github.com/mgzwarrior/mgz-pkmn/issues/472)). The Buy Me a Coffee button-api img src added in [#471](https://github.com/mgzwarrior/mgz-pkmn/pull/471) contained raw spaces (`text=Buy me some pizza`) and a raw multibyte emoji (`emoji=🍕`); GitHub's image proxy (camo) silently refuses URLs with those characters and the button rendered as a broken image. URL-encodes `text` (`Buy%20me%20some%20pizza`) and `emoji` (`%F0%9F%8D%95`), and switches the `&` query separators to `&amp;` so the HTML stays well-formed. `curl -sI` on the encoded URL returns `HTTP/2 200` with `content-type: image/svg+xml`.
 
 ### Added
