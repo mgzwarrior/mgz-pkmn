@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { useAppStore, RECENT_RUNS_LIMIT } from './index'
+import { useAppStore, EMPTY_VIEW_STATE, RECENT_RUNS_LIMIT } from './index'
 
 describe('store: processingLines', () => {
   beforeEach(() => useAppStore.setState({ processingLines: [] }))
@@ -273,5 +273,95 @@ describe('store: lastSeenChangelogVersion', () => {
   it('setLastSeenChangelogVersion records the version', () => {
     useAppStore.getState().setLastSeenChangelogVersion('1.1.1')
     expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1')
+  })
+})
+
+describe('store: saved searches', () => {
+  beforeEach(() => useAppStore.setState({ runs: [], currentRunId: null }))
+
+  it('defaults to empty list and null current id', () => {
+    expect(useAppStore.getState().runs).toEqual([])
+    expect(useAppStore.getState().currentRunId).toBeNull()
+  })
+
+  it('setRuns replaces the list wholesale (server is source of truth)', () => {
+    useAppStore.getState().setRuns([
+      {
+        id: 1,
+        created_at: '2026-06-01T12:00:00Z',
+        elapsed_seconds: 1.2,
+        row_count: 3,
+        summary: {
+          total_rows: 3,
+          matched: 2,
+          missed: 1,
+          priced: 2,
+          totals_by_currency: { USD: 12.5 },
+          tag_counts: { keep: 2 },
+        },
+        name: 'Show prep',
+        view_state: null,
+      },
+    ])
+    expect(useAppStore.getState().runs).toHaveLength(1)
+    expect(useAppStore.getState().runs[0].name).toBe('Show prep')
+    useAppStore.getState().setRuns([])
+    expect(useAppStore.getState().runs).toEqual([])
+  })
+
+  it('setCurrentRunId records the loaded run', () => {
+    useAppStore.getState().setCurrentRunId(42)
+    expect(useAppStore.getState().currentRunId).toBe(42)
+    useAppStore.getState().setCurrentRunId(null)
+    expect(useAppStore.getState().currentRunId).toBeNull()
+  })
+})
+
+describe('store: viewState', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      viewState: { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters } },
+    })
+  })
+
+  it('defaults to the empty view (no sort, no filters, filter row collapsed)', () => {
+    expect(useAppStore.getState().viewState).toEqual(EMPTY_VIEW_STATE)
+  })
+
+  it('setViewState replaces the snapshot — used on saved-search load to restore', () => {
+    const restored = {
+      sortColumn: 'market' as const,
+      sortDir: 'desc' as const,
+      showFilters: true,
+      filters: {
+        name: '',
+        set: 'Base',
+        rarity: '',
+        marketMin: '5',
+        marketMax: '',
+        source: '',
+      },
+    }
+    useAppStore.getState().setViewState(restored)
+    expect(useAppStore.getState().viewState).toEqual(restored)
+  })
+
+  it('resetViewState wipes sort + filters back to the empty view', () => {
+    useAppStore.getState().setViewState({
+      sortColumn: 'name',
+      sortDir: 'asc',
+      showFilters: true,
+      filters: { ...EMPTY_VIEW_STATE.filters, name: 'pika' },
+    })
+    useAppStore.getState().resetViewState()
+    expect(useAppStore.getState().viewState).toEqual(EMPTY_VIEW_STATE)
+  })
+
+  it('resetViewState gives back independent filter objects (mutation safety)', () => {
+    useAppStore.getState().resetViewState()
+    const first = useAppStore.getState().viewState.filters
+    useAppStore.getState().resetViewState()
+    const second = useAppStore.getState().viewState.filters
+    expect(first).not.toBe(second)
   })
 })

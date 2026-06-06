@@ -13,6 +13,9 @@ import type {
   ChangelogRelease,
   ExportFormat,
   Row,
+  RunDetail,
+  RunSummary,
+  SavedViewState,
   SetCard,
   SetInfo,
   Settings,
@@ -321,6 +324,58 @@ export async function fetchChangelog(limit = 5): Promise<ChangelogRelease[]> {
   if (!res.ok) throw new Error(`changelog failed: ${res.status}`)
   const data = await res.json()
   return data.releases as ChangelogRelease[]
+}
+
+// ---------------------------------------------------------------------------
+// runs (persisted history)
+// ---------------------------------------------------------------------------
+
+/**
+ * List persisted runs, newest first. The endpoint returns the
+ * lightweight `summary_json` aggregate per row so the sidebar renders
+ * without loading every `run_rows` payload.
+ */
+export async function listRuns(limit = 50, offset = 0): Promise<{ items: RunSummary[]; total: number }> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const res = await fetch(`${BASE}/runs?${params.toString()}`)
+  if (!res.ok) throw new Error(`runs failed: ${res.status}`)
+  return (await res.json()) as { items: RunSummary[]; total: number }
+}
+
+/** Fetch a full run including every persisted row. */
+export async function getRun(runId: number): Promise<RunDetail> {
+  const res = await fetch(`${BASE}/runs/${runId}`)
+  if (!res.ok) throw new Error(`run ${runId} failed: ${res.status}`)
+  return (await res.json()) as RunDetail
+}
+
+/**
+ * Save (or rename) a run as a *saved search* — the listing endpoint
+ * filters to runs with a non-null `name`, so this is what promotes a
+ * streamed run into the sidebar. The supplied `view_state` is replayed
+ * on the next click-to-load.
+ */
+export async function saveRun(
+  runId: number,
+  name: string,
+  viewState: SavedViewState,
+): Promise<RunSummary> {
+  const res = await fetch(`${BASE}/runs/${runId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, view_state: viewState }),
+  })
+  if (!res.ok) {
+    let detail = `save failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  return (await res.json()) as RunSummary
 }
 
 // ---------------------------------------------------------------------------

@@ -6,9 +6,10 @@ Covers:
 - Alembic migration round-trip (upgrade → seed → downgrade → re-upgrade).
 - `MGZ_PKMN_AUTOMIGRATE=0` opt-out skips startup migration.
 - `/api/v1/bulk` writes a run after the SSE stream completes.
-- `/api/v1/runs` list + detail return the persisted shape.
-- `/api/v1/runs/{id}/export` re-renders a stored run as xlsx without
-  re-fetching from the network.
+- `/api/v1/runs` list filters to *saved* runs (`name IS NOT NULL`) and
+  `/api/v1/runs/{id}` returns the persisted shape unconditionally.
+- `/api/v1/runs/{id}` PATCH promotes a run into the saved list with a
+  view-state snapshot.
 - SQLite flock takes effect (a second acquire blocks while held).
 
 Each test points `MGZ_PKMN_DATABASE_URL` at a fresh tempfile so the user's
@@ -204,18 +205,23 @@ class BulkPersistenceTests(_IsolatedDbMixin):
                 row_events = [e for e in events if e.startswith("data:") and "matched" in e]
                 self.assertEqual(len(row_events), 2)
 
-                # The run is visible immediately via /runs.
+                # The streamed run is *not* in the saved-search listing
+                # until the user names it, but the row exists in the DB
+                # (we'll fetch it directly below).
                 listing = c.get("/api/v1/runs").json()
-                self.assertEqual(listing["total"], 1)
-                self.assertEqual(len(listing["items"]), 1)
-                run_id = listing["items"][0]["id"]
-                self.assertEqual(listing["items"][0]["row_count"], 2)
+                self.assertEqual(listing["total"], 0)
+                self.assertEqual(listing["items"], [])
+
+                with session_mod.get_session_factory()() as s:
+                    run_id = s.scalar(select(Run.id))
 
                 detail = c.get(f"/api/v1/runs/{run_id}").json()
                 self.assertEqual(len(detail["rows"]), 2)
                 self.assertEqual(detail["rows"][0]["query"]["name"], "Charizard")
                 self.assertEqual(detail["rows"][0]["tag"], "test")
                 self.assertEqual(detail["input_text"], "Charizard\nMew")
+                self.assertIsNone(detail["name"])
+                self.assertIsNone(detail["view_state"])
 
     def test_get_run_404s_on_missing_id(self) -> None:
         from api.main import app
@@ -226,69 +232,81 @@ class BulkPersistenceTests(_IsolatedDbMixin):
 
 
 # ---------------------------------------------------------------------------
-# Re-export from a stored run
+# Saved searches: PATCH /runs/{id} + saved-only listing
 # ---------------------------------------------------------------------------
 
 
-class ReExportTests(_IsolatedDbMixin):
-    def test_re_export_returns_xlsx_without_network(self) -> None:
-        """A run with one matched row re-exports as a valid xlsx attachment.
+class SavedSearchesTests(_IsolatedDbMixin):
+    def _seed_run(self) -> int:
+        """Seed an unnamed run + return its id.
 
-        Matching `card` payload is synthetic — we never hit pokemontcg.io
-        because the re-export pulls from `run_rows`."""
-        from api.db.models import Run
+        Assumes the caller has already entered a ``TestClient`` context so
+        the startup lifespan has created the schema."""
+        with session_mod.get_session_factory()() as s:
+            run = Run(
+                input_text="Charizard",
+                summary_json={"total_rows": 1, "matched": 1},
+                rows=[
+                    RunRow(
+                        position=0,
+                        tag="",
+                        market_price=42.50,
+                        currency="USD",
+                        query_json={"raw": "Charizard", "name": "Charizard"},
+                        card_json={"id": "base1-4"},
+                        pricing_json={"market": 42.50, "currency": "USD"},
+                    )
+                ],
+            )
+            s.add(run)
+            s.commit()
+            return run.id
+
+    def test_patch_save_names_a_run_and_surfaces_it_in_the_list(self) -> None:
         from api.main import app
 
         with TestClient(app) as c:
-            # Seed a run directly via the ORM (faster than going through /bulk).
-            with session_mod.get_session_factory()() as s:
-                run = Run(
-                    input_text="Charizard | Base Set",
-                    elapsed_seconds=0.1,
-                    summary_json={"total_rows": 1, "matched": 1},
-                    rows=[
-                        RunRow(
-                            position=0,
-                            tag="",
-                            market_price=42.50,
-                            currency="USD",
-                            query_json={"raw": "Charizard", "name": "Charizard"},
-                            card_json={
-                                "id": "base1-4",
-                                "name": "Charizard",
-                                "set": {"id": "base1"},
-                            },
-                            pricing_json={"market": 42.50, "currency": "USD"},
-                        )
-                    ],
-                )
-                s.add(run)
-                s.commit()
-                run_id = run.id
+            run_id = self._seed_run()
+            self.assertEqual(c.get("/api/v1/runs").json()["total"], 0)
 
-            resp = c.post(
-                f"/api/v1/runs/{run_id}/export",
-                json={"format": "xlsx", "no_images": True},
+            view_state = {"sortColumn": "market", "sortDir": "desc", "filters": {}}
+            resp = c.patch(
+                f"/api/v1/runs/{run_id}",
+                json={"name": "Show prep, June", "view_state": view_state},
             )
             self.assertEqual(resp.status_code, 200)
-            self.assertEqual(
-                resp.headers["content-type"],
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-            self.assertGreater(len(resp.content), 0)
-            self.assertTrue(resp.content.startswith(b"PK"))  # xlsx is a zip
+            body = resp.json()
+            self.assertEqual(body["name"], "Show prep, June")
+            self.assertEqual(body["view_state"], view_state)
 
-    def test_re_export_unknown_format_returns_400(self) -> None:
+            listing = c.get("/api/v1/runs").json()
+            self.assertEqual(listing["total"], 1)
+            self.assertEqual(listing["items"][0]["name"], "Show prep, June")
+            self.assertEqual(listing["items"][0]["view_state"], view_state)
+
+    def test_patch_save_rejects_empty_name(self) -> None:
         from api.main import app
 
         with TestClient(app) as c:
-            # Need a run to target — re-export validates format before fetch.
-            with session_mod.get_session_factory()() as s:
-                s.add(Run(input_text="x", summary_json={}))
-                s.commit()
-                run_id = s.scalar(select(Run.id))
-            resp = c.post(f"/api/v1/runs/{run_id}/export", json={"format": "xml"})
-            self.assertEqual(resp.status_code, 400)
+            run_id = self._seed_run()
+            resp = c.patch(f"/api/v1/runs/{run_id}", json={"name": ""})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_patch_save_rejects_whitespace_only_name(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(f"/api/v1/runs/{run_id}", json={"name": "   "})
+            self.assertEqual(resp.status_code, 422)
+            self.assertEqual(c.get("/api/v1/runs").json()["total"], 0)
+
+    def test_patch_save_404s_on_missing_id(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            resp = c.patch("/api/v1/runs/99999", json={"name": "ignored"})
+            self.assertEqual(resp.status_code, 404)
 
 
 # ---------------------------------------------------------------------------

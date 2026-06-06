@@ -81,6 +81,15 @@ class Run(Base):
     # Lightweight aggregate (matched/missed counts, totals, per-tag breakdown)
     # so sidebar listing doesn't need to load run_rows.
     summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    # Non-NULL once the user "saves" the run as a named search. The sidebar
+    # filters on this — unnamed runs stay in the table (so re-export and a
+    # future "recents" surface can still find them) but don't clutter the
+    # saved list.
+    name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Snapshot of the ResultsTable sort + column-filter state at save time.
+    # Replayed on click-to-load so a saved search re-opens with the exact
+    # view the user was looking at.
+    view_state: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="runs")
     rows: Mapped[list[RunRow]] = relationship(

@@ -4,19 +4,17 @@
  * View-only — exports continue to apply the sort mode chosen in Settings,
  * not the column sort selected here.
  */
-import type { Row } from '../types'
+import type {
+  ResultsFilters,
+  ResultsSortColumn,
+  ResultsSortDir,
+  Row,
+} from '../types'
 
-export type SortColumn = 'name' | 'set' | 'rarity' | 'market' | 'source'
-export type SortDir = 'asc' | 'desc'
-
-export interface Filters {
-  name: string
-  set: string
-  rarity: string
-  marketMin: string
-  marketMax: string
-  source: string
-}
+// Re-export under the historical names so existing callers don't churn.
+export type SortColumn = ResultsSortColumn
+export type SortDir = ResultsSortDir
+export type Filters = ResultsFilters
 
 export const EMPTY_FILTERS: Filters = {
   name: '',

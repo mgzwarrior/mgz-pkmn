@@ -1,13 +1,24 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
-import { useAppStore } from '../store'
+import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import type { Row } from '../types'
 
 vi.mock('../api/client', () => ({
   addOverride: vi.fn(),
 }))
+
+beforeEach(() => {
+  // ResultsTable now reads sort + filter state from the store; reset
+  // between tests so a previous case's toggled filter or active sort
+  // doesn't bleed in (which surfaces a stray "Clear sort & filters"
+  // button that breaks `getByRole({ name: /filter/i })`).
+  useAppStore.setState({
+    viewState: { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters } },
+    currentRunId: null,
+  })
+})
 
 function makeRow(over: Partial<Row> = {}): Row {
   return {

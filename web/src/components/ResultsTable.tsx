@@ -11,21 +11,20 @@
  * column sort/filter is view-only; exports still honor the sort mode
  * in Settings.
  */
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, AlertCircle, Filter } from 'lucide-react'
 import { addOverride } from '../api/client'
 import { useAppStore } from '../store'
-import type { Row } from '../types'
+import type { ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
 import { AddToCollectionButton } from './AddToCollectionButton'
 import { AddToWishlistButton } from './AddToWishlistButton'
 import { CardDetailModal } from './CardDetailModal'
+import { SaveSearchButton } from './SaveSearchButton'
 import {
   applyFilters,
   applySort,
-  EMPTY_FILTERS,
   hasActiveFilters,
-  type Filters,
   type SortColumn,
   type SortDir,
 } from './resultsTableFilter'
@@ -35,27 +34,40 @@ interface Props {
 }
 
 export function ResultsTable({ onRerunLine }: Props) {
-  const { rows, progress, isRunning, settings } = useAppStore()
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir | null>(null)
-  const [showFilters, setShowFilters] = useState(false)
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+  const { rows, progress, isRunning, settings, viewState, setViewState, resetViewState } =
+    useAppStore()
+  const { sortColumn, sortDir, showFilters, filters } = viewState
   // Index into `displayedRows` for the row whose detail modal is open;
   // `null` keeps the modal closed. Tracking the index (not the row) lets
   // ←/→ navigation in the modal stay synced with the live filter+sort.
   const [detailIndex, setDetailIndex] = useState<number | null>(null)
 
-  function cycleSort(column: SortColumn) {
-    if (sortColumn !== column) {
-      setSortColumn(column)
-      setSortDir('asc')
-    } else if (sortDir === 'asc') {
-      setSortDir('desc')
-    } else {
-      setSortColumn(null)
-      setSortDir(null)
-    }
-  }
+  const cycleSort = useCallback(
+    (column: SortColumn) => {
+      const current = useAppStore.getState().viewState
+      if (current.sortColumn !== column) {
+        setViewState({ ...current, sortColumn: column, sortDir: 'asc' })
+      } else if (current.sortDir === 'asc') {
+        setViewState({ ...current, sortDir: 'desc' })
+      } else {
+        setViewState({ ...current, sortColumn: null, sortDir: null })
+      }
+    },
+    [setViewState],
+  )
+
+  const setFilterValue = useCallback(
+    <K extends keyof ResultsFilters>(key: K, value: ResultsFilters[K]) => {
+      const current = useAppStore.getState().viewState
+      setViewState({ ...current, filters: { ...current.filters, [key]: value } })
+    },
+    [setViewState],
+  )
+
+  const toggleFilters = useCallback(() => {
+    const current = useAppStore.getState().viewState
+    setViewState({ ...current, showFilters: !current.showFilters })
+  }, [setViewState])
 
   const displayedRows = useMemo(
     () => applySort(applyFilters(rows, filters), sortColumn, sortDir),
@@ -105,7 +117,7 @@ export function ResultsTable({ onRerunLine }: Props) {
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
-          onClick={() => setShowFilters((v) => !v)}
+          onClick={toggleFilters}
           aria-pressed={showFilters}
           className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
             showFilters
@@ -117,14 +129,11 @@ export function ResultsTable({ onRerunLine }: Props) {
           {showFilters ? 'Hide filters' : 'Filter'}
         </button>
         <div className="flex items-center gap-3">
+          <SaveSearchButton />
           {(sortColumn || hasActiveFilters(filters)) && (
             <button
               type="button"
-              onClick={() => {
-                setSortColumn(null)
-                setSortDir(null)
-                setFilters(EMPTY_FILTERS)
-              }}
+              onClick={resetViewState}
               className="text-xs text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200"
             >
               Clear sort &amp; filters
@@ -208,7 +217,7 @@ export function ResultsTable({ onRerunLine }: Props) {
                     aria-label="Filter by name"
                     placeholder="contains…"
                     value={filters.name}
-                    onChange={(v) => setFilters((f) => ({ ...f, name: v }))}
+                    onChange={(v) => setFilterValue('name', v)}
                   />
                 </FilterCell>
                 <FilterCell className="hidden md:table-cell">
@@ -216,7 +225,7 @@ export function ResultsTable({ onRerunLine }: Props) {
                     aria-label="Filter by set"
                     placeholder="contains…"
                     value={filters.set}
-                    onChange={(v) => setFilters((f) => ({ ...f, set: v }))}
+                    onChange={(v) => setFilterValue('set', v)}
                   />
                 </FilterCell>
                 <FilterCell className="hidden lg:table-cell">
@@ -224,7 +233,7 @@ export function ResultsTable({ onRerunLine }: Props) {
                     aria-label="Filter by rarity"
                     placeholder="contains…"
                     value={filters.rarity}
-                    onChange={(v) => setFilters((f) => ({ ...f, rarity: v }))}
+                    onChange={(v) => setFilterValue('rarity', v)}
                   />
                 </FilterCell>
                 <FilterCell>
@@ -234,14 +243,14 @@ export function ResultsTable({ onRerunLine }: Props) {
                       type="number"
                       placeholder="min"
                       value={filters.marketMin}
-                      onChange={(v) => setFilters((f) => ({ ...f, marketMin: v }))}
+                      onChange={(v) => setFilterValue('marketMin', v)}
                     />
                     <FilterInput
                       aria-label="Max market price"
                       type="number"
                       placeholder="max"
                       value={filters.marketMax}
-                      onChange={(v) => setFilters((f) => ({ ...f, marketMax: v }))}
+                      onChange={(v) => setFilterValue('marketMax', v)}
                     />
                   </div>
                 </FilterCell>
@@ -264,7 +273,7 @@ export function ResultsTable({ onRerunLine }: Props) {
                     aria-label="Filter by source"
                     placeholder="contains…"
                     value={filters.source}
-                    onChange={(v) => setFilters((f) => ({ ...f, source: v }))}
+                    onChange={(v) => setFilterValue('source', v)}
                   />
                 </FilterCell>
                 <th>

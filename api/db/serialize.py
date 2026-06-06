@@ -3,7 +3,7 @@
 Single source of truth for the wire-↔-storage mapping. Used by:
 
 - `routes/lookup.py` after a streaming `/bulk` completes, to write rows.
-- `routes/runs.py` to reconstruct rows for `GET /runs/{id}` and re-export.
+- `routes/runs.py` to reconstruct rows for `GET /runs/{id}`.
 
 Stays separate from `models.py` so the model definitions don't carry the
 serialisation logic, which keeps the Alembic autogenerate diffs clean."""
@@ -74,7 +74,7 @@ def row_to_run_row(row: Row, position: int) -> RunRow:
 
 
 # ---------------------------------------------------------------------------
-# RunRow → Row (for re-export and GET /runs/{id})
+# RunRow → Row (for GET /runs/{id})
 # ---------------------------------------------------------------------------
 
 
@@ -82,7 +82,7 @@ def run_row_to_row(rr: RunRow) -> Row:
     """Inverse of `row_to_run_row` — reconstructs the in-memory `Row`.
 
     The image is left detached (`image_path` carries the original on-disk
-    path which may no longer exist on a re-export); callers that want art
+    path which may no longer exist on re-load); callers that want art
     embedded need to download it again. The export path already handles
     this fine — `_download_card_image` is called on the reconstructed Row."""
     q = rr.query_json or {}

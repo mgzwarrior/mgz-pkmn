@@ -62,6 +62,19 @@ vi.mock('../api/client', () => ({
 }))
 
 const { storeState, storeApi } = vi.hoisted(() => {
+  const emptyViewState = {
+    sortColumn: null as 'name' | 'set' | 'rarity' | 'market' | 'source' | null,
+    sortDir: null as 'asc' | 'desc' | null,
+    showFilters: false,
+    filters: {
+      name: '',
+      set: '',
+      rarity: '',
+      marketMin: '',
+      marketMax: '',
+      source: '',
+    },
+  }
   const state = {
     rows: [] as Row[],
     inputText: '',
@@ -77,6 +90,9 @@ const { storeState, storeApi } = vi.hoisted(() => {
       sort: 'number' as const,
       showTimer: false,
     },
+    runs: [] as unknown[],
+    currentRunId: null as number | null,
+    viewState: { ...emptyViewState, filters: { ...emptyViewState.filters } },
   }
   const api = {
     setInputText: vi.fn((v: string) => {
@@ -90,6 +106,14 @@ const { storeState, storeApi } = vi.hoisted(() => {
     setIsRunning: vi.fn(),
     updateSettings: vi.fn(),
     resetSettings: vi.fn(),
+    setViewState: vi.fn((v: typeof state.viewState) => {
+      state.viewState = v
+    }),
+    resetViewState: vi.fn(() => {
+      state.viewState = { ...emptyViewState, filters: { ...emptyViewState.filters } }
+    }),
+    setRuns: vi.fn(),
+    setCurrentRunId: vi.fn(),
   }
   return { storeState: state, storeApi: api }
 })
