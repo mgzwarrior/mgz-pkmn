@@ -39,6 +39,12 @@ vi.mock('./api/client', () => ({
   addOverride: vi.fn(),
   // Referenced by the WhatsNewModal mounted in the header.
   fetchChangelog: vi.fn(() => Promise.resolve([])),
+  // SignInChip mounts on App render and calls `fetchMe` on mount;
+  // stub to "anonymous" so the chip resolves to its signed-out shape
+  // without a real HTTP round-trip.
+  fetchMe: vi.fn(() => Promise.resolve(null)),
+  logout: vi.fn(() => Promise.resolve()),
+  requestMagicLink: vi.fn(() => Promise.resolve()),
 }))
 
 function makeEvent(index: number, total: number, matched = true): BulkEvent {

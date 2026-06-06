@@ -23,6 +23,7 @@ import { InputEditor } from './InputEditor'
 import { ProcessingQueue } from './ProcessingQueue'
 import { ResultsTable } from './ResultsTable'
 import { SettingsDrawer } from './SettingsDrawer'
+import { SignInChip } from './SignInChip'
 import type { Row } from '../types'
 
 vi.mock('../api/client', () => ({
@@ -30,6 +31,12 @@ vi.mock('../api/client', () => ({
   downloadSetCardsPdf: vi.fn(),
   parseLine: vi.fn(),
   addOverride: vi.fn(),
+  // SignInChip's useAuth fires `fetchMe` on mount; the anonymous
+  // resolution lets the chip settle on the Sign-in button shape under
+  // axe, while the signed-in-state scan below overrides it per-test.
+  fetchMe: vi.fn().mockResolvedValue(null),
+  logout: vi.fn(),
+  requestMagicLink: vi.fn(),
   // Settings drawer mounts the cache-stats panel on open, which fetches
   // on mount. Return a zeroed snapshot so the a11y scan sees the loaded
   // state instead of the loading spinner.
@@ -230,6 +237,27 @@ describe('a11y: SettingsDrawer (opened)', () => {
   it('open drawer content has no violations', async () => {
     render(<SettingsDrawer />)
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    const results = await axe(document.body)
+    expect(results).toHaveNoViolations()
+  })
+})
+
+describe('a11y: SignInChip (anonymous trigger)', () => {
+  it('Sign-in trigger has no violations', async () => {
+    const { container } = render(<SignInChip />)
+    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    const results = await axe(container)
+    expect(results).toHaveNoViolations()
+  })
+})
+
+describe('a11y: SignInChip (provider picker opened)', () => {
+  it('open picker dialog has no violations', async () => {
+    render(<SignInChip />)
+    fireEvent.click(await screen.findByRole('button', { name: /sign in/i }))
+    // The magic-link form lives behind a second click — expand it so
+    // axe scans the input + submit alongside the OAuth anchors.
+    fireEvent.click(await screen.findByRole('button', { name: /email me a magic link/i }))
     const results = await axe(document.body)
     expect(results).toHaveNoViolations()
   })
