@@ -129,3 +129,25 @@ services:
         sync: false
       - key: MGZ_PKMN_GOOGLE_CLIENT_SECRET
         sync: false
+      # Magic-link SMTP relay (#409 / #489). Buttondown's "SMTP endpoint"
+      # is sender-side compose-by-email for newsletter drafts, not a
+      # transactional relay we can authenticate to and send arbitrary
+      # mail through, so the magic-link path uses Resend instead
+      # (smtp.resend.com:587 STARTTLS — the existing SmtpMailer code in
+      # api/auth/magic.py works against it unchanged). Free tier covers
+      # 3,000 emails/month, well above magic-link login traffic. All
+      # five vars must be set — `/auth/magic/request` returns 503 from
+      # `_get_mailer` / `_get_sender` (api/auth/magic.py) when any is
+      # missing. `sync: false` for the secrets; the From: address could
+      # live in-blueprint but stays here for symmetry with the rest of
+      # the auth-secret block.
+      - key: MGZ_PKMN_SMTP_HOST
+        sync: false
+      - key: MGZ_PKMN_SMTP_PORT
+        sync: false
+      - key: MGZ_PKMN_SMTP_USERNAME
+        sync: false
+      - key: MGZ_PKMN_SMTP_PASSWORD
+        sync: false
+      - key: MGZ_PKMN_MAGIC_LINK_FROM
+        sync: false

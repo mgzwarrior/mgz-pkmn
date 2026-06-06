@@ -58,19 +58,20 @@ from .session import DbSession, auth_enabled, resolve_session_secret
 
 _log = logging.getLogger(__name__)
 
-#: SMTP relay used to send the magic-link mail. The defaults match
-#: Buttondown's transactional SMTP endpoint per [ADR-0014](../../docs/adr/0014-buttondown-for-email-subscriptions.md);
-#: any RFC-compliant SMTP server (SES, Mailgun, a local Postfix) works
-#: as long as the four credentials below are populated.
+#: SMTP relay used to send the magic-link mail. Production runs against
+#: Resend (smtp.resend.com:587, STARTTLS); any RFC-compliant SMTP server
+#: (Resend, SES, Mailgun, a local Postfix) works as long as the four
+#: credentials below are populated. Buttondown (ADR-0014) is *not* a
+#: viable target here — its "SMTP endpoint" is sender-side compose-by-
+#: email for newsletter drafts, not a transactional relay.
 SMTP_HOST_ENV = "MGZ_PKMN_SMTP_HOST"
 SMTP_PORT_ENV = "MGZ_PKMN_SMTP_PORT"
 SMTP_USERNAME_ENV = "MGZ_PKMN_SMTP_USERNAME"
 SMTP_PASSWORD_ENV = "MGZ_PKMN_SMTP_PASSWORD"
 
-#: `From:` header for the magic-link email. Buttondown requires this
-#: to be a verified sender on the account; SES requires it to be in a
-#: verified domain. Kept as a separate var (rather than reusing the
-#: SMTP username) so the auth surface can ship under
+#: `From:` header for the magic-link email. Resend / SES require this
+#: to live on a verified domain. Kept as a separate var (rather than
+#: reusing the SMTP username) so the auth surface can ship under
 #: `noreply@mgz-pkmn.com` while the SMTP login stays the maintainer's
 #: account.
 SENDER_ENV = "MGZ_PKMN_MAGIC_LINK_FROM"
