@@ -249,3 +249,47 @@ describe('App: bulk-run timestamp lifecycle', () => {
     expect(useAppStore.getState().runEndedAt).toBe(5_000)
   })
 })
+
+describe('App: discovery mode switcher', () => {
+  beforeEach(() => {
+    resetStore()
+    mockBulkLookup.mockReset()
+  })
+
+  it('defaults to Search mode and shows the card-list editor', () => {
+    render(<App />)
+    const searchTab = screen.getByRole('tab', { name: /Search/ })
+    expect(searchTab).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('textbox', { name: /Card list/i })).toBeInTheDocument()
+  })
+
+  it('switching to Browse hides the editor and renders the inline browse panel', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('tab', { name: /Browse/ }))
+    expect(screen.queryByRole('textbox', { name: /Card list/i })).not.toBeInTheDocument()
+    // The inline BrowsePanel renders its description and a section
+    // wrapper labelled "Browse cards by set".
+    expect(screen.getByRole('region', { name: /Browse cards by set/i })).toBeInTheDocument()
+    expect(
+      screen.getByText(/Pick a set to see every card with its market price/),
+    ).toBeInTheDocument()
+  })
+
+  it('switching to Swipe shows the placeholder copy', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('tab', { name: /Swipe/ }))
+    expect(screen.getByText(/Swipe mode is coming/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /Track progress on issue #340/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('switching back to Search restores the editor without losing input', () => {
+    useAppStore.setState({ inputText: 'Charizard | Base Set | 4' })
+    render(<App />)
+    fireEvent.click(screen.getByRole('tab', { name: /Browse/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /Search/ }))
+    const textbox = screen.getByRole('textbox', { name: /Card list/i })
+    expect(textbox).toHaveValue('Charizard | Base Set | 4')
+  })
+})
