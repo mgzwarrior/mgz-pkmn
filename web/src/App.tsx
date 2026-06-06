@@ -15,7 +15,6 @@ import { useCallback, useRef, useState } from 'react'
 import { Heart, Library, Search } from 'lucide-react'
 import { bulkLookup, lookupLine } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
-import { BrowseModal } from './components/BrowseModal'
 import { BrowsePanel } from './components/BrowsePanel'
 import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
@@ -61,12 +60,9 @@ function App() {
 
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
-  const [browseOpen, setBrowseOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('search')
-  // Drive the inline browse view from the same controller hook the
-  // modal uses — keeps fetch/cache/reset behaviour identical across
-  // surfaces. `active` flips when the user switches into browse mode
-  // so the controller's reset effect fires.
+  // `active` flips when the user switches into browse mode so the
+  // controller's reset effect fires.
   const browseController = useBrowseController(mode === 'browse')
 
   // Easter egg: 5 clicks on the brand reveals Exeggutor + claim code
@@ -219,17 +215,6 @@ function App() {
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
           </button>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setBrowseOpen(true)}
-              className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
-              title="Browse sets"
-              aria-label="Browse sets"
-              data-tour="browse"
-            >
-              <Library size={15} />
-              <span className="hidden sm:inline">Browse</span>
-            </button>
             <div data-tour="exports">
               <ExportBar />
             </div>
@@ -311,8 +296,6 @@ function App() {
       {tourOpen && (
         <Tour onClose={() => setTourOpen(false)} onRun={handleRun} onStop={handleStop} />
       )}
-
-      <BrowseModal open={browseOpen} onOpenChange={setBrowseOpen} />
 
       {/* Easter egg overlay — see handleBrandClick. */}
       {showEgg && (

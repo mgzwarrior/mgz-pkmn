@@ -1,14 +1,13 @@
 /**
- * useBrowseController — shared state + effects for BrowsePanel and
- * BrowseModal. Owns the set catalog (seeded from BAKED_SETS, then
- * revalidated against `/api/v1/sets`), the currently-active set, the
- * trimmed card payload for that set (cached per-id for the lifetime
- * of the React tree), and the search / rarity / sort controls.
+ * useBrowseController — state + effects for the Browse discovery-mode
+ * tab. Owns the set catalog (seeded from BAKED_SETS, then revalidated
+ * against `/api/v1/sets`), the currently-active set, the trimmed card
+ * payload for that set (cached per-id for the lifetime of the React
+ * tree), and the search / rarity / sort controls.
  *
- * `active` should reflect whether the consuming surface is visible —
- * when it flips true the controller resets transient view state so
- * the user always lands on the set list, not whatever they were
- * browsing last time.
+ * `active` should reflect whether the tab is visible — when it flips
+ * true the controller resets transient view state so the user always
+ * lands on the set list, not whatever they were browsing last time.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchSetCards, fetchSets } from '../api/client'

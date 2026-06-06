@@ -10,8 +10,8 @@
  *
  * The live fetch still runs in the background on first open so any
  * sets that landed upstream since the last bake show up the same
- * session — no need to wait for a deploy. See `BrowseModal` and
- * `SetPickerModal` for the revalidation flow.
+ * session — no need to wait for a deploy. See `useBrowseController`
+ * and `SetPickerModal` for the revalidation flow.
  */
 import type { SetInfo } from '../types'
 import bakedSets from './sets.json'

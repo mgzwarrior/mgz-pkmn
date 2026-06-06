@@ -1,8 +1,7 @@
 /**
- * BrowsePanel — the inline "browse cards by set" view, shared between
- * the dedicated browse tab in App.tsx and the BrowseModal overlay.
- * State + effects live in [useBrowseController](./useBrowseController.ts)
- * so both surfaces stay in sync without lifting state into App.
+ * BrowsePanel — the inline "browse cards by set" view rendered by the
+ * Browse discovery-mode tab in App.tsx. State + effects live in
+ * [useBrowseController](./useBrowseController.ts).
  */
 import { ArrowLeft, ImageOff, Library, Loader2, Plus, Search } from 'lucide-react'
 import { useState } from 'react'
@@ -23,22 +22,9 @@ function releaseYear(date: string): string | null {
 
 interface BrowsePanelProps {
   controller: BrowseController
-  // When true, render chrome that fits inside a Dialog (no outer card
-  // frame). Use the `titleSlot` / `closeSlot` hooks to inject the
-  // Radix-required Dialog.Title and a close affordance.
-  inDialog?: boolean
-  titleSlot?: ReactNode
-  closeSlot?: ReactNode
-  descriptionId?: string
 }
 
-export function BrowsePanel({
-  controller,
-  inDialog = false,
-  titleSlot,
-  closeSlot,
-  descriptionId,
-}: BrowsePanelProps) {
+export function BrowsePanel({ controller }: BrowsePanelProps) {
   const {
     groups,
     activeSet,
@@ -65,12 +51,8 @@ export function BrowsePanel({
     ? 'Click a card to add it to your input list, or use the bulk actions below.'
     : 'Pick a set to see every card with its market price, sortable and filterable.'
 
-  const wrapperClass = inDialog
-    ? 'flex flex-1 flex-col overflow-hidden'
-    : 'flex flex-col overflow-hidden rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-sm'
-
   return (
-    <div className={wrapperClass}>
+    <div className="flex flex-col overflow-hidden rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-sm">
       <header className="flex items-center justify-between gap-3 border-b border-sand-200 dark:border-husk-100 px-5 py-4">
         <div className="flex items-center gap-2">
           {activeSet && (
@@ -84,11 +66,9 @@ export function BrowsePanel({
             </button>
           )}
           <Library size={18} className="text-coconut-600 dark:text-sand-200" />
-          {titleSlot ?? (
-            <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
-              {headerTitle}
-            </h2>
-          )}
+          <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
+            {headerTitle}
+          </h2>
           {activeSet && (
             <span className="text-xs text-coconut-400 dark:text-sand-400">
               {activeSet.series}
@@ -98,13 +78,9 @@ export function BrowsePanel({
             </span>
           )}
         </div>
-        {closeSlot}
       </header>
 
-      <p
-        id={descriptionId}
-        className="px-5 pt-3 text-sm text-coconut-400 dark:text-sand-300"
-      >
+      <p className="px-5 pt-3 text-sm text-coconut-400 dark:text-sand-300">
         {description}
       </p>
 
