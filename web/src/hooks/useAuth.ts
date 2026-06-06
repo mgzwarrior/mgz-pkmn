@@ -1,7 +1,7 @@
 /**
  * useAuth — minimal hook exposing the current signed-in user (or null
  * for anonymous) plus a `refresh()` callback the OAuth/magic-link
- * flows can call when they land back on `/` to re-poll `GET /me`.
+ * flows can call when they land back on `/` to re-poll `GET /api/v1/me`.
  *
  * No global store on purpose: the chip is the only consumer in this
  * slice. If a second consumer lands later (the save-search nudge in
