@@ -16,6 +16,7 @@ import { Bookmark, Heart, Library, Search } from 'lucide-react'
 import { bulkLookup, lookupLine } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { BrowsePanel } from './components/BrowsePanel'
+import { SwipePanel } from './components/SwipePanel'
 import { CollectionsModal } from './components/CollectionsModal'
 import { WishlistsModal } from './components/WishlistsModal'
 import { useBrowseController } from './components/useBrowseController'
@@ -40,7 +41,7 @@ type DiscoveryMode = 'search' | 'browse' | 'swipe'
 const MODES: { value: DiscoveryMode; label: string; icon: typeof Search; hint: string }[] = [
   { value: 'search', label: 'Search', icon: Search, hint: 'Paste a want-list' },
   { value: 'browse', label: 'Browse', icon: Library, hint: 'Walk a set' },
-  { value: 'swipe', label: 'Swipe', icon: Heart, hint: 'Coming soon' },
+  { value: 'swipe', label: 'Swipe', icon: Heart, hint: 'Card-at-a-time' },
 ]
 
 function App() {
@@ -314,7 +315,11 @@ function App() {
           </section>
         )}
 
-        {mode === 'swipe' && <SwipePlaceholder />}
+        {mode === 'swipe' && (
+          <section aria-label="Swipe cards">
+            <SwipePanel active={mode === 'swipe'} />
+          </section>
+        )}
       </main>
 
       {tourOpen && (
@@ -398,36 +403,6 @@ function App() {
         </a>
       </footer>
     </div>
-  )
-}
-
-function SwipePlaceholder() {
-  return (
-    <section
-      aria-label="Swipe mode"
-      className="rounded-lg border border-dashed border-sand-300 bg-sand-50 px-6 py-12 text-center dark:border-husk-50 dark:bg-husk-200"
-    >
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sun-400/20 text-sun-500 dark:bg-sun-400/30 dark:text-sun-300">
-        <Heart size={22} aria-hidden />
-      </div>
-      <h2 className="mt-4 text-lg font-semibold text-coconut-700 dark:text-sand-50">
-        Swipe mode is coming
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-coconut-500 dark:text-sand-300">
-        One card at a time — swipe right to save, left to pass, up for more like
-        this. Your taste profile turns into a personalized prep list for the
-        next show.{' '}
-        <a
-          href="https://github.com/mgzwarrior/mgz-pkmn/issues/340"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200"
-        >
-          Track progress on issue #340
-        </a>
-        .
-      </p>
-    </section>
   )
 }
 
