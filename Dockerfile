@@ -56,4 +56,8 @@ COPY --from=web-builder /app/web/dist ./web/dist
 # Render injects $PORT; default to 8000 for local docker run.
 ENV PORT=8000
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT}"]
+# `--proxy-headers --forwarded-allow-ips=*` trusts Render's TLS-terminating
+# proxy so `request.url_for(...)` builds https:// URLs from X-Forwarded-Proto.
+# Without this, OAuth `redirect_uri` is generated as http:// and providers
+# (GitHub / Google) reject the callback as not matching the registered URL.
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips=*"]
