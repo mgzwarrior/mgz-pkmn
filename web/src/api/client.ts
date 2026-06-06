@@ -384,3 +384,64 @@ export async function requestMagicLink(email: string): Promise<void> {
   })
   if (!res.ok && res.status !== 202) throw new Error(`magic-link failed: ${res.status}`)
 }
+
+// ---------------------------------------------------------------------------
+// collections
+// ---------------------------------------------------------------------------
+
+export interface CollectionSummary {
+  id: number
+  name: string
+  description: string | null
+  created_at: string
+  item_count: number
+}
+
+export interface CollectionItem {
+  id: number
+  card: Record<string, unknown>
+  notes: string | null
+  added_at: string
+}
+
+export interface Collection {
+  id: number
+  name: string
+  description: string | null
+  created_at: string
+  items: CollectionItem[]
+}
+
+export async function fetchCollections(): Promise<CollectionSummary[]> {
+  const res = await fetch(`${BASE}/collections`)
+  if (!res.ok) throw new Error(`collections failed: ${res.status}`)
+  const data = await res.json()
+  return data.items as CollectionSummary[]
+}
+
+export async function createCollection(
+  name: string,
+  description?: string | null,
+): Promise<Collection> {
+  const res = await fetch(`${BASE}/collections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description: description ?? null }),
+  })
+  if (!res.ok) throw new Error(`create collection failed: ${res.status}`)
+  return (await res.json()) as Collection
+}
+
+export async function addCardToCollection(
+  collectionId: number,
+  card: Record<string, unknown>,
+  notes?: string | null,
+): Promise<CollectionItem> {
+  const res = await fetch(`${BASE}/collections/${collectionId}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card, notes: notes ?? null }),
+  })
+  if (!res.ok) throw new Error(`add to collection failed: ${res.status}`)
+  return (await res.json()) as CollectionItem
+}

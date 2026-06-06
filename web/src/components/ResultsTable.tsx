@@ -17,6 +17,7 @@ import { addOverride } from '../api/client'
 import { useAppStore } from '../store'
 import type { Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
+import { AddToCollectionButton } from './AddToCollectionButton'
 import { CardDetailModal } from './CardDetailModal'
 import {
   applyFilters,
@@ -542,19 +543,24 @@ function ResultRow({
           {p.source ?? '—'}
         </td>
 
-        {/* Link */}
-        <td className="px-3 py-2 w-8">
-          {p.url && (
-            <a
-              href={p.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
-              title="Open listing"
-            >
-              <ExternalLink size={13} />
-            </a>
-          )}
+        {/* Link + collection action */}
+        <td className="px-3 py-2 w-16">
+          <div className="flex items-center justify-end gap-1">
+            {row.matched && card && (
+              <AddToCollectionButton card={card as Record<string, unknown>} />
+            )}
+            {p.url && (
+              <a
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
+                title="Open listing"
+              >
+                <ExternalLink size={13} />
+              </a>
+            )}
+          </div>
         </td>
       </tr>
 
