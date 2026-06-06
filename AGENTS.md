@@ -103,18 +103,38 @@ recording, or a `curl` / log snippet — so reviewers can see the
 change without reproducing it locally. Pick the form that matches the
 change:
 
-- **UI change** — drop a screenshot (or a before/after pair for
+- **UI change** — a screenshot (or a before/after pair for
   positional or layout fixes) under **How to verify**, or under a
-  dedicated **Proof** subsection. Upload via the GitHub PR-body image
-  picker so the asset lives on `user-images.githubusercontent.com`.
+  dedicated **Proof** subsection. The asset should live on
+  `user-images.githubusercontent.com` (uploaded via the GitHub
+  PR-body image picker).
 - **Multi-step interaction** (dropdown, drawer, tour, streaming
-  results) — record a short Jam clip and paste the link.
-- **Backend bug fix** that closes a user-reported issue — paste a
-  `curl` or log artifact showing the fixed response, or a screenshot
-  of the corrected surface in the SPA.
+  results) — a short Jam clip.
+- **Backend bug fix** that closes a user-reported issue — a `curl`
+  or log artifact showing the fixed response, or a screenshot of the
+  corrected surface in the SPA.
 
 Exempt: dependency bumps, internal refactors with no behavior change,
 test-only or docs-only PRs.
+
+### Agents do not attach screenshots — they request them
+
+AI agents (Claude Code, Copilot, Cursor, etc.) **do not** upload
+screenshots or Jam clips when opening a PR. The `gh` CLI has no
+endpoint for attaching to `user-images.githubusercontent.com`, and
+committing screenshots to the repo as a workaround bloats `main` and
+is not allowed. Instead, the agent should:
+
+1. Leave a placeholder section in the PR body, e.g.
+   `## Preview` _— screenshot to be attached by the developer._
+2. Verify the change works locally (browser preview, manual reproduction,
+   added tests) and call that out in **How to verify**.
+3. Explicitly instruct the developer in the final turn to drag the
+   screenshot or Jam link into the PR description (or as a comment)
+   before requesting review.
+
+The developer attaches the artifact — the agent's job is to make the
+PR ready *except* for that one step.
 
 **Required for merge.** All [CI checks](docs/contributing.md#ci) must
 be green before a PR is merged. The verification artifact requirement
