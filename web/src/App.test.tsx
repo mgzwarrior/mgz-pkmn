@@ -34,6 +34,15 @@ vi.mock('./api/client', () => ({
   exportFile: vi.fn(),
   downloadSetCardsPdf: vi.fn(),
   fetchSets: vi.fn(() => Promise.resolve([])),
+  // SwipePanel mounts on the Swipe tab and calls `fetchSetCards` on
+  // each candidate fetch — stub to an empty list so the panel surfaces
+  // its "loading sets…" state without hitting the network.
+  fetchSetCards: vi.fn(() => Promise.resolve([])),
+  // SwipePanel's "Build prep list" CTA depends on `useWishlists`, which
+  // mounts its own GET on the first hook subscriber.
+  fetchWishlists: vi.fn(() => Promise.resolve([])),
+  createWishlist: vi.fn(),
+  addCardToWishlist: vi.fn(),
   setLogoUrl: vi.fn(() => ''),
   dedupeRows: vi.fn((rows: unknown[]) => rows),
   addOverride: vi.fn(),
@@ -275,12 +284,12 @@ describe('App: discovery mode switcher', () => {
     ).toBeInTheDocument()
   })
 
-  it('switching to Swipe shows the placeholder copy', () => {
+  it('switching to Swipe mounts the SwipePanel', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('tab', { name: /Swipe/ }))
-    expect(screen.getByText(/Swipe mode is coming/i)).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /Swipe mode/i })).toBeInTheDocument()
     expect(
-      screen.getByRole('link', { name: /Track progress on issue #340/i }),
+      screen.getByText(/One card at a time — right to save/i),
     ).toBeInTheDocument()
   })
 
