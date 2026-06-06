@@ -55,12 +55,10 @@ interface SwipePanelProps {
 }
 
 export function SwipePanel({ active }: SwipePanelProps) {
-  const { profile, seenSet, scoreCard, act, clearSaved, reset } =
-    useSwipeProfile()
+  const { profile, seenSet, act, clearSaved, reset } = useSwipeProfile()
   const { current, loading, exhausted, error, advance } = useSwipeCandidates({
     active,
     seenSet,
-    scoreCard,
   })
 
   const [drag, setDrag] = useState<Drag | null>(null)

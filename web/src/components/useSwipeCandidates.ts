@@ -3,18 +3,23 @@
  *
  * V1 heuristic per [#483](https://github.com/mgzwarrior/mgz-pkmn/issues/483):
  *
- *   1. Pull the set catalog (shared with Browse via `BAKED_SETS` + the
- *      `/api/v1/sets` revalidation flow).
- *   2. Walk sets newest-first; for each, fetch its trimmed card list.
- *   3. From the unseen pool, pick the card with the highest profile
- *      score (ties broken by market price descending so a balanced
- *      profile still shows the headliners first). Once the user has
- *      no profile signal yet, the top of the pool is effectively a
- *      shuffled walk through the most recent sets.
- *   4. When a set is exhausted, advance to the next set.
+ *   1. Pull the full set catalog (BAKED_SETS + live `/api/v1/sets`
+ *      revalidation). No recency bias — every set is in the pool.
+ *   2. On each `pick()`, choose a random set the user hasn't already
+ *      exhausted, fetch its trimmed card list on demand, then sample
+ *      one unseen card with **rarity-weighted random selection**
+ *      (heavily biased toward higher-rarity cards via `RARITY_WEIGHTS`).
+ *      If the chosen set is fully seen, mark it exhausted and recurse.
+ *   3. When every set is exhausted, surface the exhausted state.
  *
- * The hook returns `{ current, advance, loading, exhausted }`. The
- * consumer calls `advance()` after each swipe; the profile updates
+ * The taste profile (rarity / set / supertype counters) tracked by
+ * `useSwipeProfile` is intentionally *not* fed back into selection
+ * here — it's saved for the prep-list output. The user wanted simple
+ * rarity-weighted random across the whole catalog, not a recency-
+ * or profile-shaped walk.
+ *
+ * The hook returns `{ current, advance, loading, exhausted, error }`.
+ * The consumer calls `advance()` after each swipe; profile updates
  * happen separately in `useSwipeProfile.act`.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -32,7 +37,7 @@ interface State {
   /** Current candidate, or null while we're loading the next batch. */
   current: Candidate | null
   loading: boolean
-  /** True only when every fetched set has been walked end-to-end. */
+  /** True only when every set in the catalog has been walked end-to-end. */
   exhausted: boolean
   error: string | null
 }
@@ -42,25 +47,82 @@ interface UseSwipeCandidatesOpts {
   active: boolean
   /** Card IDs the user has already seen — filtered out of the pool. */
   seenSet: Set<string>
-  /** Higher = better match. Used to rank the pool head. */
-  scoreCard: (card: SetCard, setId: string) => number
+  /**
+   * Optional `Math.random` replacement. Production passes nothing
+   * (defaults to `Math.random`); tests inject a deterministic source.
+   */
+  rng?: () => number
 }
 
-// Sets are walked newest-first. Limit V1 to the recent few to keep
-// rotation tight; the heuristic improves as the profile builds up.
-const MAX_SETS_TO_WALK = 6
+/**
+ * Per-rarity sampling weight. Higher = more likely to surface. The
+ * spread between Common (1) and Special Illustration Rare (50) is
+ * intentional — a typical set is overwhelmingly Common / Uncommon,
+ * so a uniform sample would surface bulk first.
+ *
+ * Keys are matched case-insensitively against the trimmed card's
+ * `rarity` field, which mirrors pokemontcg.io's strings. Unknown
+ * rarities fall back to {@link DEFAULT_WEIGHT}.
+ */
+const RARITY_WEIGHTS: Record<string, number> = {
+  common: 1,
+  uncommon: 2,
+  rare: 5,
+  promo: 5,
+  'rare holo': 8,
+  'rare holo lv.x': 12,
+  'rare holo ex': 12,
+  'rare holo gx': 12,
+  'rare holo v': 12,
+  'rare holo vmax': 14,
+  'rare holo vstar': 14,
+  'double rare': 12,
+  'rare break': 20,
+  'radiant rare': 20,
+  'rare ace': 25,
+  'rare prime': 25,
+  'rare prism star': 25,
+  'rare shining': 30,
+  'rare star': 25,
+  'rare shiny': 25,
+  'shiny rare': 25,
+  'amazing rare': 25,
+  'shiny ultra rare': 35,
+  'ultra rare': 30,
+  'rare ultra': 30,
+  'illustration rare': 30,
+  'special illustration rare': 50,
+  'hyper rare': 40,
+  'rare secret': 40,
+  'rare rainbow': 40,
+  'trainer gallery rare holo': 18,
+  'ace spec rare': 25,
+}
 
-function sortSetsNewestFirst(sets: SetInfo[]): SetInfo[] {
-  return [...sets].sort((a, b) => {
-    const ay = a.releaseDate || ''
-    const by = b.releaseDate || ''
-    if (ay === by) return a.name.localeCompare(b.name)
-    return by.localeCompare(ay)
-  })
+const DEFAULT_WEIGHT = 5
+
+function rarityWeight(rarity: string | null): number {
+  if (!rarity) return DEFAULT_WEIGHT
+  return RARITY_WEIGHTS[rarity.toLowerCase()] ?? DEFAULT_WEIGHT
+}
+
+/**
+ * Weighted-random sample. Returns the index of the chosen item;
+ * higher-weight entries are proportionally more likely.
+ */
+function weightedSample(weights: number[], rng: () => number): number {
+  const total = weights.reduce((a, b) => a + b, 0)
+  if (total <= 0) return Math.floor(rng() * weights.length)
+  let r = rng() * total
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i]
+    if (r <= 0) return i
+  }
+  return weights.length - 1
 }
 
 export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
-  const { active, seenSet, scoreCard } = opts
+  const { active, seenSet, rng = Math.random } = opts
 
   const [state, setState] = useState<State>({
     current: null,
@@ -69,15 +131,17 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     error: null,
   })
 
-  // Sets to walk + per-set card caches. `cardsBySet` keyed by set id.
-  const [orderedSets, setOrderedSets] = useState<SetInfo[]>(() =>
-    sortSetsNewestFirst(BAKED_SETS).slice(0, MAX_SETS_TO_WALK),
-  )
+  // Full set catalog — seeded from the baked snapshot and revalidated
+  // against `/api/v1/sets`. Not sorted; every set is equally likely
+  // to be sampled on each pick.
+  const [allSets, setAllSets] = useState<SetInfo[]>(() => [...BAKED_SETS])
   const cardsBySetRef = useRef<Record<string, SetCard[]>>({})
-  const setCursorRef = useRef(0)
+  // Sets the user has fully seen — skipped on subsequent picks so
+  // we don't fetch them again.
+  const exhaustedSetsRef = useRef<Set<string>>(new Set())
 
-  // Revalidate the baked catalog against the live `/api/v1/sets` endpoint
-  // — silently fall back to the baked snapshot on failure.
+  // Revalidate the baked catalog against the live `/api/v1/sets`
+  // endpoint — silently fall back to the baked snapshot on failure.
   useEffect(() => {
     if (!active) return
     let cancelled = false
@@ -85,8 +149,7 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
       try {
         const live = await fetchSets()
         if (cancelled) return
-        const fresh = sortSetsNewestFirst(live).slice(0, MAX_SETS_TO_WALK)
-        if (fresh.length > 0) setOrderedSets(fresh)
+        if (live.length > 0) setAllSets(live)
       } catch {
         /* baked catalog is enough — silent fallback */
       }
@@ -96,15 +159,33 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     }
   }, [active])
 
-  // Pick the next candidate from the current set, fetching cards on
-  // demand. Encapsulated as a callback so `advance()` can re-run it.
+  // Pick the next candidate by sampling a random set, fetching its
+  // card list if not yet cached, then rarity-weighted-sampling the
+  // unseen card pool.
   const pick = useCallback(async () => {
-    if (orderedSets.length === 0) return
+    if (allSets.length === 0) return
 
     setState((s) => ({ ...s, loading: true, error: null }))
 
-    while (setCursorRef.current < orderedSets.length) {
-      const set = orderedSets[setCursorRef.current]
+    // Recurse up to N times to skip exhausted sets / loop on fetch
+    // errors without blowing the stack. N is bounded by the catalog
+    // size + a small slack — the exhausted-set ref means we never
+    // re-roll the same set in a single pick.
+    for (let attempt = 0; attempt < allSets.length + 4; attempt++) {
+      const available = allSets.filter(
+        (s) => !exhaustedSetsRef.current.has(s.id),
+      )
+      if (available.length === 0) {
+        setState({
+          current: null,
+          loading: false,
+          exhausted: true,
+          error: null,
+        })
+        return
+      }
+
+      const set = available[Math.floor(rng() * available.length)]
       let cards = cardsBySetRef.current[set.id]
 
       if (!cards) {
@@ -123,47 +204,44 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
       }
 
       const unseen = cards.filter((c) => !seenSet.has(c.id))
-      if (unseen.length > 0) {
-        // Rank by profile score; tie-break on market desc so headliners
-        // surface first in a cold-start profile.
-        const ranked = [...unseen].sort((a, b) => {
-          const sa = scoreCard(a, set.id)
-          const sb = scoreCard(b, set.id)
-          if (sa !== sb) return sb - sa
-          return (b.market ?? 0) - (a.market ?? 0)
-        })
-        setState({
-          current: { card: ranked[0], setId: set.id, setName: set.name },
-          loading: false,
-          exhausted: false,
-          error: null,
-        })
-        return
+      if (unseen.length === 0) {
+        exhaustedSetsRef.current.add(set.id)
+        continue
       }
 
-      // This set is fully seen — advance.
-      setCursorRef.current += 1
+      const weights = unseen.map((c) => rarityWeight(c.rarity))
+      const idx = weightedSample(weights, rng)
+      const chosen = unseen[idx]
+      setState({
+        current: { card: chosen, setId: set.id, setName: set.name },
+        loading: false,
+        exhausted: false,
+        error: null,
+      })
+      return
     }
 
+    // Defensive fallback — shouldn't happen unless the catalog is
+    // wedged in a tight loop of always-empty sets.
     setState({
       current: null,
       loading: false,
       exhausted: true,
       error: null,
     })
-  }, [orderedSets, seenSet, scoreCard])
+  }, [allSets, seenSet, rng])
 
-  // Whenever the set list changes (initial load + revalidation) or the
-  // seen set updates (consumer swiped), advance to a fresh candidate.
-  // `pick` itself fetches + setStates, which the lint rule flags as a
-  // cascading-render risk — guarded by an early-return + the deps so it
-  // only runs when one of the real inputs changes.
+  // Whenever the set list changes (initial load + revalidation) or
+  // the seen set updates (consumer swiped), advance to a fresh
+  // candidate. See `useBrowseController` for the same eslint-disable
+  // pattern — the cascading-render risk is mitigated by the
+  // early-return guards inside `pick`.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!active) return
-    if (orderedSets.length === 0) return
+    if (allSets.length === 0) return
     void pick()
-  }, [active, orderedSets, pick])
+  }, [active, allSets, pick])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const advance = useCallback(() => {
@@ -178,3 +256,7 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     advance,
   }
 }
+
+// Test-only: surface the rarity table + weighted sampler so unit
+// tests can pin the heuristic without going through the React tree.
+export { RARITY_WEIGHTS, DEFAULT_WEIGHT, rarityWeight, weightedSample }
