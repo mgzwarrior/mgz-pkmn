@@ -217,7 +217,6 @@ function App() {
           >
             <img src={logoLightUrl} alt="mgz-pkmn" className="h-8 w-auto dark:hidden" />
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
-            <span className="text-xs text-coconut-400 dark:text-sand-400 hidden sm:inline">card lookup</span>
           </button>
           <div className="flex items-center gap-2">
             <button
@@ -263,7 +262,7 @@ function App() {
                 role="tab"
                 aria-selected={active}
                 onClick={() => setMode(m.value)}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm transition-colors min-w-[120px] ${
+                className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors min-w-[120px] ${
                   active
                     ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
                     : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
@@ -282,9 +281,6 @@ function App() {
         {mode === 'search' && (
           <>
             <section data-tour="input">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-                Card list
-              </h2>
               <InputEditor onRun={handleRun} onStop={handleStop} />
               <div className="mt-3">
                 <RecentRuns onRun={handleRun} />
