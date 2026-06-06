@@ -2,7 +2,7 @@
 
 A **collection** is a user-named bucket of cards you want to keep around across lookup runs — think "binder candidates", "Charizard masters", or "show pickups". It's the third slice of [ADR-0013](adr/0013-sqlite-persistence-for-runs-collections-wishlists.md): a flat list of matched cards pinned by their verbatim payload, so card identity survives even if the upstream source ([pokemontcg.io](https://pokemontcg.io) / TCGdex) renames or removes the row.
 
-Collections live alongside runs (per-pipeline history) and wishlists (next slice). They don't change pricing or lookup behavior — they're just a place to remember matched cards you care about.
+Collections live alongside runs (per-pipeline history) and [wishlists](wishlists.md) (the next slice — "I want these" instead of "I own these"). They don't change pricing or lookup behavior — they're just a place to remember matched cards you care about.
 
 ## In the SPA
 
@@ -42,4 +42,4 @@ Two tables, both keyed on `user_id`:
 
 - **Sharing / exporting collections** — follow-up.
 - **Multi-user identity** — every collection currently belongs to the sentinel `default` user; real per-user routing arrives with [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61).
-- **Wishlist behavior** — separate slice ([#245](https://github.com/mgzwarrior/mgz-pkmn/issues/245)).
+- **Wishlist behavior** — separate surface ([wishlists.md](wishlists.md) / [#245](https://github.com/mgzwarrior/mgz-pkmn/issues/245)).

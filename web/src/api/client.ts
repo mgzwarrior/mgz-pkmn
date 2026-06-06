@@ -445,3 +445,69 @@ export async function addCardToCollection(
   if (!res.ok) throw new Error(`add to collection failed: ${res.status}`)
   return (await res.json()) as CollectionItem
 }
+
+// ---------------------------------------------------------------------------
+// wishlists
+// ---------------------------------------------------------------------------
+
+export interface WishlistSummary {
+  id: number
+  name: string
+  description: string | null
+  created_at: string
+  item_count: number
+}
+
+export interface WishlistItem {
+  id: number
+  card: Record<string, unknown>
+  notes: string | null
+  max_price: number | null
+  added_at: string
+}
+
+export interface Wishlist {
+  id: number
+  name: string
+  description: string | null
+  created_at: string
+  items: WishlistItem[]
+}
+
+export async function fetchWishlists(): Promise<WishlistSummary[]> {
+  const res = await fetch(`${BASE}/wishlists`)
+  if (!res.ok) throw new Error(`wishlists failed: ${res.status}`)
+  const data = await res.json()
+  return data.items as WishlistSummary[]
+}
+
+export async function createWishlist(
+  name: string,
+  description?: string | null,
+): Promise<Wishlist> {
+  const res = await fetch(`${BASE}/wishlists`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description: description ?? null }),
+  })
+  if (!res.ok) throw new Error(`create wishlist failed: ${res.status}`)
+  return (await res.json()) as Wishlist
+}
+
+export async function addCardToWishlist(
+  wishlistId: number,
+  card: Record<string, unknown>,
+  opts?: { notes?: string | null; maxPrice?: number | null },
+): Promise<WishlistItem> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      card,
+      notes: opts?.notes ?? null,
+      max_price: opts?.maxPrice ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`add to wishlist failed: ${res.status}`)
+  return (await res.json()) as WishlistItem
+}

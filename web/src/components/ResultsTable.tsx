@@ -18,6 +18,7 @@ import { useAppStore } from '../store'
 import type { Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
 import { AddToCollectionButton } from './AddToCollectionButton'
+import { AddToWishlistButton } from './AddToWishlistButton'
 import { CardDetailModal } from './CardDetailModal'
 import {
   applyFilters,
@@ -543,11 +544,14 @@ function ResultRow({
           {p.source ?? '—'}
         </td>
 
-        {/* Link + collection action */}
-        <td className="px-3 py-2 w-16">
+        {/* Link + collection / wishlist actions */}
+        <td className="px-3 py-2 w-20">
           <div className="flex items-center justify-end gap-1">
             {row.matched && card && (
-              <AddToCollectionButton card={card as Record<string, unknown>} />
+              <>
+                <AddToCollectionButton card={card as Record<string, unknown>} />
+                <AddToWishlistButton card={card as Record<string, unknown>} />
+              </>
             )}
             {p.url && (
               <a

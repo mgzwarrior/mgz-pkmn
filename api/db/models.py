@@ -127,6 +127,46 @@ class CollectionItem(Base):
     collection: Mapped[Collection] = relationship(back_populates="items")
 
 
+class Wishlist(Base):
+    __tablename__ = "wishlists"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), default=DEFAULT_USER_ID, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    items: Mapped[list[WishlistItem]] = relationship(
+        back_populates="wishlist",
+        cascade="all, delete-orphan",
+        order_by="WishlistItem.added_at",
+    )
+
+
+class WishlistItem(Base):
+    __tablename__ = "wishlist_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wishlist_id: Mapped[int] = mapped_column(
+        ForeignKey("wishlists.id", ondelete="CASCADE"), nullable=False
+    )
+    # Verbatim matched card payload — the only stable handle across re-lookups.
+    card_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Optional alert threshold the user wants the card under. Persisted now,
+    # wired to alerting later — see ADR-0013's "Out of scope".
+    max_price: Mapped[float | None] = mapped_column(Numeric(12, 2, asdecimal=False), nullable=True)
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    wishlist: Mapped[Wishlist] = relationship(back_populates="items")
+
+
 class RunRow(Base):
     __tablename__ = "run_rows"
 

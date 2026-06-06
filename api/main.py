@@ -53,6 +53,7 @@ from .routes import (
     runs,
     set_cards,
     sets,
+    wishlists,
 )
 
 # Configure logging so our `_log.info(...)` calls actually reach
@@ -500,6 +501,7 @@ app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
 app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
 app.include_router(collections.router, prefix="/api/v1", tags=["collections"])
+app.include_router(wishlists.router, prefix="/api/v1", tags=["wishlists"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
 app.include_router(auth_routes.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_github.router, prefix="/api/v1", tags=["auth"])
