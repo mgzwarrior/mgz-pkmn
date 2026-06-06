@@ -12,10 +12,11 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
-import { Heart, Library, Search } from 'lucide-react'
+import { Bookmark, Heart, Library, Search } from 'lucide-react'
 import { bulkLookup, lookupLine } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { BrowsePanel } from './components/BrowsePanel'
+import { CollectionsModal } from './components/CollectionsModal'
 import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
 import { RecentRuns } from './components/RecentRuns'
@@ -60,6 +61,7 @@ function App() {
 
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
+  const [collectionsOpen, setCollectionsOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('search')
   // `active` flips when the user switches into browse mode so the
   // controller's reset effect fires.
@@ -215,6 +217,16 @@ function App() {
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
           </button>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCollectionsOpen(true)}
+              className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
+              title="Collections"
+              aria-label="Collections"
+            >
+              <Bookmark size={15} />
+              <span className="hidden sm:inline">Collections</span>
+            </button>
             <div data-tour="exports">
               <ExportBar />
             </div>
@@ -296,6 +308,8 @@ function App() {
       {tourOpen && (
         <Tour onClose={() => setTourOpen(false)} onRun={handleRun} onStop={handleStop} />
       )}
+
+      <CollectionsModal open={collectionsOpen} onOpenChange={setCollectionsOpen} />
 
       {/* Easter egg overlay — see handleBrandClick. */}
       {showEgg && (

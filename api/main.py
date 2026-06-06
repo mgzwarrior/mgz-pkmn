@@ -45,6 +45,7 @@ from .routes import (
 from .routes import (
     cards,
     changelog,
+    collections,
     export,
     lookup,
     overrides,
@@ -498,6 +499,7 @@ app.include_router(cards.router, prefix="/api/v1", tags=["cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
 app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
+app.include_router(collections.router, prefix="/api/v1", tags=["collections"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
 app.include_router(auth_routes.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_github.router, prefix="/api/v1", tags=["auth"])
