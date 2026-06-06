@@ -64,6 +64,25 @@ describe('SignInChip (anonymous)', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(/check your inbox/i)
   })
 
+  it('resets the magic-link form state when the picker is closed and re-opened', async () => {
+    fetchMeMock.mockResolvedValue(null)
+    requestMagicLinkMock.mockResolvedValue(undefined)
+    render(<SignInChip />)
+    const open = await screen.findByRole('button', { name: /sign in/i })
+    fireEvent.click(open)
+    fireEvent.click(screen.getByRole('button', { name: /email me a magic link/i }))
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'user@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    fireEvent.click(open)
+    // Picker re-opens in collapsed state — the magic-link button is
+    // back, the form is gone, and the previously-typed email is cleared.
+    expect(await screen.findByRole('button', { name: /email me a magic link/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument()
+  })
+
   it('surfaces an error when the magic-link request fails', async () => {
     fetchMeMock.mockResolvedValue(null)
     requestMagicLinkMock.mockRejectedValue(new Error('boom'))
@@ -77,17 +96,23 @@ describe('SignInChip (anonymous)', () => {
 })
 
 describe('SignInChip (signed in)', () => {
-  it('renders display_name and offers Sign out via dropdown', async () => {
+  it('renders an icon-only trigger and surfaces display_name + email inside the dropdown', async () => {
     fetchMeMock.mockResolvedValue({ id: 1, email: 'jane@example.com', display_name: 'Jane Doe' })
     logoutMock.mockResolvedValue(undefined)
     render(<SignInChip />)
     const trigger = await screen.findByRole('button', { name: /account menu for jane doe/i })
-    expect(trigger).toHaveTextContent(/jane doe/i)
+    // Icon-only trigger: the visible glyph is the initials avatar, the
+    // display name lives in the dropdown content rather than next to
+    // the avatar.
+    expect(trigger).toHaveTextContent(/JD/)
+    expect(trigger).not.toHaveTextContent(/jane doe/i)
     // Radix DropdownMenu opens on pointerdown, not click — mirror the
     // ExportBar test's keyboard-driven open sequence so jsdom reveals
     // the menu contents.
     trigger.focus()
     fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+    expect(await screen.findByText('Jane Doe')).toBeInTheDocument()
+    expect(screen.getByText('jane@example.com')).toBeInTheDocument()
     const signOut = await screen.findByRole('menuitem', { name: /sign out/i })
     await act(async () => {
       fireEvent.click(signOut)
@@ -103,5 +128,28 @@ describe('SignInChip (signed in)', () => {
     render(<SignInChip />)
     const trigger = await screen.findByRole('button', { name: /account menu for sam@example.com/i })
     expect(trigger).toHaveTextContent(/SA/)
+  })
+})
+
+describe('SignInChip (loading)', () => {
+  it('renders an aria-busy placeholder until /me resolves', async () => {
+    let resolveMe!: (v: null) => void
+    fetchMeMock.mockReturnValue(new Promise<null>((resolve) => { resolveMe = resolve }))
+    render(<SignInChip />)
+    const placeholder = await screen.findByLabelText(/loading sign-in state/i)
+    expect(placeholder).toHaveAttribute('aria-busy', 'true')
+    await act(async () => {
+      resolveMe(null)
+    })
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/loading sign-in state/i)).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
+  })
+
+  it('falls back to anonymous when fetchMe rejects', async () => {
+    fetchMeMock.mockRejectedValue(new Error('network'))
+    render(<SignInChip />)
+    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 })

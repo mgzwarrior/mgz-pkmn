@@ -42,13 +42,13 @@ export function SignInChip() {
   const [pickerOpen, setPickerOpen] = useState(false)
 
   if (loading) {
-    // Reserve roughly the chip's footprint so the header doesn't reflow
+    // Reserve the icon-button footprint so the header doesn't reflow
     // when /me resolves. Aria-busy lets screen readers skip the placeholder.
     return (
       <div
         aria-busy="true"
         aria-label="Loading sign-in state"
-        className="h-8 w-20 animate-pulse rounded-md bg-sand-200 dark:bg-husk-100"
+        className="h-9 w-9 animate-pulse rounded-md bg-sand-200 dark:bg-husk-100"
       />
     )
   }
@@ -60,17 +60,17 @@ export function SignInChip() {
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-coconut-500 hover:bg-sand-100 hover:text-coconut-700 dark:text-sand-200 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition"
             aria-label={`Account menu for ${label}`}
+            title={label}
             data-tour="account"
           >
             <span
               aria-hidden="true"
-              className="flex h-5 w-5 items-center justify-center rounded-full bg-palm-300 text-[10px] font-semibold text-coconut-700 dark:bg-palm-500 dark:text-sand-50"
+              className="flex h-6 w-6 items-center justify-center rounded-full bg-palm-300 text-[10px] font-semibold text-coconut-700 dark:bg-palm-500 dark:text-sand-50"
             >
               {initialsFor(user)}
             </span>
-            <span className="hidden max-w-[14ch] truncate sm:inline">{label}</span>
           </button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
@@ -79,9 +79,18 @@ export function SignInChip() {
             sideOffset={6}
             className="z-50 min-w-[10rem] rounded-md border border-sand-300 bg-sand-50 p-1 text-sm text-coconut-700 shadow-lg dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50"
           >
-            {user.email && (
-              <div className="px-3 py-1.5 text-xs text-coconut-400 dark:text-sand-300 truncate">
-                {user.email}
+            {(user.display_name || user.email) && (
+              <div className="px-3 py-1.5">
+                {user.display_name && (
+                  <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
+                    {user.display_name}
+                  </div>
+                )}
+                {user.email && (
+                  <div className="truncate text-xs text-coconut-400 dark:text-sand-300">
+                    {user.email}
+                  </div>
+                )}
               </div>
             )}
             <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
@@ -103,12 +112,12 @@ export function SignInChip() {
       <button
         type="button"
         onClick={() => setPickerOpen(true)}
-        className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-coconut-500 hover:bg-sand-100 hover:text-coconut-700 dark:text-sand-200 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition"
         aria-label="Sign in"
+        title="Sign in"
         data-tour="signin"
       >
-        <LogIn size={15} />
-        <span className="hidden sm:inline">Sign in</span>
+        <LogIn size={18} />
       </button>
       <ProviderPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
     </>
