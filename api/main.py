@@ -33,6 +33,7 @@ from mgz_pkmn.sources import TCGClient, TCGDexClient
 # `migrate.run_migrations_with_lock` / `migrate.automigrate_enabled` and
 # have the lifespan see the patched values.
 from .auth import github as auth_github
+from .auth import google as auth_google
 from .auth import install_session_middleware
 from .auth import magic as auth_magic
 from .auth import routes as auth_routes
@@ -500,6 +501,7 @@ app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
 app.include_router(auth_routes.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_github.router, prefix="/api/v1", tags=["auth"])
+app.include_router(auth_google.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_magic.router, prefix="/api/v1", tags=["auth"])
 
 
