@@ -36,12 +36,10 @@ concern when we add throttling and quota.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import smtplib
 import ssl
-from datetime import UTC, datetime
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Annotated, Protocol
@@ -50,10 +48,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from fastapi.responses import RedirectResponse, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError
 
-from ..db.models import User
-from .github import _find_user_by_email
+from ..db.models import PROVIDER_MAGIC
+from .identity import resolve_or_link_identity
 from .session import DbSession, auth_enabled, resolve_session_secret
 
 _log = logging.getLogger(__name__)
@@ -347,45 +344,19 @@ def magic_callback(
     if email is None:
         raise HTTPException(status_code=400, detail="invalid_or_expired_token")
 
-    existing = _find_user_by_email(db, email)
-    if existing is None:
-        # Fresh signup. `name` is `String(64) unique` on `User`. We
-        # can't just truncate `f"magic:{email}"[:64]` — two long
-        # addresses sharing the first ~58 chars would collide and
-        # trip the unique index. Hash the normalized email to a
-        # 48-char SHA-256 prefix (192 bits, collision-resistant) and
-        # tag with the `magic:` provider prefix so the row is
-        # self-identifying in a db browser and stays domain-separated
-        # from the `gh:` prefix `api/auth/github.py` mints.
-        name_suffix = hashlib.sha256(email.encode("utf-8")).hexdigest()[:48]
-        candidate_name = f"magic:{name_suffix}"
-        user = User(
-            name=candidate_name,
-            email=email,
-            email_verified_at=datetime.now(UTC),
-            display_name=None,
-        )
-        db.add(user)
-        try:
-            db.flush()
-        except IntegrityError:
-            # Same race window as the GitHub callback (see
-            # `api/auth/github.py`): two clicks for the same email
-            # land within the read-then-insert gap, the second INSERT
-            # trips the unique index, and we recover by re-reading the
-            # winning row.
-            db.rollback()
-            user = _find_user_by_email(db, email)
-            if user is None:
-                raise
-    else:
-        user = existing
-        if user.email_verified_at is None:
-            user.email_verified_at = datetime.now(UTC)
-        # No display_name to populate from a magic-link signup — the
-        # user gave us only an email. If they later sign in via
-        # GitHub or Google with the same address, ADR-0019's
-        # first-set-wins lets that provider fill display_name.
+    # Slice 1 of #491: the identity-first resolver in `api/auth/identity.py`
+    # owns the upsert. ``provider_subject`` is the verified email — magic-
+    # link has no other anchor — and ``display_name=None`` because the
+    # user gave us only an email. A future GitHub / Google sign-in for
+    # the same address fills display_name via ADR-0019 first-set-wins.
+    user = resolve_or_link_identity(
+        db,
+        provider=PROVIDER_MAGIC,
+        subject=email,
+        email=email,
+        display_name=None,
+        name_prefix="magic",
+    )
 
     request.session["user_id"] = user.id
     return RedirectResponse(url=POST_SIGNIN_REDIRECT, status_code=302)

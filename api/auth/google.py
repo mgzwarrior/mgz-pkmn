@@ -30,17 +30,15 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Annotated
 
 from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy.exc import IntegrityError
 
-from ..db.models import User
-from .github import _find_user_by_email
+from ..db.models import PROVIDER_GOOGLE
+from .identity import resolve_or_link_identity
 from .session import DbSession, auth_enabled
 
 _log = logging.getLogger(__name__)
@@ -203,52 +201,17 @@ async def google_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
     if not profile.sub:
         raise HTTPException(status_code=400, detail="no_google_sub")
 
-    existing = _find_user_by_email(db, profile.verified_email)
-    if existing is None:
-        # Fresh signup. `name` must be unique on `User`; `sub` is
-        # Google's stable, opaque per-user identifier (typically a
-        # 21-digit numeric string) so collisions inside the
-        # `google:` namespace effectively can't happen. Stays
-        # domain-separated from `gh:` (api/auth/github.py) and
-        # `magic:` (api/auth/magic.py) by the prefix.
-        candidate_name = f"google:{profile.sub}"[:64]
-        user = User(
-            name=candidate_name,
-            email=profile.verified_email,
-            email_verified_at=datetime.now(UTC),
-            display_name=profile.name or None,
-        )
-        db.add(user)
-        try:
-            # Flush rather than commit — `get_db` already commits on
-            # normal return. Flush is enough to trigger the unique
-            # constraint on `users.email` and let us recover from the
-            # race below.
-            db.flush()
-        except IntegrityError:
-            # Two callbacks for the same verified email landed within
-            # the read-then-insert window. The other transaction won
-            # the INSERT; roll back and re-read so this request can
-            # proceed idempotently with the existing row. No
-            # display_name / email_verified_at update on this path —
-            # whichever callback committed first already filled them.
-            db.rollback()
-            user = _find_user_by_email(db, profile.verified_email)
-            if user is None:
-                # The unique constraint fired but the row isn't
-                # readable — something unrelated raised the
-                # IntegrityError. Let the original error surface.
-                raise
-    else:
-        user = existing
-        if user.email_verified_at is None:
-            user.email_verified_at = datetime.now(UTC)
-        if not user.display_name:
-            # Per ADR-0019, the provider only fills `display_name` when
-            # the row has none yet. Lets the user keep whatever they
-            # had on first sign-in even if Google reports a different
-            # name.
-            user.display_name = profile.name or None
+    # Slice 1 of #491 — same identity-first resolver the GitHub callback
+    # uses. ``provider_subject`` is Google's opaque ``sub`` (typically a
+    # 21-digit numeric string), stable forever per user.
+    user = resolve_or_link_identity(
+        db,
+        provider=PROVIDER_GOOGLE,
+        subject=profile.sub,
+        email=profile.verified_email,
+        display_name=profile.name or None,
+        name_prefix="google",
+    )
 
     # `get_db` commits on normal return; no explicit commit here.
     request.session["user_id"] = user.id

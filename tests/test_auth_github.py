@@ -340,9 +340,12 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                 s.commit()
                 winner_id = winner.id
 
-            from api.auth import github as github_mod
+            # #491 slice 1 moved the email-lookup + race-recovery branches
+            # into `api.auth.identity._find_user_by_email`. The patch
+            # target moves with it; the contract is unchanged.
+            from api.auth import identity as identity_mod
 
-            real_lookup = github_mod._find_user_by_email
+            real_lookup = identity_mod._find_user_by_email
             calls = {"n": 0}
 
             def lookup_side_effect(db, email):
@@ -351,7 +354,7 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                     return None  # force INSERT branch
                 return real_lookup(db, email)
 
-            with patch("api.auth.github._find_user_by_email", side_effect=lookup_side_effect):
+            with patch("api.auth.identity._find_user_by_email", side_effect=lookup_side_effect):
                 status, location = self._drive_callback(
                     client,
                     GitHubProfile(

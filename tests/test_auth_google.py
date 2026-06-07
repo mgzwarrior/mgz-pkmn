@@ -370,9 +370,13 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                 s.commit()
                 winner_id = winner.id
 
-            from api.auth import github as github_mod
+            # #491 slice 1 promoted the email lookup into a single helper
+            # in `api.auth.identity`. The Google callback now delegates
+            # there instead of importing from `.github`; patch the helper's
+            # binding at its new home.
+            from api.auth import identity as identity_mod
 
-            real_lookup = github_mod._find_user_by_email
+            real_lookup = identity_mod._find_user_by_email
             calls = {"n": 0}
 
             def lookup_side_effect(db, email):
@@ -381,13 +385,7 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                     return None  # force INSERT branch
                 return real_lookup(db, email)
 
-            # `api.auth.google` does `from .github import _find_user_by_email`,
-            # so the *callable* the Google callback resolves at runtime
-            # is `api.auth.google._find_user_by_email` (bound at import
-            # time, separate from `api.auth.github._find_user_by_email`).
-            # Patch the google-side binding so the callback's lookup
-            # hits the test double.
-            with patch("api.auth.google._find_user_by_email", side_effect=lookup_side_effect):
+            with patch("api.auth.identity._find_user_by_email", side_effect=lookup_side_effect):
                 status, location = self._drive_callback(
                     client,
                     GoogleProfile(
