@@ -46,7 +46,7 @@ vi.mock('./api/client', () => ({
   setLogoUrl: vi.fn(() => ''),
   dedupeRows: vi.fn((rows: unknown[]) => rows),
   addOverride: vi.fn(),
-  // Referenced by the WhatsNewModal mounted in the header.
+  // Referenced by the HelpModal's "What's new" section.
   fetchChangelog: vi.fn(() => Promise.resolve([])),
   // SignInChip / ResultsTable / App all read useAuth on mount, which
   // calls `fetchMe`. Stub to the auth-on-but-anonymous envelope so the

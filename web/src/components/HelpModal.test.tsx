@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { WhatsNewModal } from './WhatsNewModal'
+import { HelpModal } from './HelpModal'
 import { renderInlineMarkdown } from '../utils/inlineMarkdown'
 import { useAppStore } from '../store'
 import { fetchChangelog } from '../api/client'
@@ -73,20 +73,27 @@ describe('renderInlineMarkdown', () => {
   })
 })
 
-describe('WhatsNewModal', () => {
+describe('HelpModal', () => {
   beforeEach(() => {
+    // The Help-modal trigger reads localStorage to suppress the first-visit
+    // hint; clear it so each test starts from the same baseline.
+    try {
+      window.localStorage.removeItem('mgz-pkmn:seen-help')
+    } catch {
+      // ignore
+    }
     useAppStore.setState({ lastSeenChangelogVersion: null })
     mockFetchChangelog.mockReset()
     mockFetchChangelog.mockResolvedValue(RELEASES)
   })
 
-  it('renders the trigger button', async () => {
-    render(<WhatsNewModal />)
-    expect(await screen.findByRole('button', { name: /what's new/i })).toBeInTheDocument()
+  it('renders the Help trigger button', async () => {
+    render(<HelpModal onStartTour={vi.fn()} />)
+    expect(await screen.findByRole('button', { name: /^help$/i })).toBeInTheDocument()
   })
 
   it('first-time visitor (null lastSeen) gets no dot and is caught up silently', async () => {
-    render(<WhatsNewModal />)
+    render(<HelpModal onStartTour={vi.fn()} />)
     await waitFor(() =>
       expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1'),
     )
@@ -98,35 +105,35 @@ describe('WhatsNewModal', () => {
 
   it('shows the unseen dot when a newer release shipped since last seen', async () => {
     useAppStore.setState({ lastSeenChangelogVersion: '1.1.0' })
-    render(<WhatsNewModal />)
+    render(<HelpModal onStartTour={vi.fn()} />)
     expect(
-      await screen.findByRole('button', { name: /new release available/i }),
+      await screen.findByRole('button', { name: /help \(new release available\)/i }),
     ).toBeInTheDocument()
   })
 
   it('does not show the dot when last seen equals the latest', async () => {
     useAppStore.setState({ lastSeenChangelogVersion: '1.1.1' })
-    render(<WhatsNewModal />)
+    render(<HelpModal onStartTour={vi.fn()} />)
     await waitFor(() => expect(mockFetchChangelog).toHaveBeenCalled())
     expect(
       screen.queryByRole('button', { name: /new release available/i }),
     ).toBeNull()
   })
 
-  it('opening the panel marks the latest version seen, clearing the dot', async () => {
+  it('opening the modal marks the latest version seen, clearing the dot', async () => {
     useAppStore.setState({ lastSeenChangelogVersion: '1.1.0' })
-    render(<WhatsNewModal />)
-    const btn = await screen.findByRole('button', { name: /new release available/i })
+    render(<HelpModal onStartTour={vi.fn()} />)
+    const btn = await screen.findByRole('button', { name: /help \(new release available\)/i })
     fireEvent.click(btn)
     await waitFor(() =>
       expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1'),
     )
   })
 
-  it('renders release versions, dates, sections, and bullets when open', async () => {
+  it('renders release versions, dates, sections, and bullets in the What\'s new section', async () => {
     useAppStore.setState({ lastSeenChangelogVersion: '1.1.1' })
-    render(<WhatsNewModal />)
-    fireEvent.click(await screen.findByRole('button', { name: /what's new/i }))
+    render(<HelpModal onStartTour={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
     expect(await screen.findByText('v1.1.1')).toBeInTheDocument()
     expect(screen.getByText('v1.1.0')).toBeInTheDocument()
     expect(screen.getByText('Fixed')).toBeInTheDocument()
@@ -136,10 +143,18 @@ describe('WhatsNewModal', () => {
     expect(screen.getByRole('link', { name: 'PyPI tab' })).toBeInTheDocument()
   })
 
-  it('shows a fallback when the changelog fetch fails', async () => {
+  it('shows a What\'s new fallback when the changelog fetch fails', async () => {
     mockFetchChangelog.mockRejectedValue(new Error('boom'))
-    render(<WhatsNewModal />)
-    fireEvent.click(await screen.findByRole('button', { name: /what's new/i }))
+    render(<HelpModal onStartTour={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
     expect(await screen.findByText(/couldn't be loaded/i)).toBeInTheDocument()
+  })
+
+  it('Take the tour button closes the modal and fires the callback', async () => {
+    const onStartTour = vi.fn()
+    render(<HelpModal onStartTour={onStartTour} />)
+    fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /take the tour/i }))
+    expect(onStartTour).toHaveBeenCalledOnce()
   })
 })
