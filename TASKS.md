@@ -17,6 +17,17 @@ _No tasks in progress._
 
 ## Ready For Review
 
+- [Claude]: Account panel — SPA UI for #491 slice 3
+  - Issue: #491
+  - Branch: 491-account-panel
+  - Review assigned to: Codex or Copilot
+  - Implementation notes:
+    - New `AccountPanel` dialog reachable from the signed-in chip dropdown (Account menu item).
+    - Lists linked identities with per-provider Disconnect (disabled when only one identity remains; calls `DELETE /api/v1/auth/identities/{id}` then refreshes `useAuth`).
+    - Connect buttons for unconnected providers: GitHub / Google form-POST to `POST /api/v1/auth/link/{github,google}/start`; the magic-link path expands an inline email form that POSTs to `POST /api/v1/auth/link/magic/start`.
+    - 409 callback redirects (`/account?link_error=identity_already_linked&provider=…`) surface as an inline alert.
+    - Checks run: `make check`, `npm test` (web), `npm run build` (web).
+
 - [Codex]: Add AI Pit Crew workflow layer
   - Issue: #495
   - Branch: 495-ai-pit-crew-workflow

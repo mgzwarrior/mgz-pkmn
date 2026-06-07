@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { dedupeRows, fetchChangelog, fetchMe, logout, requestMagicLink } from './client'
+import {
+  dedupeRows,
+  fetchChangelog,
+  fetchMe,
+  logout,
+  requestAccountMagicLink,
+  requestMagicLink,
+  unlinkIdentity,
+} from './client'
 import type { Row } from '../types'
 
 function makeRow(over: Partial<Row> = {}): Row {
@@ -156,5 +164,46 @@ describe('requestMagicLink', () => {
   it('throws when SMTP is unconfigured (503)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 503 }))
     await expect(requestMagicLink('x@y.z')).rejects.toThrow(/magic-link failed: 503/)
+  })
+})
+
+describe('requestAccountMagicLink', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('POSTs the email payload to the account-link endpoint', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 202 }))
+    await expect(requestAccountMagicLink('alias@example.com')).resolves.toBeUndefined()
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/auth/link/magic/start', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'alias@example.com' }),
+    })
+  })
+})
+
+describe('unlinkIdentity', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('DELETEs the identity with same-origin credentials', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    await expect(unlinkIdentity(42)).resolves.toBeUndefined()
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/auth/identities/42', {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    })
+  })
+
+  it('throws on a failed unlink', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 400 }))
+    await expect(unlinkIdentity(42)).rejects.toThrow(/unlink identity failed: 400/)
   })
 })

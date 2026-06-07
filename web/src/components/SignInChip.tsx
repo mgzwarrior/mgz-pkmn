@@ -20,9 +20,10 @@
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { LogIn, LogOut, Mail, X } from 'lucide-react'
+import { LogIn, LogOut, Mail, UserRound, X } from 'lucide-react'
 import { requestMagicLink, type Me } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { AccountPanel } from './AccountPanel'
 
 const GITHUB_LOGIN_URL = '/api/v1/auth/github/login'
 const GOOGLE_LOGIN_URL = '/api/v1/auth/google/login'
@@ -38,8 +39,14 @@ function initialsFor(user: Me): string {
 }
 
 export function SignInChip() {
-  const { user, authEnabled, loading, signOut } = useAuth()
+  const { user, authEnabled, loading, refresh, signOut } = useAuth()
   const [pickerOpen, setPickerOpen] = useState(false)
+  // The link-callback redirects to `/account` so the SPA can land the
+  // user back on the linked-providers list; open the panel on first
+  // render when we see that path.
+  const [accountOpen, setAccountOpen] = useState(
+    () => typeof window !== 'undefined' && window.location.pathname === '/account',
+  )
 
   // Self-host (auth off) has no sign-in surface to render — `/me`
   // already attaches the sentinel default user so collections /
@@ -64,54 +71,69 @@ export function SignInChip() {
   if (user) {
     const label = user.display_name?.trim() || user.email || 'Account'
     return (
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <button
-            type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-coconut-500 hover:bg-sand-100 hover:text-coconut-700 dark:text-sand-200 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition"
-            aria-label={`Account menu for ${label}`}
-            title={label}
-            data-tour="account"
-          >
-            <span
-              aria-hidden="true"
-              className="flex h-6 w-6 items-center justify-center rounded-full bg-palm-300 text-[10px] font-semibold text-coconut-700 dark:bg-palm-500 dark:text-sand-50"
+      <>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-coconut-500 hover:bg-sand-100 hover:text-coconut-700 dark:text-sand-200 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition"
+              aria-label={`Account menu for ${label}`}
+              title={label}
+              data-tour="account"
             >
-              {initialsFor(user)}
-            </span>
-          </button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content
-            align="end"
-            sideOffset={6}
-            className="z-50 min-w-[10rem] rounded-md border border-sand-300 bg-sand-50 p-1 text-sm text-coconut-700 shadow-lg dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50"
-          >
-            {(user.display_name || user.email) && (
-              <div className="px-3 py-1.5">
-                {user.display_name && (
-                  <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
-                    {user.display_name}
-                  </div>
-                )}
-                {user.email && (
-                  <div className="truncate text-xs text-coconut-400 dark:text-sand-300">
-                    {user.email}
-                  </div>
-                )}
-              </div>
-            )}
-            <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
-            <DropdownMenu.Item
-              onSelect={() => void signOut()}
-              className="flex cursor-pointer items-center gap-2 rounded px-3 py-1.5 outline-none data-[highlighted]:bg-sand-200 data-[highlighted]:text-coconut-700 dark:data-[highlighted]:bg-husk-100 dark:data-[highlighted]:text-sand-50"
+              <span
+                aria-hidden="true"
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-palm-300 text-[10px] font-semibold text-coconut-700 dark:bg-palm-500 dark:text-sand-50"
+              >
+                {initialsFor(user)}
+              </span>
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              align="end"
+              sideOffset={6}
+              className="z-50 min-w-[10rem] rounded-md border border-sand-300 bg-sand-50 p-1 text-sm text-coconut-700 shadow-lg dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50"
             >
-              <LogOut size={14} />
-              <span>Sign out</span>
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+              {(user.display_name || user.email) && (
+                <div className="px-3 py-1.5">
+                  {user.display_name && (
+                    <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
+                      {user.display_name}
+                    </div>
+                  )}
+                  {user.email && (
+                    <div className="truncate text-xs text-coconut-400 dark:text-sand-300">
+                      {user.email}
+                    </div>
+                  )}
+                </div>
+              )}
+              <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
+              <DropdownMenu.Item
+                onSelect={() => setAccountOpen(true)}
+                className="flex cursor-pointer items-center gap-2 rounded px-3 py-1.5 outline-none data-[highlighted]:bg-sand-200 data-[highlighted]:text-coconut-700 dark:data-[highlighted]:bg-husk-100 dark:data-[highlighted]:text-sand-50"
+              >
+                <UserRound size={14} />
+                <span>Account</span>
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                onSelect={() => void signOut()}
+                className="flex cursor-pointer items-center gap-2 rounded px-3 py-1.5 outline-none data-[highlighted]:bg-sand-200 data-[highlighted]:text-coconut-700 dark:data-[highlighted]:bg-husk-100 dark:data-[highlighted]:text-sand-50"
+              >
+                <LogOut size={14} />
+                <span>Sign out</span>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+        <AccountPanel
+          open={accountOpen}
+          onOpenChange={setAccountOpen}
+          user={user}
+          refresh={refresh}
+        />
+      </>
     )
   }
 

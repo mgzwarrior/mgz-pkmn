@@ -9,22 +9,34 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { SignInChip } from './SignInChip'
 
-const { fetchMeMock, logoutMock, requestMagicLinkMock } = vi.hoisted(() => ({
+const {
+  fetchMeMock,
+  logoutMock,
+  requestMagicLinkMock,
+  requestAccountMagicLinkMock,
+  unlinkIdentityMock,
+} = vi.hoisted(() => ({
   fetchMeMock: vi.fn(),
   logoutMock: vi.fn(),
   requestMagicLinkMock: vi.fn(),
+  requestAccountMagicLinkMock: vi.fn(),
+  unlinkIdentityMock: vi.fn(),
 }))
 
 vi.mock('../api/client', () => ({
   fetchMe: fetchMeMock,
   logout: logoutMock,
   requestMagicLink: requestMagicLinkMock,
+  requestAccountMagicLink: requestAccountMagicLinkMock,
+  unlinkIdentity: unlinkIdentityMock,
 }))
 
 beforeEach(() => {
   fetchMeMock.mockReset()
   logoutMock.mockReset()
   requestMagicLinkMock.mockReset()
+  requestAccountMagicLinkMock.mockReset()
+  unlinkIdentityMock.mockReset()
 })
 
 describe('SignInChip (anonymous)', () => {
@@ -150,6 +162,30 @@ describe('SignInChip (signed in)', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
     })
+  })
+
+  it('opens the Account panel from the dropdown', async () => {
+    fetchMeMock.mockResolvedValue({
+      user: {
+        id: 7,
+        email: 'jane@example.com',
+        display_name: 'Jane Doe',
+        identities: [
+          { id: 1, provider: 'github', email: 'jane@example.com', linked_at: '2026-06-01T00:00:00Z' },
+        ],
+      },
+      authEnabled: true,
+    })
+    render(<SignInChip />)
+    const trigger = await screen.findByRole('button', { name: /account menu for jane doe/i })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+    const accountItem = await screen.findByRole('menuitem', { name: /^account$/i })
+    await act(async () => {
+      fireEvent.click(accountItem)
+    })
+    expect(await screen.findByRole('dialog', { name: /account/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /linked sign-in methods/i })).toBeInTheDocument()
   })
 
   it('falls back to initials when display_name is missing', async () => {
