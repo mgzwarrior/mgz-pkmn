@@ -148,10 +148,10 @@ push to `main`.
 
 mgz-pkmn uses a lightweight multi-agent workflow inspired by
 [@bobbylough](https://github.com/bobbylough)'s
-[ai-pit-crew](https://github.com/bobbylough/ai-pit-crew) project. The
-repo keeps GitHub issues, milestones, and [docs/roadmap.md](docs/roadmap.md)
-as the planning source of truth, while [TASKS.md](TASKS.md) tracks only
-active AI-assisted work.
+[ai-pit-crew](https://github.com/bobbylough/ai-pit-crew) project. GitHub
+itself is the active-work board — issues, milestones, branches, PRs, and
+`agent:*` labels carry every piece of state. [docs/roadmap.md](docs/roadmap.md)
+is the planning navigator.
 
 Agents should start with [AGENTS.md](AGENTS.md), follow the shared loop in
 [.agent-workflow.md](.agent-workflow.md), and expect cross-agent review before
