@@ -28,7 +28,6 @@ import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { HelpModal } from './components/HelpModal'
-import { WhatsNewModal } from './components/WhatsNewModal'
 import { SignInChip } from './components/SignInChip'
 import { ThemeToggle } from './components/ThemeToggle'
 import { Tour } from './components/Tour'
@@ -273,7 +272,6 @@ function App() {
             <div data-tour="exports">
               <ExportBar />
             </div>
-            <WhatsNewModal />
             <HelpModal onStartTour={() => setTourOpen(true)} />
             <div data-tour="settings">
               <SettingsDrawer />
