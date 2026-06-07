@@ -27,21 +27,19 @@ If an issue is ambiguous and intent can't be inferred from context, **leave a cl
 comment and move to the next best issue**. Every change must be traceable to an issue — if
 no issue exists, open one first.
 
-## Step 1.5 — Claim active work
+## Step 1.5 — Check what's already in flight
 
-mgz-pkmn uses [TASKS.md](TASKS.md) as an active-work board for AI-assisted
-contributors. GitHub issues and [docs/roadmap.md](docs/roadmap.md) remain the
-backlog and planning source of truth.
+mgz-pkmn leans on GitHub itself as the active-work board — there is no separate
+task file. Before starting:
 
-Before implementing:
+```bash
+gh pr list --repo mgzwarrior/mgz-pkmn --search "<issue number>"
+git ls-remote origin | grep "<issue number>-"
+```
 
-1. Re-read [TASKS.md](TASKS.md).
-2. Move or add the selected task under **In Progress** with your agent name.
-3. Include the issue number or human-provided task description.
-
-Re-read [TASKS.md](TASKS.md) immediately before relying on task status or editing
-the file. See [.agent-workflow.md](.agent-workflow.md) for the shared AI Pit Crew
-loop.
+If a branch or PR already references the issue, leave a comment and pick another
+issue instead of starting parallel work. See [.agent-workflow.md](.agent-workflow.md)
+for the shared AI Pit Crew loop.
 
 ## Step 2 — Understand the codebase before touching it
 
@@ -118,10 +116,7 @@ All CI checks must be green before opening the PR.
 
 ## Step 5 — Open the PR
 
-Before opening the PR, re-read [TASKS.md](TASKS.md), move the task to
-**Ready For Review**, and add concise implementation notes with checks run,
-skipped checks, and the requested reviewer agent.
-
+The PR body is the implementation summary — put What / Why / How to verify there.
 First, pull the issue's labels, milestone, and project assignment:
 
 ```bash
@@ -152,9 +147,12 @@ Closes #<issue number>
 EOF
 )" \
   --label "<labels from issue>" \
+  --label "agent:claude" \
   --milestone "<milestone from issue>" \
   --project "mgz-pkmn"
 ```
+
+The `agent:<name>` label identifies the author agent (`agent:claude`, `agent:codex`, `agent:copilot`) and replaces the old `[Agent]:` prefix convention. Apply exactly one per PR.
 
 If the PR already exists, sync metadata after the fact:
 
@@ -168,6 +166,16 @@ gh project item-add <project-number> --owner mgzwarrior --url <pr-url>
 - **`Closes #<issue number>`** — so GitHub auto-closes the issue on merge and records the link
 - A brief explanation of your approach and any non-obvious decisions
 - Steps to verify the change works
+
+### Trigger the cross-agent reviewer
+
+Pick a reviewer from the [pairing table in .agent-workflow.md](.agent-workflow.md#5-mark-ready-for-review) and fire the trigger right after `gh pr create`:
+
+| Reviewer | Trigger |
+| --- | --- |
+| Codex | `gh pr comment <PR> --body "@codex review"` |
+| Copilot | `gh pr edit <PR> --add-reviewer Copilot` (paused via Copilot credits through 2026-07-01; skip until then) |
+| Claude | Human-initiated in Claude Code (e.g. `/review <PR>`). [#513](https://github.com/mgzwarrior/mgz-pkmn/issues/513) tracks wiring up the official action so `@claude review` will work as a comment trigger. |
 
 ## Step 6 — Confirm CI is green
 

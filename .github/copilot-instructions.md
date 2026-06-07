@@ -24,9 +24,9 @@
 ## Shared agent workflow
 - Read `AGENTS.md` first for mgz-pkmn architecture invariants and PR verification rules.
 - Read `.agent-workflow.md` for the AI Pit Crew development loop.
-- Read `TASKS.md` fresh before relying on task status or editing it.
 - Treat GitHub issues, milestones, projects, and `docs/roadmap.md` as the backlog.
-- Treat `TASKS.md` as the active board only: in progress, ready for review, blocked, done.
+- The active-work board is GitHub itself: branches, PRs (draft vs. open), the `blocked` label, and the `agent:<name>` label on each PR. There is no separate task file.
+- Apply the `agent:copilot` label to PRs you author so cross-agent attribution is unambiguous.
 - Prefer cross-agent review: code authored by Copilot should be reviewed by Claude or Codex when practical.
 
 ## Setup and run

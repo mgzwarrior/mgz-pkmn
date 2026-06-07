@@ -17,18 +17,20 @@ as a runtime framework or dependency. This workflow is inspired by
 [@bobbylough](https://github.com/bobbylough)'s
 [ai-pit-crew](https://github.com/bobbylough/ai-pit-crew) project. The
 repository is the shared workspace: every agent works from the same docs, issue
-tracker, task board, tests, and PR process.
+tracker, tests, and PR process.
 
 - The human developer owns product direction, prioritization, architecture
   decisions, merge approval, and release timing.
 - GitHub issues, milestones, projects, and [docs/roadmap.md](docs/roadmap.md)
   own planned work and sequencing.
-- [TASKS.md](TASKS.md) is only the active work board for work in progress,
-  ready for review, blocked, or recently done.
-- Agents should re-read [TASKS.md](TASKS.md) immediately before relying on task
-  status or editing it.
+- GitHub itself is the active-work board — branches, PRs (draft vs. open),
+  labels, and review threads track in-flight state. There is no separate task
+  file. Run `gh pr list` and `gh issue list` to see what's in motion.
+- Author-agent attribution lives on the PR as a single `agent:<name>` label
+  (`agent:claude`, `agent:codex`, `agent:copilot`).
 - Prefer cross-agent review: code written by one AI tool should be reviewed by a
-  different AI tool when practical, then approved by the human.
+  different AI tool when practical, then approved by the human. See the
+  reviewer-trigger table in [.agent-workflow.md](.agent-workflow.md).
 
 ---
 

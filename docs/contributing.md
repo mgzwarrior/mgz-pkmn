@@ -36,8 +36,9 @@ The fastest way in:
 2. **Skim [AGENTS.md](../AGENTS.md)** for the project's invariants
    (single `Row` shape, pure-function writers, dataclass-driven
    layouts).
-3. **For AI-assisted work**, use [TASKS.md](../TASKS.md) as the active
-   work board and keep GitHub issues as the backlog.
+3. **For AI-assisted work**, the active-work board is GitHub itself —
+   `gh pr list` / `gh issue list` plus the `agent:*` label on each PR.
+   No separate task file.
 4. **Open a PR** following the [branch naming](#branch-naming) and
    [opening a PR](#opening-a-pr) sections below.
 
@@ -57,8 +58,10 @@ Expect the following when AI agents contribute:
 
 - GitHub issues, milestones, projects, and [docs/roadmap.md](roadmap.md)
   remain the backlog and planning source of truth.
-- [TASKS.md](../TASKS.md) tracks active AI-assisted work only. Agents
-  re-read it immediately before relying on task state or editing it.
+- GitHub itself is the active-work board: branches, PRs, draft/open
+  state, the `blocked` label, and the `agent:<name>` label on each PR
+  carry every piece of in-flight state. There is no separate task
+  file checked into the repo.
 - [AGENTS.md](../AGENTS.md) remains the canonical source for code
   invariants, PR verification artifacts, and repository-specific rules.
 - [.agent-workflow.md](../.agent-workflow.md) provides the short shared
