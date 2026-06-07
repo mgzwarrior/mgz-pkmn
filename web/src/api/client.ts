@@ -457,6 +457,28 @@ export async function requestMagicLink(email: string): Promise<void> {
   if (!res.ok && res.status !== 202) throw new Error(`magic-link failed: ${res.status}`)
 }
 
+/**
+ * Request a magic-link email for attaching another email identity to
+ * the currently signed-in account.
+ */
+export async function requestAccountMagicLink(email: string): Promise<void> {
+  const res = await fetch(`${BASE}/auth/link/magic/start`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok && res.status !== 202) throw new Error(`account magic-link failed: ${res.status}`)
+}
+
+export async function unlinkIdentity(identityId: number): Promise<void> {
+  const res = await fetch(`${BASE}/auth/identities/${identityId}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok && res.status !== 204) throw new Error(`unlink identity failed: ${res.status}`)
+}
+
 // ---------------------------------------------------------------------------
 // collections
 // ---------------------------------------------------------------------------
