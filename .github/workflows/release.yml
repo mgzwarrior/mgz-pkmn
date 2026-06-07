@@ -93,7 +93,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          number=$(gh api \
+          number=$(gh api --paginate \
             "/repos/${GITHUB_REPOSITORY}/milestones?state=open&per_page=100" \
             --jq ".[] | select(.title == \"${TAG}\") | .number")
           if [ -z "$number" ]; then
