@@ -17,6 +17,15 @@ _No tasks in progress._
 
 ## Ready For Review
 
+- [Claude]: Auto-close milestone after GitHub Release tag is cut
+  - Issue: #404
+  - Branch: 404-close-milestone-on-release
+  - Review assigned to: Codex or Copilot
+  - Implementation notes:
+    - Added a `Close matching milestone` step at the end of `github-release` in `.github/workflows/release.yml`. Looks up an open milestone whose title equals the pushed tag (`vX.Y.Z`) via `gh api`, then PATCHes it to `state=closed`. Emits a `::notice::` and exits 0 when no matching open milestone exists, so re-runs (and tags without a milestone) are safe.
+    - Granted the job `issues: write` (milestones live under the issues API); kept the existing `contents: write` for the release publish step.
+    - Checks run: `make check` (green). Skipped: end-to-end release run — only verifiable on a real tag push.
+
 - [Claude]: Account panel — SPA UI for #491 slice 3
   - Issue: #491
   - Branch: 491-account-panel
