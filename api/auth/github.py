@@ -34,8 +34,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from ..db.models import PROVIDER_GITHUB
-from .identity import resolve_or_link_identity
-from .session import DbSession, auth_enabled
+from .identity import IdentityConflictError, link_identity_to_user, resolve_or_link_identity
+from .linking import (
+    POST_LINK_REDIRECT,
+    consume_link_request,
+    identity_conflict_detail,
+    stage_link_request,
+)
+from .session import CurrentUserRequired, DbSession, auth_enabled
 
 _log = logging.getLogger(__name__)
 
@@ -162,6 +168,19 @@ async def github_login(request: Request, _: AuthGate) -> RedirectResponse:
     return await oauth.github.authorize_redirect(request, redirect_uri)
 
 
+@router.post("/auth/link/github/start")
+async def github_link_start(
+    request: Request,
+    _: AuthGate,
+    user: CurrentUserRequired,
+) -> RedirectResponse:
+    """Start a GitHub OAuth flow for linking to the signed-in account."""
+    stage_link_request(request, user)
+    oauth = _oauth_client()
+    redirect_uri = str(request.url_for("github_link_callback"))
+    return await oauth.github.authorize_redirect(request, redirect_uri)
+
+
 @router.get("/auth/github/callback", name="github_callback")
 async def github_callback(request: Request, db: DbSession, _: AuthGate) -> RedirectResponse:
     """Finish the OAuth handshake and sign the user in.
@@ -217,3 +236,42 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
     # `get_db` commits on normal return; no explicit commit here.
     request.session["user_id"] = user.id
     return RedirectResponse(url=POST_SIGNIN_REDIRECT, status_code=302)
+
+
+@router.get("/auth/link/github/callback", name="github_link_callback")
+async def github_link_callback(
+    request: Request,
+    db: DbSession,
+    _: AuthGate,
+    user: CurrentUserRequired,
+) -> RedirectResponse:
+    """Finish a GitHub OAuth flow and attach it to the signed-in user."""
+    link_user_id = consume_link_request(request, user)
+    oauth = _oauth_client()
+    try:
+        token = await oauth.github.authorize_access_token(request)
+    except OAuthError as exc:
+        _log.warning("github link oauth state/code exchange failed: %s", exc.error)
+        raise HTTPException(status_code=400, detail="oauth_failed") from exc
+
+    profile = await fetch_github_profile(oauth, request, token)
+    if not profile.verified_primary_email:
+        raise HTTPException(status_code=400, detail="no_verified_email")
+    if not profile.login:
+        raise HTTPException(status_code=400, detail="no_github_login")
+
+    try:
+        link_identity_to_user(
+            db,
+            user_id=link_user_id,
+            provider=PROVIDER_GITHUB,
+            subject=profile.login,
+            email=profile.verified_primary_email,
+        )
+    except IdentityConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=identity_conflict_detail(exc.provider),
+        ) from exc
+
+    return RedirectResponse(url=POST_LINK_REDIRECT, status_code=302)

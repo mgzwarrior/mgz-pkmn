@@ -50,8 +50,14 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel
 
 from ..db.models import PROVIDER_MAGIC
-from .identity import resolve_or_link_identity
-from .session import DbSession, auth_enabled, resolve_session_secret
+from .identity import IdentityConflictError, link_identity_to_user, resolve_or_link_identity
+from .linking import (
+    POST_LINK_REDIRECT,
+    consume_link_request,
+    identity_conflict_detail,
+    stage_link_request,
+)
+from .session import CurrentUserRequired, DbSession, auth_enabled, resolve_session_secret
 
 _log = logging.getLogger(__name__)
 
@@ -266,6 +272,11 @@ def _build_callback_url(request: Request, token: str) -> str:
     return str(request.url_for("magic_callback").include_query_params(token=token))
 
 
+def _build_link_callback_url(request: Request, token: str) -> str:
+    """Build the absolute callback URL for account-link magic emails."""
+    return str(request.url_for("magic_link_callback").include_query_params(token=token))
+
+
 def _send_magic_link(message: EmailMessage, mailer: Mailer) -> None:
     """Background-task body: do the actual SMTP send and swallow
     failures into a log line.
@@ -328,6 +339,30 @@ def magic_request(
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
 
+@router.post(
+    "/auth/link/magic/start",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_class=Response,
+)
+def magic_link_start(
+    payload: MagicRequestIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    _: AuthGate,
+    user: CurrentUserRequired,
+) -> Response:
+    """Send a magic-link email for attaching another email identity."""
+    stage_link_request(request, user)
+    mailer = _get_mailer()
+    sender = _get_sender()
+    email = _normalize_email(payload.email)
+    token = sign_token(email)
+    link = _build_link_callback_url(request, token)
+    message = _build_message(email, sender, link)
+    background_tasks.add_task(_send_magic_link, message, mailer)
+    return Response(status_code=status.HTTP_202_ACCEPTED)
+
+
 @router.get("/auth/magic/callback", name="magic_callback")
 def magic_callback(
     token: str,
@@ -360,6 +395,37 @@ def magic_callback(
 
     request.session["user_id"] = user.id
     return RedirectResponse(url=POST_SIGNIN_REDIRECT, status_code=302)
+
+
+@router.get("/auth/link/magic/callback", name="magic_link_callback")
+def magic_link_callback(
+    token: str,
+    request: Request,
+    db: DbSession,
+    _: AuthGate,
+    user: CurrentUserRequired,
+) -> RedirectResponse:
+    """Verify a magic-link token and attach that email to this account."""
+    link_user_id = consume_link_request(request, user)
+    email = verify_token(token)
+    if email is None:
+        raise HTTPException(status_code=400, detail="invalid_or_expired_token")
+
+    try:
+        link_identity_to_user(
+            db,
+            user_id=link_user_id,
+            provider=PROVIDER_MAGIC,
+            subject=email,
+            email=email,
+        )
+    except IdentityConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=identity_conflict_detail(exc.provider),
+        ) from exc
+
+    return RedirectResponse(url=POST_LINK_REDIRECT, status_code=302)
 
 
 # Re-export under the `_get_mailer` / `_get_sender` names that tests

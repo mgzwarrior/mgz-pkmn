@@ -402,10 +402,18 @@ export async function fetchCacheStats(): Promise<CacheStats> {
 /**
  * Identity payload for the current request's user.
  */
+export interface MeIdentity {
+  id: number
+  provider: string
+  email: string | null
+  linked_at: string
+}
+
 export interface Me {
   id: number
   email: string | null
   display_name: string | null
+  identities?: MeIdentity[]
 }
 
 /**

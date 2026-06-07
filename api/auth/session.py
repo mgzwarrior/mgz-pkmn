@@ -158,6 +158,21 @@ def get_current_user(request: Request, db: DbSession) -> User | None:
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user)]
 
 
+def require_current_user(user: CurrentUserOptional) -> User:
+    """Require an authenticated user for auth-management routes.
+
+    Unlike :func:`current_user_or_default`, this never falls back to the
+    self-host sentinel row. Link / unlink actions only make sense for a
+    real signed-in account, so anonymous requests get the same 401 body
+    used by the per-account resource dependencies."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="sign-in required")
+    return user
+
+
+CurrentUserRequired = Annotated[User, Depends(require_current_user)]
+
+
 def current_user_or_default(user: CurrentUserOptional, db: DbSession) -> User:
     """Resolve the user a per-account resource should be scoped to.
 
