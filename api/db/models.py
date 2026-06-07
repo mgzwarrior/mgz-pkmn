@@ -26,6 +26,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -46,6 +47,14 @@ class Base(DeclarativeBase):
     """Single declarative base — shared across every table the API persists."""
 
 
+#: Provider tags stored verbatim in ``user_identities.provider``. Kept as
+#: bare strings (no Enum) so adding a future provider is a code change in
+#: exactly one place (`api/auth/identity.py`) — the column is just a tag.
+PROVIDER_GITHUB = "github"
+PROVIDER_GOOGLE = "google"
+PROVIDER_MAGIC = "magic"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -64,6 +73,53 @@ class User(Base):
     display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     runs: Mapped[list[Run]] = relationship(back_populates="user")
+    identities: Mapped[list[UserIdentity]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class UserIdentity(Base):
+    """One row per (provider, provider_subject) attached to a ``User``.
+
+    Promotes "which provider did this row originate from" from an
+    implicit `users.name` prefix into a first-class concept the auth
+    surface can list, attach, and detach against (#491, slice 1 — the
+    backend foundation; link / unlink endpoints + SPA panel are slices
+    2 / 3 of the same epic).
+
+    The lookup contract that lives on top of this row is in
+    :mod:`api.auth.identity`: callbacks resolve ``(provider, subject)``
+    first, fall back to the verified email, and mint a new ``users`` +
+    first identity row only on a cold miss."""
+
+    __tablename__ = "user_identities"
+    __table_args__ = (
+        # A given provider identity can attach to at most one account.
+        # This is what makes "sign in via Google with the email I used
+        # for GitHub last week" land on the existing row instead of
+        # silently minting a duplicate.
+        UniqueConstraint("provider", "provider_subject", name="uq_user_identity_provider_subject"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    #: Provider tag — one of :data:`PROVIDER_GITHUB`, :data:`PROVIDER_GOOGLE`,
+    #: :data:`PROVIDER_MAGIC`.
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: Provider-side stable identifier. GitHub login, Google ``sub``, or
+    #: (for magic-link) the verified email itself — there's no other
+    #: anchor on that path.
+    provider_subject: Mapped[str] = mapped_column(String(128), nullable=False)
+    #: Email at link time. May drift from ``users.email`` if the user's
+    #: primary email on that provider changes later — we don't try to
+    #: stay in sync, the email on the identity row reflects what the
+    #: provider sent on the most recent sign-in for this identity.
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    linked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="identities")
 
 
 class Run(Base):

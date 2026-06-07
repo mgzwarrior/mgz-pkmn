@@ -330,12 +330,12 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                 )
                 s.commit()
 
-            # Magic-link reuses the GitHub provider's
-            # `_find_user_by_email`; it's bound into the magic module
-            # namespace at import time, so patch it there (not at the
-            # github source) — otherwise the patch misses the name the
-            # handler actually calls.
-            real_lookup = magic_mod._find_user_by_email
+            # #491 slice 1: the email lookup is now in `api.auth.identity`
+            # (the magic callback delegates there instead of importing
+            # `_find_user_by_email` from `.github`).
+            from api.auth import identity as identity_mod
+
+            real_lookup = identity_mod._find_user_by_email
             calls = {"n": 0}
 
             def lookup_side_effect(db, email):
@@ -345,7 +345,7 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                 return real_lookup(db, email)
 
             token = sign_token("race@example.com")
-            with patch("api.auth.magic._find_user_by_email", side_effect=lookup_side_effect):
+            with patch("api.auth.identity._find_user_by_email", side_effect=lookup_side_effect):
                 r = client.get(
                     f"/api/v1/auth/magic/callback?token={token}",
                     follow_redirects=False,

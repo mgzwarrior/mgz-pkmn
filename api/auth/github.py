@@ -26,17 +26,15 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Annotated
 
 from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
-from ..db.models import User
+from ..db.models import PROVIDER_GITHUB
+from .identity import resolve_or_link_identity
 from .session import DbSession, auth_enabled
 
 _log = logging.getLogger(__name__)
@@ -124,14 +122,6 @@ def _require_auth_enabled() -> None:
 AuthGate = Annotated[None, Depends(_require_auth_enabled)]
 
 
-def _find_user_by_email(db, email: str) -> User | None:
-    """Existence check for the upsert path. Carved out as a separate
-    function so the race-recovery test can patch the first call to
-    miss and the second to hit, simulating a concurrent INSERT
-    landing in the read-then-insert window."""
-    return db.scalar(select(User).where(User.email == email))
-
-
 async def fetch_github_profile(oauth: OAuth, request: Request, token: dict) -> GitHubProfile:
     """Pull the profile + verified primary email for the signed-in user.
 
@@ -210,50 +200,19 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
         # commit on the unique constraint. Refuse cleanly instead.
         raise HTTPException(status_code=400, detail="no_github_login")
 
-    existing = _find_user_by_email(db, profile.verified_primary_email)
-    if existing is None:
-        # Fresh signup. `name` must be unique on `User`, so prefix the
-        # GitHub login to avoid colliding with the sentinel `default`
-        # row or a hypothetical future user named the same thing.
-        # `profile.login` is guaranteed non-empty here — the callback
-        # refuses earlier with 400 `no_github_login` if it isn't.
-        candidate_name = f"gh:{profile.login}"[:64]
-        user = User(
-            name=candidate_name,
-            email=profile.verified_primary_email,
-            email_verified_at=datetime.now(UTC),
-            display_name=profile.name or profile.login or None,
-        )
-        db.add(user)
-        try:
-            # Flush rather than commit — `get_db` already commits on
-            # normal return. Flush is enough to trigger the unique
-            # constraint on `users.email` and let us recover from the
-            # race below.
-            db.flush()
-        except IntegrityError:
-            # Two callbacks for the same verified email landed within
-            # the read-then-insert window. The other transaction won
-            # the INSERT; roll back and re-read so this request can
-            # proceed idempotently with the existing row. No
-            # display_name / email_verified_at update on this path —
-            # whichever callback committed first already filled them.
-            db.rollback()
-            user = _find_user_by_email(db, profile.verified_primary_email)
-            if user is None:
-                # The unique constraint fired but the row isn't
-                # readable — something unrelated raised the
-                # IntegrityError. Let the original error surface.
-                raise
-    else:
-        user = existing
-        if user.email_verified_at is None:
-            user.email_verified_at = datetime.now(UTC)
-        if not user.display_name:
-            # Per ADR-0019, the provider only fills `display_name` when
-            # the row has none yet. Lets the user keep whatever they
-            # had on first sign-in.
-            user.display_name = profile.name or profile.login or None
+    # Slice 1 of #491: the identity-first resolver in `api/auth/identity.py`
+    # owns the email-fallback + cold-mint + race-recovery branches that
+    # used to be inlined here. ``provider_subject`` is GitHub's login —
+    # stable enough that login-rename is rare (and the email-fallback
+    # branch handles even that case the next time the user signs in).
+    user = resolve_or_link_identity(
+        db,
+        provider=PROVIDER_GITHUB,
+        subject=profile.login,
+        email=profile.verified_primary_email,
+        display_name=profile.name or profile.login or None,
+        name_prefix="gh",
+    )
 
     # `get_db` commits on normal return; no explicit commit here.
     request.session["user_id"] = user.id
