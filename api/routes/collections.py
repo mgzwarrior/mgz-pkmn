@@ -26,12 +26,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db.models import DEFAULT_USER_ID, Collection, CollectionItem
+from ..auth.session import current_user_or_default
+from ..db.models import Collection, CollectionItem, User
 from ..db.session import get_db
 
 router = APIRouter()
 
 DbSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(current_user_or_default)]
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +89,7 @@ class CollectionItemCreate(BaseModel):
 
 
 @router.get("/collections")
-def list_collections(db: DbSession) -> dict:
+def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
     """Most-recent-first listing with item counts (no items payload)."""
     item_count_subq = (
         select(
@@ -103,7 +105,7 @@ def list_collections(db: DbSession) -> dict:
             func.coalesce(item_count_subq.c.item_count, 0).label("item_count"),
         )
         .outerjoin(item_count_subq, Collection.id == item_count_subq.c.collection_id)
-        .where(Collection.user_id == DEFAULT_USER_ID)
+        .where(Collection.user_id == current_user.id)
         .order_by(Collection.created_at.desc(), Collection.id.desc())
     )
     items = [
@@ -120,9 +122,9 @@ def list_collections(db: DbSession) -> dict:
 
 
 @router.post("/collections", status_code=201)
-def create_collection(req: CollectionCreate, db: DbSession) -> dict:
+def create_collection(req: CollectionCreate, db: DbSession, current_user: CurrentUser) -> dict:
     collection = Collection(
-        user_id=DEFAULT_USER_ID,
+        user_id=current_user.id,
         name=req.name.strip(),
         description=req.description,
     )
@@ -133,14 +135,19 @@ def create_collection(req: CollectionCreate, db: DbSession) -> dict:
 
 
 @router.get("/collections/{collection_id}")
-def get_collection(collection_id: int, db: DbSession) -> dict:
-    collection = _load_collection(db, collection_id)
+def get_collection(collection_id: int, db: DbSession, current_user: CurrentUser) -> dict:
+    collection = _load_collection(db, collection_id, current_user.id)
     return _serialize_collection(collection)
 
 
 @router.patch("/collections/{collection_id}")
-def patch_collection(collection_id: int, req: CollectionPatch, db: DbSession) -> dict:
-    collection = _load_collection(db, collection_id)
+def patch_collection(
+    collection_id: int,
+    req: CollectionPatch,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    collection = _load_collection(db, collection_id, current_user.id)
     if req.name is not None:
         collection.name = req.name.strip()
     # `description` is patched whenever the caller includes the key —
@@ -154,15 +161,20 @@ def patch_collection(collection_id: int, req: CollectionPatch, db: DbSession) ->
 
 
 @router.delete("/collections/{collection_id}", status_code=204)
-def delete_collection(collection_id: int, db: DbSession) -> None:
-    collection = _load_collection(db, collection_id)
+def delete_collection(collection_id: int, db: DbSession, current_user: CurrentUser) -> None:
+    collection = _load_collection(db, collection_id, current_user.id)
     db.delete(collection)
     db.commit()
 
 
 @router.post("/collections/{collection_id}/items", status_code=201)
-def add_collection_item(collection_id: int, req: CollectionItemCreate, db: DbSession) -> dict:
-    collection = _load_collection(db, collection_id)
+def add_collection_item(
+    collection_id: int,
+    req: CollectionItemCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    collection = _load_collection(db, collection_id, current_user.id)
     item = CollectionItem(
         collection_id=collection.id,
         card_json=req.card,
@@ -175,11 +187,19 @@ def add_collection_item(collection_id: int, req: CollectionItemCreate, db: DbSes
 
 
 @router.delete("/collections/{collection_id}/items/{item_id}", status_code=204)
-def delete_collection_item(collection_id: int, item_id: int, db: DbSession) -> None:
+def delete_collection_item(
+    collection_id: int,
+    item_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    # Scope the lookup through the parent collection so a guess-the-id
+    # attack on another user's items 404s instead of leaking existence.
+    collection = _load_collection(db, collection_id, current_user.id)
     item = db.scalar(
         select(CollectionItem).where(
             CollectionItem.id == item_id,
-            CollectionItem.collection_id == collection_id,
+            CollectionItem.collection_id == collection.id,
         )
     )
     if item is None:
@@ -196,12 +216,12 @@ def delete_collection_item(collection_id: int, item_id: int, db: DbSession) -> N
 # ---------------------------------------------------------------------------
 
 
-def _load_collection(db: Session, collection_id: int) -> Collection:
+def _load_collection(db: Session, collection_id: int, user_id: int) -> Collection:
     collection = db.scalar(
         select(Collection)
         .where(
             Collection.id == collection_id,
-            Collection.user_id == DEFAULT_USER_ID,
+            Collection.user_id == user_id,
         )
         .options(selectinload(Collection.items))
     )

@@ -48,10 +48,11 @@ vi.mock('./api/client', () => ({
   addOverride: vi.fn(),
   // Referenced by the WhatsNewModal mounted in the header.
   fetchChangelog: vi.fn(() => Promise.resolve([])),
-  // SignInChip mounts on App render and calls `fetchMe` on mount;
-  // stub to "anonymous" so the chip resolves to its signed-out shape
-  // without a real HTTP round-trip.
-  fetchMe: vi.fn(() => Promise.resolve(null)),
+  // SignInChip / ResultsTable / App all read useAuth on mount, which
+  // calls `fetchMe`. Stub to the auth-on-but-anonymous envelope so the
+  // chip resolves to its signed-out shape and the user-scoped chips
+  // (collections / wishlists) stay hidden in the default fixture.
+  fetchMe: vi.fn(() => Promise.resolve({ user: null, authEnabled: true })),
   logout: vi.fn(() => Promise.resolve()),
   requestMagicLink: vi.fn(() => Promise.resolve()),
 }))

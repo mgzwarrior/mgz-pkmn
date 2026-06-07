@@ -75,20 +75,37 @@ describe('fetchMe', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns null when the endpoint reports 204 (anonymous session)', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 204 }))
-    await expect(fetchMe()).resolves.toBeNull()
+  it('returns a null-user envelope for an auth-on anonymous session', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ user: null, auth_enabled: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(fetchMe()).resolves.toEqual({ user: null, authEnabled: true })
     expect(fetchSpy).toHaveBeenCalledWith('/api/v1/me', { credentials: 'same-origin' })
   })
 
-  it('returns the parsed body for a 200 signed-in response', async () => {
-    const body = { id: 1, email: 'a@b.c', display_name: 'A' }
+  it('returns the user envelope for a 200 signed-in response', async () => {
+    const user = { id: 1, email: 'a@b.c', display_name: 'A' }
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+      new Response(JSON.stringify({ user, auth_enabled: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     )
-    await expect(fetchMe()).resolves.toEqual(body)
+    await expect(fetchMe()).resolves.toEqual({ user, authEnabled: true })
+  })
+
+  it('reports authEnabled false for the self-host envelope', async () => {
+    const user = { id: 1, email: null, display_name: null }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ user, auth_enabled: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(fetchMe()).resolves.toEqual({ user, authEnabled: false })
   })
 
   it('throws on a non-ok response', async () => {

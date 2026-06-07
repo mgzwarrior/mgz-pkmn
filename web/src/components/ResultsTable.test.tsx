@@ -1,13 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import type { Row } from '../types'
 
+const { fetchMeMock } = vi.hoisted(() => ({ fetchMeMock: vi.fn() }))
+
 vi.mock('../api/client', () => ({
   addOverride: vi.fn(),
+  // ResultsTable now reads useAuth to gate the row-level save buttons.
+  // The default mock returns the auth-on signed-in shape so existing
+  // tests still exercise the save-action surface; the dedicated
+  // signed-out test below overrides via mockResolvedValueOnce.
+  fetchMe: fetchMeMock,
+  logout: vi.fn(),
 }))
+
+beforeEach(() => {
+  fetchMeMock.mockReset()
+  fetchMeMock.mockResolvedValue({
+    user: { id: 1, email: 'u@e.com', display_name: 'U' },
+    authEnabled: true,
+  })
+})
 
 beforeEach(() => {
   // ResultsTable now reads sort + filter state from the store; reset
@@ -219,6 +235,38 @@ describe('ResultsTable', () => {
     fireEvent.keyDown(row, { key: 'a' })
     fireEvent.keyDown(row, { key: 'Tab' })
     expect(screen.queryByRole('dialog')).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('hides the row-level save buttons for an anonymous (auth-on) user', async () => {
+    // Anonymous on a hosted deploy → the collections / wishlists chips
+    // can't fire without a user, so the row buttons hide.
+    fetchMeMock.mockReset()
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Holo Rare',
+            set: { name: 'Base Set' },
+          },
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    // Row renders right away (synchronous), the save buttons appear only
+    // after /me resolves — but they never should here. Wait one tick to
+    // let the hook settle so a stray render of the buttons would fail.
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /save to collection/i })).toBeNull()
+    })
+    expect(screen.queryByRole('button', { name: /save to wishlist/i })).toBeNull()
     useAppStore.setState({ rows: [] })
   })
 })

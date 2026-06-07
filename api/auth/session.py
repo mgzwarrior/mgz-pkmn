@@ -15,12 +15,12 @@ import logging
 import os
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from ..db.models import User
+from ..db.models import DEFAULT_USER_ID, User
 from ..db.session import get_db
 
 _log = logging.getLogger(__name__)
@@ -153,3 +153,36 @@ def get_current_user(request: Request, db: DbSession) -> User | None:
     except (TypeError, ValueError):
         return None
     return db.scalar(select(User).where(User.id == user_id))
+
+
+CurrentUserOptional = Annotated[User | None, Depends(get_current_user)]
+
+
+def current_user_or_default(user: CurrentUserOptional, db: DbSession) -> User:
+    """Resolve the user a per-account resource should be scoped to.
+
+    Used by collections / wishlists / runs — resources that have to
+    attach to a real user row in production but should keep working
+    anonymously on a self-host install.
+
+    - **Auth on, signed in** → return the signed-in `User`.
+    - **Auth on, anonymous** → raise 401 so the SPA can prompt sign-in.
+    - **Auth off (self-host)** → return the sentinel ``default`` user
+      seeded by the first migration. Preserves the anonymous-everywhere
+      contract self-hosters configured-for-nothing rely on (ADR-0019).
+
+    Distinct from ``get_current_user`` on purpose: that one answers
+    "who is the visitor" (and ``None`` is a legitimate answer for /me).
+    This one answers "which user row do I attach this resource to" —
+    and ``None`` is never a legitimate answer for that question."""
+    if user is not None:
+        return user
+    if auth_enabled():
+        raise HTTPException(status_code=401, detail="sign-in required")
+    default = db.get(User, DEFAULT_USER_ID)
+    if default is None:
+        # Defensive: the initial migration seeds this row. Reaching the
+        # branch means the DB was tampered with — surface it instead of
+        # 500-ing later inside the route.
+        raise HTTPException(status_code=500, detail="default user row missing from database")
+    return default

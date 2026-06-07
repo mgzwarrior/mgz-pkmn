@@ -243,5 +243,100 @@ class WishlistsEndpointTests(_IsolatedDbMixin):
             self.assertEqual(resp.status_code, 404)
 
 
+# ---------------------------------------------------------------------------
+# Auth gating
+# ---------------------------------------------------------------------------
+
+
+class WishlistsAuthGateTests(_IsolatedDbMixin):
+    """Mirror of CollectionsAuthGateTests for the wishlists tree."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from api.auth.session import AUTH_ENABLED_ENV
+
+        self._old_auth = os.environ.get(AUTH_ENABLED_ENV)
+        os.environ[AUTH_ENABLED_ENV] = "1"
+
+    def tearDown(self) -> None:
+        from api.auth.session import AUTH_ENABLED_ENV
+
+        if self._old_auth is None:
+            os.environ.pop(AUTH_ENABLED_ENV, None)
+        else:
+            os.environ[AUTH_ENABLED_ENV] = self._old_auth
+        super().tearDown()
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def _seed_user(self, name: str, email: str) -> int:
+        from api.db.models import User
+
+        with session_mod.get_session_factory()() as s:
+            u = User(name=name, email=email, display_name=name.title())
+            s.add(u)
+            s.commit()
+            return u.id
+
+    def _as(self, user_id: int):
+        from contextlib import contextmanager
+
+        from api.auth.session import get_current_user
+        from api.db.models import User
+        from api.main import app
+
+        @contextmanager
+        def _ctx():
+            with session_mod.get_session_factory()() as s:
+                u = s.get(User, user_id)
+            app.dependency_overrides[get_current_user] = lambda: u
+            try:
+                yield
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+
+        return _ctx()
+
+    def test_anonymous_get_list_is_401(self) -> None:
+        with self._client() as c:
+            self.assertEqual(c.get("/api/v1/wishlists").status_code, 401)
+
+    def test_anonymous_create_is_401(self) -> None:
+        with self._client() as c:
+            self.assertEqual(c.post("/api/v1/wishlists", json={"name": "x"}).status_code, 401)
+
+    def test_cross_account_isolation(self) -> None:
+        with self._client() as c:
+            uid_a = self._seed_user("alice", "a@x.com")
+            uid_b = self._seed_user("bob", "b@x.com")
+
+            with self._as(uid_a):
+                wid = c.post("/api/v1/wishlists", json={"name": "alice-only"}).json()["id"]
+                item_id = c.post(
+                    f"/api/v1/wishlists/{wid}/items", json={"card": SAMPLE_CARD}
+                ).json()["id"]
+
+            with self._as(uid_b):
+                self.assertEqual(c.get("/api/v1/wishlists").json()["total"], 0)
+                self.assertEqual(c.get(f"/api/v1/wishlists/{wid}").status_code, 404)
+                self.assertEqual(
+                    c.patch(f"/api/v1/wishlists/{wid}", json={"name": "x"}).status_code, 404
+                )
+                self.assertEqual(c.delete(f"/api/v1/wishlists/{wid}").status_code, 404)
+                self.assertEqual(
+                    c.post(
+                        f"/api/v1/wishlists/{wid}/items", json={"card": SAMPLE_CARD}
+                    ).status_code,
+                    404,
+                )
+                self.assertEqual(
+                    c.delete(f"/api/v1/wishlists/{wid}/items/{item_id}").status_code,
+                    404,
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

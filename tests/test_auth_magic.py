@@ -307,7 +307,7 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
             self.assertEqual(r.status_code, 302)
             me = client.get("/api/v1/me")
             self.assertEqual(me.status_code, 200)
-            payload = me.json()
+            payload = me.json()["user"]
             self.assertEqual(payload["email"], "loop@example.com")
             self.assertIsInstance(payload["id"], int)
 

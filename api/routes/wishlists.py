@@ -27,12 +27,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db.models import DEFAULT_USER_ID, Wishlist, WishlistItem
+from ..auth.session import current_user_or_default
+from ..db.models import User, Wishlist, WishlistItem
 from ..db.session import get_db
 
 router = APIRouter()
 
 DbSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(current_user_or_default)]
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +93,7 @@ class WishlistItemCreate(BaseModel):
 
 
 @router.get("/wishlists")
-def list_wishlists(db: DbSession) -> dict:
+def list_wishlists(db: DbSession, current_user: CurrentUser) -> dict:
     """Most-recent-first listing with item counts (no items payload)."""
     item_count_subq = (
         select(
@@ -107,7 +109,7 @@ def list_wishlists(db: DbSession) -> dict:
             func.coalesce(item_count_subq.c.item_count, 0).label("item_count"),
         )
         .outerjoin(item_count_subq, Wishlist.id == item_count_subq.c.wishlist_id)
-        .where(Wishlist.user_id == DEFAULT_USER_ID)
+        .where(Wishlist.user_id == current_user.id)
         .order_by(Wishlist.created_at.desc(), Wishlist.id.desc())
     )
     items = [
@@ -124,9 +126,9 @@ def list_wishlists(db: DbSession) -> dict:
 
 
 @router.post("/wishlists", status_code=201)
-def create_wishlist(req: WishlistCreate, db: DbSession) -> dict:
+def create_wishlist(req: WishlistCreate, db: DbSession, current_user: CurrentUser) -> dict:
     wishlist = Wishlist(
-        user_id=DEFAULT_USER_ID,
+        user_id=current_user.id,
         name=req.name.strip(),
         description=req.description,
     )
@@ -137,14 +139,19 @@ def create_wishlist(req: WishlistCreate, db: DbSession) -> dict:
 
 
 @router.get("/wishlists/{wishlist_id}")
-def get_wishlist(wishlist_id: int, db: DbSession) -> dict:
-    wishlist = _load_wishlist(db, wishlist_id)
+def get_wishlist(wishlist_id: int, db: DbSession, current_user: CurrentUser) -> dict:
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
     return _serialize_wishlist(wishlist)
 
 
 @router.patch("/wishlists/{wishlist_id}")
-def patch_wishlist(wishlist_id: int, req: WishlistPatch, db: DbSession) -> dict:
-    wishlist = _load_wishlist(db, wishlist_id)
+def patch_wishlist(
+    wishlist_id: int,
+    req: WishlistPatch,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
     if req.name is not None:
         wishlist.name = req.name.strip()
     # `description` is patched whenever the caller includes the key —
@@ -158,15 +165,20 @@ def patch_wishlist(wishlist_id: int, req: WishlistPatch, db: DbSession) -> dict:
 
 
 @router.delete("/wishlists/{wishlist_id}", status_code=204)
-def delete_wishlist(wishlist_id: int, db: DbSession) -> None:
-    wishlist = _load_wishlist(db, wishlist_id)
+def delete_wishlist(wishlist_id: int, db: DbSession, current_user: CurrentUser) -> None:
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
     db.delete(wishlist)
     db.commit()
 
 
 @router.post("/wishlists/{wishlist_id}/items", status_code=201)
-def add_wishlist_item(wishlist_id: int, req: WishlistItemCreate, db: DbSession) -> dict:
-    wishlist = _load_wishlist(db, wishlist_id)
+def add_wishlist_item(
+    wishlist_id: int,
+    req: WishlistItemCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
     item = WishlistItem(
         wishlist_id=wishlist.id,
         card_json=req.card,
@@ -180,11 +192,19 @@ def add_wishlist_item(wishlist_id: int, req: WishlistItemCreate, db: DbSession) 
 
 
 @router.delete("/wishlists/{wishlist_id}/items/{item_id}", status_code=204)
-def delete_wishlist_item(wishlist_id: int, item_id: int, db: DbSession) -> None:
+def delete_wishlist_item(
+    wishlist_id: int,
+    item_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    # Scope the lookup through the parent wishlist so a guess-the-id
+    # attack on another user's items 404s instead of leaking existence.
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
     item = db.scalar(
         select(WishlistItem).where(
             WishlistItem.id == item_id,
-            WishlistItem.wishlist_id == wishlist_id,
+            WishlistItem.wishlist_id == wishlist.id,
         )
     )
     if item is None:
@@ -201,12 +221,12 @@ def delete_wishlist_item(wishlist_id: int, item_id: int, db: DbSession) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _load_wishlist(db: Session, wishlist_id: int) -> Wishlist:
+def _load_wishlist(db: Session, wishlist_id: int, user_id: int) -> Wishlist:
     wishlist = db.scalar(
         select(Wishlist)
         .where(
             Wishlist.id == wishlist_id,
-            Wishlist.user_id == DEFAULT_USER_ID,
+            Wishlist.user_id == user_id,
         )
         .options(selectinload(Wishlist.items))
     )

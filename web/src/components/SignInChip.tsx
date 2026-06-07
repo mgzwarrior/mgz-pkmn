@@ -38,8 +38,16 @@ function initialsFor(user: Me): string {
 }
 
 export function SignInChip() {
-  const { user, loading, signOut } = useAuth()
+  const { user, authEnabled, loading, signOut } = useAuth()
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  // Self-host (auth off) has no sign-in surface to render — `/me`
+  // already attaches the sentinel default user so collections /
+  // wishlists work without a chip. Hide entirely rather than show a
+  // disabled chip the user can't act on.
+  if (!loading && !authEnabled) {
+    return null
+  }
 
   if (loading) {
     // Reserve the icon-button footprint so the header doesn't reflow

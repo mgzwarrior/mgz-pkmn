@@ -32,6 +32,7 @@ import { WhatsNewModal } from './components/WhatsNewModal'
 import { SignInChip } from './components/SignInChip'
 import { ThemeToggle } from './components/ThemeToggle'
 import { Tour } from './components/Tour'
+import { useAuth } from './hooks/useAuth'
 import { useAppStore } from './store'
 import type { BulkEvent } from './types'
 import logoLightUrl from '../../assets/logo.svg'
@@ -69,6 +70,11 @@ function App() {
   const [collectionsOpen, setCollectionsOpen] = useState(false)
   const [wishlistsOpen, setWishlistsOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('search')
+  // Collections / wishlists chips only render when there's an identified
+  // user behind the request. Production-signed-out → null → hidden;
+  // production-signed-in → user → shown; self-host → default user → shown.
+  const { user: authedUser } = useAuth()
+  const showUserScopedChips = authedUser !== null
   // `active` flips when the user switches into browse mode so the
   // controller's reset effect fires.
   const browseController = useBrowseController(mode === 'browse')
@@ -240,26 +246,30 @@ function App() {
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
           </button>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCollectionsOpen(true)}
-              className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
-              title="Collections"
-              aria-label="Collections"
-            >
-              <Bookmark size={15} />
-              <span className="hidden sm:inline">Collections</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setWishlistsOpen(true)}
-              className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
-              title="Wishlists"
-              aria-label="Wishlists"
-            >
-              <Heart size={15} />
-              <span className="hidden sm:inline">Wishlists</span>
-            </button>
+            {showUserScopedChips && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setCollectionsOpen(true)}
+                  className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
+                  title="Collections"
+                  aria-label="Collections"
+                >
+                  <Bookmark size={15} />
+                  <span className="hidden sm:inline">Collections</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWishlistsOpen(true)}
+                  className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
+                  title="Wishlists"
+                  aria-label="Wishlists"
+                >
+                  <Heart size={15} />
+                  <span className="hidden sm:inline">Wishlists</span>
+                </button>
+              </>
+            )}
             <div data-tour="exports">
               <ExportBar />
             </div>
