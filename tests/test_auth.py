@@ -175,12 +175,22 @@ def _seed_user(name: str = "alice", email: str = "alice@example.com") -> int:
 
 
 class MeEndpointAnonymousTests(_IsolatedDbMixin):
-    def test_me_returns_204_when_no_cookie(self) -> None:
+    def test_me_returns_default_user_when_auth_off(self) -> None:
+        """Self-host (auth off) surfaces the sentinel ``default`` user so
+        the SPA's collections / wishlists chip-visibility check works
+        identically across auth-on and auth-off modes."""
         from api.main import app
 
         with TestClient(app) as c:
             resp = c.get("/api/v1/me")
-            self.assertEqual(resp.status_code, 204)
+            self.assertEqual(resp.status_code, 200)
+            body = resp.json()
+            self.assertFalse(body["auth_enabled"])
+            self.assertIsNotNone(body["user"])
+            # The first migration seeds the default user with id=1 and
+            # no email / display_name. Assert id; null fields are tested
+            # elsewhere via the seeded-row tests.
+            self.assertEqual(body["user"]["id"], 1)
 
 
 class MeEndpointAuthOnTests(_IsolatedDbMixin):
@@ -213,11 +223,12 @@ class MeEndpointAuthOnTests(_IsolatedDbMixin):
 
             self.assertEqual(resp.status_code, 200)
             body = resp.json()
-            self.assertEqual(body["id"], user_id)
-            self.assertEqual(body["email"], "alice@example.com")
-            self.assertEqual(body["display_name"], "Alice")
+            self.assertTrue(body["auth_enabled"])
+            self.assertEqual(body["user"]["id"], user_id)
+            self.assertEqual(body["user"]["email"], "alice@example.com")
+            self.assertEqual(body["user"]["display_name"], "Alice")
 
-    def test_me_returns_204_when_dependency_returns_none(self) -> None:
+    def test_me_returns_null_user_when_auth_on_and_dependency_returns_none(self) -> None:
         from api.auth.session import get_current_user
         from api.main import app
 
@@ -227,7 +238,10 @@ class MeEndpointAuthOnTests(_IsolatedDbMixin):
                 resp = c.get("/api/v1/me")
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
-            self.assertEqual(resp.status_code, 204)
+            self.assertEqual(resp.status_code, 200)
+            body = resp.json()
+            self.assertTrue(body["auth_enabled"])
+            self.assertIsNone(body["user"])
 
     def test_logout_is_idempotent_on_anonymous_session(self) -> None:
         from api.main import app
@@ -304,7 +318,7 @@ class SignedCookieRoundTripTests(_IsolatedDbMixin):
             c.cookies.set("mgz_pkmn_session", cookie)
             resp = c.get("/api/v1/me")
             self.assertEqual(resp.status_code, 200)
-            self.assertEqual(resp.json()["id"], user_id)
+            self.assertEqual(resp.json()["user"]["id"], user_id)
 
     def test_tampered_cookie_is_silently_rejected(self) -> None:
         from api.main import app
@@ -315,11 +329,15 @@ class SignedCookieRoundTripTests(_IsolatedDbMixin):
             cookie = self._sign_session(secret, {"user_id": 1})
             # Flip one character in the signed payload — itsdangerous's
             # signature check fails, SessionMiddleware drops the session,
-            # `request.session` is empty for the route, /me returns 204.
+            # `request.session` is empty for the route, /me returns the
+            # auth-on anonymous envelope (`user: null, auth_enabled: true`).
             tampered = cookie[:-5] + ("A" if cookie[-1] != "A" else "B") + cookie[-4:]
             c.cookies.set("mgz_pkmn_session", tampered)
             resp = c.get("/api/v1/me")
-            self.assertEqual(resp.status_code, 204)
+            self.assertEqual(resp.status_code, 200)
+            body = resp.json()
+            self.assertIsNone(body["user"])
+            self.assertTrue(body["auth_enabled"])
 
     def test_cookie_signed_with_wrong_secret_is_rejected(self) -> None:
         from api.main import app
@@ -329,7 +347,10 @@ class SignedCookieRoundTripTests(_IsolatedDbMixin):
             cookie = self._sign_session("a-different-secret-entirely", {"user_id": 1})
             c.cookies.set("mgz_pkmn_session", cookie)
             resp = c.get("/api/v1/me")
-            self.assertEqual(resp.status_code, 204)
+            self.assertEqual(resp.status_code, 200)
+            body = resp.json()
+            self.assertIsNone(body["user"])
+            self.assertTrue(body["auth_enabled"])
 
 
 class ProductionAuthOffStartupTests(unittest.TestCase):

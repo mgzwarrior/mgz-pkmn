@@ -261,7 +261,7 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
             # httpx's TestClient cookie jar.
             me = client.get("/api/v1/me")
             self.assertEqual(me.status_code, 200)
-            payload = me.json()
+            payload = me.json()["user"]
             self.assertEqual(payload["email"], "dani@example.com")
             self.assertEqual(payload["display_name"], "Dani Reyes")
             self.assertIsInstance(payload["id"], int)

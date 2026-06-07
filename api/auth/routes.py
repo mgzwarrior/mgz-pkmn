@@ -10,49 +10,75 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from ..db.models import User
-from .session import get_current_user
+from ..db.models import DEFAULT_USER_ID, User
+from .session import DbSession, auth_enabled, get_current_user
 
 router = APIRouter()
 
 CurrentUser = Annotated[User | None, Depends(get_current_user)]
 
 
-class MeOut(BaseModel):
-    """Payload returned by ``GET /api/v1/me`` for a signed-in user."""
+class MeUser(BaseModel):
+    """Identity payload for the current request's user."""
 
     id: int
     email: str | None
     display_name: str | None
 
 
-@router.get(
-    "/me",
-    response_model=MeOut,
-    responses={
-        200: {"model": MeOut, "description": "Signed-in user"},
-        204: {"description": "Anonymous session — no body"},
-    },
-)
-def me(user: CurrentUser) -> Response:
-    """Return the current signed-in user, or 204 No Content for anon.
+class MeOut(BaseModel):
+    """``GET /api/v1/me`` envelope.
 
-    The SPA polls this on mount + after each OAuth callback to drive the
-    header chip's signed-in/anonymous state. Returning 204 (rather than
-    200 + ``null``) makes the anonymous case cheap to detect on the
-    client without parsing a body — both response shapes are documented
-    in the OpenAPI schema via the ``responses`` map above so generated
-    clients pick up the union explicitly. The 204 branch returns a bare
-    ``Response`` directly (rather than ``None`` + ``response_model``
-    bypass) so FastAPI's response validator doesn't try to coerce a
-    ``None`` against ``MeOut``."""
-    if user is None:
-        return Response(status_code=204)
-    return JSONResponse(
-        MeOut(id=user.id, email=user.email, display_name=user.display_name).model_dump()
+    Always returned with 200 so a single round-trip tells the SPA both
+    *who* the visitor is and *whether sign-in is even available* on this
+    deploy. ``user`` is the default-user payload in self-host mode (auth
+    off), so the SPA's "is there an identified user?" check is a single
+    null comparison across modes. ``auth_enabled`` gates the SignInChip
+    itself — self-host has no sign-in surface to render."""
+
+    user: MeUser | None
+    auth_enabled: bool
+
+
+@router.get("/me", response_model=MeOut)
+def me(user: CurrentUser, db: DbSession) -> MeOut:
+    """Return the current user envelope.
+
+    Three branches:
+
+    - **Auth on, signed in** → ``{user: <signed-in row>, auth_enabled: true}``
+    - **Auth on, signed out** → ``{user: null, auth_enabled: true}``
+    - **Auth off (self-host)** → ``{user: <default user>, auth_enabled: false}``
+
+    Self-host returns the default user (rather than ``null``) so the
+    SPA's collections / wishlists chip-visibility check — ``user !=
+    null`` — works identically across modes without the chip having to
+    branch on ``auth_enabled``."""
+    enabled = auth_enabled()
+    if user is None and not enabled:
+        # Self-host implicit identity: surface the sentinel row so the
+        # SPA treats the visitor as "signed in" for chip-visibility
+        # purposes. The row's email / display_name are NULL on a fresh
+        # install; the SPA already handles that shape.
+        default = db.get(User, DEFAULT_USER_ID)
+        if default is not None:
+            return MeOut(
+                user=MeUser(
+                    id=default.id,
+                    email=default.email,
+                    display_name=default.display_name,
+                ),
+                auth_enabled=False,
+            )
+    return MeOut(
+        user=(
+            MeUser(id=user.id, email=user.email, display_name=user.display_name)
+            if user is not None
+            else None
+        ),
+        auth_enabled=enabled,
     )
 
 

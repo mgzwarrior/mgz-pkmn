@@ -14,6 +14,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, AlertCircle, Filter } from 'lucide-react'
 import { addOverride } from '../api/client'
+import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import type { ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
@@ -37,6 +38,11 @@ export function ResultsTable({ onRerunLine }: Props) {
   const { rows, progress, isRunning, settings, viewState, setViewState, resetViewState } =
     useAppStore()
   const { sortColumn, sortDir, showFilters, filters } = viewState
+  // Hoist the auth read here (not in ResultRow) so we don't fire one
+  // `/me` request per row on mount. Pass the boolean down — the rows
+  // care about "should I render save buttons" not "who is the user".
+  const { user: authedUser } = useAuth()
+  const showSavedActions = authedUser !== null
   // Index into `displayedRows` for the row whose detail modal is open;
   // `null` keeps the modal closed. Tracking the index (not the row) lets
   // ←/→ navigation in the modal stay synced with the live filter+sort.
@@ -288,6 +294,7 @@ export function ResultsTable({ onRerunLine }: Props) {
                 key={rowKeys.get(row) ?? -1}
                 row={row}
                 showImage={!settings.noImages}
+                showSavedActions={showSavedActions}
                 onRerunLine={onRerunLine}
                 onOpenDetail={() => setDetailIndex(displayedIdx)}
               />
@@ -396,11 +403,13 @@ function FilterInput({
 function ResultRow({
   row,
   showImage,
+  showSavedActions,
   onRerunLine,
   onOpenDetail,
 }: {
   row: Row
   showImage: boolean
+  showSavedActions: boolean
   onRerunLine?: (line: string) => void
   onOpenDetail?: () => void
 }) {
@@ -556,7 +565,7 @@ function ResultRow({
         {/* Link + collection / wishlist actions */}
         <td className="px-3 py-2 w-20">
           <div className="flex items-center justify-end gap-1">
-            {row.matched && card && (
+            {row.matched && card && showSavedActions && (
               <>
                 <AddToCollectionButton card={card as Record<string, unknown>} />
                 <AddToWishlistButton card={card as Record<string, unknown>} />

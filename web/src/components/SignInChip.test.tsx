@@ -29,13 +29,13 @@ beforeEach(() => {
 
 describe('SignInChip (anonymous)', () => {
   it('renders the Sign in button when /me returns null', async () => {
-    fetchMeMock.mockResolvedValue(null)
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
     render(<SignInChip />)
     expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 
   it('opens the provider picker with GitHub, Google, and magic-link options', async () => {
-    fetchMeMock.mockResolvedValue(null)
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
     render(<SignInChip />)
     fireEvent.click(await screen.findByRole('button', { name: /sign in/i }))
     expect(await screen.findByRole('link', { name: /continue with github/i })).toHaveAttribute(
@@ -50,7 +50,7 @@ describe('SignInChip (anonymous)', () => {
   })
 
   it('expands the magic-link form and posts the email on submit', async () => {
-    fetchMeMock.mockResolvedValue(null)
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
     requestMagicLinkMock.mockResolvedValue(undefined)
     render(<SignInChip />)
     fireEvent.click(await screen.findByRole('button', { name: /sign in/i }))
@@ -65,7 +65,7 @@ describe('SignInChip (anonymous)', () => {
   })
 
   it('resets the magic-link form state when the picker is closed and re-opened', async () => {
-    fetchMeMock.mockResolvedValue(null)
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
     requestMagicLinkMock.mockResolvedValue(undefined)
     render(<SignInChip />)
     const open = await screen.findByRole('button', { name: /sign in/i })
@@ -84,7 +84,7 @@ describe('SignInChip (anonymous)', () => {
   })
 
   it('drops a magic-link resolution that lands after the picker is closed', async () => {
-    fetchMeMock.mockResolvedValue(null)
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
     let resolveRequest!: () => void
     requestMagicLinkMock.mockReturnValue(new Promise<void>((resolve) => { resolveRequest = resolve }))
     render(<SignInChip />)
@@ -110,7 +110,7 @@ describe('SignInChip (anonymous)', () => {
   })
 
   it('surfaces an error when the magic-link request fails', async () => {
-    fetchMeMock.mockResolvedValue(null)
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
     requestMagicLinkMock.mockRejectedValue(new Error('boom'))
     render(<SignInChip />)
     fireEvent.click(await screen.findByRole('button', { name: /sign in/i }))
@@ -123,7 +123,10 @@ describe('SignInChip (anonymous)', () => {
 
 describe('SignInChip (signed in)', () => {
   it('renders an icon-only trigger and surfaces display_name + email inside the dropdown', async () => {
-    fetchMeMock.mockResolvedValue({ id: 1, email: 'jane@example.com', display_name: 'Jane Doe' })
+    fetchMeMock.mockResolvedValue({
+      user: { id: 1, email: 'jane@example.com', display_name: 'Jane Doe' },
+      authEnabled: true,
+    })
     logoutMock.mockResolvedValue(undefined)
     render(<SignInChip />)
     const trigger = await screen.findByRole('button', { name: /account menu for jane doe/i })
@@ -150,7 +153,10 @@ describe('SignInChip (signed in)', () => {
   })
 
   it('falls back to initials when display_name is missing', async () => {
-    fetchMeMock.mockResolvedValue({ id: 2, email: 'sam@example.com', display_name: null })
+    fetchMeMock.mockResolvedValue({
+      user: { id: 2, email: 'sam@example.com', display_name: null },
+      authEnabled: true,
+    })
     render(<SignInChip />)
     const trigger = await screen.findByRole('button', { name: /account menu for sam@example.com/i })
     expect(trigger).toHaveTextContent(/SA/)
@@ -159,13 +165,17 @@ describe('SignInChip (signed in)', () => {
 
 describe('SignInChip (loading)', () => {
   it('renders an aria-busy placeholder until /me resolves', async () => {
-    let resolveMe!: (v: null) => void
-    fetchMeMock.mockReturnValue(new Promise<null>((resolve) => { resolveMe = resolve }))
+    let resolveMe!: (v: { user: null; authEnabled: boolean }) => void
+    fetchMeMock.mockReturnValue(
+      new Promise<{ user: null; authEnabled: boolean }>((resolve) => {
+        resolveMe = resolve
+      }),
+    )
     render(<SignInChip />)
     const placeholder = await screen.findByLabelText(/loading sign-in state/i)
     expect(placeholder).toHaveAttribute('aria-busy', 'true')
     await act(async () => {
-      resolveMe(null)
+      resolveMe({ user: null, authEnabled: true })
     })
     await waitFor(() => {
       expect(screen.queryByLabelText(/loading sign-in state/i)).not.toBeInTheDocument()
@@ -177,5 +187,21 @@ describe('SignInChip (loading)', () => {
     fetchMeMock.mockRejectedValue(new Error('network'))
     render(<SignInChip />)
     expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
+  })
+})
+
+describe('SignInChip (self-host)', () => {
+  it('renders nothing when auth is disabled on the deploy', async () => {
+    // Self-host: /me returns the default user but auth_enabled is false.
+    // The chip has no sign-in surface to render, so it hides entirely.
+    fetchMeMock.mockResolvedValue({
+      user: { id: 1, email: null, display_name: null },
+      authEnabled: false,
+    })
+    const { container } = render(<SignInChip />)
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/loading sign-in state/i)).not.toBeInTheDocument()
+    })
+    expect(container.firstChild).toBeNull()
   })
 })

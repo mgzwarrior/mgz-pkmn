@@ -34,7 +34,7 @@ vi.mock('../api/client', () => ({
   // SignInChip's useAuth fires `fetchMe` on mount; the anonymous
   // resolution lets the chip settle on the Sign-in button shape under
   // axe, while the signed-in-state scan below overrides it per-test.
-  fetchMe: vi.fn().mockResolvedValue(null),
+  fetchMe: vi.fn().mockResolvedValue({ user: null, authEnabled: true }),
   logout: vi.fn(),
   requestMagicLink: vi.fn(),
   // Settings drawer mounts the cache-stats panel on open, which fetches
