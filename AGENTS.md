@@ -3,9 +3,29 @@
 This file documents the code conventions and invariants that AI coding agents
 (GitHub Copilot, Cursor, etc.) must follow when working in this repo.
 
-**Workflow** — for issue selection, branching, and PR process, see
-[CLAUDE.md](CLAUDE.md) (Claude Code) or [docs/contributing.md](docs/contributing.md)
-(all contributors).
+**Workflow** — for the shared AI-assisted development loop, see
+[.agent-workflow.md](.agent-workflow.md). For issue selection, branching, and PR
+process, see [CLAUDE.md](CLAUDE.md) (Claude Code) or
+[docs/contributing.md](docs/contributing.md) (all contributors).
+
+---
+
+## AI Pit Crew operating model
+
+mgz-pkmn uses AI Pit Crew as a lightweight coordination layer, not as a runtime
+framework or dependency. The repository is the shared workspace: every agent
+works from the same docs, issue tracker, task board, tests, and PR process.
+
+- The human developer owns product direction, prioritization, architecture
+  decisions, merge approval, and release timing.
+- GitHub issues, milestones, projects, and [docs/roadmap.md](docs/roadmap.md)
+  own planned work and sequencing.
+- [TASKS.md](TASKS.md) is only the active work board for work in progress,
+  ready for review, blocked, or recently done.
+- Agents should re-read [TASKS.md](TASKS.md) immediately before relying on task
+  status or editing it.
+- Prefer cross-agent review: code written by one AI tool should be reviewed by a
+  different AI tool when practical, then approved by the human.
 
 ---
 

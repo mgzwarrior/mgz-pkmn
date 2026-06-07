@@ -4,7 +4,9 @@ Developer-facing setup, workflow, and release notes for `mgz-pkmn`. For
 end-user installation and usage, see the [README](../README.md).
 
 > **AI agents** — see [AGENTS.md](../AGENTS.md) for the code conventions,
-> invariants, and commit rules that agents must follow.
+> invariants, and commit rules that agents must follow. See
+> [.agent-workflow.md](../.agent-workflow.md) for the shared AI-assisted
+> development loop.
 
 ## Getting started
 
@@ -34,7 +36,9 @@ The fastest way in:
 2. **Skim [AGENTS.md](../AGENTS.md)** for the project's invariants
    (single `Row` shape, pure-function writers, dataclass-driven
    layouts).
-3. **Open a PR** following the [branch naming](#branch-naming) and
+3. **For AI-assisted work**, use [TASKS.md](../TASKS.md) as the active
+   work board and keep GitHub issues as the backlog.
+4. **Open a PR** following the [branch naming](#branch-naming) and
    [opening a PR](#opening-a-pr) sections below.
 
 Stuck on scope or design? Open a [GitHub

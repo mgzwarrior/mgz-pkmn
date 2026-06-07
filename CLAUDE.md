@@ -27,6 +27,22 @@ If an issue is ambiguous and intent can't be inferred from context, **leave a cl
 comment and move to the next best issue**. Every change must be traceable to an issue — if
 no issue exists, open one first.
 
+## Step 1.5 — Claim active work
+
+mgz-pkmn uses [TASKS.md](TASKS.md) as an active-work board for AI-assisted
+contributors. GitHub issues and [docs/roadmap.md](docs/roadmap.md) remain the
+backlog and planning source of truth.
+
+Before implementing:
+
+1. Re-read [TASKS.md](TASKS.md).
+2. Move or add the selected task under **In Progress** with your agent name.
+3. Include the issue number or human-provided task description.
+
+Re-read [TASKS.md](TASKS.md) immediately before relying on task status or editing
+the file. See [.agent-workflow.md](.agent-workflow.md) for the shared AI Pit Crew
+loop.
+
 ## Step 2 — Understand the codebase before touching it
 
 ```bash
@@ -60,6 +76,8 @@ No other format is acceptable. Keep the description short (2–4 words, kebab-ca
 
 - Match existing patterns and style. Don't introduce new dependencies without a strong reason.
 - Keep the change **focused**: one issue, one PR.
+- Prefer cross-agent review: implementation by one AI tool should be reviewed by
+  a different AI tool when practical, then approved by the human.
 - For **user-facing** changes (features, fixes, behavior changes, deprecations,
   removals), add a bullet under the matching subsection of `[Unreleased]` in
   [CHANGELOG.md](CHANGELOG.md). Skip it for dependency bumps, CI tweaks,
@@ -99,6 +117,10 @@ cd web && npm run build
 All CI checks must be green before opening the PR.
 
 ## Step 5 — Open the PR
+
+Before opening the PR, re-read [TASKS.md](TASKS.md), move the task to
+**Ready For Review**, and add concise implementation notes with checks run,
+skipped checks, and the requested reviewer agent.
 
 First, pull the issue's labels, milestone, and project assignment:
 
