@@ -21,6 +21,14 @@
 - `src/mgz_pkmn/sources/`: source-specific clients (pokemontcg, tcgdex, pricecharting)
 - `tests/`: unit tests (`unittest` style)
 
+## Shared agent workflow
+- Read `AGENTS.md` first for mgz-pkmn architecture invariants and PR verification rules.
+- Read `.agent-workflow.md` for the AI Pit Crew development loop.
+- Read `TASKS.md` fresh before relying on task status or editing it.
+- Treat GitHub issues, milestones, projects, and `docs/roadmap.md` as the backlog.
+- Treat `TASKS.md` as the active board only: in progress, ready for review, blocked, done.
+- Prefer cross-agent review: code authored by Copilot should be reviewed by Claude or Codex when practical.
+
 ## Setup and run
 From repo root:
 
@@ -36,12 +44,21 @@ python -m uv run pkmn input/ -o output/cards.xlsx --pdf output/binder.pdf --repo
 ```
 
 ## Validation commands
-Use existing project tooling only:
+Use existing project tooling only. For normal PR work, prefer:
 
 ```bash
-python -m uv run ruff check src/
-python -m uv run python -m unittest discover -s tests
+make fix
+make check
 ```
+
+If the change touches `web/`, also run:
+
+```bash
+cd web && npm run build
+```
+
+For narrow iteration, targeted `python -m uv run pytest ...` or
+`python -m uv run ruff check ...` commands are fine.
 
 ## Working conventions for agents
 - Keep changes targeted; avoid broad refactors unless requested.

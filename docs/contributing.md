@@ -4,7 +4,9 @@ Developer-facing setup, workflow, and release notes for `mgz-pkmn`. For
 end-user installation and usage, see the [README](../README.md).
 
 > **AI agents** — see [AGENTS.md](../AGENTS.md) for the code conventions,
-> invariants, and commit rules that agents must follow.
+> invariants, and commit rules that agents must follow. See
+> [.agent-workflow.md](../.agent-workflow.md) for the shared AI-assisted
+> development loop.
 
 ## Getting started
 
@@ -34,12 +36,35 @@ The fastest way in:
 2. **Skim [AGENTS.md](../AGENTS.md)** for the project's invariants
    (single `Row` shape, pure-function writers, dataclass-driven
    layouts).
-3. **Open a PR** following the [branch naming](#branch-naming) and
+3. **For AI-assisted work**, use [TASKS.md](../TASKS.md) as the active
+   work board and keep GitHub issues as the backlog.
+4. **Open a PR** following the [branch naming](#branch-naming) and
    [opening a PR](#opening-a-pr) sections below.
 
 Stuck on scope or design? Open a [GitHub
 Discussion](https://github.com/mgzwarrior/mgz-pkmn/discussions/new?category=general)
 before writing code — it's cheaper to align early than to redo a PR.
+
+## AI-assisted workflow
+
+mgz-pkmn's AI-assisted workflow is inspired by
+[@bobbylough](https://github.com/bobbylough)'s
+[ai-pit-crew](https://github.com/bobbylough/ai-pit-crew) project: the
+human sets direction, one agent implements, a different agent reviews,
+and the human makes the final approval decision.
+
+Expect the following when AI agents contribute:
+
+- GitHub issues, milestones, projects, and [docs/roadmap.md](roadmap.md)
+  remain the backlog and planning source of truth.
+- [TASKS.md](../TASKS.md) tracks active AI-assisted work only. Agents
+  re-read it immediately before relying on task state or editing it.
+- [AGENTS.md](../AGENTS.md) remains the canonical source for code
+  invariants, PR verification artifacts, and repository-specific rules.
+- [.agent-workflow.md](../.agent-workflow.md) provides the short shared
+  loop for claiming, implementing, verifying, and cross-reviewing work.
+- When practical, code written by one AI tool should be reviewed by a
+  different AI tool before maintainer approval.
 
 ## Opening an issue
 

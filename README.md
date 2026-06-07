@@ -144,6 +144,19 @@ push to `main`.
 | Marketing site (Astro + Tailwind, Cloudflare Pages) | [site/README.md](site/README.md) |
 | Project layout, dev workflow, CI, release | [Contributing](docs/contributing.md) |
 
+## AI-assisted development
+
+mgz-pkmn uses a lightweight multi-agent workflow inspired by
+[@bobbylough](https://github.com/bobbylough)'s
+[ai-pit-crew](https://github.com/bobbylough/ai-pit-crew) project. The
+repo keeps GitHub issues, milestones, and [docs/roadmap.md](docs/roadmap.md)
+as the planning source of truth, while [TASKS.md](TASKS.md) tracks only
+active AI-assisted work.
+
+Agents should start with [AGENTS.md](AGENTS.md), follow the shared loop in
+[.agent-workflow.md](.agent-workflow.md), and expect cross-agent review before
+human approval.
+
 ## Community
 
 Questions, ideas, or want to share what you built? Open a thread in [GitHub Discussions](https://github.com/mgzwarrior/mgz-pkmn/discussions).
