@@ -13,7 +13,9 @@ See [.agent-workflow.md](.agent-workflow.md) for the full workflow.
 
 ## In Progress
 
-_No tasks in progress._
+- [Claude]: Auto-close milestone after GitHub Release tag is cut
+  - Issue: #404
+  - Branch: 404-close-milestone-on-release
 
 ## Ready For Review
 
