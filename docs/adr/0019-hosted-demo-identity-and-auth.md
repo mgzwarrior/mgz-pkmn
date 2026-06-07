@@ -35,7 +35,9 @@ The Save action on an anonymous session surfaces a sign-in nudge ("Sign in to ke
 2. **Magic link via email** — reuses Buttondown's existing wiring ([ADR-0014](0014-buttondown-for-email-subscriptions.md)) for delivery; covers users without a GitHub account.
 3. **Google OAuth** — broad reach; same off-the-shelf integration shape as GitHub.
 
-Account linking across providers is **out of scope for the first cut**: each provider creates a distinct account keyed on the verified email address it returns. If two providers return the same verified email they map to the same `users` row. Beyond that, no manual link / merge UI in v1.
+Account linking across providers was **out of scope for the first cut**: each provider created or reused an account keyed on the verified email address it returned. If two providers returned the same verified email they mapped to the same `users` row. Beyond that, no manual link / merge UI shipped in the initial auth slice.
+
+Follow-up [#491](https://github.com/mgzwarrior/mgz-pkmn/issues/491) supersedes that deferral without changing the first-cut sign-in posture: `user_identities` now records one row per proved provider identity, sign-in still implicitly attaches same-email providers to the existing `users` row, and signed-in users can explicitly link or unlink GitHub / Google / magic-link identities as long as at least one sign-in method remains.
 
 **Scrydex key storage model is deferred.** We don't yet have Scrydex access, so we can't validate the wire format or test the per-account quota story. The decision between *BYO per-request*, *stored on account*, or *hybrid* is pinned to the ticket that lands Scrydex auth-against-Scrydex and is explicitly out of scope here.
 
@@ -54,7 +56,7 @@ Account linking across providers is **out of scope for the first cut**: each pro
 
 - Auth introduces a real attack surface where today there is none (sessions, OAuth callbacks, email verification, account enumeration). Mitigated by leaning on off-the-shelf libraries rather than rolling our own.
 - Three providers is more configuration than one. Each carries its own client-id / secret rotation, callback URL, and provider outages.
-- Email-based account merging is a footgun: two providers returning the same verified email *will* land on the same `users` row. Acceptable in v1; explicit account-merge UI is a follow-up if it bites.
+- Email-based account merging is a footgun: two providers returning the same verified email *will* land on the same `users` row. [#491](https://github.com/mgzwarrior/mgz-pkmn/issues/491) makes those linked identities visible and manageable, but full destructive merge of two already-existing accounts remains out of scope.
 - The user-facing copy around the sign-in nudge has to be careful — it must read as "to keep this run", not as "you're being throttled".
 - The anonymous-cache-only mode is a real implementation requirement, not free-by-default. Until it lands, an anonymous miss can still drive an upstream call (and a 5xx if upstream is unhappy). The expectation is that this mode lands as part of [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61) alongside the auth scaffolding, not as a separate ticket.
 

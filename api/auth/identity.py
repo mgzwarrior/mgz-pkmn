@@ -46,6 +46,16 @@ from ..db.models import User, UserIdentity
 _MAGIC_NAME_PREFIX = "magic"
 
 
+class IdentityConflictError(Exception):
+    """Raised when a proved provider identity belongs to another user."""
+
+    def __init__(self, *, provider: str, subject: str, owning_user_id: int) -> None:
+        super().__init__(f"{provider}:{subject} already linked to user {owning_user_id}")
+        self.provider = provider
+        self.subject = subject
+        self.owning_user_id = owning_user_id
+
+
 def resolve_or_link_identity(
     db: Session,
     *,
@@ -186,6 +196,78 @@ def resolve_or_link_identity(
         )
     )
     return user
+
+
+def link_identity_to_user(
+    db: Session,
+    *,
+    user_id: int,
+    provider: str,
+    subject: str,
+    email: str,
+) -> UserIdentity:
+    """Attach a newly proved provider identity to an existing user.
+
+    Used by #491 slice 2 link callbacks after the signed-in user has
+    re-authenticated with a second provider. This deliberately does not
+    fall back through ``users.email`` or mint a new ``User`` row — the
+    caller already knows which account is being extended.
+
+    If the provider identity is already attached to the same user, the
+    operation is idempotent and refreshes the stored provider email. If
+    it belongs to a different user, raise :class:`IdentityConflictError`
+    so the HTTP layer can return a 409 body the SPA can render.
+    """
+    identity = db.scalar(
+        select(UserIdentity).where(
+            UserIdentity.provider == provider,
+            UserIdentity.provider_subject == subject,
+        )
+    )
+    if identity is not None:
+        if identity.user_id != user_id:
+            raise IdentityConflictError(
+                provider=provider,
+                subject=subject,
+                owning_user_id=identity.user_id,
+            )
+        if identity.email != email:
+            identity.email = email
+        return identity
+
+    identity = UserIdentity(
+        user_id=user_id,
+        provider=provider,
+        provider_subject=subject,
+        email=email,
+    )
+    db.add(identity)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        # A concurrent link callback proved the same provider identity
+        # first. Roll back and re-read so the caller gets either an
+        # idempotent success (same user) or the same 409 conflict shape
+        # as the non-racy path.
+        db.rollback()
+        identity = db.scalar(
+            select(UserIdentity).where(
+                UserIdentity.provider == provider,
+                UserIdentity.provider_subject == subject,
+            )
+        )
+        if identity is not None:
+            if identity.user_id != user_id:
+                raise IdentityConflictError(
+                    provider=provider,
+                    subject=subject,
+                    owning_user_id=identity.user_id,
+                ) from exc
+            if identity.email != email:
+                identity.email = email
+            return identity
+        raise
+    return identity
 
 
 def _find_user_by_email(db: Session, email: str) -> User | None:
