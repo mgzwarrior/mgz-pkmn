@@ -205,7 +205,7 @@ function CacheStatsPanel() {
 
   // Single mount effect — cancellable so the drawer closing mid-flight
   // doesn't try to update an unmounted component. Matches the pattern in
-  // WhatsNewModal.tsx.
+  // HelpModal.tsx.
   useEffect(() => {
     let cancelled = false
     fetchCacheStats()

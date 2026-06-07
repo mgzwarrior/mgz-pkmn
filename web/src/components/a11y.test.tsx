@@ -37,6 +37,10 @@ vi.mock('../api/client', () => ({
   fetchMe: vi.fn().mockResolvedValue({ user: null, authEnabled: true }),
   logout: vi.fn(),
   requestMagicLink: vi.fn(),
+  // HelpModal fetches the changelog on mount for its What's new section;
+  // an empty list keeps the scan focused on the rest of the modal without
+  // pulling release-note copy in.
+  fetchChangelog: vi.fn().mockResolvedValue([]),
   // Settings drawer mounts the cache-stats panel on open, which fetches
   // on mount. Return a zeroed snapshot so the a11y scan sees the loaded
   // state instead of the loading spinner.
@@ -251,7 +255,7 @@ describe('a11y: SettingsDrawer (trigger closed)', () => {
 describe('a11y: HelpModal (opened)', () => {
   it('open dialog content has no violations', async () => {
     render(<HelpModal onStartTour={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: /help/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^help$/i }))
     const results = await axe(document.body)
     expect(results).toHaveNoViolations()
   })
