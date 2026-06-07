@@ -12,9 +12,12 @@ process, see [CLAUDE.md](CLAUDE.md) (Claude Code) or
 
 ## AI Pit Crew operating model
 
-mgz-pkmn uses AI Pit Crew as a lightweight coordination layer, not as a runtime
-framework or dependency. The repository is the shared workspace: every agent
-works from the same docs, issue tracker, task board, tests, and PR process.
+mgz-pkmn uses an AI Pit Crew workflow as a lightweight coordination layer, not
+as a runtime framework or dependency. This workflow is inspired by
+[@bobbylough](https://github.com/bobbylough)'s
+[ai-pit-crew](https://github.com/bobbylough/ai-pit-crew) project. The
+repository is the shared workspace: every agent works from the same docs, issue
+tracker, task board, tests, and PR process.
 
 - The human developer owns product direction, prioritization, architecture
   decisions, merge approval, and release timing.

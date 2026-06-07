@@ -25,6 +25,7 @@ _No tasks in progress._
     - Added `TASKS.md` as an active-work board while keeping GitHub issues and `docs/roadmap.md` as the backlog.
     - Added `.agent-workflow.md` as the shared AI-assisted development loop.
     - Updated agent instructions to point contributors at the new workflow without replacing mgz-pkmn's existing architecture invariants.
+    - Added README and contributor-doc attribution to @bobbylough's `ai-pit-crew` project as the workflow inspiration.
 
 ## Blocked
 

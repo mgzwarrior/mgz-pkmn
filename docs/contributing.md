@@ -45,6 +45,27 @@ Stuck on scope or design? Open a [GitHub
 Discussion](https://github.com/mgzwarrior/mgz-pkmn/discussions/new?category=general)
 before writing code — it's cheaper to align early than to redo a PR.
 
+## AI-assisted workflow
+
+mgz-pkmn's AI-assisted workflow is inspired by
+[@bobbylough](https://github.com/bobbylough)'s
+[ai-pit-crew](https://github.com/bobbylough/ai-pit-crew) project: the
+human sets direction, one agent implements, a different agent reviews,
+and the human makes the final approval decision.
+
+Expect the following when AI agents contribute:
+
+- GitHub issues, milestones, projects, and [docs/roadmap.md](roadmap.md)
+  remain the backlog and planning source of truth.
+- [TASKS.md](../TASKS.md) tracks active AI-assisted work only. Agents
+  re-read it immediately before relying on task state or editing it.
+- [AGENTS.md](../AGENTS.md) remains the canonical source for code
+  invariants, PR verification artifacts, and repository-specific rules.
+- [.agent-workflow.md](../.agent-workflow.md) provides the short shared
+  loop for claiming, implementing, verifying, and cross-reviewing work.
+- When practical, code written by one AI tool should be reviewed by a
+  different AI tool before maintainer approval.
+
 ## Opening an issue
 
 Blank issues are disabled — the "New Issue" button shows structured templates
