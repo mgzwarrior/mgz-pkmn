@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { SaveSearchButton } from './SaveSearchButton'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import * as client from '../api/client'
+import type { UseAuthResult } from '../hooks/useAuth'
 import type { RunSummary } from '../types'
 
 function makeRun(id: number, name: string | null): RunSummary {
@@ -24,8 +25,21 @@ function makeRun(id: number, name: string | null): RunSummary {
   }
 }
 
+const signedInAuth: Pick<UseAuthResult, 'user' | 'authEnabled' | 'loading'> = {
+  user: { id: 7, email: 'trainer@example.com', display_name: 'Trainer' },
+  authEnabled: true,
+  loading: false,
+}
+
+const anonymousAuth: Pick<UseAuthResult, 'user' | 'authEnabled' | 'loading'> = {
+  user: null,
+  authEnabled: true,
+  loading: false,
+}
+
 describe('SaveSearchButton', () => {
   beforeEach(() => {
+    window.sessionStorage.clear()
     useAppStore.setState({
       runs: [],
       currentRunId: null,
@@ -37,7 +51,7 @@ describe('SaveSearchButton', () => {
   })
 
   it('renders nothing when there is no currentRunId', () => {
-    const { container } = render(<SaveSearchButton />)
+    const { container } = render(<SaveSearchButton auth={signedInAuth} />)
     expect(container.firstChild).toBeNull()
   })
 
@@ -58,7 +72,7 @@ describe('SaveSearchButton', () => {
     })
     vi.spyOn(window, 'prompt').mockReturnValue('Show prep')
 
-    render(<SaveSearchButton />)
+    render(<SaveSearchButton auth={signedInAuth} />)
     fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalled())
@@ -74,7 +88,7 @@ describe('SaveSearchButton', () => {
     const saveSpy = vi.spyOn(client, 'saveRun').mockResolvedValue(makeRun(42, ''))
     vi.spyOn(window, 'prompt').mockReturnValue('   ')
 
-    render(<SaveSearchButton />)
+    render(<SaveSearchButton auth={signedInAuth} />)
     fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/name is required/i)
@@ -86,7 +100,7 @@ describe('SaveSearchButton', () => {
     const saveSpy = vi.spyOn(client, 'saveRun')
     vi.spyOn(window, 'prompt').mockReturnValue(null)
 
-    render(<SaveSearchButton />)
+    render(<SaveSearchButton auth={signedInAuth} />)
     fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
 
     expect(saveSpy).not.toHaveBeenCalled()
@@ -97,7 +111,39 @@ describe('SaveSearchButton', () => {
       currentRunId: 42,
       runs: [makeRun(42, 'Show prep')],
     })
-    render(<SaveSearchButton />)
+    render(<SaveSearchButton auth={signedInAuth} />)
     expect(screen.getByRole('button', { name: /Rename this saved search/i })).toBeInTheDocument()
+  })
+
+  it('opens the sign-in picker instead of saving immediately for an anonymous auth-on user', async () => {
+    useAppStore.setState({ currentRunId: 42 })
+    const saveSpy = vi.spyOn(client, 'saveRun').mockResolvedValue(makeRun(42, 'Show prep'))
+    vi.spyOn(window, 'prompt').mockReturnValue('Show prep')
+
+    render(<SaveSearchButton auth={anonymousAuth} />)
+    fireEvent.click(screen.getByRole('button', { name: /Sign in to save this search/i }))
+
+    expect(await screen.findByRole('dialog', { name: /Sign in to save this search/i })).toBeInTheDocument()
+    expect(saveSpy).not.toHaveBeenCalled()
+  })
+
+  it('resumes the pending save with the originally prompted name after sign-in', async () => {
+    useAppStore.setState({ currentRunId: 42 })
+    const saveSpy = vi.spyOn(client, 'saveRun').mockResolvedValue(makeRun(42, 'Show prep'))
+    vi.spyOn(client, 'listRuns').mockResolvedValue({
+      items: [makeRun(42, 'Show prep')],
+      total: 1,
+    })
+    vi.spyOn(window, 'prompt').mockReturnValue('Show prep')
+
+    const { rerender } = render(<SaveSearchButton auth={anonymousAuth} />)
+    fireEvent.click(screen.getByRole('button', { name: /Sign in to save this search/i }))
+    await screen.findByRole('dialog', { name: /Sign in to save this search/i })
+
+    rerender(<SaveSearchButton auth={signedInAuth} />)
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledWith(42, 'Show prep', expect.any(Object)))
+    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

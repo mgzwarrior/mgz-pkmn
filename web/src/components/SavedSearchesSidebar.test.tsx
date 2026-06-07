@@ -75,7 +75,13 @@ function resetStore() {
 }
 
 describe('SavedSearchesSidebar', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    vi.spyOn(client, 'fetchMe').mockResolvedValue({
+      user: { id: 7, email: 'trainer@example.com', display_name: 'Trainer' },
+      authEnabled: true,
+    })
+  })
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -84,6 +90,19 @@ describe('SavedSearchesSidebar', () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [], total: 0 })
     render(<SavedSearchesSidebar />)
     expect(await screen.findByText(/No saved searches yet/i)).toBeInTheDocument()
+  })
+
+  it('does not call the runs list while signed out on an auth-enabled deploy', async () => {
+    vi.mocked(client.fetchMe).mockResolvedValue({
+      user: null,
+      authEnabled: true,
+    })
+    const listSpy = vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [], total: 0 })
+
+    render(<SavedSearchesSidebar />)
+
+    expect(await screen.findByText(/Sign in to see saved searches/i)).toBeInTheDocument()
+    expect(listSpy).not.toHaveBeenCalled()
   })
 
   it('lists saved searches from the API with name + tag breakdown', async () => {

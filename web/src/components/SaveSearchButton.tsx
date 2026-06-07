@@ -13,21 +13,64 @@
  * prompt is pre-filled with the existing name — same call, just a
  * different affordance.
  */
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Bookmark } from 'lucide-react'
 import { listRuns, saveRun } from '../api/client'
+import type { UseAuthResult } from '../hooks/useAuth'
 import { useAppStore } from '../store'
+import { ProviderPickerModal } from './SignInChip'
+import { consumePendingSaveSearch, storePendingSaveSearch } from './pendingSaveSearch'
 
 const LIST_LIMIT = 50
 
-export function SaveSearchButton() {
+type SaveSearchAuth = Pick<UseAuthResult, 'user' | 'authEnabled' | 'loading'>
+
+interface Props {
+  auth: SaveSearchAuth
+}
+
+export function SaveSearchButton({ auth }: Props) {
   const { currentRunId, runs, setRuns, viewState } = useAppStore()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pendingSaveName, setPendingSaveName] = useState<string | null>(null)
 
   const existing = runs.find((r) => r.id === currentRunId)
+  const needsSignIn = auth.authEnabled && !auth.loading && auth.user === null
 
-  const handleSave = useCallback(async () => {
+  const saveNamedRun = useCallback(
+    async (name: string) => {
+      if (currentRunId == null) return
+      setSaving(true)
+      setError(null)
+      try {
+        await saveRun(currentRunId, name, viewState)
+        // Re-pull the canonical saved list so the new entry appears (or
+        // the renamed entry updates) without waiting for the next mount.
+        const { items } = await listRuns(LIST_LIMIT)
+        setRuns(items)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save search')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [currentRunId, viewState, setRuns],
+  )
+
+  useEffect(() => {
+    if (auth.user === null || pendingSaveName === null) return
+    const name = pendingSaveName
+    queueMicrotask(() => {
+      setPendingSaveName(null)
+      setPickerOpen(false)
+      consumePendingSaveSearch()
+      void saveNamedRun(name)
+    })
+  }, [auth.user, pendingSaveName, saveNamedRun])
+
+  const handleSave = useCallback(() => {
     if (currentRunId == null) return
     const defaultName = existing?.name ?? ''
     const name = window.prompt(
@@ -40,22 +83,23 @@ export function SaveSearchButton() {
       setError('A name is required to save a search.')
       return
     }
-    setSaving(true)
-    setError(null)
-    try {
-      await saveRun(currentRunId, trimmed, viewState)
-      // Re-pull the canonical saved list so the new entry appears (or
-      // the renamed entry updates) without waiting for the next mount.
-      const { items } = await listRuns(LIST_LIMIT)
-      setRuns(items)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save search')
-    } finally {
-      setSaving(false)
+    if (needsSignIn) {
+      setPendingSaveName(trimmed)
+      storePendingSaveSearch({ runId: currentRunId, name: trimmed, viewState })
+      setPickerOpen(true)
+      return
     }
-  }, [currentRunId, existing, viewState, setRuns])
+    void saveNamedRun(trimmed)
+  }, [currentRunId, existing, needsSignIn, saveNamedRun, viewState])
 
   if (currentRunId == null) return null
+
+  const ariaLabel = needsSignIn
+    ? 'Sign in to save this search'
+    : existing
+      ? 'Rename this saved search'
+      : 'Save this search'
+  const label = saving ? 'Saving...' : needsSignIn ? 'Sign in to save' : existing ? 'Rename' : 'Save search'
 
   return (
     <div className="flex items-center gap-2">
@@ -67,13 +111,18 @@ export function SaveSearchButton() {
       <button
         type="button"
         onClick={handleSave}
-        disabled={saving}
-        aria-label={existing ? 'Rename this saved search' : 'Save this search'}
+        disabled={saving || auth.loading}
+        aria-label={ariaLabel}
         className="flex items-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 px-2 py-1 text-xs text-coconut-700 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
       >
         <Bookmark size={12} aria-hidden />
-        {saving ? 'Saving…' : existing ? 'Rename' : 'Save search'}
+        {label}
       </button>
+      <ProviderPickerModal
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        intent="save-search"
+      />
     </div>
   )
 }

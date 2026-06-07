@@ -27,6 +27,8 @@ vi.mock('./api/client', () => ({
   bulkLookup: mockBulkLookup,
   lookupLine: mockLookupLine,
   parseLine: mockParseLine,
+  saveRun: vi.fn(),
+  listRuns: vi.fn(() => Promise.resolve({ items: [], total: 0 })),
   // Other client functions are referenced by ExportBar / SetPickerModal
   // mounted inside App; stub them to keep render happy. Names must
   // match the real `client.ts` exports — `fetchSets`, not

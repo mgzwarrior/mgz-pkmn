@@ -27,7 +27,8 @@ from mgz_pkmn.sources import PriceChartingClient, TCGClient, TCGDexClient
 from mgz_pkmn.sources.base import worse_cache_status
 from mgz_pkmn.spreadsheet import Row
 
-from ..db.models import Run
+from ..auth.session import CurrentUserOptional
+from ..db.models import DEFAULT_USER_ID, Run
 from ..db.serialize import build_run_summary, row_to_run_row
 from ..db.session import get_session_factory
 from .cards import rewrite_card_image_urls
@@ -283,7 +284,7 @@ _STAGE_DONE = object()
 
 
 @router.post("/bulk")
-async def bulk(req: BulkRequest) -> StreamingResponse:
+async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> StreamingResponse:
     """Stream row-by-row results for a multi-line lookup via Server-Sent Events.
 
     Two kinds of per-line frames are emitted, both carrying `{ index, total }`:
@@ -374,7 +375,12 @@ async def bulk(req: BulkRequest) -> StreamingResponse:
         elapsed = time.monotonic() - started
         run_id: int | None = None
         try:
-            run_id = _persist_run(req.lines, resolved, elapsed)
+            run_id = _persist_run(
+                req.lines,
+                resolved,
+                elapsed,
+                user_id=current_user.id if current_user is not None else DEFAULT_USER_ID,
+            )
         except Exception:  # pragma: no cover — defensive, persistence is best-effort
             logger.exception("Failed to persist run after /bulk completion")
 
@@ -397,7 +403,13 @@ async def bulk(req: BulkRequest) -> StreamingResponse:
 # ---------------------------------------------------------------------------
 
 
-def _persist_run(lines: list[str], rows: list[Row], elapsed_seconds: float) -> int | None:
+def _persist_run(
+    lines: list[str],
+    rows: list[Row],
+    elapsed_seconds: float,
+    *,
+    user_id: int = DEFAULT_USER_ID,
+) -> int | None:
     """Write a `runs` record + N `run_rows` for a completed /bulk stream.
 
     Returns the new run id, or None if persistence fell through (engine
@@ -406,6 +418,7 @@ def _persist_run(lines: list[str], rows: list[Row], elapsed_seconds: float) -> i
     session = get_session_factory()()
     try:
         run = Run(
+            user_id=user_id,
             input_text="\n".join(lines),
             elapsed_seconds=elapsed_seconds,
             summary_json=build_run_summary(rows),

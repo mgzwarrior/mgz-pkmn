@@ -157,9 +157,14 @@ export function SignInChip() {
 interface ProviderPickerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  intent?: 'default' | 'save-search'
 }
 
-export function ProviderPickerModal({ open, onOpenChange }: ProviderPickerProps) {
+export function ProviderPickerModal({
+  open,
+  onOpenChange,
+  intent = 'default',
+}: ProviderPickerProps) {
   const [magicMode, setMagicMode] = useState<'collapsed' | 'form' | 'sent' | 'error'>('collapsed')
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -197,6 +202,13 @@ export function ProviderPickerModal({ open, onOpenChange }: ProviderPickerProps)
     }
   }
 
+  const title =
+    intent === 'save-search' ? 'Sign in to save this search' : 'Sign in to mgz-pkmn'
+  const description =
+    intent === 'save-search'
+      ? 'Saved searches are tied to your account. Lookups and exports stay available without signing in.'
+      : 'Sign in to keep saved searches across sessions. Lookups and exports don\'t require an account.'
+
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
@@ -207,7 +219,7 @@ export function ProviderPickerModal({ open, onOpenChange }: ProviderPickerProps)
         >
           <div className="flex items-center justify-between border-b border-sand-300 px-5 py-4 dark:border-husk-50">
             <Dialog.Title className="text-base font-semibold text-coconut-700 dark:text-sand-50">
-              Sign in to mgz-pkmn
+              {title}
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
@@ -222,8 +234,7 @@ export function ProviderPickerModal({ open, onOpenChange }: ProviderPickerProps)
 
           <div className="space-y-3 px-5 py-5">
             <p className="text-xs text-coconut-400 dark:text-sand-300">
-              Sign in to keep saved searches across sessions. Lookups and exports
-              don&apos;t require an account.
+              {description}
             </p>
 
             <a
