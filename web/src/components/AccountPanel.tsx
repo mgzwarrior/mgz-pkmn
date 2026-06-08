@@ -16,6 +16,7 @@ const PROVIDERS: { provider: Provider; label: string; connectLabel: string }[] =
   { provider: 'github', label: 'GitHub', connectLabel: 'Connect GitHub' },
   { provider: 'google', label: 'Google', connectLabel: 'Connect Google' },
   { provider: 'discord', label: 'Discord', connectLabel: 'Connect Discord' },
+  { provider: 'apple', label: 'Apple', connectLabel: 'Connect Apple' },
   { provider: 'magic', label: 'Magic link', connectLabel: 'Connect email' },
 ]
 
@@ -23,6 +24,7 @@ const OAUTH_LINK_START: Record<Exclude<Provider, 'magic'>, string> = {
   github: '/api/v1/auth/link/github/start',
   google: '/api/v1/auth/link/google/start',
   discord: '/api/v1/auth/link/discord/start',
+  apple: '/api/v1/auth/link/apple/start',
 }
 
 function providerLabel(provider: string): string {
@@ -34,7 +36,15 @@ function initialLinkError(): { provider: Provider; message: string } | null {
   const params = new URLSearchParams(window.location.search)
   if (params.get('link_error') !== 'identity_already_linked') return null
   const provider = params.get('provider')
-  if (provider !== 'github' && provider !== 'google' && provider !== 'discord' && provider !== 'magic') return null
+  if (
+    provider !== 'github' &&
+    provider !== 'google' &&
+    provider !== 'discord' &&
+    provider !== 'apple' &&
+    provider !== 'magic'
+  ) {
+    return null
+  }
   return {
     provider,
     message: `That ${providerLabel(provider)} account is already linked to another mgz-pkmn account.`,
@@ -64,6 +74,7 @@ export function AccountPanel({ open, onOpenChange, user, refresh }: AccountPanel
         identity.provider === 'github' ||
         identity.provider === 'google' ||
         identity.provider === 'discord' ||
+        identity.provider === 'apple' ||
         identity.provider === 'magic'
       ) {
         const provider = identity.provider

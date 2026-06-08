@@ -18,10 +18,12 @@ Apple-specific deviations from the GitHub / Google providers:
    — not a `GET` like the other providers.
 3. **`id_token` is the source of truth.** Apple returns an `id_token`
    JWT we verify against `https://appleid.apple.com/auth/keys` (their
-   JWKS). The `email` claim is treated as verified — Apple only emits
-   the claim for emails it has confirmed (including the deterministic
-   `@privaterelay.appleid.com` address when the user chose private
-   relay).
+   JWKS). The `email` claim is only trusted when the companion
+   `email_verified` claim is truthy — Apple ships unverified addresses
+   for some Managed Apple Account / Work & School users, and ADR-0019's
+   email-anchor merge contract depends on the address actually being
+   confirmed. Private-relay addresses (`@privaterelay.appleid.com`) are
+   always returned as verified, so they ride the same path.
 4. **Name is first-hit only.** Apple includes the user's name on the
    *first* successful authorization; subsequent sign-ins omit it. The
    `user` form field carries the name as JSON; we extract it once on
@@ -123,8 +125,11 @@ class AppleProfile:
 
     - ``sub`` is the stable per-user identifier ("user" claim in Apple's
       token response).
-    - ``email`` is treated as verified; Apple only emits an ``email``
-      claim for confirmed addresses (real or ``@privaterelay.appleid.com``).
+    - ``email`` is the verified address (or ``None`` when Apple's
+      ``email_verified`` claim is missing or ``false``). The
+      ``extract_profile`` helper enforces this so callers can treat a
+      non-None ``email`` as authoritative without re-checking the
+      claim.
     - ``name`` is the first-hit display name extracted from the ``user``
       form field, or ``None`` on subsequent sign-ins (Apple omits it).
     """
@@ -339,6 +344,18 @@ async def verify_id_token(id_token: str, *, audience: str) -> dict[str, Any]:
     return dict(claims)
 
 
+def _claim_is_true(value: Any) -> bool:
+    """Apple's id_token boolean claims arrive as either Python booleans
+    or the JSON strings ``"true"`` / ``"false"`` depending on the user
+    pool (regular Apple IDs vs. Managed Apple Account / Work & School).
+    Treat both shapes uniformly and reject anything else."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() == "true"
+    return False
+
+
 def extract_profile(claims: dict[str, Any], *, user_payload: str | None) -> AppleProfile:
     """Build an :class:`AppleProfile` from verified id_token claims and the
     optional ``user`` form field Apple posts on first authorization.
@@ -350,10 +367,22 @@ def extract_profile(claims: dict[str, Any], *, user_payload: str | None) -> Appl
     misconfigurations — and only extract the name. The email always
     comes from the verified ``id_token`` instead, because the form
     field's ``email`` is not signed and could be tampered.
+
+    Apple documents that Managed Apple Account / Work & School users can
+    return an ``email`` claim with ``email_verified=false`` — the user
+    has the address attached to their Apple ID but Apple hasn't
+    confirmed ownership. Treating that as verified would let two
+    accounts claim the same address and merge incorrectly under
+    ADR-0019's email anchor, so we drop the email entirely in that case
+    (and the callback's ``no_verified_email`` branch fires uniformly).
+    See https://developer.apple.com/documentation/signinwithapplerestapi/tokenresponse.
     """
     sub = str(claims.get("sub") or "")
     email = claims.get("email")
-    email_str = str(email).strip() if isinstance(email, str) and email.strip() else None
+    email_verified = _claim_is_true(claims.get("email_verified"))
+    email_str = (
+        str(email).strip() if isinstance(email, str) and email.strip() and email_verified else None
+    )
 
     name: str | None = None
     if user_payload:

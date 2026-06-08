@@ -89,6 +89,7 @@ def _make_id_token(
     *,
     sub: str = "001234.aaa.bbb",
     email: str | None = "alice@example.com",
+    email_verified: bool | str | None = True,
     audience: str | None = None,
     issuer: str = APPLE_ISSUER,
     extra_claims: dict | None = None,
@@ -100,7 +101,9 @@ def _make_id_token(
     Defaults emit a token verify_id_token will accept against the
     public JWKS exposed via ``_TEST_JWKS``. Pass ``sign_with_pem`` to
     sign with a different (mismatched) key to exercise the verification
-    failure path.
+    failure path. ``email_verified`` defaults to ``True``; pass ``False``
+    (or the string ``"false"``) to exercise the Managed-Apple-Account /
+    Work & School path where Apple ships an email it hasn't confirmed.
     """
     now = int(time.time())
     claims = {
@@ -112,6 +115,8 @@ def _make_id_token(
     }
     if email is not None:
         claims["email"] = email
+        if email_verified is not None:
+            claims["email_verified"] = email_verified
     if extra_claims:
         claims.update(extra_claims)
     headers = {"alg": "ES256", "kid": key_id}
@@ -268,6 +273,53 @@ class CallbackErrorTests(_IsolatedDbMixin):
             )
             self.assertEqual(r.status_code, 400)
             self.assertEqual(r.json()["detail"], "oauth_failed")
+
+    def test_callback_unverified_email_claim_returns_400(self) -> None:
+        """Apple ships ``email_verified=false`` for Managed Apple Account /
+        Work & School users where the address is attached but not
+        confirmed; treating it as verified would let two accounts
+        claim the same address. The callback must drop the email and
+        surface the same ``no_verified_email`` shape as a missing
+        claim — confirms the security finding from PR #532 review."""
+        from api.main import app
+
+        # ``email_verified`` shipped as the JSON string "false" — both
+        # the boolean and string shape are documented on Apple's side,
+        # and the helper has to handle both.
+        token_str = _make_id_token(
+            email="managed@example.com",
+            email_verified="false",
+            sub="001.unverified",
+        )
+        token = {"access_token": "x", "id_token": token_str, "token_type": "bearer"}
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                new=AsyncMock(return_value=token),
+            ),
+            patch(
+                "api.auth.apple.fetch_apple_jwks",
+                new=AsyncMock(return_value=_TEST_JWKS),
+            ),
+            TestClient(app) as client,
+        ):
+            r = client.post(
+                "/api/v1/auth/apple/callback",
+                data={"code": "abc", "state": "anything"},
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 400)
+            self.assertEqual(r.json()["detail"], "no_verified_email")
+            # No users row was created — the unverified email must not
+            # leak into the merge anchor.
+            with session_mod.get_session_factory()() as s:
+                n = s.scalar(
+                    select(func.count())
+                    .select_from(User)
+                    .where(User.email == "managed@example.com")
+                )
+                self.assertEqual(n, 0)
 
     def test_callback_missing_email_claim_returns_400(self) -> None:
         from api.main import app
@@ -579,7 +631,7 @@ class ExtractProfileTests(unittest.TestCase):
     def test_first_hit_user_payload_parses_full_name(self) -> None:
         payload = json.dumps({"name": {"firstName": "Ada", "lastName": "Lovelace"}})
         profile = extract_profile(
-            {"sub": "abc", "email": "ada@example.com"},
+            {"sub": "abc", "email": "ada@example.com", "email_verified": True},
             user_payload=payload,
         )
         self.assertEqual(
@@ -589,31 +641,64 @@ class ExtractProfileTests(unittest.TestCase):
     def test_first_hit_with_only_first_name(self) -> None:
         payload = json.dumps({"name": {"firstName": "Cher"}})
         profile = extract_profile(
-            {"sub": "abc", "email": "cher@example.com"},
+            {"sub": "abc", "email": "cher@example.com", "email_verified": True},
             user_payload=payload,
         )
         self.assertEqual(profile.name, "Cher")
 
     def test_subsequent_signin_user_payload_omitted(self) -> None:
         profile = extract_profile(
-            {"sub": "abc", "email": "ada@example.com"},
+            {"sub": "abc", "email": "ada@example.com", "email_verified": True},
             user_payload=None,
         )
         self.assertIsNone(profile.name)
 
     def test_malformed_user_payload_treated_as_no_name(self) -> None:
         profile = extract_profile(
-            {"sub": "abc", "email": "ada@example.com"},
+            {"sub": "abc", "email": "ada@example.com", "email_verified": True},
             user_payload="not-json{",
         )
         self.assertIsNone(profile.name)
 
     def test_empty_email_collapses_to_none(self) -> None:
         profile = extract_profile(
-            {"sub": "abc", "email": "   "},
+            {"sub": "abc", "email": "   ", "email_verified": True},
             user_payload=None,
         )
         self.assertIsNone(profile.email)
+
+    def test_unverified_email_string_false_drops_email(self) -> None:
+        # Apple's id_token boolean claims arrive as JSON strings for
+        # the Managed Apple Account / Work & School pool.
+        profile = extract_profile(
+            {"sub": "abc", "email": "managed@example.com", "email_verified": "false"},
+            user_payload=None,
+        )
+        self.assertIsNone(profile.email)
+
+    def test_unverified_email_bool_false_drops_email(self) -> None:
+        profile = extract_profile(
+            {"sub": "abc", "email": "managed@example.com", "email_verified": False},
+            user_payload=None,
+        )
+        self.assertIsNone(profile.email)
+
+    def test_missing_email_verified_claim_drops_email(self) -> None:
+        # Belt-and-braces: if Apple omits ``email_verified`` entirely
+        # (shouldn't happen, but is the safer-by-default branch in
+        # ``_claim_is_true``) we must still refuse the email.
+        profile = extract_profile(
+            {"sub": "abc", "email": "managed@example.com"},
+            user_payload=None,
+        )
+        self.assertIsNone(profile.email)
+
+    def test_verified_email_string_true_accepted(self) -> None:
+        profile = extract_profile(
+            {"sub": "abc", "email": "ada@example.com", "email_verified": "true"},
+            user_payload=None,
+        )
+        self.assertEqual(profile.email, "ada@example.com")
 
 
 if __name__ == "__main__":
