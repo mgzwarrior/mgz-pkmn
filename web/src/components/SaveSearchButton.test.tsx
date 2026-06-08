@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { SaveSearchButton } from './SaveSearchButton'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import * as client from '../api/client'
@@ -55,7 +55,7 @@ describe('SaveSearchButton', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('saves the run with the prompted name and the current view state', async () => {
+  it('opens the design-system name dialog and saves with the current view state', async () => {
     useAppStore.setState({
       currentRunId: 42,
       viewState: {
@@ -70,10 +70,14 @@ describe('SaveSearchButton', () => {
       items: [makeRun(42, 'Show prep')],
       total: 1,
     })
-    vi.spyOn(window, 'prompt').mockReturnValue('Show prep')
 
     render(<SaveSearchButton auth={signedInAuth} />)
     fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /Name this saved search/i })
+    const input = within(dialog).getByLabelText(/Search name/i)
+    fireEvent.change(input, { target: { value: 'Show prep' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Save$/ }))
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalled())
     expect(saveSpy.mock.calls[0][0]).toBe(42)
@@ -83,67 +87,64 @@ describe('SaveSearchButton', () => {
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
   })
 
-  it('shows an error when the user submits a blank name', async () => {
+  it('shows an inline error inside the dialog when the name is blank', async () => {
     useAppStore.setState({ currentRunId: 42 })
     const saveSpy = vi.spyOn(client, 'saveRun').mockResolvedValue(makeRun(42, ''))
-    vi.spyOn(window, 'prompt').mockReturnValue('   ')
 
     render(<SaveSearchButton auth={signedInAuth} />)
     fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/name is required/i)
+    const dialog = await screen.findByRole('dialog', { name: /Name this saved search/i })
+    fireEvent.change(within(dialog).getByLabelText(/Search name/i), { target: { value: '   ' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Save$/ }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/name is required/i)
     expect(saveSpy).not.toHaveBeenCalled()
   })
 
-  it('does nothing when the prompt is cancelled', () => {
+  it('closes the dialog without saving when the user cancels', async () => {
     useAppStore.setState({ currentRunId: 42 })
     const saveSpy = vi.spyOn(client, 'saveRun')
-    vi.spyOn(window, 'prompt').mockReturnValue(null)
 
     render(<SaveSearchButton auth={signedInAuth} />)
     fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
 
+    const dialog = await screen.findByRole('dialog', { name: /Name this saved search/i })
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Cancel$/ }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Name this saved search/i })).not.toBeInTheDocument())
     expect(saveSpy).not.toHaveBeenCalled()
   })
 
-  it('relabels to Rename when the current run is already in the saved list', () => {
+  it('relabels to Rename when the current run is already in the saved list', async () => {
     useAppStore.setState({
       currentRunId: 42,
       runs: [makeRun(42, 'Show prep')],
     })
     render(<SaveSearchButton auth={signedInAuth} />)
     expect(screen.getByRole('button', { name: /Rename this saved search/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Rename this saved search/i }))
+    const dialog = await screen.findByRole('dialog', { name: /Rename this saved search/i })
+    // Pre-filled with the existing name so the visitor can edit instead
+    // of retyping from scratch.
+    expect(within(dialog).getByLabelText(/Search name/i)).toHaveValue('Show prep')
   })
 
-  it('opens the sign-in picker instead of saving immediately for an anonymous auth-on user', async () => {
+  it('opens the auth picker immediately (no name prompt) for an anonymous auth-on user', async () => {
     useAppStore.setState({ currentRunId: 42 })
     const saveSpy = vi.spyOn(client, 'saveRun').mockResolvedValue(makeRun(42, 'Show prep'))
-    vi.spyOn(window, 'prompt').mockReturnValue('Show prep')
 
     render(<SaveSearchButton auth={anonymousAuth} />)
     fireEvent.click(screen.getByRole('button', { name: /Sign in to save this search/i }))
 
+    // Auth modal opens immediately — no name dialog appears first.
     expect(await screen.findByRole('dialog', { name: /Sign in to save this search/i })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /Name this saved search/i })).not.toBeInTheDocument()
     expect(saveSpy).not.toHaveBeenCalled()
-  })
-
-  it('resumes the pending save with the originally prompted name after sign-in', async () => {
-    useAppStore.setState({ currentRunId: 42 })
-    const saveSpy = vi.spyOn(client, 'saveRun').mockResolvedValue(makeRun(42, 'Show prep'))
-    vi.spyOn(client, 'listRuns').mockResolvedValue({
-      items: [makeRun(42, 'Show prep')],
-      total: 1,
-    })
-    vi.spyOn(window, 'prompt').mockReturnValue('Show prep')
-
-    const { rerender } = render(<SaveSearchButton auth={anonymousAuth} />)
-    fireEvent.click(screen.getByRole('button', { name: /Sign in to save this search/i }))
-    await screen.findByRole('dialog', { name: /Sign in to save this search/i })
-
-    rerender(<SaveSearchButton auth={signedInAuth} />)
-
-    await waitFor(() => expect(saveSpy).toHaveBeenCalledWith(42, 'Show prep', expect.any(Object)))
-    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // Run identifier + view state are stashed for the post-redirect handoff.
+    const pending = window.sessionStorage.getItem('mgz-pkmn:pending-save-search')
+    expect(pending).not.toBeNull()
+    expect(JSON.parse(pending as string)).toMatchObject({ runId: 42 })
   })
 })
