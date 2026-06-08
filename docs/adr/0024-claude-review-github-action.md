@@ -20,7 +20,7 @@ Use the official [`anthropics/claude-code-action`](https://github.com/anthropics
 
 **Trigger model.** The workflow listens on `issue_comment`, `pull_request_review_comment`, `pull_request_review`, and `issues:assigned`. The action's built-in default trigger phrase (`@claude`) gates whether it actually runs — anything else in the comment stream is ignored.
 
-**Fork-PR scoping.** The workflow's `if:` guard skips any event where the PR's head repo is not `github.repository`. Forked-PR comments don't fire the action, don't read the secret, and don't bill the API. The guard is explicit even though GitHub already withholds secrets from fork-triggered `pull_request` runs, because `issue_comment` runs in the *target* repo's context and would otherwise have secret access.
+**Fork-PR scoping.** A `precheck` job resolves the PR's head repo before the `claude` job runs. For `pull_request_review_comment` and `pull_request_review` events the head repo is in the payload directly. For `issue_comment` events the payload does *not* carry the head repo (it only carries `issue.pull_request`), so the precheck calls the GitHub API to fetch `repos/{owner}/{repo}/pulls/{n}.head.repo.full_name` before deciding. Only when that resolves to `github.repository` does the `claude` job run — fork PRs never invoke the action and never see `ANTHROPIC_API_KEY`. The guard is explicit even though GitHub already withholds secrets from fork-triggered `pull_request` runs, because `issue_comment` and `pull_request_review*` all run in the *target* repo's context with secret access. An earlier draft tried to express the guard as a single workflow-level `if:` expression on `github.event.pull_request.head.repo.full_name`; that field is null for `issue_comment` events, which would have let fork-PR comments through. The dedicated precheck job is the correct shape.
 
 **Authentication.** `ANTHROPIC_API_KEY` is stored as a repository secret (Settings → Secrets and variables → Actions). The key is scoped via Anthropic's workspace controls to this repo's spend; rotation lives on the same runbook as the eBay and TCGPlayer keys (the runbook itself is tracked separately).
 
@@ -45,7 +45,7 @@ Use the official [`anthropics/claude-code-action`](https://github.com/anthropics
 - Real per-PR API spend, where today there is none. Mitigated by the comment-trigger model (no auto-review), the `--max-turns 10` cap, and a dedicated repo-scoped API key.
 - A new repo secret (`ANTHROPIC_API_KEY`) widens the project's secret surface. Mitigated by Anthropic's workspace-level scoping and a documented rotation expectation.
 - Pinned tags require periodic maintenance. The convention is: bump the pin when there's a meaningful upstream change, otherwise leave it alone — same posture as other actions in this repo.
-- The action runs in the target repo's context for `issue_comment` events, so the fork-PR guard is load-bearing. If the guard regresses, fork PRs could trigger reviews; the workflow file's `if:` block is the single point of enforcement and reviewers should treat changes to it as security-sensitive.
+- The action runs in the target repo's context for `issue_comment` and `pull_request_review*` events, so the fork-PR guard is load-bearing. The `precheck` job is the single point of enforcement and reviewers should treat changes to it (especially the per-event-name head-repo resolution) as security-sensitive.
 
 **Neutral:**
 

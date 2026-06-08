@@ -12,28 +12,66 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
+  pull-requests: read
+  issues: read
 
 jobs:
+  # Resolve whether this event refers to a same-repo PR (or no PR at all,
+  # for `issues:assigned`). For `issue_comment` events, GitHub's payload
+  # only carries `issue.pull_request` — the PR's head repo is NOT present
+  # and must be fetched via the API. For the two `pull_request_review*`
+  # events the payload already includes the PR, so we read directly.
+  #
+  # The downstream `claude` job runs only when `same_repo == 'true'`, so
+  # fork PRs never invoke the action and never see `ANTHROPIC_API_KEY`.
+  precheck:
+    name: precheck (same-repo guard)
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues')
+    outputs:
+      same_repo: ${{ steps.resolve.outputs.same_repo }}
+    steps:
+      - id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REVIEW_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            issue_comment)
+              head_repo=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.head.repo.full_name')
+              ;;
+            pull_request_review_comment|pull_request_review)
+              head_repo="$REVIEW_HEAD_REPO"
+              ;;
+            *)
+              # `issues:assigned` — no PR involved, no fork to gate.
+              head_repo="$REPO"
+              ;;
+          esac
+          if [[ "$head_repo" == "$REPO" ]]; then
+            echo "same_repo=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: PR head repo '$head_repo' is not '$REPO' (fork PR)."
+          fi
+
   claude:
     name: claude
+    needs: precheck
+    if: needs.precheck.outputs.same_repo == 'true'
     runs-on: ubuntu-latest
-    # Skip fork PRs — they should not consume API budget, and secrets are not
-    # available to fork-triggered workflows anyway. The `issue_comment` event
-    # carries `pull_request` only when the comment is on a PR; the head-repo
-    # check distinguishes same-repo PRs from fork PRs.
-    if: |
-      (github.event_name != 'issue_comment' || github.event.issue.pull_request != null) &&
-      (
-        github.event.pull_request.head.repo.full_name == github.repository ||
-        github.event.pull_request == null
-      ) &&
-      (
-        contains(github.event.comment.body, '@claude') ||
-        contains(github.event.review.body, '@claude') ||
-        github.event_name == 'issues'
-      )
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v6
 
