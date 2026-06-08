@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, act, screen, waitFor } from '@testing-library/react'
 import App from './App'
 import { useAppStore } from './store'
+import { _resetAuthStoreForTests } from './hooks/useAuth'
 import type { BulkEvent } from './types'
 
 const { mockBulkLookup, mockLookupLine, mockParseLine } = vi.hoisted(() => ({
@@ -27,6 +28,8 @@ vi.mock('./api/client', () => ({
   bulkLookup: mockBulkLookup,
   lookupLine: mockLookupLine,
   parseLine: mockParseLine,
+  saveRun: vi.fn(),
+  listRuns: vi.fn(() => Promise.resolve({ items: [], total: 0 })),
   // Other client functions are referenced by ExportBar / SetPickerModal
   // mounted inside App; stub them to keep render happy. Names must
   // match the real `client.ts` exports — `fetchSets`, not
@@ -104,6 +107,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
 
   beforeEach(() => {
     resetStore()
+    _resetAuthStoreForTests()
     mockBulkLookup.mockReset()
     mockLookupLine.mockReset()
     mockParseLine.mockReset()
@@ -263,6 +267,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
 describe('App: discovery mode switcher', () => {
   beforeEach(() => {
     resetStore()
+    _resetAuthStoreForTests()
     mockBulkLookup.mockReset()
   })
 

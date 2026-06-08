@@ -37,7 +37,7 @@ from sqlalchemy import create_engine, inspect, select
 from api.db import migrate as migrate_mod
 from api.db import session as session_mod
 from api.db.migrate import _sqlite_flock, run_migrations_with_lock, upgrade_head
-from api.db.models import Run, RunRow, User
+from api.db.models import DEFAULT_USER_ID, Run, RunRow, User
 from api.db.url import resolve_database_url
 
 # ---------------------------------------------------------------------------
@@ -237,15 +237,22 @@ class BulkPersistenceTests(_IsolatedDbMixin):
 
 
 class SavedSearchesTests(_IsolatedDbMixin):
-    def _seed_run(self) -> int:
+    def _seed_run(
+        self,
+        *,
+        user_id: int = DEFAULT_USER_ID,
+        name: str | None = None,
+    ) -> int:
         """Seed an unnamed run + return its id.
 
         Assumes the caller has already entered a ``TestClient`` context so
         the startup lifespan has created the schema."""
         with session_mod.get_session_factory()() as s:
             run = Run(
+                user_id=user_id,
                 input_text="Charizard",
                 summary_json={"total_rows": 1, "matched": 1},
+                name=name,
                 rows=[
                     RunRow(
                         position=0,
@@ -307,6 +314,231 @@ class SavedSearchesTests(_IsolatedDbMixin):
         with TestClient(app) as c:
             resp = c.patch("/api/v1/runs/99999", json={"name": "ignored"})
             self.assertEqual(resp.status_code, 404)
+
+
+class SavedSearchesAuthGateTests(_IsolatedDbMixin):
+    """Hosted-demo auth-on saved searches are scoped to the session user.
+
+    Self-host behaviour remains covered by ``SavedSearchesTests`` above:
+    with auth off, ``current_user_or_default`` falls through to the
+    sentinel default user and the existing endpoints keep working."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from api.auth.session import AUTH_ENABLED_ENV
+
+        self._old_auth = os.environ.get(AUTH_ENABLED_ENV)
+        os.environ[AUTH_ENABLED_ENV] = "1"
+
+    def tearDown(self) -> None:
+        from api.auth.session import AUTH_ENABLED_ENV
+
+        if self._old_auth is None:
+            os.environ.pop(AUTH_ENABLED_ENV, None)
+        else:
+            os.environ[AUTH_ENABLED_ENV] = self._old_auth
+        super().tearDown()
+
+    def _seed_run(
+        self,
+        *,
+        user_id: int = DEFAULT_USER_ID,
+        name: str | None = None,
+    ) -> int:
+        with session_mod.get_session_factory()() as s:
+            run = Run(
+                user_id=user_id,
+                input_text="Charizard",
+                summary_json={"total_rows": 1, "matched": 1},
+                name=name,
+                rows=[
+                    RunRow(
+                        position=0,
+                        tag="",
+                        market_price=42.50,
+                        currency="USD",
+                        query_json={"raw": "Charizard", "name": "Charizard"},
+                        card_json={"id": "base1-4"},
+                        pricing_json={"market": 42.50, "currency": "USD"},
+                    )
+                ],
+            )
+            s.add(run)
+            s.commit()
+            return run.id
+
+    def _seed_user(self, name: str) -> int:
+        with session_mod.get_session_factory()() as s:
+            u = User(name=name, email=f"{name}@example.com", display_name=name.title())
+            s.add(u)
+            s.commit()
+            return u.id
+
+    def _as(self, user_id: int):
+        from contextlib import contextmanager
+
+        from api.auth.session import get_current_user
+        from api.main import app
+
+        @contextmanager
+        def _ctx():
+            with session_mod.get_session_factory()() as s:
+                u = s.get(User, user_id)
+            app.dependency_overrides[get_current_user] = lambda: u
+            try:
+                yield
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+
+        return _ctx()
+
+    def test_anonymous_list_is_401_when_auth_is_on(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            resp = c.get("/api/v1/runs")
+            self.assertEqual(resp.status_code, 401)
+
+    def test_anonymous_patch_save_is_401_when_auth_is_on(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(f"/api/v1/runs/{run_id}", json={"name": "Show prep"})
+            self.assertEqual(resp.status_code, 401)
+
+    def test_list_filters_saved_runs_to_current_user(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid_a = self._seed_user("alice")
+            uid_b = self._seed_user("bob")
+            self._seed_run(user_id=uid_a, name="Alice prep")
+            self._seed_run(user_id=uid_b, name="Bob prep")
+
+            with self._as(uid_a):
+                listing = c.get("/api/v1/runs").json()
+                self.assertEqual(listing["total"], 1)
+                self.assertEqual(listing["items"][0]["name"], "Alice prep")
+
+            with self._as(uid_b):
+                listing = c.get("/api/v1/runs").json()
+                self.assertEqual(listing["total"], 1)
+                self.assertEqual(listing["items"][0]["name"], "Bob prep")
+
+    def test_patch_save_claims_unnamed_default_run_for_signed_in_user(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid = self._seed_user("alice")
+            run_id = self._seed_run()
+
+            with self._as(uid):
+                resp = c.patch(f"/api/v1/runs/{run_id}", json={"name": "Show prep"})
+
+            self.assertEqual(resp.status_code, 200)
+            with session_mod.get_session_factory()() as s:
+                run = s.get(Run, run_id)
+                assert run is not None
+                self.assertEqual(run.user_id, uid)
+
+    def test_patch_save_404s_for_another_users_saved_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid_a = self._seed_user("alice")
+            uid_b = self._seed_user("bob")
+            run_id = self._seed_run(user_id=uid_a, name="Alice prep")
+
+            with self._as(uid_b):
+                resp = c.patch(f"/api/v1/runs/{run_id}", json={"name": "Stolen"})
+
+            self.assertEqual(resp.status_code, 404)
+
+    def test_get_run_404s_for_another_users_saved_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid_a = self._seed_user("alice")
+            uid_b = self._seed_user("bob")
+            run_id = self._seed_run(user_id=uid_a, name="Alice prep")
+
+            with self._as(uid_b):
+                resp = c.get(f"/api/v1/runs/{run_id}")
+
+            self.assertEqual(resp.status_code, 404)
+
+    def test_get_run_404s_anonymously_for_a_users_saved_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid_a = self._seed_user("alice")
+            run_id = self._seed_run(user_id=uid_a, name="Alice prep")
+            resp = c.get(f"/api/v1/runs/{run_id}")
+            self.assertEqual(resp.status_code, 401)
+
+    def test_get_run_returns_owners_saved_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid = self._seed_user("alice")
+            run_id = self._seed_run(user_id=uid, name="Alice prep")
+
+            with self._as(uid):
+                resp = c.get(f"/api/v1/runs/{run_id}")
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json()["name"], "Alice prep")
+
+    def test_get_run_allows_handoff_read_of_unnamed_default_run(self) -> None:
+        # Pre-sign-in `/bulk` persists with DEFAULT_USER_ID; the SPA
+        # still needs to load that run after sign-in to promote it.
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid = self._seed_user("alice")
+            run_id = self._seed_run()  # DEFAULT_USER_ID, name=None
+
+            with self._as(uid):
+                resp = c.get(f"/api/v1/runs/{run_id}")
+
+            self.assertEqual(resp.status_code, 200)
+
+    def test_bulk_persists_run_for_signed_in_user(self) -> None:
+        from api.main import app
+        from api.routes import lookup as lookup_route
+
+        def fake_do_lookup(pkmn, tcgdex, pc, q, settings, on_stage=None):
+            from mgz_pkmn.pricing import Pricing
+            from mgz_pkmn.spreadsheet import Row
+
+            return (
+                [(Row(query=q, card=None, pricing=Pricing(), tag=settings.tag), "no_candidates")],
+                "MISS",
+            )
+
+        with TestClient(app) as c:
+            uid = self._seed_user("alice")
+            with (
+                self._as(uid),
+                patch.object(
+                    lookup_route,
+                    "_do_lookup",
+                    side_effect=fake_do_lookup,
+                ),
+                c.stream(
+                    "POST",
+                    "/api/v1/bulk",
+                    json={"lines": ["Charizard"], "settings": {"tag": "test"}},
+                ) as resp,
+            ):
+                self.assertEqual(resp.status_code, 200)
+                list(resp.iter_lines())
+
+            with session_mod.get_session_factory()() as s:
+                run = s.scalar(select(Run))
+                assert run is not None
+                self.assertEqual(run.user_id, uid)
 
 
 # ---------------------------------------------------------------------------

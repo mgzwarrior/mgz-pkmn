@@ -28,7 +28,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db.models import Run, RunRow
+from ..auth.session import current_user_or_default
+from ..db.models import DEFAULT_USER_ID, Run, RunRow, User
 from ..db.session import get_db
 
 router = APIRouter()
@@ -38,6 +39,7 @@ router = APIRouter()
 # behaviour. `Query(...)` defaults stay inline — they're param descriptors,
 # not function calls returning a value.
 DbSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(current_user_or_default)]
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +99,7 @@ class SaveRunRequest(BaseModel):
 @router.get("/runs")
 def list_runs(
     db: DbSession,
+    current_user: CurrentUser,
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
@@ -112,7 +115,7 @@ def list_runs(
     stmt = (
         select(Run, func.coalesce(row_count_subq.c.row_count, 0).label("row_count"))
         .outerjoin(row_count_subq, Run.id == row_count_subq.c.run_id)
-        .where(Run.name.is_not(None))
+        .where(Run.name.is_not(None), Run.user_id == current_user.id)
         .order_by(Run.created_at.desc(), Run.id.desc())
         .limit(limit)
         .offset(offset)
@@ -129,18 +132,33 @@ def list_runs(
         )
         for run, row_count in db.execute(stmt).all()
     ]
-    total = db.scalar(select(func.count(Run.id)).where(Run.name.is_not(None))) or 0
+    total = (
+        db.scalar(
+            select(func.count(Run.id)).where(
+                Run.name.is_not(None),
+                Run.user_id == current_user.id,
+            )
+        )
+        or 0
+    )
     return {"items": [item.model_dump() for item in items], "total": total}
 
 
 @router.get("/runs/{run_id}")
-def get_run(run_id: int, db: DbSession) -> dict:
+def get_run(run_id: int, db: DbSession, current_user: CurrentUser) -> dict:
     """Full run record including every persisted `run_row`.
 
     Not filtered on `name`: the just-completed stream needs to load its
-    own (still-unnamed) run before the user has chosen to save it."""
+    own (still-unnamed) run before the user has chosen to save it.
+
+    Ownership rule mirrors `PATCH /runs/{id}`: signed-in users only see
+    their own runs, with one carve-out — anonymous, still-unnamed runs
+    (`user_id == DEFAULT_USER_ID and name is None`) stay readable so the
+    just-completed pre-sign-in stream can promote into the saved list."""
     run = db.scalar(select(Run).where(Run.id == run_id).options(selectinload(Run.rows)))
     if run is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    if run.user_id != current_user.id and not (run.user_id == DEFAULT_USER_ID and run.name is None):
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
     return RunOut(
         id=run.id,
@@ -166,7 +184,7 @@ def get_run(run_id: int, db: DbSession) -> dict:
 
 
 @router.patch("/runs/{run_id}")
-def save_run(run_id: int, req: SaveRunRequest, db: DbSession) -> dict:
+def save_run(run_id: int, req: SaveRunRequest, db: DbSession, current_user: CurrentUser) -> dict:
     """Save or rename a run.
 
     Stamps the supplied ``name`` (promoting an unnamed run into the
@@ -179,6 +197,13 @@ def save_run(run_id: int, req: SaveRunRequest, db: DbSession) -> dict:
     run = db.scalar(select(Run).where(Run.id == run_id))
     if run is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    if run.user_id != current_user.id:
+        if run.user_id == DEFAULT_USER_ID and run.name is None:
+            # Anonymous hosted-demo lookups can be promoted after the
+            # visitor signs in. Once named, the run belongs to that user.
+            run.user_id = current_user.id
+        else:
+            raise HTTPException(status_code=404, detail=f"run {run_id} not found")
     run.name = name
     if req.view_state is not None:
         run.view_state = req.view_state

@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bookmark, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getRun, listRuns } from '../api/client'
+import { useAuth } from '../hooks/useAuth'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { formatMoney, formatRelativeTime } from '../utils/format'
 import type { RunDetail, RunRowDetail, RunSummary, Row } from '../types'
@@ -44,6 +45,7 @@ function summaryTotal(run: RunSummary): { amount: number; currency: string } | n
 }
 
 export function SavedSearchesSidebar() {
+  const auth = useAuth()
   const {
     runs,
     setRuns,
@@ -78,6 +80,7 @@ export function SavedSearchesSidebar() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
+    if (auth.loading || (auth.authEnabled && auth.user === null)) return
     let cancelled = false
     const load = async () => {
       setLoading(true)
@@ -97,7 +100,7 @@ export function SavedSearchesSidebar() {
     return () => {
       cancelled = true
     }
-  }, [refreshKey, setRuns])
+  }, [auth.authEnabled, auth.loading, auth.user, refreshKey, setRuns])
 
   // Refresh when a streaming run finishes — `/bulk` persists the run on
   // completion, and the user may then save it. Re-listing pulls newly
@@ -182,6 +185,42 @@ export function SavedSearchesSidebar() {
         <span className="text-[10px] font-medium text-coconut-400 dark:text-sand-400 tabular-nums">
           {runs.length}
         </span>
+      </aside>
+    )
+  }
+
+  if (auth.loading) {
+    return (
+      <aside
+        aria-label="Saved searches"
+        className="sticky top-20 flex h-fit max-h-[calc(100vh-6rem)] w-64 flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
+      >
+        <header className="flex items-center justify-between">
+          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+            <Bookmark size={12} aria-hidden />
+            Saved searches
+          </h2>
+        </header>
+        <p className="text-xs text-coconut-400 dark:text-sand-400">Loading...</p>
+      </aside>
+    )
+  }
+
+  if (auth.authEnabled && auth.user === null) {
+    return (
+      <aside
+        aria-label="Saved searches"
+        className="sticky top-20 flex h-fit max-h-[calc(100vh-6rem)] w-64 flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
+      >
+        <header className="flex items-center justify-between">
+          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+            <Bookmark size={12} aria-hidden />
+            Saved searches
+          </h2>
+        </header>
+        <p className="text-xs text-coconut-500 dark:text-sand-300">
+          Sign in to see saved searches.
+        </p>
       </aside>
     )
   }

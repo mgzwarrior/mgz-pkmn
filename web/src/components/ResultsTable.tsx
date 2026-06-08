@@ -41,8 +41,8 @@ export function ResultsTable({ onRerunLine }: Props) {
   // Hoist the auth read here (not in ResultRow) so we don't fire one
   // `/me` request per row on mount. Pass the boolean down — the rows
   // care about "should I render save buttons" not "who is the user".
-  const { user: authedUser } = useAuth()
-  const showSavedActions = authedUser !== null
+  const auth = useAuth()
+  const showSavedActions = auth.user !== null
   // Index into `displayedRows` for the row whose detail modal is open;
   // `null` keeps the modal closed. Tracking the index (not the row) lets
   // ←/→ navigation in the modal stay synced with the live filter+sort.
@@ -135,7 +135,7 @@ export function ResultsTable({ onRerunLine }: Props) {
           {showFilters ? 'Hide filters' : 'Filter'}
         </button>
         <div className="flex items-center gap-3">
-          <SaveSearchButton />
+          <SaveSearchButton auth={auth} />
           {(sortColumn || hasActiveFilters(filters)) && (
             <button
               type="button"
