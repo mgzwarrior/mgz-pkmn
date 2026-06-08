@@ -329,7 +329,7 @@ function StatRow({ label, value, warn = false }: { label: string; value: string;
       <dd
         className={`text-right tabular-nums ${
           warn
-            ? 'text-amber-700 dark:text-amber-400'
+            ? 'text-sun-700 dark:text-sun-300'
             : 'text-coconut-700 dark:text-sand-50'
         }`}
       >
