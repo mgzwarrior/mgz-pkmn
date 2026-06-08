@@ -77,6 +77,17 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1.0.140
         with:
+          # Pass the job's GITHUB_TOKEN explicitly. Without this input,
+          # anthropics/claude-code-action falls back to its default
+          # `setupGitHubToken` OIDC-exchange path, which mints a Claude
+          # GitHub App installation token whose Contents permission is
+          # Read & Write — wider than this job's declared `contents:
+          # read` and at odds with the review-only least-privilege
+          # posture ADR-0024 commits to. Feeding it the workflow's own
+          # GITHUB_TOKEN keeps the runner constrained to exactly the
+          # `permissions:` block above and also removes the need for
+          # `id-token: write` (the OIDC path is no longer taken).
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
             --max-turns 10
