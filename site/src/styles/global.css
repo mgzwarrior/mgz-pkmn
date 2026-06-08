@@ -12,9 +12,9 @@
  * ============================================================ */
 @import "tailwindcss";
 
-/* If you self-host the fonts, replace this with @font-face rules pointing
-   at site/public/fonts/*.woff2. */
-@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+/* Fonts ship via the <link rel="stylesheet"> in BaseLayout.astro so they
+   parallel-load with the rest of the page. Self-hosting: drop woff2 files
+   in site/public/fonts/ and replace the <link> with @font-face rules. */
 
 /* Dark mode is class-driven (`.dark` on <html>), not the default
    prefers-color-scheme media query — an inline script in BaseLayout sets the
