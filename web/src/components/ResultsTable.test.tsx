@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
+import { _resetAuthStoreForTests } from '../hooks/useAuth'
 import type { Row } from '../types'
 
 const { fetchMeMock } = vi.hoisted(() => ({ fetchMeMock: vi.fn() }))
@@ -23,6 +24,7 @@ beforeEach(() => {
     user: { id: 1, email: 'u@e.com', display_name: 'U' },
     authEnabled: true,
   })
+  _resetAuthStoreForTests()
 })
 
 beforeEach(() => {
@@ -243,6 +245,7 @@ describe('ResultsTable', () => {
     // can't fire without a user, so the row buttons hide.
     fetchMeMock.mockReset()
     fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
+    _resetAuthStoreForTests()
     useAppStore.setState({
       rows: [
         makeRow({

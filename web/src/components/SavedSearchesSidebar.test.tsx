@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { SavedSearchesSidebar } from './SavedSearchesSidebar'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import * as client from '../api/client'
+import { _resetAuthStoreForTests } from '../hooks/useAuth'
 import type { RunDetail, RunSummary, SavedViewState } from '../types'
 
 function makeRun(id: number, overrides: Partial<RunSummary> = {}): RunSummary {
@@ -77,6 +78,7 @@ function resetStore() {
 describe('SavedSearchesSidebar', () => {
   beforeEach(() => {
     resetStore()
+    _resetAuthStoreForTests()
     vi.spyOn(client, 'fetchMe').mockResolvedValue({
       user: { id: 7, email: 'trainer@example.com', display_name: 'Trainer' },
       authEnabled: true,

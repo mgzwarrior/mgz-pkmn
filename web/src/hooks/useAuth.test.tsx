@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useAuth } from './useAuth'
+import { useAuth, _resetAuthStoreForTests } from './useAuth'
 
 const { fetchMeMock, logoutMock } = vi.hoisted(() => ({
   fetchMeMock: vi.fn(),
@@ -23,6 +23,9 @@ vi.mock('../api/client', () => ({
 beforeEach(() => {
   fetchMeMock.mockReset()
   logoutMock.mockReset()
+  // The hook is backed by a module-level zustand store; reset it so
+  // one test's resolved user can't leak into the next.
+  _resetAuthStoreForTests()
 })
 
 describe('useAuth', () => {
@@ -103,6 +106,30 @@ describe('useAuth', () => {
       await result.current.refresh()
     })
     expect(result.current.user).toEqual(next)
+  })
+
+  it('shares user state across consumers so signOut clears every mount', async () => {
+    // Pinned: the chip's signOut must propagate to the results-table
+    // and saved-search-sidebar consumers, otherwise Save buttons stay
+    // enabled and 401 on the next click.
+    fetchMeMock.mockResolvedValue({
+      user: { id: 9, email: 'a@b.c', display_name: 'A' },
+      authEnabled: true,
+    })
+    logoutMock.mockResolvedValue(undefined)
+    const { result: chip } = renderHook(() => useAuth())
+    const { result: table } = renderHook(() => useAuth())
+    await waitFor(() => expect(chip.current.user).not.toBeNull())
+    expect(table.current.user).toEqual(chip.current.user)
+    // Only one `/me` request total, regardless of mount count.
+    expect(fetchMeMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await chip.current.signOut()
+    })
+
+    expect(chip.current.user).toBeNull()
+    expect(table.current.user).toBeNull()
   })
 
   it('refresh handles a rejection by clearing the user', async () => {

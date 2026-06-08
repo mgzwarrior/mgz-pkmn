@@ -455,6 +455,55 @@ class SavedSearchesAuthGateTests(_IsolatedDbMixin):
 
             self.assertEqual(resp.status_code, 404)
 
+    def test_get_run_404s_for_another_users_saved_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid_a = self._seed_user("alice")
+            uid_b = self._seed_user("bob")
+            run_id = self._seed_run(user_id=uid_a, name="Alice prep")
+
+            with self._as(uid_b):
+                resp = c.get(f"/api/v1/runs/{run_id}")
+
+            self.assertEqual(resp.status_code, 404)
+
+    def test_get_run_404s_anonymously_for_a_users_saved_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid_a = self._seed_user("alice")
+            run_id = self._seed_run(user_id=uid_a, name="Alice prep")
+            resp = c.get(f"/api/v1/runs/{run_id}")
+            self.assertEqual(resp.status_code, 401)
+
+    def test_get_run_returns_owners_saved_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid = self._seed_user("alice")
+            run_id = self._seed_run(user_id=uid, name="Alice prep")
+
+            with self._as(uid):
+                resp = c.get(f"/api/v1/runs/{run_id}")
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json()["name"], "Alice prep")
+
+    def test_get_run_allows_handoff_read_of_unnamed_default_run(self) -> None:
+        # Pre-sign-in `/bulk` persists with DEFAULT_USER_ID; the SPA
+        # still needs to load that run after sign-in to promote it.
+        from api.main import app
+
+        with TestClient(app) as c:
+            uid = self._seed_user("alice")
+            run_id = self._seed_run()  # DEFAULT_USER_ID, name=None
+
+            with self._as(uid):
+                resp = c.get(f"/api/v1/runs/{run_id}")
+
+            self.assertEqual(resp.status_code, 200)
+
     def test_bulk_persists_run_for_signed_in_user(self) -> None:
         from api.main import app
         from api.routes import lookup as lookup_route

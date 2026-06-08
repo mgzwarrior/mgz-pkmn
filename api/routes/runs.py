@@ -145,13 +145,20 @@ def list_runs(
 
 
 @router.get("/runs/{run_id}")
-def get_run(run_id: int, db: DbSession) -> dict:
+def get_run(run_id: int, db: DbSession, current_user: CurrentUser) -> dict:
     """Full run record including every persisted `run_row`.
 
     Not filtered on `name`: the just-completed stream needs to load its
-    own (still-unnamed) run before the user has chosen to save it."""
+    own (still-unnamed) run before the user has chosen to save it.
+
+    Ownership rule mirrors `PATCH /runs/{id}`: signed-in users only see
+    their own runs, with one carve-out — anonymous, still-unnamed runs
+    (`user_id == DEFAULT_USER_ID and name is None`) stay readable so the
+    just-completed pre-sign-in stream can promote into the saved list."""
     run = db.scalar(select(Run).where(Run.id == run_id).options(selectinload(Run.rows)))
     if run is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    if run.user_id != current_user.id and not (run.user_id == DEFAULT_USER_ID and run.name is None):
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
     return RunOut(
         id=run.id,

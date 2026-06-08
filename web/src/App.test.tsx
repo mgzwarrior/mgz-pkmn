@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, act, screen, waitFor } from '@testing-library/react'
 import App from './App'
 import { useAppStore } from './store'
+import { _resetAuthStoreForTests } from './hooks/useAuth'
 import type { BulkEvent } from './types'
 
 const { mockBulkLookup, mockLookupLine, mockParseLine } = vi.hoisted(() => ({
@@ -106,6 +107,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
 
   beforeEach(() => {
     resetStore()
+    _resetAuthStoreForTests()
     mockBulkLookup.mockReset()
     mockLookupLine.mockReset()
     mockParseLine.mockReset()
@@ -265,6 +267,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
 describe('App: discovery mode switcher', () => {
   beforeEach(() => {
     resetStore()
+    _resetAuthStoreForTests()
     mockBulkLookup.mockReset()
   })
 
