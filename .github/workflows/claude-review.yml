@@ -1,0 +1,44 @@
+name: Claude Review
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [assigned]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude:
+    name: claude
+    runs-on: ubuntu-latest
+    # Skip fork PRs — they should not consume API budget, and secrets are not
+    # available to fork-triggered workflows anyway. The `issue_comment` event
+    # carries `pull_request` only when the comment is on a PR; the head-repo
+    # check distinguishes same-repo PRs from fork PRs.
+    if: |
+      (github.event_name != 'issue_comment' || github.event.issue.pull_request != null) &&
+      (
+        github.event.pull_request.head.repo.full_name == github.repository ||
+        github.event.pull_request == null
+      ) &&
+      (
+        contains(github.event.comment.body, '@claude') ||
+        contains(github.event.review.body, '@claude') ||
+        github.event_name == 'issues'
+      )
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: anthropics/claude-code-action@v1.0.140
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --max-turns 10

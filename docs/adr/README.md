@@ -34,6 +34,7 @@ not just the shape.
 | [0021](0021-tcgplayer-first-class-pricing.md) | First-class TCGPlayer pricing via the TCGPlayer API, with per-user OAuth tokens | Proposed | 2026-06-03 |
 | [0022](0022-query-dsl.md) | Structured query DSL with dual-mode + smart auto-detect (closes #39) | Proposed | 2026-06-03 |
 | [0023](0023-source-ensemble-pricing.md) | Source ensemble for pricing display, with user-selectable preferences (partially supersedes ADR-0002) | Proposed | 2026-06-03 |
+| [0024](0024-claude-review-github-action.md) | Wire up `anthropics/claude-code-action` for `@claude` PR review | Accepted | 2026-06-08 |
 
 ## Adding a new ADR
 
