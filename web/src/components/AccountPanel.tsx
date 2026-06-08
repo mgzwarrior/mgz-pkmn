@@ -8,18 +8,20 @@ import {
   type MeIdentity,
 } from '../api/client'
 
-type Provider = 'github' | 'google' | 'magic'
+type Provider = 'github' | 'google' | 'discord' | 'magic'
 type MagicMode = 'collapsed' | 'form' | 'sent' | 'error'
 
 const PROVIDERS: { provider: Provider; label: string; connectLabel: string }[] = [
   { provider: 'github', label: 'GitHub', connectLabel: 'Connect GitHub' },
   { provider: 'google', label: 'Google', connectLabel: 'Connect Google' },
+  { provider: 'discord', label: 'Discord', connectLabel: 'Connect Discord' },
   { provider: 'magic', label: 'Magic link', connectLabel: 'Connect email' },
 ]
 
 const OAUTH_LINK_START: Record<Exclude<Provider, 'magic'>, string> = {
   github: '/api/v1/auth/link/github/start',
   google: '/api/v1/auth/link/google/start',
+  discord: '/api/v1/auth/link/discord/start',
 }
 
 function providerIcon(provider: Provider) {
@@ -28,6 +30,13 @@ function providerIcon(provider: Provider) {
     return (
       <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
         <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+      </svg>
+    )
+  }
+  if (provider === 'discord') {
+    return (
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20.3 4.4A17 17 0 0 0 16.1 3l-.2.4c-.2.4-.3.7-.5 1.1a15.8 15.8 0 0 0-6.8 0c-.2-.4-.3-.7-.5-1.1L7.9 3a17 17 0 0 0-4.2 1.4C1 8.3.3 12.1.7 15.9a17 17 0 0 0 5.2 2.6l.6-.9c.2-.3.4-.6.5-1a10.9 10.9 0 0 1-1.7-.8l.4-.3c3.3 1.5 6.9 1.5 10.2 0l.4.3c-.5.3-1.1.6-1.7.8.2.3.3.7.5 1l.6.9a17 17 0 0 0 5.2-2.6c.5-4.4-.8-8.1-2.6-11.5ZM8.3 13.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7.4 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z" />
       </svg>
     )
   }
@@ -50,7 +59,7 @@ function initialLinkError(): { provider: Provider; message: string } | null {
   const params = new URLSearchParams(window.location.search)
   if (params.get('link_error') !== 'identity_already_linked') return null
   const provider = params.get('provider')
-  if (provider !== 'github' && provider !== 'google' && provider !== 'magic') return null
+  if (provider !== 'github' && provider !== 'google' && provider !== 'discord' && provider !== 'magic') return null
   return {
     provider,
     message: `That ${providerLabel(provider)} account is already linked to another mgz-pkmn account.`,
@@ -79,6 +88,7 @@ export function AccountPanel({ open, onOpenChange, user, refresh }: AccountPanel
       if (
         identity.provider === 'github' ||
         identity.provider === 'google' ||
+        identity.provider === 'discord' ||
         identity.provider === 'magic'
       ) {
         const provider = identity.provider

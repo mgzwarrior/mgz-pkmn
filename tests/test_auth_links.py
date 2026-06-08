@@ -17,6 +17,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from api.auth.discord import DISCORD_CLIENT_ID_ENV, DISCORD_CLIENT_SECRET_ENV, DiscordProfile
 from api.auth.github import (
     GITHUB_CLIENT_ID_ENV,
     GITHUB_CLIENT_SECRET_ENV,
@@ -33,7 +34,7 @@ from api.auth.magic import (
 )
 from api.auth.session import AUTH_ENABLED_ENV, SESSION_SECRET_ENV
 from api.db import session as session_mod
-from api.db.models import PROVIDER_GITHUB, PROVIDER_MAGIC, User, UserIdentity
+from api.db.models import PROVIDER_DISCORD, PROVIDER_GITHUB, PROVIDER_MAGIC, User, UserIdentity
 
 
 class _IsolatedDbMixin(unittest.TestCase):
@@ -53,6 +54,8 @@ class _IsolatedDbMixin(unittest.TestCase):
                 GITHUB_CLIENT_SECRET_ENV,
                 GOOGLE_CLIENT_ID_ENV,
                 GOOGLE_CLIENT_SECRET_ENV,
+                DISCORD_CLIENT_ID_ENV,
+                DISCORD_CLIENT_SECRET_ENV,
                 SMTP_HOST_ENV,
                 SMTP_PORT_ENV,
                 SMTP_USERNAME_ENV,
@@ -68,6 +71,8 @@ class _IsolatedDbMixin(unittest.TestCase):
         os.environ[GITHUB_CLIENT_SECRET_ENV] = "test-client-secret"
         os.environ[GOOGLE_CLIENT_ID_ENV] = "test-google-client-id"
         os.environ[GOOGLE_CLIENT_SECRET_ENV] = "test-google-client-secret"
+        os.environ[DISCORD_CLIENT_ID_ENV] = "test-discord-client-id"
+        os.environ[DISCORD_CLIENT_SECRET_ENV] = "test-discord-client-secret"
         os.environ[SMTP_HOST_ENV] = "smtp.test.local"
         os.environ[SMTP_PORT_ENV] = "587"
         os.environ[SMTP_USERNAME_ENV] = "test-user"
@@ -176,6 +181,54 @@ class OAuthLinkCallbackTests(_IsolatedDbMixin):
                 identities,
                 [
                     (PROVIDER_GITHUB, "workhub", "work@example.com"),
+                    (PROVIDER_MAGIC, "primary@example.com", "primary@example.com"),
+                ],
+            )
+
+    def test_discord_link_callback_attaches_mismatched_email_to_current_user(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as client:
+            user_id = _sign_in_magic(client, "primary@example.com")
+            with patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_redirect",
+                new=AsyncMock(return_value=RedirectResponse("https://discord.example/auth")),
+            ):
+                start = client.post("/api/v1/auth/link/discord/start", follow_redirects=False)
+            self.assertEqual(start.status_code, 307)
+
+            with (
+                patch(
+                    "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                    new=AsyncMock(return_value={"access_token": "test-token"}),
+                ),
+                patch(
+                    "api.auth.discord.fetch_discord_profile",
+                    new=AsyncMock(
+                        return_value=DiscordProfile(
+                            user_id="123456789012345678",
+                            username="communityhub",
+                            global_name="Community Hub",
+                            verified_email="discord@example.com",
+                        )
+                    ),
+                ),
+            ):
+                r = client.get(
+                    "/api/v1/auth/link/discord/callback?code=abc&state=anything",
+                    follow_redirects=False,
+                )
+
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.headers["location"], "/account")
+        with session_mod.get_session_factory()() as s:
+            user = s.get(User, user_id)
+            assert user is not None
+            identities = sorted((i.provider, i.provider_subject, i.email) for i in user.identities)
+            self.assertEqual(
+                identities,
+                [
+                    (PROVIDER_DISCORD, "123456789012345678", "discord@example.com"),
                     (PROVIDER_MAGIC, "primary@example.com", "primary@example.com"),
                 ],
             )

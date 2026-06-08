@@ -129,6 +129,15 @@ services:
         sync: false
       - key: MGZ_PKMN_GOOGLE_CLIENT_SECRET
         sync: false
+      # Discord OAuth client credentials. Register the application at
+      # https://discord.com/developers/applications with callback URL
+      # `https://mgz-pkmn.onrender.com/api/v1/auth/discord/callback`.
+      # Both vars must be set — missing either returns 503 from
+      # `/auth/discord/login` (api/auth/discord.py:_oauth_client).
+      - key: MGZ_PKMN_DISCORD_CLIENT_ID
+        sync: false
+      - key: MGZ_PKMN_DISCORD_CLIENT_SECRET
+        sync: false
       # Magic-link SMTP relay (#409 / #489). Buttondown's "SMTP endpoint"
       # is sender-side compose-by-email for newsletter drafts, not a
       # transactional relay we can authenticate to and send arbitrary

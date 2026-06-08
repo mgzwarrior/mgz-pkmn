@@ -52,6 +52,7 @@ class Base(DeclarativeBase):
 #: exactly one place (`api/auth/identity.py`) — the column is just a tag.
 PROVIDER_GITHUB = "github"
 PROVIDER_GOOGLE = "google"
+PROVIDER_DISCORD = "discord"
 PROVIDER_MAGIC = "magic"
 
 
@@ -104,7 +105,7 @@ class UserIdentity(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     #: Provider tag — one of :data:`PROVIDER_GITHUB`, :data:`PROVIDER_GOOGLE`,
-    #: :data:`PROVIDER_MAGIC`.
+    #: :data:`PROVIDER_DISCORD`, :data:`PROVIDER_MAGIC`.
     provider: Mapped[str] = mapped_column(String(16), nullable=False)
     #: Provider-side stable identifier. GitHub login, Google ``sub``, or
     #: (for magic-link) the verified email itself — there's no other

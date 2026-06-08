@@ -1,7 +1,7 @@
 /**
  * AccountPanel.test — covers the AC bullets from #491 slice 3:
  * identity rendering, Disconnect call + last-identity guard, Connect
- * form actions for GitHub/Google, magic-link form, and the 409
+ * form actions for GitHub/Google/Discord, magic-link form, and the 409
  * (`identity_already_linked`) inline error surfaced from the OAuth
  * callback redirect.
  */
@@ -54,16 +54,19 @@ describe('AccountPanel', () => {
     const user = makeUser([
       makeIdentity({ id: 1, provider: 'github', email: 'alice@personal.com' }),
       makeIdentity({ id: 2, provider: 'google', email: 'alice@work.com' }),
+      makeIdentity({ id: 3, provider: 'discord', email: 'alice@community.com' }),
     ])
     render(
       <AccountPanel open onOpenChange={() => {}} user={user} refresh={async () => {}} />,
     )
     expect(await screen.findByText('GitHub')).toBeInTheDocument()
     expect(screen.getByText('Google')).toBeInTheDocument()
+    expect(screen.getByText('Discord')).toBeInTheDocument()
     // Primary email shows in the profile section; the per-identity email
     // shows alongside the provider chip below.
     expect(screen.getAllByText('alice@personal.com').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('alice@work.com')).toBeInTheDocument()
+    expect(screen.getByText('alice@community.com')).toBeInTheDocument()
   })
 
   it('calls unlinkIdentity and refreshes when a non-last identity disconnects', async () => {
@@ -97,13 +100,17 @@ describe('AccountPanel', () => {
     render(<AccountPanel open onOpenChange={() => {}} user={user} refresh={async () => {}} />)
     const githubBtn = await screen.findByRole('button', { name: /connect github/i })
     const googleBtn = screen.getByRole('button', { name: /connect google/i })
+    const discordBtn = screen.getByRole('button', { name: /connect discord/i })
     const githubForm = githubBtn.closest('form')
     const googleForm = googleBtn.closest('form')
+    const discordForm = discordBtn.closest('form')
     expect(githubForm).not.toBeNull()
     expect(githubForm).toHaveAttribute('action', '/api/v1/auth/link/github/start')
     expect(githubForm).toHaveAttribute('method', 'post')
     expect(googleForm).toHaveAttribute('action', '/api/v1/auth/link/google/start')
     expect(googleForm).toHaveAttribute('method', 'post')
+    expect(discordForm).toHaveAttribute('action', '/api/v1/auth/link/discord/start')
+    expect(discordForm).toHaveAttribute('method', 'post')
   })
 
   it('submits the magic-link email and shows the inbox confirmation', async () => {

@@ -27,6 +27,7 @@ import { AccountPanel } from './AccountPanel'
 
 const GITHUB_LOGIN_URL = '/api/v1/auth/github/login'
 const GOOGLE_LOGIN_URL = '/api/v1/auth/google/login'
+const DISCORD_LOGIN_URL = '/api/v1/auth/discord/login'
 
 function initialsFor(user: Me): string {
   const source = (user.display_name || user.email || '').trim()
@@ -260,6 +261,17 @@ export function ProviderPickerModal({
                 <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3a12 12 0 0 1-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.2-.1-2.4-.4-3.5Z" />
               </svg>
               Continue with Google
+            </a>
+
+            <a
+              href={DISCORD_LOGIN_URL}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-sand-300 bg-sand-100 px-4 py-2 text-sm font-medium text-coconut-700 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:hover:bg-husk-50 transition-colors"
+            >
+              {/* Discord mark — simplified inline brand glyph for the provider row. */}
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.3 4.4A17 17 0 0 0 16.1 3l-.2.4c-.2.4-.3.7-.5 1.1a15.8 15.8 0 0 0-6.8 0c-.2-.4-.3-.7-.5-1.1L7.9 3a17 17 0 0 0-4.2 1.4C1 8.3.3 12.1.7 15.9a17 17 0 0 0 5.2 2.6l.6-.9c.2-.3.4-.6.5-1a10.9 10.9 0 0 1-1.7-.8l.4-.3c3.3 1.5 6.9 1.5 10.2 0l.4.3c-.5.3-1.1.6-1.7.8.2.3.3.7.5 1l.6.9a17 17 0 0 0 5.2-2.6c.5-4.4-.8-8.1-2.6-11.5ZM8.3 13.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7.4 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z" />
+              </svg>
+              Continue with Discord
             </a>
 
             {magicMode === 'collapsed' && (
