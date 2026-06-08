@@ -72,6 +72,17 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
+      # `id-token: write` is required by anthropics/claude-code-action —
+      # the action calls `OidcClient.getCall(id_token_url)` early in
+      # `setupGitHubToken` to authenticate the GitHub App token mint,
+      # and GitHub only populates `ACTIONS_ID_TOKEN_REQUEST_URL` when
+      # the job carries this scope. Without it the action retries three
+      # times then fails with "Could not fetch an OIDC token. Did you
+      # remember to add `id-token: write` to your workflow permissions?"
+      # The workflow-level `permissions:` block only narrows the
+      # `GITHUB_TOKEN`; OIDC is a separate scope that must be granted
+      # at the job level.
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
