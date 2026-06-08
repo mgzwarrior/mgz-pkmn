@@ -13,7 +13,9 @@
  * ============================================================ */
 @import "tailwindcss";
 
-@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+/* Fonts ship via the <link rel="stylesheet"> in web/index.html so they
+   parallel-load with the SPA bundle. Self-hosting: drop woff2 files in
+   web/src/assets/fonts/ and replace the <link> with @font-face rules. */
 
 @custom-variant dark (&:where(.dark, .dark *));
 
