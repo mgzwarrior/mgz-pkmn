@@ -1,0 +1,49 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Components" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .card-row { display:grid; grid-template-columns: 56px 1fr auto auto; gap:14px; align-items:center;
+    padding: 10px 14px; border-bottom: 1px solid var(--border-1); background: var(--bg-surface); }
+  .card-row:hover { background: var(--bg-surface-2); }
+  .card-row:last-child { border-bottom: 0; }
+  .thumb { width:48px; height:66px; border-radius:6px; border:1px solid var(--coconut-300); background: linear-gradient(160deg, #F5C94B 0%, #E8B028 100%); position: relative; overflow:hidden; box-shadow: var(--shadow-xs); }
+  .thumb::after { content: ''; position:absolute; inset:6px; border-radius: 4px; background: var(--sand-50); }
+  .thumb.exe { background: linear-gradient(160deg, #6BAC55 0%, #4A8B3B 100%); }
+  .thumb.exe::after { background: var(--sand-100); }
+  .name { display:flex; flex-direction:column; min-width:0; }
+  .name .n { font-family: var(--font-display); font-weight:600; font-size: var(--size-md); color: var(--fg-1); }
+  .name .q { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+  .price { font-family: var(--font-mono); font-weight:600; font-size: var(--size-md); color: var(--palm-500); tabular-nums: tabular-nums; }
+  .comp { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(-3px) } to { opacity:1; transform: none } }
+</style>
+</head><body>
+<div class="col" style="gap:10px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Result row · streamed lookup</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">220ms fadeIn · tabular price · comp tier</div>
+  </div>
+  <div style="border:1px solid var(--border-1); border-radius:var(--radius-lg); overflow:hidden; box-shadow: var(--shadow-sm); background: var(--bg-surface);">
+    <div class="card-row">
+      <div class="thumb exe"></div>
+      <div class="name"><span class="n">Exeggutor (Jungle)</span><span class="q">Exeggutor | Jungle | 35/64</span></div>
+      <div class="price">$18.42</div>
+      <div class="comp">85% · $15.66</div>
+    </div>
+    <div class="card-row">
+      <div class="thumb"></div>
+      <div class="name"><span class="n">Charizard ex (Obsidian Flames)</span><span class="q">Charizard ex | Obsidian Flames | 125</span></div>
+      <div class="price">$24.99</div>
+      <div class="comp">85% · $21.24</div>
+    </div>
+    <div class="card-row" style="opacity:0.7; background: var(--warning-bg)">
+      <div class="thumb" style="background:var(--sand-300); display:grid; place-items:center; color: var(--coconut-500); font-weight:700">?</div>
+      <div class="name"><span class="n" style="color:var(--warning-fg)">Not found</span><span class="q">Pikachu illustrator | promo</span></div>
+      <div class="price" style="color: var(--warning-fg)">—</div>
+      <div class="comp"><a style="color:var(--fg-link)">+ Add PriceCharting URL</a></div>
+    </div>
+  </div>
+</div>
+</body></html>

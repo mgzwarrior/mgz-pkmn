@@ -1,0 +1,32 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Colors" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .sw { display: flex; flex-direction: column; gap: 4px; }
+  .sw .chip { height: 56px; border-radius: var(--radius-md); border: 1px solid var(--border-1); padding: 6px 8px; align-items: flex-end; justify-content: flex-end; font-family: var(--font-mono); font-size: 10px; font-weight: 600; }
+  .sw .name { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); }
+</style>
+</head><body>
+<div class="col">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div>
+      <div class="ds-eyebrow" style="color:var(--palm-500)">Secondary · Palm</div>
+      <div style="font-family: var(--font-display); font-size: 22px; font-weight: 700;">Frond crown · success · links</div>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">--palm-50 → --palm-700</div>
+  </div>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:var(--palm-50);color:var(--palm-600)">50</div><div class="name">#EAF3E2</div></div>
+    <div class="sw"><div class="chip" style="background:var(--palm-100);color:var(--palm-600)">100</div><div class="name">#C9E0B5</div></div>
+    <div class="sw"><div class="chip" style="background:var(--palm-200);color:var(--palm-700)">200</div><div class="name">#97C57E</div></div>
+    <div class="sw"><div class="chip" style="background:var(--palm-300);color:#fff">300</div><div class="name">#6BAC55</div></div>
+    <div class="sw"><div class="chip" style="background:var(--palm-400);color:#fff">400 ★</div><div class="name">#4A8B3B</div></div>
+    <div class="sw"><div class="chip" style="background:var(--palm-500);color:#fff">500</div><div class="name">#386C2C</div></div>
+    <div class="sw"><div class="chip" style="background:var(--palm-600);color:#fff">600</div><div class="name">#2D5A28</div></div>
+    <div class="sw"><div class="chip" style="background:var(--palm-700);color:#fff">700</div><div class="name">#1C3A19</div></div>
+  </div>
+</div>
+</body></html>

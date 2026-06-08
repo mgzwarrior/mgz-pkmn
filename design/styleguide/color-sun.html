@@ -1,0 +1,32 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Colors" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .sw { display: flex; flex-direction: column; gap: 4px; }
+  .sw .chip { height: 56px; border-radius: var(--radius-md); border: 1px solid var(--border-1); padding: 6px 8px; align-items: flex-end; justify-content: flex-end; font-family: var(--font-mono); font-size: 10px; font-weight: 600; }
+  .sw .name { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); }
+</style>
+</head><body>
+<div class="col">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div>
+      <div class="ds-eyebrow">Primary · Sun</div>
+      <div style="font-family: var(--font-display); font-size: 22px; font-weight: 700;">Exeggutor head · ripe coconut · CTA</div>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">--sun-50 → --sun-700</div>
+  </div>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:var(--sun-50);color:var(--coconut-500)">50</div><div class="name">#FDF6D9</div></div>
+    <div class="sw"><div class="chip" style="background:var(--sun-100);color:var(--coconut-500)">100</div><div class="name">#FBEBA8</div></div>
+    <div class="sw"><div class="chip" style="background:var(--sun-200);color:var(--coconut-500)">200</div><div class="name">#F8DD78</div></div>
+    <div class="sw"><div class="chip" style="background:var(--sun-300);color:var(--coconut-500)">300 ★</div><div class="name">#F5C94B</div></div>
+    <div class="sw"><div class="chip" style="background:var(--sun-400);color:var(--husk-300)">400</div><div class="name">#E8B028</div></div>
+    <div class="sw"><div class="chip" style="background:var(--sun-500);color:#fff">500</div><div class="name">#C8901A</div></div>
+    <div class="sw"><div class="chip" style="background:var(--sun-600);color:#fff">600</div><div class="name">#946812</div></div>
+    <div class="sw"><div class="chip" style="background:var(--sun-700);color:#fff">700</div><div class="name">#5E420B</div></div>
+  </div>
+</div>
+</body></html>

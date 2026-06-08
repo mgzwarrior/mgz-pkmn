@@ -1,0 +1,32 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Colors" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .sw { display: flex; flex-direction: column; gap: 4px; }
+  .sw .chip { height: 56px; border-radius: var(--radius-md); border: 1px solid var(--border-1); padding: 6px 8px; align-items: flex-end; justify-content: flex-end; font-family: var(--font-mono); font-size: 10px; font-weight: 600; }
+  .sw .name { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); }
+</style>
+</head><body>
+<div class="col">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div>
+      <div class="ds-eyebrow" style="color:var(--coconut-500)">Tertiary · Coconut</div>
+      <div style="font-family: var(--font-display); font-size: 22px; font-weight: 700;">Trunk · bark · body text</div>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">--coconut-50 → --coconut-700</div>
+  </div>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:var(--coconut-50);color:var(--coconut-600)">50</div><div class="name">#F4ECDD</div></div>
+    <div class="sw"><div class="chip" style="background:var(--coconut-100);color:var(--coconut-700)">100</div><div class="name">#E4D2B0</div></div>
+    <div class="sw"><div class="chip" style="background:var(--coconut-200);color:var(--coconut-700)">200</div><div class="name">#C8AC7E</div></div>
+    <div class="sw"><div class="chip" style="background:var(--coconut-300);color:#fff">300</div><div class="name">#A6845A</div></div>
+    <div class="sw"><div class="chip" style="background:var(--coconut-400);color:#fff">400</div><div class="name">#80623F</div></div>
+    <div class="sw"><div class="chip" style="background:var(--coconut-500);color:#fff">500 ★</div><div class="name">#6B4A2F</div></div>
+    <div class="sw"><div class="chip" style="background:var(--coconut-600);color:#fff">600</div><div class="name">#4D341F</div></div>
+    <div class="sw"><div class="chip" style="background:var(--coconut-700);color:#fff">700</div><div class="name">#2E1F11</div></div>
+  </div>
+</div>
+</body></html>

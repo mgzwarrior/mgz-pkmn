@@ -79,6 +79,9 @@ jobs:
       - name: Lint (eslint)
         run: npm run lint
 
+      - name: Design adherence (oxlint)
+        run: npx oxlint -c ../.oxlintrc.json ../site/src ./src
+
       - name: Test (vitest) with coverage
         run: npx vitest run --coverage
 

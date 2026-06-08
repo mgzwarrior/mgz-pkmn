@@ -96,7 +96,7 @@ coverage:  ## Run the Python test suite under coverage; emit terminal report + c
 	@echo "✓ HTML report: htmlcov/index.html"
 
 .PHONY: lint
-lint: lint-py lint-web  ## Lint everything (Python ruff + web ESLint).
+lint: lint-py lint-web lint-design  ## Lint everything (Python ruff + web ESLint + design oxlint).
 
 .PHONY: lint-py
 lint-py:  ## Run ruff lint over Python sources.
@@ -105,6 +105,10 @@ lint-py:  ## Run ruff lint over Python sources.
 .PHONY: lint-web
 lint-web:  ## Run ESLint over the web frontend.
 	cd web && npm run lint
+
+.PHONY: lint-design
+lint-design:  ## Run oxlint with the design-system adherence config over web/ and site/ sources.
+	web/node_modules/.bin/oxlint -c .oxlintrc.json site/src web/src
 
 .PHONY: test-site
 test-site:  ## Run the marketing-site regression tests (node:test, no deps).
@@ -124,7 +128,7 @@ fix:  ## Auto-fix safe ruff issues + reformat.
 	uv run ruff format $(PY_PATHS)
 
 .PHONY: check
-check: lint-py format-check test lint-web test-site  ## CI-equivalent: lint + format-check + tests + web lint + site regressions.
+check: lint-py format-check test lint-web lint-design test-site  ## CI-equivalent: lint + format-check + tests + web lint + design lint + site regressions.
 
 .PHONY: precommit
 precommit:  ## Run all pre-commit hooks against every file in the repo.

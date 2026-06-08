@@ -1,0 +1,34 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Colors" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .tile { padding: 14px; border-radius: var(--radius-md); border: 1px solid; }
+  .tile .lbl { font-size: var(--size-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: var(--tracking-caps); }
+  .tile .msg { font-size: var(--size-sm); margin-top: 6px; font-family: var(--font-mono); }
+  .tile .var { font-size: 10px; opacity: 0.7; font-family: var(--font-mono); margin-top: 4px;}
+</style>
+</head><body>
+<div class="col">
+  <div>
+    <div class="ds-eyebrow">Semantic · Status</div>
+    <div style="font-family: var(--font-display); font-size: 22px; font-weight: 700;">Success · Warning · Danger · Info</div>
+  </div>
+  <div class="grid">
+    <div class="tile" style="background:var(--success-bg);color:var(--success-fg);border-color:var(--success-border);">
+      <div class="lbl">Success</div><div class="msg">5 matched.</div><div class="var">--success-*</div>
+    </div>
+    <div class="tile" style="background:var(--warning-bg);color:var(--warning-fg);border-color:var(--warning-border);">
+      <div class="lbl">Warning</div><div class="msg">Over max price.</div><div class="var">--warning-*</div>
+    </div>
+    <div class="tile" style="background:var(--danger-bg);color:var(--danger-fg);border-color:var(--danger-border);">
+      <div class="lbl">Danger</div><div class="msg">Not found.</div><div class="var">--danger-*</div>
+    </div>
+    <div class="tile" style="background:var(--info-bg);color:var(--info-fg);border-color:var(--info-border);">
+      <div class="lbl">Info</div><div class="msg">Source: TCGdex.</div><div class="var">--info-*</div>
+    </div>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,25 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Brand" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .tile { display:flex; flex-direction:column; align-items:center; gap:8px; padding: 14px; border:1px solid var(--border-1); border-radius: var(--radius-md); background: var(--bg-surface); }
+  .tile .lab { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+  .tile img { width: 56px; height: 56px; }
+</style>
+</head><body>
+<div class="col" style="gap:12px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Mark · app icon · favicon</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">circular palm seal · multiple grounds</div>
+  </div>
+  <div class="grid">
+    <div class="tile"><img src="../../assets/mark-palm.svg"/><div class="lab">on sand</div></div>
+    <div class="tile" style="background: var(--palm-400)"><img src="../../assets/mark-palm.svg"/><div class="lab" style="color: var(--sand-100)">on palm</div></div>
+    <div class="tile" style="background: var(--coconut-500)"><img src="../../assets/mark-palm.svg"/><div class="lab" style="color: var(--sand-100)">on coconut</div></div>
+    <div class="tile" style="background: var(--husk-300)"><img src="../../assets/mark-palm.svg"/><div class="lab" style="color: var(--sand-300)">on husk</div></div>
+  </div>
+</div>
+</body></html>

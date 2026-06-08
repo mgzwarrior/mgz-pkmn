@@ -1,0 +1,69 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Brand" name="Voice · tone by moment" subtitle="Same voice, retuned for each state" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .moments { display:flex; flex-direction:column; gap: 0; }
+  .moment {
+    display:grid; grid-template-columns: 132px 1fr 150px;
+    gap: 16px; align-items: start;
+    padding: 13px 2px;
+  }
+  .moment + .moment { border-top: 1px solid var(--border-1); }
+  .moment .when { display:flex; flex-direction:column; gap:3px; }
+  .moment .when .lbl {
+    font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--fg-1);
+  }
+  .moment .when .feel { font-size: 11px; color: var(--fg-3); line-height: 1.3; }
+  .moment .copy {
+    font-size: 14px; line-height: 1.5; color: var(--fg-1);
+  }
+  .moment .copy b { font-weight: 600; }
+  .moment .copy .mono { font-family: var(--font-mono); font-size: 12px; color: var(--fg-2); }
+  .moment .rule {
+    font-size: 11px; line-height: 1.4; color: var(--palm-600);
+    font-family: var(--font-mono);
+  }
+  [data-theme] .moment .rule { color: var(--palm-300); }
+</style>
+</head><body>
+<div class="col" style="gap:12px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Voice · tone by moment</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">empty · loading · success · error · price · destructive</div>
+  </div>
+  <div class="moments">
+    <div class="moment">
+      <div class="when"><span class="lbl">Empty</span><span class="feel">calm, points ahead</span></div>
+      <div class="copy">Results will appear here after you run a lookup.</div>
+      <div class="rule">tell them what's next</div>
+    </div>
+    <div class="moment">
+      <div class="when"><span class="lbl">Loading</span><span class="feel">honest, specific</span></div>
+      <div class="copy"><span class="mono">Pricing 3 of 12…</span> — show the count, not a vague spinner.</div>
+      <div class="rule">progress &gt; platitude</div>
+    </div>
+    <div class="moment">
+      <div class="when"><span class="lbl">Success</span><span class="feel">plain, numbers first</span></div>
+      <div class="copy"><b>5 matched · 1 unmatched · 6 shown.</b> No confetti, no "Success!"</div>
+      <div class="rule">state the result</div>
+    </div>
+    <div class="moment">
+      <div class="when"><span class="lbl">Error</span><span class="feel">on your side</span></div>
+      <div class="copy">Couldn't price this one. <b>Add a PriceCharting URL</b> and we'll retry.</div>
+      <div class="rule">offer the fix inline</div>
+    </div>
+    <div class="moment">
+      <div class="when"><span class="lbl">Price &amp; confidence</span><span class="feel">precise, never overclaims</span></div>
+      <div class="copy"><span class="mono">$184.00</span> market · <span class="mono">85%</span> comp · as of last lookup. Hedge what's thin.</div>
+      <div class="rule">show the basis</div>
+    </div>
+    <div class="moment">
+      <div class="when"><span class="lbl">Destructive</span><span class="feel">clear, no guilt</span></div>
+      <div class="copy">Clear all 12 lines? <b>This can't be undone.</b> — name the count, name the cost.</div>
+      <div class="rule">say what's lost</div>
+    </div>
+  </div>
+</div>
+</body></html>

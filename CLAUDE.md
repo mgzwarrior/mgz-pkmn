@@ -210,3 +210,71 @@ You're done when the PR is open and CI is green. The `CI` workflow
 CodeQL (`Analyze`) also runs on every PR — wait for those checks to pass too.
 
 Do **not** merge the PR.
+# Design system
+
+mgz-pkmn uses the **tropical** brand design system. Every color, spacing,
+radius, shadow, and font in the product comes from design tokens — never from
+hardcoded values. This applies to humans and to AI agents equally.
+
+## Source of truth
+
+- **`design/tokens/colors_and_type.css`** is the canonical token file. It
+  defines the full palette (`sun`, `palm`, `coconut`, `sand`, `husk`, `ember`,
+  `sky`), semantic tokens (`--bg-*`, `--fg-*`, `--border-*`, status colors),
+  the type scale, spacing, radii, shadows, and motion tokens — plus the
+  `[data-theme="dark"]` palette.
+- The Tailwind v4 `@theme` blocks in `site/src/styles/global.css` and
+  `web/src/index.css` are **derived** from that file. **Do not hand-edit them.**
+  Change a token in `colors_and_type.css`, then regenerate.
+
+## Hard rules
+
+- **No raw hex colors.** Use a token: `var(--palm-500)` or the Tailwind
+  utility (`text-palm-500`). Never `#4A8B3B`. Exceptions: brand-mark SVGs
+  inside [`web/src/components/providerIcons.tsx`](web/src/components/providerIcons.tsx)
+  carry third-party brand hexes (Discord, Google, Apple) that have to stay
+  exact for trademark reasons.
+- **No raw px values** for spacing/size. Use `--space-*` / `--size-*` tokens
+  or Tailwind spacing utilities. Tailwind arbitrary values (`text-[11px]`,
+  `w-[min(560px,92vw)]`) are fine when no token fits.
+- **Fonts are fixed**: Bricolage Grotesque (display), DM Sans (body),
+  JetBrains Mono (mono). No other `font-family`.
+- **Import design-system components from the index**, never deep component
+  internals.
+
+The deep-import rule is enforced by `.oxlintrc.json` and `make check` will
+fail on violations. The hex/px/font rules are currently agent-and-reviewer
+enforced — oxlint doesn't yet implement `no-restricted-syntax`, so the
+config keeps the structural rules and leaves the syntactic ones documented
+here for the next agent that picks them up (likely as an eslint preset with
+a tight allowlist).
+
+## Voice & copy (see `design/DESIGN_SYSTEM.md` for the full guide)
+
+- One voice, four pillars: **plainspoken · on your side · quietly
+  knowledgeable · warm to everyone**. Tone flexes by moment (empty / loading /
+  success / error / price / destructive).
+- **Sentence case** for all UI. Title Case only for product/source names
+  (`PriceCharting`, `TCGdex`, `pokemontcg.io`).
+- **Contractions, second person** ("you", never "the user").
+- **Locked terms:** Look up (not Search/Submit), want-list (not wishlist),
+  comps, market, walk a set.
+- **Never ships:** unlock, supercharge, powerful, seamless, revolutionary,
+  effortless, game-changing, next-gen.
+- **No emoji in product copy.** The single exception is the 🌴 Exeggutor
+  Easter egg.
+
+## Visual reference
+
+`design/styleguide/` contains rendered cards for every token group, the
+voice guide, and component examples. `design/INTEGRATION.md` is the migration
+playbook from the old zinc/blue theme.
+
+## When changing anything visual
+
+1. Reach for an existing token first. If none fits, add it to
+   `colors_and_type.css` (don't inline a one-off value).
+2. Run `make check` — the adherence linter blocks raw hex/px and off-system
+   fonts.
+3. Keep `site/` and `web/` in visual sync; both consume the same tokens.
+

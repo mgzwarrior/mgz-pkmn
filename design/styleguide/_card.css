@@ -1,0 +1,80 @@
+/* Shared preview-card base. All cards include colors_and_type.css then this. */
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg-app);
+  color: var(--fg-1);
+  font-family: var(--font-body);
+  padding: 20px;
+  box-sizing: border-box;
+}
+* { box-sizing: border-box; }
+.row { display: flex; align-items: center; gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+
+/* Reusable component-style classes used across cards */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-body); font-weight: var(--weight-semibold);
+  font-size: var(--size-sm);
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.btn-primary {
+  background: var(--brand-primary); color: var(--fg-on-primary);
+  border-color: var(--sun-400);
+  box-shadow: var(--shadow-sm), inset 0 -2px 0 0 rgba(77,52,31,0.12);
+}
+.btn-primary:hover { background: var(--brand-primary-hover); }
+.btn-primary:active { transform: translateY(1px); box-shadow: var(--shadow-xs), var(--shadow-press-inner); }
+.btn-secondary {
+  background: var(--brand-secondary); color: var(--fg-on-dark);
+  border-color: var(--palm-500);
+}
+.btn-secondary:hover { background: var(--palm-500); }
+.btn-ghost {
+  background: transparent; color: var(--fg-1);
+  border-color: var(--border-1);
+}
+.btn-ghost:hover { background: var(--bg-surface-2); border-color: var(--border-2); }
+.btn-danger {
+  background: var(--ember-500); color: white; border-color: var(--ember-600);
+}
+.btn-disabled { opacity: 0.4; cursor: not-allowed; }
+
+.input {
+  font-family: var(--font-body); font-size: var(--size-sm);
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  color: var(--fg-1);
+  outline: none;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.input:focus { border-color: var(--palm-400); box-shadow: var(--shadow-glow-palm); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: var(--size-2xs);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  color: var(--fg-2);
+}
+.chip:hover { border-color: var(--palm-400); color: var(--fg-1); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--size-2xs); font-weight: var(--weight-semibold);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase; letter-spacing: var(--tracking-caps);
+}
+.badge-success { background: var(--success-bg); color: var(--success-fg); border: 1px solid var(--success-border); }
+.badge-warning { background: var(--warning-bg); color: var(--warning-fg); border: 1px solid var(--warning-border); }
+.badge-danger  { background: var(--danger-bg);  color: var(--danger-fg);  border: 1px solid var(--danger-border); }
+.badge-info    { background: var(--info-bg);    color: var(--info-fg);    border: 1px solid var(--info-border); }
