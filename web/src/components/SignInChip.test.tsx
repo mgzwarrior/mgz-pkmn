@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { SignInChip } from './SignInChip'
+import { _resetAuthStoreForTests } from '../hooks/useAuth'
 
 const {
   fetchMeMock,
@@ -37,6 +38,7 @@ beforeEach(() => {
   requestMagicLinkMock.mockReset()
   requestAccountMagicLinkMock.mockReset()
   unlinkIdentityMock.mockReset()
+  _resetAuthStoreForTests()
 })
 
 describe('SignInChip (anonymous)', () => {

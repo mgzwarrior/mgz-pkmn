@@ -16,6 +16,7 @@ import { render, fireEvent, screen } from '@testing-library/react'
 import { axe } from 'vitest-axe'
 import type { ReactElement } from 'react'
 
+import { _resetAuthStoreForTests } from '../hooks/useAuth'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ExportBar } from './ExportBar'
 import { HelpModal } from './HelpModal'
@@ -153,6 +154,7 @@ beforeEach(() => {
   storeState.isRunning = false
   storeState.progress = null
   storeState.processingLines = []
+  _resetAuthStoreForTests()
 })
 
 describe('a11y: ErrorBoundary (error state)', () => {

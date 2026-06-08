@@ -11,10 +11,11 @@
  *   └──────────────────────────────────┘
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bookmark, Heart, Library, Search } from 'lucide-react'
-import { bulkLookup, lookupLine } from './api/client'
+import { bulkLookup, listRuns, lookupLine, saveRun } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
+import { SaveSearchNameDialog } from './components/SaveSearchNameDialog'
 import { BrowsePanel } from './components/BrowsePanel'
 import { SwipePanel } from './components/SwipePanel'
 import { CollectionsModal } from './components/CollectionsModal'
@@ -23,6 +24,7 @@ import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
 import { RecentRuns } from './components/RecentRuns'
 import { ResultsTable } from './components/ResultsTable'
+import { consumePendingSaveSearch, type PendingSaveSearch } from './components/pendingSaveSearch'
 import { SavedSearchesSidebar } from './components/SavedSearchesSidebar'
 import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
@@ -62,6 +64,7 @@ function App() {
     pushRecentRun,
     setCurrentRunId,
     resetViewState,
+    setRuns,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -85,6 +88,51 @@ function App() {
   // re-render on each click — only on the 5th.
   const eggClicksRef = useRef(0)
   const [showEgg, setShowEgg] = useState(false)
+
+  // Post-sign-in name prompt: once the OAuth / magic-link round-trip
+  // resolves and the visitor is signed in, surface the design-system
+  // name dialog so they can finish the "Sign in to save" flow they
+  // started before the redirect. The pending blob carries just the run
+  // identifier + view state — the name is collected here, not pre-
+  // emptively before the picker opened, so the visitor's first
+  // interaction with sign-in was the auth modal and not a native prompt.
+  const [pendingSave, setPendingSave] = useState<PendingSaveSearch | null>(null)
+  useEffect(() => {
+    if (authedUser === null) return
+    // Defer the consume + setState past the effect's sync body so we
+    // don't trip the `react-hooks/set-state-in-effect` cascade-render
+    // rule. Consuming inside the microtask still removes the
+    // sessionStorage entry exactly once per sign-in transition because
+    // the effect's `authedUser` dependency only re-fires on a real
+    // change.
+    let cancelled = false
+    void Promise.resolve().then(() => {
+      if (cancelled) return
+      const pending = consumePendingSaveSearch()
+      if (pending !== null) setPendingSave(pending)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [authedUser])
+
+  const handlePendingSaveSubmit = useCallback(
+    async (name: string) => {
+      if (pendingSave === null) return
+      try {
+        await saveRun(pendingSave.runId, name, pendingSave.viewState)
+        const { items } = await listRuns(50)
+        setRuns(items)
+      } catch {
+        // One-time handoff from the auth redirect: if the run disappeared
+        // or the session is no longer valid, the user can click Save again.
+      } finally {
+        setPendingSave(null)
+      }
+    },
+    [pendingSave, setRuns],
+  )
+
   const handleBrandClick = useCallback(() => {
     eggClicksRef.current += 1
     if (eggClicksRef.current >= 5) {
@@ -367,6 +415,15 @@ function App() {
       <CollectionsModal open={collectionsOpen} onOpenChange={setCollectionsOpen} />
 
       <WishlistsModal open={wishlistsOpen} onOpenChange={setWishlistsOpen} />
+
+      <SaveSearchNameDialog
+        open={pendingSave !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingSave(null)
+        }}
+        mode="name"
+        onSubmit={(name) => void handlePendingSaveSubmit(name)}
+      />
 
       {/* Easter egg overlay — see handleBrandClick. */}
       {showEgg && (
