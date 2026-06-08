@@ -101,9 +101,11 @@ describe('AccountPanel', () => {
     const githubBtn = await screen.findByRole('button', { name: /connect github/i })
     const googleBtn = screen.getByRole('button', { name: /connect google/i })
     const discordBtn = screen.getByRole('button', { name: /connect discord/i })
+    const appleBtn = screen.getByRole('button', { name: /connect apple/i })
     const githubForm = githubBtn.closest('form')
     const googleForm = googleBtn.closest('form')
     const discordForm = discordBtn.closest('form')
+    const appleForm = appleBtn.closest('form')
     expect(githubForm).not.toBeNull()
     expect(githubForm).toHaveAttribute('action', '/api/v1/auth/link/github/start')
     expect(githubForm).toHaveAttribute('method', 'post')
@@ -111,6 +113,35 @@ describe('AccountPanel', () => {
     expect(googleForm).toHaveAttribute('method', 'post')
     expect(discordForm).toHaveAttribute('action', '/api/v1/auth/link/discord/start')
     expect(discordForm).toHaveAttribute('method', 'post')
+    expect(appleForm).toHaveAttribute('action', '/api/v1/auth/link/apple/start')
+    expect(appleForm).toHaveAttribute('method', 'post')
+  })
+
+  it('renders an Apple identity returned by /me with its own label and chip', async () => {
+    // Pins the Codex finding from PR #532: before the fix, an Apple
+    // identity returned by `/me` was filtered out of `identitiesByProvider`
+    // and never rendered. The Connect Apple action stays hidden on the
+    // happy path where Apple is already linked.
+    const user = makeUser([
+      makeIdentity({ id: 1, provider: 'apple', email: 'alice@privaterelay.appleid.com' }),
+    ])
+    render(<AccountPanel open onOpenChange={() => {}} user={user} refresh={async () => {}} />)
+    expect(await screen.findByText('Apple')).toBeInTheDocument()
+    expect(screen.getByText('alice@privaterelay.appleid.com')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /connect apple/i })).not.toBeInTheDocument()
+  })
+
+  it('surfaces a 409 conflict from the Apple link callback redirect', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/account?link_error=identity_already_linked&provider=apple',
+    )
+    const user = makeUser([makeIdentity({ id: 1, provider: 'github' })])
+    render(<AccountPanel open onOpenChange={() => {}} user={user} refresh={async () => {}} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /apple account is already linked/i,
+    )
   })
 
   it('submits the magic-link email and shows the inbox confirmation', async () => {

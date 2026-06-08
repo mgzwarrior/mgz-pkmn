@@ -80,6 +80,23 @@ No other format is acceptable. Keep the description short (2–4 words, kebab-ca
   removals), add a bullet under the matching subsection of `[Unreleased]` in
   [CHANGELOG.md](CHANGELOG.md). Skip it for dependency bumps, CI tweaks,
   internal refactors, and test-only changes.
+- For **deployment-affecting** changes, update [render.yaml](render.yaml) in the
+  same PR so the hosted-demo blueprint stays in sync with the code. The blueprint
+  is the canonical declaration of what the deployed API needs — keeping it in the
+  same PR means a self-contained revert and avoids a "code shipped, deploy
+  broken" gap on the next sync. This applies to:
+  - **New env vars the API reads** (auth provider credentials, new SMTP settings,
+    feature flags) — add an entry with `sync: false` for secrets, inline `value:`
+    for non-secret toggles, and a comment pointing at the code path that reads
+    it. Match the existing block's pattern.
+  - **Renamed or removed env vars** — update or delete the entry; a stale entry
+    that no longer maps to code is worse than no entry at all.
+  - **New persistent state** (disk paths, mount sizes) or **new health-check
+    requirements** — adjust the `disk:` / `healthCheckPath:` blocks accordingly.
+  - **External portal config** that the deploy depends on (Apple Developer
+    portal, Resend domain verification, etc.) — note the human runbook step in
+    the relevant env-var comment so the next deploy knows what's required
+    outside the blueprint itself.
 - Run `make fix` before committing to auto-apply lint/formatting fixes:
 
 ```bash

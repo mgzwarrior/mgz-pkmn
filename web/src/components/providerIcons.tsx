@@ -1,6 +1,6 @@
 import { Mail } from 'lucide-react'
 
-export type AuthProvider = 'github' | 'google' | 'discord' | 'magic'
+export type AuthProvider = 'github' | 'google' | 'discord' | 'apple' | 'magic'
 
 export function providerIcon(provider: AuthProvider) {
   if (provider === 'magic') return <Mail size={16} aria-hidden="true" />
@@ -15,6 +15,13 @@ export function providerIcon(provider: AuthProvider) {
     return (
       <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M20.3 4.4A17 17 0 0 0 16.1 3l-.2.4c-.2.4-.3.7-.5 1.1a15.8 15.8 0 0 0-6.8 0c-.2-.4-.3-.7-.5-1.1L7.9 3a17 17 0 0 0-4.2 1.4C1 8.3.3 12.1.7 15.9a17 17 0 0 0 5.2 2.6l.6-.9c.2-.3.4-.6.5-1a10.9 10.9 0 0 1-1.7-.8l.4-.3c3.3 1.5 6.9 1.5 10.2 0l.4.3c-.5.3-1.1.6-1.7.8.2.3.3.7.5 1l.6.9a17 17 0 0 0 5.2-2.6c.5-4.4-.8-8.1-2.6-11.5ZM8.3 13.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7.4 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z" />
+      </svg>
+    )
+  }
+  if (provider === 'apple') {
+    return (
+      <svg aria-hidden="true" width="14" height="16" viewBox="0 0 14 16" fill="currentColor">
+        <path d="M11.182 8.51c-.018-1.875 1.532-2.78 1.602-2.823-.873-1.276-2.232-1.45-2.718-1.469-1.158-.117-2.262.682-2.851.682-.59 0-1.495-.665-2.46-.647-1.265.018-2.435.736-3.087 1.87-1.317 2.28-.337 5.66.947 7.514.626.91 1.37 1.928 2.345 1.892.94-.037 1.296-.61 2.43-.61 1.135 0 1.456.61 2.45.59 1.012-.018 1.654-.928 2.273-1.84.717-1.057 1.012-2.08 1.03-2.135-.022-.01-1.974-.756-1.993-3.025zM9.272 2.85c.522-.633.874-1.512.778-2.39-.752.03-1.661.5-2.2 1.133-.482.561-.905 1.456-.79 2.318.84.065 1.69-.428 2.213-1.06z" />
       </svg>
     )
   }

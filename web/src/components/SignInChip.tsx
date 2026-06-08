@@ -29,6 +29,7 @@ import { providerIcon } from './providerIcons'
 const GITHUB_LOGIN_URL = '/api/v1/auth/github/login'
 const GOOGLE_LOGIN_URL = '/api/v1/auth/google/login'
 const DISCORD_LOGIN_URL = '/api/v1/auth/discord/login'
+const APPLE_LOGIN_URL = '/api/v1/auth/apple/login'
 
 function initialsFor(user: Me): string {
   const source = (user.display_name || user.email || '').trim()
@@ -261,6 +262,24 @@ export function ProviderPickerModal({
             >
               {providerIcon('discord')}
               Continue with Discord
+            </a>
+
+            {/*
+              Sign in with Apple. Apple's HIG locks this button down: official
+              logo glyph, prescribed copy ("Sign in with Apple" / "Continue
+              with Apple"), minimum tap target (44pt — the px-4 py-2 + text-sm
+              footprint clears it), and only the black/white/black-bordered-
+              white color pairings. We use black-on-white in light mode and
+              white-on-black in dark mode to stay inside the approved palette
+              regardless of the surrounding theme.
+              Reference: https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple
+            */}
+            <a
+              href={APPLE_LOGIN_URL}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-black bg-black px-4 py-2 text-sm font-medium text-white hover:bg-husk-500 dark:border-white dark:bg-white dark:text-black dark:hover:bg-sand-100 transition-colors"
+            >
+              {providerIcon('apple')}
+              Continue with Apple
             </a>
 
             {magicMode === 'collapsed' && (
