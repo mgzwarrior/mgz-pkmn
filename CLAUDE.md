@@ -175,7 +175,7 @@ Pick a reviewer from the [pairing table in .agent-workflow.md](.agent-workflow.m
 | --- | --- |
 | Codex | `gh pr comment <PR> --body "@codex review"` |
 | Copilot | `gh pr edit <PR> --add-reviewer Copilot` (paused via Copilot credits through 2026-07-01; skip until then) |
-| Claude | Human-initiated in Claude Code (e.g. `/review <PR>`). [#513](https://github.com/mgzwarrior/mgz-pkmn/issues/513) tracks wiring up the official action so `@claude review` will work as a comment trigger. |
+| Claude | `gh pr comment <PR> --body "@claude review"` (via [`.github/workflows/claude-review.yml`](.github/workflows/claude-review.yml); see [ADR-0024](docs/adr/0024-claude-review-github-action.md)) |
 
 ## Step 6 — Confirm CI is green
 
