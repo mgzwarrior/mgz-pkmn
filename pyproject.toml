@@ -56,6 +56,12 @@ api = [
     # the dev group — or the API crashes on import with
     # `ModuleNotFoundError: No module named 'httpx'`.
     "httpx>=0.28.1",
+    # Apple's Sign in callback (#530) uses ``response_mode=form_post``
+    # → ``application/x-www-form-urlencoded``. FastAPI's ``Form()``
+    # parameter requires python-multipart to decode either multipart
+    # *or* urlencoded request bodies. Without it the import-time route
+    # registration in ``api/auth/apple.py`` raises RuntimeError.
+    "python-multipart>=0.0.20",
 ]
 
 [project.scripts]

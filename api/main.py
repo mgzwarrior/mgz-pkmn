@@ -34,6 +34,7 @@ from .auth import discord as auth_discord
 # Import the module (not the names) so tests can monkeypatch
 # `migrate.run_migrations_with_lock` / `migrate.automigrate_enabled` and
 # have the lifespan see the patched values.
+from .auth import apple as auth_apple
 from .auth import github as auth_github
 from .auth import google as auth_google
 from .auth import install_session_middleware
@@ -510,6 +511,7 @@ app.include_router(auth_github.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_google.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_discord.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_magic.router, prefix="/api/v1", tags=["auth"])
+app.include_router(auth_apple.router, prefix="/api/v1", tags=["auth"])
 
 
 @app.get("/health")
