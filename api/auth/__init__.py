@@ -10,7 +10,7 @@ auth epic. Provides:
   ``user_id`` to a ``User`` row.
 - A small router exposing ``GET /api/v1/me`` so the SPA can ask "who am I?".
 
-Provider routes (GitHub, magic-link, Google) live in sibling modules added
+Provider routes (GitHub, magic-link, Google, Discord) live in sibling modules added
 by their respective sub-issues."""
 
 from .session import (

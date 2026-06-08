@@ -129,7 +129,7 @@ def _require_auth_enabled() -> None:
 AuthGate = Annotated[None, Depends(_require_auth_enabled)]
 
 
-async def fetch_google_profile(oauth: OAuth, request: Request, token: dict) -> GoogleProfile:
+async def fetch_google_profile(oauth: OAuth, token: dict) -> GoogleProfile:
     """Read the OIDC userinfo claims into a normalized profile.
 
     Factored out so tests can patch this single seam rather than
@@ -214,7 +214,7 @@ async def google_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
         _log.warning("google oauth state/code exchange failed: %s", exc.error)
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
 
-    profile = await fetch_google_profile(oauth, request, token)
+    profile = await fetch_google_profile(oauth, token)
     if not profile.verified_email:
         raise HTTPException(status_code=400, detail="no_verified_email")
     if not profile.sub:
@@ -253,7 +253,7 @@ async def google_link_callback(
         _log.warning("google link oauth state/code exchange failed: %s", exc.error)
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
 
-    profile = await fetch_google_profile(oauth, request, token)
+    profile = await fetch_google_profile(oauth, token)
     if not profile.verified_email:
         raise HTTPException(status_code=400, detail="no_verified_email")
     if not profile.sub:

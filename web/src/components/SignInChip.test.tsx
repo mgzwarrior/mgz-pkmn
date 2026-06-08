@@ -48,7 +48,7 @@ describe('SignInChip (anonymous)', () => {
     expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 
-  it('opens the provider picker with GitHub, Google, and magic-link options', async () => {
+  it('opens the provider picker with GitHub, Google, Discord, and magic-link options', async () => {
     fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
     render(<SignInChip />)
     fireEvent.click(await screen.findByRole('button', { name: /sign in/i }))
@@ -59,6 +59,10 @@ describe('SignInChip (anonymous)', () => {
     expect(screen.getByRole('link', { name: /continue with google/i })).toHaveAttribute(
       'href',
       '/api/v1/auth/google/login',
+    )
+    expect(screen.getByRole('link', { name: /continue with discord/i })).toHaveAttribute(
+      'href',
+      '/api/v1/auth/discord/login',
     )
     expect(screen.getByRole('button', { name: /email me a magic link/i })).toBeInTheDocument()
   })
