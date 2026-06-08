@@ -42,7 +42,7 @@ from .identity import IdentityConflictError, link_identity_to_user, resolve_or_l
 from .linking import (
     POST_LINK_REDIRECT,
     consume_link_request,
-    identity_conflict_detail,
+    post_link_error_redirect,
     stage_link_request,
 )
 from .session import CurrentUserRequired, DbSession, auth_enabled
@@ -268,9 +268,8 @@ async def google_link_callback(
             email=profile.verified_email,
         )
     except IdentityConflictError as exc:
-        raise HTTPException(
-            status_code=409,
-            detail=identity_conflict_detail(exc.provider),
-        ) from exc
+        # Round-trip back into the Account modal with a recoverable error
+        # rather than terminating on a JSON 409 page — see #536.
+        return RedirectResponse(url=post_link_error_redirect(exc.provider), status_code=302)
 
     return RedirectResponse(url=POST_LINK_REDIRECT, status_code=302)

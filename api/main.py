@@ -20,6 +20,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
 from mgz_pkmn import __version__
@@ -349,13 +350,45 @@ def _warm_card_images_in_background() -> None:
 
 
 class SPAStaticFiles(StaticFiles):
-    """StaticFiles that disables browser caching for ``index.html``.
+    """StaticFiles with SPA-style fallback + no-cache on ``index.html``.
 
-    Vite emits content-hashed filenames for JS/CSS, so those are safe to cache
-    aggressively. But ``index.html`` points at the current hashed bundle names,
-    and a stale copy will load the old assets after a redeploy. Forcing
-    revalidation on ``index.html`` keeps deploys visible without a hard reload.
+    Two behaviors layered on the stock mount:
+
+    * **SPA fallback.** Stock ``StaticFiles(html=True)`` only resolves ``/`` to
+      ``index.html``; client-side routes like ``/account`` 404 because there's
+      no file at that path. We catch the 404 and re-serve ``index.html`` so the
+      React router can hydrate. The post-link OAuth callback's redirect to
+      ``/account`` is the canonical example — without the fallback the user
+      lands on a bare ``{"detail":"Not Found"}`` page on a successful link
+      (see #536). Asset misses (anything with a dot in the last segment, like
+      ``/assets/foo-abc123.js``) keep their real 404 so a stale bundle
+      reference doesn't silently degrade into an HTML page.
+    * **No-cache on ``index.html``.** Vite emits content-hashed filenames for
+      JS/CSS, so those are safe to cache aggressively. But ``index.html``
+      points at the current hashed bundle names, and a stale copy will load
+      the old assets after a redeploy. Forcing revalidation on ``index.html``
+      keeps deploys visible without a hard reload.
     """
+
+    async def get_response(self, path: str, scope: Any) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            # An unknown `/api/*`, `/health`, or `/version` URL is an API miss,
+            # not an SPA route — fall through and let the 404 reach the
+            # client so callers don't get an HTML page where they expected
+            # JSON.
+            if path.startswith("api/") or path in {"health", "version"}:
+                raise
+            last_segment = path.rsplit("/", 1)[-1]
+            if "." in last_segment:
+                # Looks like a missing asset, not a client-side route — keep
+                # the real 404 so a stale bundle reference surfaces loudly.
+                raise
+            # Hand the SPA shell back so React Router can resolve the route.
+            return await super().get_response("", scope)
 
     def file_response(
         self,

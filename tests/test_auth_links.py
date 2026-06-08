@@ -287,10 +287,14 @@ class OAuthLinkCallbackTests(_IsolatedDbMixin):
                     follow_redirects=False,
                 )
 
-        self.assertEqual(r.status_code, 409)
-        detail = r.json()["detail"]
-        self.assertEqual(detail["code"], "identity_already_linked")
-        self.assertEqual(detail["provider"], PROVIDER_GITHUB)
+        # Round-trips back into the Account modal with a recoverable error
+        # instead of a JSON 409 — the AccountPanel reads link_error +
+        # provider from the URL on first render (see #536).
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(
+            r.headers["location"],
+            f"/account?link_error=identity_already_linked&provider={PROVIDER_GITHUB}",
+        )
 
 
 class MagicLinkCallbackTests(_IsolatedDbMixin):
