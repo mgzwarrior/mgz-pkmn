@@ -165,13 +165,20 @@ services:
         sync: false
       # Sign in with Apple credentials (#530). Configure in the Apple
       # Developer portal at https://developer.apple.com/account/resources:
-      # (1) Services ID (e.g. `com.mgz-pkmn.web`) with the return URL
-      # `https://mgz-pkmn.onrender.com/api/v1/auth/apple/callback` —
-      # `MGZ_PKMN_APPLE_CLIENT_ID`. (2) Apple Developer Team ID from
-      # the portal header — `MGZ_PKMN_APPLE_TEAM_ID`. (3) "Sign in
-      # with Apple" Key (download the `.p8` once) — `MGZ_PKMN_APPLE_KEY_ID`
-      # is its 10-char ID, `MGZ_PKMN_APPLE_PRIVATE_KEY` is the PEM
-      # contents (embedded newlines load-bearing; paste the full
+      # (1) Services ID (e.g. `com.mgz-pkmn.web`) with **both** return
+      # URLs registered exactly — Apple validates return URLs by exact
+      # string match, so the account-linking flow's distinct URL must
+      # be present too:
+      #   - `https://mgz-pkmn.onrender.com/api/v1/auth/apple/callback`
+      #     (sign-in)
+      #   - `https://mgz-pkmn.onrender.com/api/v1/auth/link/apple/callback`
+      #     (account linking, hit by `apple_link_start`)
+      # The Services ID is `MGZ_PKMN_APPLE_CLIENT_ID`. (2) Apple
+      # Developer Team ID from the portal header —
+      # `MGZ_PKMN_APPLE_TEAM_ID`. (3) "Sign in with Apple" Key (download
+      # the `.p8` once) — `MGZ_PKMN_APPLE_KEY_ID` is its 10-char ID,
+      # `MGZ_PKMN_APPLE_PRIVATE_KEY` is the PEM contents (embedded
+      # newlines load-bearing; paste the full
       # `-----BEGIN PRIVATE KEY-----` ... `-----END PRIVATE KEY-----`
       # block into the Render dashboard). All four must be set —
       # missing any returns 503 from `/auth/apple/login`
