@@ -117,6 +117,11 @@ the FastAPI server. Swagger UI lives at <http://localhost:8000/docs>.
 Prefer not to install anything? The same UI is hosted at
 <https://mgz-pkmn.onrender.com>.
 
+The hosted demo can sign users in with GitHub, Google, Discord, or an
+email magic link when auth is enabled. See
+[Deployment](docs/deployment.md#environment-variables) for the provider
+credentials, callback URLs, and production session settings.
+
 For deeper docs (endpoint reference, troubleshooting, architecture),
 see [api/README.md](api/README.md) and [web/README.md](web/README.md).
 
