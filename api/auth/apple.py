@@ -73,7 +73,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from ..db.models import PROVIDER_APPLE
 from .identity import IdentityConflictError, link_identity_to_user, resolve_or_link_identity
-from .linking import POST_LINK_REDIRECT, identity_conflict_detail
+from .linking import POST_LINK_REDIRECT, post_link_error_redirect
 from .session import CurrentUserRequired, DbSession, auth_enabled, resolve_session_secret
 
 _log = logging.getLogger(__name__)
@@ -688,10 +688,9 @@ async def apple_link_callback(
             email=profile.email,
         )
     except IdentityConflictError as exc:
-        raise HTTPException(
-            status_code=409,
-            detail=identity_conflict_detail(exc.provider),
-        ) from exc
+        # Round-trip back into the Account modal with a recoverable error
+        # rather than terminating on a JSON 409 page — see #536.
+        return RedirectResponse(url=post_link_error_redirect(exc.provider), status_code=302)
 
     return RedirectResponse(url=POST_LINK_REDIRECT, status_code=302)
 

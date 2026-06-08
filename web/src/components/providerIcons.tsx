@@ -12,9 +12,22 @@ export function providerIcon(provider: AuthProvider) {
     )
   }
   if (provider === 'discord') {
+    // Official Clyde mark on Discord's "blurple" (#5865F2) rounded tile —
+    // Discord's brand guidelines forbid recoloring the mark itself, so we
+    // render the brand tile rather than a mono glyph that would pick up
+    // `currentColor`. The mark path is the unmodified asset from
+    // https://discord.com/branding; we nest it in its native 127.14×96.36
+    // viewBox so `preserveAspectRatio` centers it inside the tile instead
+    // of trusting hand-tuned transforms.
     return (
-      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M20.3 4.4A17 17 0 0 0 16.1 3l-.2.4c-.2.4-.3.7-.5 1.1a15.8 15.8 0 0 0-6.8 0c-.2-.4-.3-.7-.5-1.1L7.9 3a17 17 0 0 0-4.2 1.4C1 8.3.3 12.1.7 15.9a17 17 0 0 0 5.2 2.6l.6-.9c.2-.3.4-.6.5-1a10.9 10.9 0 0 1-1.7-.8l.4-.3c3.3 1.5 6.9 1.5 10.2 0l.4.3c-.5.3-1.1.6-1.7.8.2.3.3.7.5 1l.6.9a17 17 0 0 0 5.2-2.6c.5-4.4-.8-8.1-2.6-11.5ZM8.3 13.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7.4 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z" />
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24">
+        <rect width="24" height="24" rx="5" fill="#5865F2" />
+        <svg x="3" y="5.5" width="18" height="13" viewBox="0 0 127.14 96.36">
+          <path
+            fill="#fff"
+            d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53S36.07,40.32,42.45,40.32,54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5.06-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"
+          />
+        </svg>
       </svg>
     )
   }

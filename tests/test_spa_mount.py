@@ -54,6 +54,38 @@ class SPAStaticFilesTests(unittest.TestCase):
         # "no-cache".
         self.assertNotEqual(resp.headers.get("cache-control"), "no-cache")
 
+    def test_client_side_route_falls_back_to_index(self) -> None:
+        # Deep links like /account (post-link OAuth redirect target) must
+        # serve the SPA shell so React Router can hydrate, instead of 404-ing
+        # at the static mount (see #536).
+        resp = self.client.get("/account")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("<!doctype html>", resp.text)
+        self.assertEqual(resp.headers.get("cache-control"), "no-cache")
+
+    def test_nested_client_side_route_falls_back_to_index(self) -> None:
+        # Multi-segment routes (e.g. future /wishlists/abc123) also resolve.
+        resp = self.client.get("/wishlists/abc123")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("<!doctype html>", resp.text)
+
+    def test_missing_asset_keeps_404(self) -> None:
+        # Anything that looks like a file (has a dot in the last segment)
+        # must keep its real 404 — a missing hashed bundle is a deploy bug,
+        # and silently degrading to the SPA shell would mask it.
+        resp = self.client.get("/assets/missing-deadbeef.js")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_unknown_api_path_keeps_404(self) -> None:
+        # An unknown `/api/*` URL is an API miss, not an SPA route — must
+        # keep its 404 so JSON callers don't get an HTML page back. (Real
+        # API misses are caught at the router before they reach the mount;
+        # this guards the path-traversal-normalised case where `..` segments
+        # collapse a `/api/v1/...` URL onto an unmatched route that then
+        # falls through to the static mount.)
+        resp = self.client.get("/api/v1/nope/whatever")
+        self.assertEqual(resp.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()
