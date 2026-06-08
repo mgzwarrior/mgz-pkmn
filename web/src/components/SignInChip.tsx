@@ -20,10 +20,11 @@
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { LogIn, LogOut, Mail, UserRound, X } from 'lucide-react'
+import { LogIn, LogOut, UserRound, X } from 'lucide-react'
 import { requestMagicLink, type Me } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { AccountPanel } from './AccountPanel'
+import { providerIcon } from './providerIcons'
 
 const GITHUB_LOGIN_URL = '/api/v1/auth/github/login'
 const GOOGLE_LOGIN_URL = '/api/v1/auth/google/login'
@@ -242,10 +243,7 @@ export function ProviderPickerModal({
               href={GITHUB_LOGIN_URL}
               className="flex w-full items-center justify-center gap-2 rounded-md border border-sand-300 bg-sand-100 px-4 py-2 text-sm font-medium text-coconut-700 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:hover:bg-husk-50 transition-colors"
             >
-              {/* GitHub mark — inline SVG so we don't pull a brand asset just for the chip. */}
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-              </svg>
+              {providerIcon('github')}
               Continue with GitHub
             </a>
 
@@ -253,13 +251,7 @@ export function ProviderPickerModal({
               href={GOOGLE_LOGIN_URL}
               className="flex w-full items-center justify-center gap-2 rounded-md border border-sand-300 bg-sand-100 px-4 py-2 text-sm font-medium text-coconut-700 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:hover:bg-husk-50 transition-colors"
             >
-              {/* Google "G" mark — inline SVG for the same reason as GitHub above. */}
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 48 48">
-                <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6 8-11.3 8a12 12 0 1 1 7.9-21l5.7-5.7A20 20 0 1 0 44 24c0-1.2-.1-2.4-.4-3.5Z" />
-                <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8A12 12 0 0 1 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7A20 20 0 0 0 6.3 14.7Z" />
-                <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2A12 12 0 0 1 12.7 28l-6.5 5A20 20 0 0 0 24 44Z" />
-                <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3a12 12 0 0 1-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.2-.1-2.4-.4-3.5Z" />
-              </svg>
+              {providerIcon('google')}
               Continue with Google
             </a>
 
@@ -267,10 +259,7 @@ export function ProviderPickerModal({
               href={DISCORD_LOGIN_URL}
               className="flex w-full items-center justify-center gap-2 rounded-md border border-sand-300 bg-sand-100 px-4 py-2 text-sm font-medium text-coconut-700 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:hover:bg-husk-50 transition-colors"
             >
-              {/* Discord mark — simplified inline brand glyph for the provider row. */}
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20.3 4.4A17 17 0 0 0 16.1 3l-.2.4c-.2.4-.3.7-.5 1.1a15.8 15.8 0 0 0-6.8 0c-.2-.4-.3-.7-.5-1.1L7.9 3a17 17 0 0 0-4.2 1.4C1 8.3.3 12.1.7 15.9a17 17 0 0 0 5.2 2.6l.6-.9c.2-.3.4-.6.5-1a10.9 10.9 0 0 1-1.7-.8l.4-.3c3.3 1.5 6.9 1.5 10.2 0l.4.3c-.5.3-1.1.6-1.7.8.2.3.3.7.5 1l.6.9a17 17 0 0 0 5.2-2.6c.5-4.4-.8-8.1-2.6-11.5ZM8.3 13.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7.4 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z" />
-              </svg>
+              {providerIcon('discord')}
               Continue with Discord
             </a>
 
@@ -280,7 +269,7 @@ export function ProviderPickerModal({
                 onClick={() => setMagicMode('form')}
                 className="flex w-full items-center justify-center gap-2 rounded-md border border-sand-300 bg-sand-100 px-4 py-2 text-sm font-medium text-coconut-700 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:hover:bg-husk-50 transition-colors"
               >
-                <Mail size={16} />
+                {providerIcon('magic')}
                 Email me a magic link
               </button>
             )}

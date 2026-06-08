@@ -98,7 +98,7 @@ def _require_auth_enabled() -> None:
 AuthGate = Annotated[None, Depends(_require_auth_enabled)]
 
 
-async def fetch_discord_profile(oauth: OAuth, request: Request, token: dict) -> DiscordProfile:
+async def fetch_discord_profile(oauth: OAuth, token: dict) -> DiscordProfile:
     """Fetch and normalize Discord's ``/users/@me`` payload."""
     resp = await oauth.discord.get("users/@me", token=token)
     resp.raise_for_status()
@@ -144,7 +144,7 @@ async def discord_callback(request: Request, db: DbSession, _: AuthGate) -> Redi
         _log.warning("discord oauth state/code exchange failed: %s", exc.error)
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
 
-    profile = await fetch_discord_profile(oauth, request, token)
+    profile = await fetch_discord_profile(oauth, token)
     if not profile.verified_email:
         raise HTTPException(status_code=400, detail="no_verified_email")
     if not profile.user_id:
@@ -179,7 +179,7 @@ async def discord_link_callback(
         _log.warning("discord link oauth state/code exchange failed: %s", exc.error)
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
 
-    profile = await fetch_discord_profile(oauth, request, token)
+    profile = await fetch_discord_profile(oauth, token)
     if not profile.verified_email:
         raise HTTPException(status_code=400, detail="no_verified_email")
     if not profile.user_id:

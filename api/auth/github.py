@@ -128,7 +128,7 @@ def _require_auth_enabled() -> None:
 AuthGate = Annotated[None, Depends(_require_auth_enabled)]
 
 
-async def fetch_github_profile(oauth: OAuth, request: Request, token: dict) -> GitHubProfile:
+async def fetch_github_profile(oauth: OAuth, token: dict) -> GitHubProfile:
     """Pull the profile + verified primary email for the signed-in user.
 
     Factored out so tests can patch this single seam rather than
@@ -206,7 +206,7 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
         _log.warning("github oauth state/code exchange failed: %s", exc.error)
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
 
-    profile = await fetch_github_profile(oauth, request, token)
+    profile = await fetch_github_profile(oauth, token)
     if not profile.verified_primary_email:
         # ADR-0019: account-merge needs an email anchor. No anchor →
         # we refuse rather than minting an anonymous-shaped row.
@@ -254,7 +254,7 @@ async def github_link_callback(
         _log.warning("github link oauth state/code exchange failed: %s", exc.error)
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
 
-    profile = await fetch_github_profile(oauth, request, token)
+    profile = await fetch_github_profile(oauth, token)
     if not profile.verified_primary_email:
         raise HTTPException(status_code=400, detail="no_verified_email")
     if not profile.login:

@@ -108,8 +108,9 @@ services:
       - key: MGZ_PKMN_SESSION_SECRET
         sync: false
       # GitHub OAuth app credentials. Register the app at
-      # https://github.com/settings/developers with callback URL
-      # `https://mgz-pkmn.onrender.com/api/v1/auth/github/callback`.
+      # https://github.com/settings/developers with callback URLs
+      # `https://mgz-pkmn.onrender.com/api/v1/auth/github/callback`
+      # and `https://mgz-pkmn.onrender.com/api/v1/auth/link/github/callback`.
       # Both vars must be set — missing either returns 503 from
       # `/auth/github/login` (api/auth/github.py:_oauth_client). Client
       # ID is borderline-public; keeping both as `sync: false` for
@@ -120,8 +121,9 @@ services:
         sync: false
       # Google OAuth (OIDC) client credentials. Register the OAuth 2.0
       # client at https://console.cloud.google.com/apis/credentials with
-      # callback URL
-      # `https://mgz-pkmn.onrender.com/api/v1/auth/google/callback`.
+      # callback URLs
+      # `https://mgz-pkmn.onrender.com/api/v1/auth/google/callback`
+      # and `https://mgz-pkmn.onrender.com/api/v1/auth/link/google/callback`.
       # Both vars must be set — missing either returns 503 from
       # `/auth/google/login` (api/auth/google.py:_oauth_client). Same
       # `sync: false` posture as the GitHub pair.
@@ -130,8 +132,9 @@ services:
       - key: MGZ_PKMN_GOOGLE_CLIENT_SECRET
         sync: false
       # Discord OAuth client credentials. Register the application at
-      # https://discord.com/developers/applications with callback URL
-      # `https://mgz-pkmn.onrender.com/api/v1/auth/discord/callback`.
+      # https://discord.com/developers/applications with redirect URLs
+      # `https://mgz-pkmn.onrender.com/api/v1/auth/discord/callback`
+      # and `https://mgz-pkmn.onrender.com/api/v1/auth/link/discord/callback`.
       # Both vars must be set — missing either returns 503 from
       # `/auth/discord/login` (api/auth/discord.py:_oauth_client).
       - key: MGZ_PKMN_DISCORD_CLIENT_ID
