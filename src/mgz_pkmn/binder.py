@@ -25,7 +25,7 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
-from . import branding
+from . import branding, palette
 from .parser import (
     _CJK_IDEOGRAPH_RE,
     _HANGUL_RE,
@@ -291,9 +291,9 @@ def _draw_section_header(c: canvas.Canvas, tag: str, count: int, layout: BinderL
     """Banner across the top of each page in a section: 'Source: <tag>  ·  N cards'.
 
     The mgz-pkmn wordmark rides on the left edge of the band — the band's
-    dark slate background is the only spot in the binder layout where the
-    light-grey logo type reads, and putting it here gets branding on
-    every page without inventing a fresh chrome strip."""
+    deep-frond-green background is where the light-wordmark logo reads,
+    and putting it here gets branding on every page without inventing a
+    fresh chrome strip."""
     c.saveState()
     band_y = PAGE_H - layout.margin - layout.header_band_h
     c.setFillColorRGB(*branding.HEADER_PANEL_RGB)
@@ -307,7 +307,7 @@ def _draw_section_header(c: canvas.Canvas, tag: str, count: int, layout: BinderL
     branding.draw_pdf_logo(c, logo_x, logo_y, logo_h)
     text_x = logo_x + logo_h * branding.LOGO_ASPECT + 10
 
-    c.setFillColorRGB(1, 1, 1)
+    c.setFillColorRGB(*palette.rgb01("fg-on-dark"))
     title_size = max(9, layout.header_band_h * 0.5)
     sub_size = max(7, layout.header_band_h * 0.4)
     c.setFont("Helvetica-Bold", title_size)
@@ -349,7 +349,7 @@ def _draw_cell(
     image_y = image_top_y - image_h  # bottom of image
 
     # Light cell border for visual separation (similar to a binder pocket).
-    c.setStrokeColorRGB(0.85, 0.85, 0.85)
+    c.setStrokeColorRGB(*palette.rgb01("border-1"))
     c.setLineWidth(0.5)
     c.rect(x, y, cell_w, cell_h, stroke=1, fill=0)
 
@@ -396,7 +396,7 @@ def _draw_cell(
     max_w = cell_w - 8
 
     # 1. Name (bold).
-    c.setFillColorRGB(0.1, 0.1, 0.1)
+    c.setFillColorRGB(*palette.rgb01("fg-1"))
     c.setFont(_font_for_name(name, language, bold=True), layout.name_font_size)
     line_y -= 2
     _draw_truncated(c, cx, line_y, name, max_w)
@@ -419,19 +419,19 @@ def _draw_cell(
         is_over_cap = max_price is not None and row.pricing.market > max_price
         c.setFont("Helvetica-Bold", layout.market_font_size)
         if is_over_cap:
-            c.setFillColorRGB(0.65, 0.10, 0.10)  # dark red for above-cap
+            c.setFillColorRGB(*palette.rgb01("danger-fg"))  # above-cap
             label = f"! MP {sym}{row.pricing.market:,.2f}"
         else:
-            c.setFillColorRGB(0.05, 0.35, 0.15)  # dark green for in-budget
+            c.setFillColorRGB(*palette.rgb01("success-fg"))  # in-budget
             label = f"MP {sym}{row.pricing.market:,.2f}"
         _draw_truncated(c, cx, line_y, label, max_w)
     else:
         c.setFont("Helvetica-Oblique", layout.caption_font_size)
-        c.setFillColorRGB(0.5, 0.5, 0.5)
+        c.setFillColorRGB(*palette.rgb01("fg-3"))
         _draw_truncated(c, cx, line_y, "no price", max_w)
 
     # 5-8. Comp tiers, one per line for visibility.
-    c.setFillColorRGB(0.35, 0.35, 0.35)
+    c.setFillColorRGB(*palette.rgb01("fg-2"))
     c.setFont("Helvetica", layout.comp_font_size)
     if row.pricing.market is not None:
         sym = "€" if row.pricing.currency == "EUR" else "$"
@@ -473,11 +473,11 @@ def _draw_lang_banner(
     banner_w = image_w
     banner_y = banner_top_y - layout.lang_banner_h
     c.saveState()
-    c.setFillColorRGB(0.65, 0.10, 0.10)
-    c.setStrokeColorRGB(0.65, 0.10, 0.10)
+    c.setFillColorRGB(*palette.rgb01("ember-500"))
+    c.setStrokeColorRGB(*palette.rgb01("ember-500"))
     c.setLineWidth(0.5)
     c.rect(banner_x, banner_y, banner_w, layout.lang_banner_h, fill=1, stroke=1)
-    c.setFillColorRGB(1, 1, 1)
+    c.setFillColorRGB(*palette.rgb01("fg-on-dark"))
     c.setFont("Helvetica-Bold", layout.lang_banner_font_size)
     text_y = banner_y + (layout.lang_banner_h - layout.lang_banner_font_size) / 2 + 1
     c.drawCentredString(banner_x + banner_w / 2, text_y, label.upper())
@@ -486,10 +486,10 @@ def _draw_lang_banner(
 
 def _draw_placeholder(c: canvas.Canvas, x: float, y: float, w: float, h: float, label: str) -> None:
     c.saveState()
-    c.setFillColorRGB(0.95, 0.95, 0.95)
-    c.setStrokeColorRGB(0.85, 0.85, 0.85)
+    c.setFillColorRGB(*palette.rgb01("bg-sunken"))
+    c.setStrokeColorRGB(*palette.rgb01("border-1"))
     c.rect(x, y, w, h, stroke=1, fill=1)
-    c.setFillColorRGB(0.55, 0.55, 0.55)
+    c.setFillColorRGB(*palette.rgb01("fg-3"))
     c.setFont("Helvetica-Oblique", 9)
     c.drawCentredString(x + w / 2, y + h / 2, label)
     c.restoreState()

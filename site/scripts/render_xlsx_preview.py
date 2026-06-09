@@ -30,6 +30,16 @@ try:
 except ImportError:
     sys.exit("missing dependency: Pillow (already in mgz-pkmn's uv env)")
 
+# Source colors from the same tropical palette the .xlsx writer uses, so the
+# preview tracks the real workbook's brand instead of drifting.
+from mgz_pkmn import palette
+
+
+def _rgb(token: str) -> tuple[int, int, int]:
+    r, g, b = palette.rgb01(token)
+    return (round(r * 255), round(g * 255), round(b * 255))
+
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SUMMARY = REPO_ROOT / "output" / "summary.json"
 IMAGES_DIR = REPO_ROOT / "output" / "images"
@@ -57,18 +67,18 @@ COLUMNS = [
     ("90%", 110),
 ]
 
-# Dark-mode palette tuned to feel close to the workbook header's slate
-# tone but with enough contrast to read on a marketing card.
-BG = (15, 17, 21)
-HEADER_BG = (43, 56, 76)
-HEADER_TEXT = (245, 247, 251)
-TAG_BG = (28, 32, 39)
-TAG_TEXT = (165, 173, 188)
-ROW_ALT = (22, 25, 31)
-TEXT = (228, 231, 237)
-TEXT_MUTED = (148, 156, 169)
-ACCENT = (96, 165, 250)
-PRICE = (74, 222, 128)
+# Light tropical palette — mirrors the rebranded workbook: green header band
+# with cream type, warm sand surfaces, deep-green in-budget prices.
+BG = _rgb("bg-surface")
+HEADER_BG = _rgb(palette.HEADER_BAND)
+HEADER_TEXT = _rgb("fg-on-dark")
+TAG_BG = _rgb("bg-sunken")
+TAG_TEXT = _rgb("fg-2")
+ROW_ALT = _rgb("bg-surface-2")
+TEXT = _rgb("fg-1")
+TEXT_MUTED = _rgb("fg-3")
+ACCENT = _rgb("fg-2")
+PRICE = _rgb("success-fg")
 
 
 def font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont:
@@ -98,7 +108,19 @@ def thumbnail_for(row: dict[str, Any]) -> Path | None:
     return candidate if candidate.exists() else None
 
 
+# Glyphs the Helvetica preview face renders as tofu. The Gold-Star "★" in
+# names like "Flareon ★" is decorative — the same status reads from the
+# Rarity column and the card art — so drop it rather than show a box. (The
+# PDFs use a face that renders it and keep it.)
+_UNRENDERABLE = {"★", "☆"}
+
+
+def _sanitize(text: str) -> str:
+    return "".join(ch for ch in text if ch not in _UNRENDERABLE).strip()
+
+
 def truncate(draw: ImageDraw.ImageDraw, text: str, fnt, max_width: int) -> str:
+    text = _sanitize(text)
     if not text:
         return ""
     if draw.textlength(text, font=fnt) <= max_width:
@@ -152,15 +174,16 @@ def main() -> None:
             )
         x += width
 
-    # Tag band
+    # Tag band. The section marker is drawn as a small triangle rather than a
+    # glyph — the Helvetica preview face renders "▸" as tofu.
     y = HEADER_HEIGHT
     draw.rectangle((0, y, CANVAS_WIDTH, y + TAG_BAND_HEIGHT), fill=TAG_BG)
-    draw.text(
-        (COL_PAD, y + 10),
-        f"▸ {tag}",
+    tri_y = y + TAG_BAND_HEIGHT // 2
+    draw.polygon(
+        [(COL_PAD, tri_y - 7), (COL_PAD, tri_y + 7), (COL_PAD + 12, tri_y)],
         fill=TAG_TEXT,
-        font=fnt_tag,
     )
+    draw.text((COL_PAD + 22, y + 10), tag, fill=TAG_TEXT, font=fnt_tag)
     y += TAG_BAND_HEIGHT
 
     # Data rows
@@ -237,13 +260,13 @@ def main() -> None:
     def col_x(index: int) -> int:
         return COL_PAD + sum(width for _, width in COLUMNS[:index])
 
-    draw.rectangle((0, y, CANVAS_WIDTH, y + TOTALS_HEIGHT), fill=HEADER_BG)
-    draw.line((0, y, CANVAS_WIDTH, y), fill=ACCENT, width=2)
+    draw.rectangle((0, y, CANVAS_WIDTH, y + TOTALS_HEIGHT), fill=TAG_BG)
+    draw.line((0, y, CANVAS_WIDTH, y), fill=_rgb("border-strong"), width=2)
     total_market = sum(row.get("market") or 0 for row in rows)
     total_80 = sum((row.get("comps") or {}).get("80%") or 0 for row in rows)
     total_90 = sum((row.get("comps") or {}).get("90%") or 0 for row in rows)
     ty = y + TOTALS_HEIGHT // 2 - 12
-    draw.text((col_x(1), ty), "Totals:", fill=HEADER_TEXT, font=fnt_body_bold)
+    draw.text((col_x(1), ty), "Totals:", fill=TEXT, font=fnt_body_bold)
     draw.text((col_x(5), ty), format_currency(total_market), fill=PRICE, font=fnt_body_bold)
     draw.text((col_x(6), ty), format_currency(total_80), fill=ACCENT, font=fnt_body)
     draw.text((col_x(7), ty), format_currency(total_90), fill=ACCENT, font=fnt_body)

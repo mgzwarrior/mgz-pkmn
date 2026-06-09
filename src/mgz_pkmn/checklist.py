@@ -16,7 +16,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
-from . import branding
+from . import branding, palette
 from .pricing import Pricing
 from .spreadsheet import Row
 
@@ -101,7 +101,7 @@ def _draw_header(c: canvas.Canvas, *, tag: str, total: int, page_idx: int) -> No
     branding.draw_pdf_logo(c, logo_x, logo_y, logo_h)
     text_x = logo_x + logo_h * branding.LOGO_ASPECT + 10
 
-    c.setFillColorRGB(1, 1, 1)
+    c.setFillColorRGB(*palette.rgb01("fg-on-dark"))
     c.setFont("Helvetica-Bold", 14)
     c.drawString(text_x, band_y + 16, tag or "(untagged)")
     c.setFont("Helvetica", 9)
@@ -124,9 +124,9 @@ def _draw_row(
     cb_x = x + 2
     cb_y = y + 2
     c.saveState()
-    c.setStrokeColorRGB(0.3, 0.3, 0.3)
+    c.setStrokeColorRGB(*palette.rgb01("border-strong"))
     c.setLineWidth(0.6)
-    c.setFillColorRGB(1, 1, 1)
+    c.setFillColorRGB(*palette.rgb01("bg-surface"))
     c.rect(cb_x, cb_y, CHECKBOX_SIZE, CHECKBOX_SIZE, stroke=1, fill=1)
     c.restoreState()
 
@@ -137,7 +137,7 @@ def _draw_row(
     num_str = f"#{num}/{total_printed}" if total_printed else f"#{num}"
     mp_str = _format_mp(pricing)
 
-    c.setFillColorRGB(0.1, 0.1, 0.1)
+    c.setFillColorRGB(*palette.rgb01("fg-1"))
     c.setFont("Helvetica", 8)
     c.drawString(text_x, y + 3, num_str)
     num_w = c.stringWidth(num_str, "Helvetica", 8)
@@ -150,7 +150,7 @@ def _draw_row(
 
     if mp_str:
         c.setFont("Helvetica-Bold", 8)
-        c.setFillColorRGB(0.05, 0.35, 0.15)
+        c.setFillColorRGB(*palette.rgb01("success-fg"))
         c.drawRightString(x + col_w - 4, y + 3, mp_str)
 
 

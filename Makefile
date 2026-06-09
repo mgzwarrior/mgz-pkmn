@@ -199,6 +199,10 @@ refresh-examples:  ## Regenerate all tracked output/ examples from sample_cards.
 	  --checklist $(OUTPUT_DIR)/checklist.pdf \
 	  --report-json $(OUTPUT_DIR)/summary.json
 
+.PHONY: refresh-gallery
+refresh-gallery: refresh-examples  ## Regenerate output/ examples AND the marketing-site gallery thumbnails in one pass (requires network + poppler/webp/uv). Commit the diff.
+	./site/scripts/refresh-screenshots.sh
+
 .PHONY: cache-clear
 cache-clear:  ## Wipe the on-disk cache (~/.cache/mgz-pkmn) — including URL overrides.
 	rm -rf $${XDG_CACHE_HOME:-$$HOME/.cache}/mgz-pkmn

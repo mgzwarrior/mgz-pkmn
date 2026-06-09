@@ -1,87 +1,93 @@
 {
-  "generated_at": "2026-06-09T18:59:44Z",
+  "generated_at": "2026-06-09T20:01:10Z",
   "version": "1.4.0",
-  "elapsed_seconds": 0.01,
+  "elapsed_seconds": 0.22,
   "max_price": null,
   "summary": {
     "sort_mode": "number",
-    "input_lines": 5,
-    "rows_total": 5,
+    "input_lines": 2,
+    "rows_total": 14,
     "rows_deduped": 0,
-    "rows_matched": 5,
+    "rows_matched": 14,
     "rows_missed": 0,
-    "rows_bulk_expanded": 0,
-    "rows_priced": 5,
+    "rows_bulk_expanded": 14,
+    "rows_priced": 14,
     "rows_unpriced_matched": 0,
     "totals_by_currency": {
       "USD": {
-        "row_count": 5,
-        "market": 1139.61,
-        "80%": 911.69,
-        "85%": 968.67,
-        "90%": 1025.65,
-        "95%": 1082.63
+        "row_count": 14,
+        "market": 13352.13,
+        "80%": 10681.7,
+        "85%": 11349.31,
+        "90%": 12016.92,
+        "95%": 12684.52
       }
     },
     "stats_by_currency": {
       "USD": {
-        "average": 227.92,
-        "median": 229.23,
-        "min": 6.89,
-        "max": 556.84
+        "average": 953.72,
+        "median": 780.49,
+        "min": 43.88,
+        "max": 2261.15
       }
     },
     "by_database": {
-      "pokemontcg.io": 5
+      "pokemontcg.io": 14
     },
     "by_price_source": {
-      "tcgplayer": 5
+      "tcgplayer": 14
     },
     "by_rarity": {
+      "Rare Holo Star": 3,
       "Rare Holo": 3,
-      "Common": 1,
-      "Rare Secret": 1
+      "Promo": 2,
+      "Rare Rainbow": 1,
+      "Rare": 1,
+      "Special Illustration Rare": 1,
+      "Rare Ultra": 1,
+      "Hyper Rare": 1,
+      "Ultra Rare": 1
     },
     "by_language": {
-      "en": 5
+      "en": 14
     },
     "rows_above_max_price": 0
   },
   "tags": [
     {
       "tag": "sample_cards",
-      "rows": 5,
-      "matched": 5,
+      "rows": 14,
+      "matched": 14,
       "missed": 0,
-      "priced": 5,
+      "priced": 14,
       "totals_by_currency": {
         "USD": {
-          "row_count": 5,
-          "market": 1139.61,
-          "80%": 911.69,
-          "85%": 968.67,
-          "90%": 1025.65,
-          "95%": 1082.63
+          "row_count": 14,
+          "market": 13352.13,
+          "80%": 10681.7,
+          "85%": 11349.31,
+          "90%": 12016.92,
+          "95%": 12684.52
         }
       },
       "stats_by_currency": {
         "USD": {
-          "average": 227.92,
-          "median": 229.23,
-          "min": 6.89,
-          "max": 556.84
+          "average": 953.72,
+          "median": 780.49,
+          "min": 43.88,
+          "max": 2261.15
         }
       },
       "highest_value_card": {
         "tag": "sample_cards",
-        "name": "Charizard",
-        "set": "Base",
-        "number": "4",
-        "rarity": "Rare Holo",
-        "market": 556.84,
+        "name": "Umbreon VMAX",
+        "set": "Evolving Skies",
+        "number": "215",
+        "rarity": "Rare Rainbow",
+        "market": 2261.15,
         "currency": "USD",
         "variant": "holofoil",
-        "url": "https://prices.pokemontcg.io/tcgplayer/base1-4"
+        "url": "https://prices.pokemontcg.io/tcgplayer/swsh7-215"
       }
     }
   ],
@@ -89,58 +95,58 @@
     "most_valuable": [
       {
         "tag": "sample_cards",
-        "name": "Charizard",
-        "set": "Base",
-        "number": "4",
-        "rarity": "Rare Holo",
-        "market": 556.84,
+        "name": "Umbreon VMAX",
+        "set": "Evolving Skies",
+        "number": "215",
+        "rarity": "Rare Rainbow",
+        "market": 2261.15,
         "currency": "USD",
         "variant": "holofoil",
-        "url": "https://prices.pokemontcg.io/tcgplayer/base1-4"
+        "url": "https://prices.pokemontcg.io/tcgplayer/swsh7-215"
       },
       {
         "tag": "sample_cards",
-        "name": "Charizard V",
-        "set": "Champion's Path",
-        "number": "79",
-        "rarity": "Rare Secret",
-        "market": 268.29,
+        "name": "Flareon \u2605",
+        "set": "Power Keepers",
+        "number": "100",
+        "rarity": "Rare Holo Star",
+        "market": 1999.95,
         "currency": "USD",
         "variant": "holofoil",
-        "url": "https://prices.pokemontcg.io/tcgplayer/swsh35-79"
+        "url": "https://prices.pokemontcg.io/tcgplayer/ex16-100"
       },
       {
         "tag": "sample_cards",
-        "name": "Blastoise",
-        "set": "Base",
-        "number": "2",
-        "rarity": "Rare Holo",
-        "market": 229.23,
+        "name": "Jolteon \u2605",
+        "set": "Power Keepers",
+        "number": "101",
+        "rarity": "Rare Holo Star",
+        "market": 1999.94,
         "currency": "USD",
         "variant": "holofoil",
-        "url": "https://prices.pokemontcg.io/tcgplayer/base1-2"
+        "url": "https://prices.pokemontcg.io/tcgplayer/ex16-101"
       },
       {
         "tag": "sample_cards",
-        "name": "Mewtwo",
-        "set": "Base",
-        "number": "10",
-        "rarity": "Rare Holo",
-        "market": 78.36,
-        "currency": "USD",
-        "variant": "holofoil",
-        "url": "https://prices.pokemontcg.io/tcgplayer/base1-10"
-      },
-      {
-        "tag": "sample_cards",
-        "name": "Pikachu",
-        "set": "Base",
-        "number": "58",
-        "rarity": "Common",
-        "market": 6.89,
+        "name": "Espeon \u2605",
+        "set": "POP Series 5",
+        "number": "16",
+        "rarity": "Rare",
+        "market": 1900.0,
         "currency": "USD",
         "variant": "normal",
-        "url": "https://prices.pokemontcg.io/tcgplayer/base1-58"
+        "url": "https://prices.pokemontcg.io/tcgplayer/pop5-16"
+      },
+      {
+        "tag": "sample_cards",
+        "name": "Umbreon ex",
+        "set": "Prismatic Evolutions",
+        "number": "161",
+        "rarity": "Special Illustration Rare",
+        "market": 1557.92,
+        "currency": "USD",
+        "variant": "holofoil",
+        "url": "https://prices.pokemontcg.io/tcgplayer/sv8pt5-161"
       }
     ],
     "missing": [],
@@ -149,121 +155,337 @@
   "rows": [
     {
       "tag": "sample_cards",
-      "input": "Blastoise | Base | 2/102",
+      "input": "top:9 Eeveelution",
       "matched": true,
-      "name": "Blastoise",
-      "set": "Base",
-      "number": "2",
-      "rarity": "Rare Holo",
+      "name": "Umbreon VMAX",
+      "set": "Evolving Skies",
+      "number": "215",
+      "rarity": "Rare Rainbow",
       "language": "en",
       "database": "pokemontcg.io",
-      "image_path": "output/images/base1-2.png",
-      "market": 229.23,
+      "image_path": "output/images/swsh7-215.png",
+      "market": 2261.15,
       "currency": "USD",
       "variant": "holofoil",
       "source": "tcgplayer",
-      "url": "https://prices.pokemontcg.io/tcgplayer/base1-2",
+      "url": "https://prices.pokemontcg.io/tcgplayer/swsh7-215",
       "comps": {
-        "80%": 183.38,
-        "85%": 194.85,
-        "90%": 206.31,
-        "95%": 217.77
+        "80%": 1808.92,
+        "85%": 1921.98,
+        "90%": 2035.04,
+        "95%": 2148.09
       },
       "over_max_price": false
     },
     {
       "tag": "sample_cards",
-      "input": "Charizard | Base | 4/102",
+      "input": "top:9 Eeveelution",
       "matched": true,
-      "name": "Charizard",
-      "set": "Base",
-      "number": "4",
-      "rarity": "Rare Holo",
+      "name": "Flareon \u2605",
+      "set": "Power Keepers",
+      "number": "100",
+      "rarity": "Rare Holo Star",
       "language": "en",
       "database": "pokemontcg.io",
-      "image_path": "output/images/base1-4.png",
-      "market": 556.84,
+      "image_path": "output/images/ex16-100.png",
+      "market": 1999.95,
       "currency": "USD",
       "variant": "holofoil",
       "source": "tcgplayer",
-      "url": "https://prices.pokemontcg.io/tcgplayer/base1-4",
+      "url": "https://prices.pokemontcg.io/tcgplayer/ex16-100",
       "comps": {
-        "80%": 445.47,
-        "85%": 473.31,
-        "90%": 501.16,
-        "95%": 529.0
+        "80%": 1599.96,
+        "85%": 1699.96,
+        "90%": 1799.95,
+        "95%": 1899.95
       },
       "over_max_price": false
     },
     {
       "tag": "sample_cards",
-      "input": "Mewtwo | Base | 10/102",
+      "input": "top:9 Eeveelution",
       "matched": true,
-      "name": "Mewtwo",
-      "set": "Base",
-      "number": "10",
-      "rarity": "Rare Holo",
+      "name": "Jolteon \u2605",
+      "set": "Power Keepers",
+      "number": "101",
+      "rarity": "Rare Holo Star",
       "language": "en",
       "database": "pokemontcg.io",
-      "image_path": "output/images/base1-10.png",
-      "market": 78.36,
+      "image_path": "output/images/ex16-101.png",
+      "market": 1999.94,
       "currency": "USD",
       "variant": "holofoil",
       "source": "tcgplayer",
-      "url": "https://prices.pokemontcg.io/tcgplayer/base1-10",
+      "url": "https://prices.pokemontcg.io/tcgplayer/ex16-101",
       "comps": {
-        "80%": 62.69,
-        "85%": 66.61,
-        "90%": 70.52,
-        "95%": 74.44
+        "80%": 1599.95,
+        "85%": 1699.95,
+        "90%": 1799.95,
+        "95%": 1899.94
       },
       "over_max_price": false
     },
     {
       "tag": "sample_cards",
-      "input": "Pikachu | Base | 58/102",
+      "input": "top:9 Eeveelution",
       "matched": true,
-      "name": "Pikachu",
-      "set": "Base",
-      "number": "58",
-      "rarity": "Common",
+      "name": "Vaporeon \u2605",
+      "set": "Power Keepers",
+      "number": "102",
+      "rarity": "Rare Holo Star",
       "language": "en",
       "database": "pokemontcg.io",
-      "image_path": "output/images/base1-58.png",
-      "market": 6.89,
+      "image_path": "output/images/ex16-102.png",
+      "market": 900.99,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/ex16-102",
+      "comps": {
+        "80%": 720.79,
+        "85%": 765.84,
+        "90%": 810.89,
+        "95%": 855.94
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:9 Eeveelution",
+      "matched": true,
+      "name": "Espeon \u2605",
+      "set": "POP Series 5",
+      "number": "16",
+      "rarity": "Rare",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/pop5-16.png",
+      "market": 1900.0,
       "currency": "USD",
       "variant": "normal",
       "source": "tcgplayer",
-      "url": "https://prices.pokemontcg.io/tcgplayer/base1-58",
+      "url": "https://prices.pokemontcg.io/tcgplayer/pop5-16",
       "comps": {
-        "80%": 5.51,
-        "85%": 5.86,
-        "90%": 6.2,
-        "95%": 6.55
+        "80%": 1520.0,
+        "85%": 1615.0,
+        "90%": 1710.0,
+        "95%": 1805.0
       },
       "over_max_price": false
     },
     {
       "tag": "sample_cards",
-      "input": "Charizard V | Champion's Path | 74/73",
+      "input": "top:9 Eeveelution",
       "matched": true,
-      "name": "Charizard V",
-      "set": "Champion's Path",
-      "number": "79",
-      "rarity": "Rare Secret",
+      "name": "Umbreon ex",
+      "set": "Prismatic Evolutions",
+      "number": "161",
+      "rarity": "Special Illustration Rare",
       "language": "en",
       "database": "pokemontcg.io",
-      "image_path": "output/images/swsh35-79.png",
-      "market": 268.29,
+      "image_path": "output/images/sv8pt5-161.png",
+      "market": 1557.92,
       "currency": "USD",
       "variant": "holofoil",
       "source": "tcgplayer",
-      "url": "https://prices.pokemontcg.io/tcgplayer/swsh35-79",
+      "url": "https://prices.pokemontcg.io/tcgplayer/sv8pt5-161",
       "comps": {
-        "80%": 214.63,
-        "85%": 228.05,
-        "90%": 241.46,
-        "95%": 254.88
+        "80%": 1246.34,
+        "85%": 1324.23,
+        "90%": 1402.13,
+        "95%": 1480.02
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:9 Eeveelution",
+      "matched": true,
+      "name": "Umbreon",
+      "set": "Aquapolis",
+      "number": "H29",
+      "rarity": "Rare Holo",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/ecard2-H29.png",
+      "market": 1252.62,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/ecard2-H29",
+      "comps": {
+        "80%": 1002.1,
+        "85%": 1064.73,
+        "90%": 1127.36,
+        "95%": 1189.99
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:9 Eeveelution",
+      "matched": true,
+      "name": "Umbreon",
+      "set": "Skyridge",
+      "number": "H30",
+      "rarity": "Rare Holo",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/ecard3-H30.png",
+      "market": 659.99,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/ecard3-H30",
+      "comps": {
+        "80%": 527.99,
+        "85%": 560.99,
+        "90%": 593.99,
+        "95%": 626.99
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:9 Eeveelution",
+      "matched": true,
+      "name": "Gardevoir & Sylveon-GX",
+      "set": "Unbroken Bonds",
+      "number": "205",
+      "rarity": "Rare Ultra",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/sm10-205.png",
+      "market": 592.73,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/sm10-205",
+      "comps": {
+        "80%": 474.18,
+        "85%": 503.82,
+        "90%": 533.46,
+        "95%": 563.09
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:5 Charizard <$50",
+      "matched": true,
+      "name": "Charizard ex",
+      "set": "Obsidian Flames",
+      "number": "228",
+      "rarity": "Hyper Rare",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/sv3-228.png",
+      "market": 46.77,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/sv3-228",
+      "comps": {
+        "80%": 37.42,
+        "85%": 39.75,
+        "90%": 42.09,
+        "95%": 44.43
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:5 Charizard <$50",
+      "matched": true,
+      "name": "Reshiram & Charizard-GX",
+      "set": "SM Black Star Promos",
+      "number": "SM247",
+      "rarity": "Promo",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/smp-SM247.png",
+      "market": 46.39,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/smp-SM247",
+      "comps": {
+        "80%": 37.11,
+        "85%": 39.43,
+        "90%": 41.75,
+        "95%": 44.07
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:5 Charizard <$50",
+      "matched": true,
+      "name": "Charizard ex",
+      "set": "151",
+      "number": "183",
+      "rarity": "Ultra Rare",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/sv3pt5-183.png",
+      "market": 45.7,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/sv3pt5-183",
+      "comps": {
+        "80%": 36.56,
+        "85%": 38.85,
+        "90%": 41.13,
+        "95%": 43.41
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:5 Charizard <$50",
+      "matched": true,
+      "name": "Charizard",
+      "set": "Boundaries Crossed",
+      "number": "20",
+      "rarity": "Rare Holo",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/bw7-20.png",
+      "market": 44.1,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/bw7-20",
+      "comps": {
+        "80%": 35.28,
+        "85%": 37.48,
+        "90%": 39.69,
+        "95%": 41.9
+      },
+      "over_max_price": false
+    },
+    {
+      "tag": "sample_cards",
+      "input": "top:5 Charizard <$50",
+      "matched": true,
+      "name": "Charizard VMAX",
+      "set": "SWSH Black Star Promos",
+      "number": "SWSH261",
+      "rarity": "Promo",
+      "language": "en",
+      "database": "pokemontcg.io",
+      "image_path": "output/images/swshp-SWSH261.png",
+      "market": 43.88,
+      "currency": "USD",
+      "variant": "holofoil",
+      "source": "tcgplayer",
+      "url": "https://prices.pokemontcg.io/tcgplayer/swshp-SWSH261",
+      "comps": {
+        "80%": 35.1,
+        "85%": 37.3,
+        "90%": 39.49,
+        "95%": 41.69
       },
       "over_max_price": false
     }
