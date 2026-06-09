@@ -292,7 +292,7 @@ export function HelpModal({ onStartTour }: Props) {
               <Definitions
                 rows={[
                   ['Search', 'Paste or type a want-list, one card per line, and look them all up at once.'],
-                  ['Browse', 'Walk a whole set card by card, filtered by series, rarity, or release year.'],
+                  ['Browse', 'Pick a set and walk every card — search by name, filter by rarity, and sort by number, name, or price.'],
                   ['Swipe', 'Flip through one card at a time — pass, save, or love — then turn the keepers into a want-list.'],
                 ]}
               />
