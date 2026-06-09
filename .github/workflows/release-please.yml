@@ -31,10 +31,6 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          # PAT (same secret as the existing tag-push flow) so the
-          # opened PR can be edited by subsequent agent / human
-          # extensions without triggering the "GITHUB_TOKEN-authored
-          # commits don't fire downstream workflows" footgun.
           token: ${{ secrets.RELEASE_PAT }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
