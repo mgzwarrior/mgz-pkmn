@@ -41,6 +41,7 @@ import os
 import smtplib
 import ssl
 from email.message import EmailMessage
+from html import escape
 from pathlib import Path
 from typing import Annotated, Protocol
 
@@ -100,6 +101,24 @@ POST_SIGNIN_REDIRECT = "/"
 MAIL_SUBJECT = "Sign in to mgz-pkmn"
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "auth_magic.txt"
+_LOGO_PATH = Path(__file__).resolve().parents[2] / "src" / "mgz_pkmn" / "assets" / "logo.png"
+_LOGO_CID = "mgz-pkmn-logo"
+
+# Email clients do not reliably preserve CSS variables, so these are
+# resolved from design/tokens/colors_and_type.css and inlined below.
+_EMAIL_COLORS = {
+    "bg_app": "#FBF6E8",  # --sand-50 / --bg-app
+    "bg_surface": "#FFFEF8",  # --bg-surface
+    "bg_surface_2": "#F4ECD3",  # --sand-100 / --bg-surface-2
+    "border": "#D6C99F",  # --sand-300 / --border-1
+    "brand_primary": "#F5C94B",  # --sun-300 / --brand-primary
+    "brand_secondary": "#4A8B3B",  # --palm-400 / --brand-secondary
+    "brand_tertiary": "#6B4A2F",  # --coconut-500 / --brand-tertiary
+    "fg_1": "#1F1B16",  # --husk-300 / --fg-1
+    "fg_2": "#6B4A2F",  # --coconut-500 / --fg-2
+    "fg_muted": "#5F583F",  # --sand-600 / --fg-3
+    "fg_on_primary": "#15120E",  # --husk-400 / --fg-on-primary
+}
 
 
 router = APIRouter()
@@ -185,18 +204,91 @@ def verify_token(token: str) -> str | None:
 
 
 def _build_message(to_email: str, sender: str, link: str) -> EmailMessage:
-    """Render the plain-text template into an `EmailMessage`.
+    """Render the branded magic-link email into an `EmailMessage`.
 
-    The template is a single `{link}` placeholder, intentionally
-    plain-text only — HTML formatting is deferred per the issue's
-    out-of-scope list."""
+    The message keeps a plain-text fallback first, then adds a
+    table-based HTML alternative with inline colors for broad email
+    client support."""
     body = _TEMPLATE_PATH.read_text(encoding="utf-8").format(link=link)
     msg = EmailMessage()
     msg["Subject"] = MAIL_SUBJECT
     msg["From"] = sender
     msg["To"] = to_email
     msg.set_content(body)
+    msg.add_alternative(_render_html_email(link), subtype="html")
+    html_part = msg.get_payload()[1]
+    html_part.add_related(
+        _LOGO_PATH.read_bytes(),
+        maintype="image",
+        subtype="png",
+        cid=f"<{_LOGO_CID}>",
+        filename="mgz-pkmn-logo.png",
+        disposition="inline",
+    )
     return msg
+
+
+def _render_html_email(link: str) -> str:
+    safe_link = escape(link, quote=True)
+    colors = _EMAIL_COLORS
+    return f"""\
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{MAIL_SUBJECT}</title>
+  </head>
+  <body style="margin:0; padding:0; background:{colors["bg_app"]};">
+    <!-- Colors resolved from design/tokens/colors_and_type.css because email clients strip CSS variables. -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; background:{colors["bg_app"]};">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; max-width:560px; background:{colors["bg_surface"]}; border:1px solid {colors["border"]}; border-radius:14px;">
+            <tr>
+              <td style="padding:28px 28px 12px 28px;">
+                <img src="cid:{_LOGO_CID}" width="156" alt="mgz-pkmn" style="display:block; width:156px; max-width:100%; height:auto; border:0;">
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:8px 28px 0 28px; font-family:'Bricolage Grotesque', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:{colors["fg_1"]};">
+                <h1 style="margin:0; color:{colors["fg_1"]}; font-size:28px; line-height:1.2; font-weight:700;">Sign in to mgz-pkmn</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 28px 0 28px; font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:{colors["fg_2"]}; font-size:16px; line-height:1.6;">
+                <p style="margin:0;">Use this link to sign in. This link is good for 15 minutes.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 28px 8px 28px;">
+                <a href="{safe_link}" style="display:inline-block; background:{colors["brand_primary"]}; color:{colors["fg_on_primary"]}; border:1px solid {colors["brand_primary"]}; border-radius:10px; padding:13px 18px; font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:16px; line-height:1.2; font-weight:700; text-decoration:none;">Sign in</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:12px 28px 0 28px; font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:{colors["fg_muted"]}; font-size:13px; line-height:1.6;">
+                <p style="margin:0;">Button not working? Copy and paste this link into your browser:</p>
+                <p style="margin:8px 0 0 0; word-break:break-all;"><a href="{safe_link}" style="color:{colors["brand_secondary"]}; text-decoration:underline;">{safe_link}</a></p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 28px 28px 28px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; background:{colors["bg_surface_2"]}; border-radius:10px;">
+                  <tr>
+                    <td style="padding:14px 16px; font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:{colors["brand_tertiary"]}; font-size:13px; line-height:1.6;">
+                      If you didn't ask to sign in, you can ignore this email. Anyone with this link can sign in until it expires, so don't share or forward it.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
 
 
 def _normalize_email(raw: str) -> str:
