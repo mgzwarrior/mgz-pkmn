@@ -3,13 +3,15 @@
  * settings, exports, shortcuts, and what's new. Includes a "Take the
  * tour" button that hands control off to the Tour component.
  *
- * Also owns the "unseen release" affordance: a small dot on the trigger
- * when the latest changelog version differs from the user's last-seen
- * version (persisted in zustand). Opening the modal marks the latest
- * version seen.
+ * The "what's new" surface is a collapsible bar pinned below the header,
+ * collapsed by default and condensed to the latest release's top features.
+ * It owns the "unseen release" affordance: a small dot on the trigger and on
+ * the bar when the latest changelog version differs from the user's last-seen
+ * version (persisted in zustand). Expanding the bar marks the latest version
+ * seen, clearing both dots.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { CircleHelp, X } from 'lucide-react'
+import { ChevronDown, CircleHelp, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { fetchChangelog } from '../api/client'
 import { useAppStore } from '../store'
@@ -20,14 +22,16 @@ const FIRST_VISIT_KEY = 'mgz-pkmn:seen-help'
 const REPO_CHANGELOG_URL =
   'https://github.com/mgzwarrior/mgz-pkmn/blob/main/CHANGELOG.md'
 
-// Section-name → badge accent. Unknown names fall back to a neutral chip.
-const SECTION_ACCENT: Record<string, string> = {
-  Added: 'text-palm-600 border-palm-500/30 dark:text-palm-200 dark:border-palm-300/30',
-  Changed: 'text-sky-500 border-sky-400/30 dark:text-sky-300 dark:border-sky-400/30',
-  Fixed: 'text-sun-600 border-sun-400/30 dark:text-sun-300 dark:border-sun-400/30',
-  Removed: 'text-ember-500 border-ember-400/30 dark:text-ember-300 dark:border-ember-400/30',
-  Deprecated: 'text-sun-700 border-sun-500/30 dark:text-sun-400 dark:border-sun-500/30',
-  Security: 'text-ember-600 border-ember-500/30 dark:text-ember-300 dark:border-ember-500/30',
+// The condensed bar shows only the headline highlights of the latest release.
+const MAX_FEATURES = 3
+
+// Pick the entries that read as "what's new": prefer the `Added` section (new
+// capabilities are the headline), falling back to the first section for a
+// release that shipped without one. Capped so the bar stays scannable.
+function topFeatures(release: ChangelogRelease | undefined): string[] {
+  if (!release) return []
+  const headline = release.sections.find((s) => s.name === 'Added') ?? release.sections[0]
+  return headline ? headline.entries.slice(0, MAX_FEATURES) : []
 }
 
 // localStorage access can throw in some browsers/contexts (Safari private
@@ -70,13 +74,16 @@ interface Props {
 export function HelpModal({ onStartTour }: Props) {
   const [open, setOpen] = useState(false)
   const [hint, setHint] = useState(() => !readSeenHelp())
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false)
   const [releases, setReleases] = useState<ChangelogRelease[] | null>(null)
   const [releasesError, setReleasesError] = useState(false)
 
   const lastSeen = useAppStore((s) => s.lastSeenChangelogVersion)
   const setLastSeen = useAppStore((s) => s.setLastSeenChangelogVersion)
 
-  const latest = releases?.[0]?.version ?? null
+  const latestRelease = releases?.[0]
+  const latest = latestRelease?.version ?? null
+  const features = topFeatures(latestRelease)
 
   // Fetch once on mount so the unseen-release dot can light up before the
   // user ever opens the modal. A failure leaves `releases` null + the
@@ -103,14 +110,27 @@ export function HelpModal({ onStartTour }: Props) {
 
   const hasUnseen = !!latest && lastSeen !== null && latest !== lastSeen
 
+  // Expanding the What's new bar marks the latest release seen — clearing the
+  // unseen dot on both the bar and the trigger. An effect (rather than the
+  // click handler alone) also covers the panel being opened before the
+  // changelog fetch resolved: a late-arriving `latest` still clears the dot
+  // without forcing the user to collapse and re-expand.
+  useEffect(() => {
+    if (whatsNewOpen && latest && lastSeen !== latest) setLastSeen(latest)
+  }, [whatsNewOpen, latest, lastSeen, setLastSeen])
+
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (next && hint) {
       setHint(false)
       markSeenHelp()
     }
-    // Mark the latest version seen the moment the modal opens.
-    if (next && latest) setLastSeen(latest)
+    // Collapse the What's new bar on close so it always reopens collapsed.
+    if (!next) setWhatsNewOpen(false)
+  }
+
+  function handleToggleWhatsNew() {
+    setWhatsNewOpen((prev) => !prev)
   }
 
   function handleTakeTour() {
@@ -158,6 +178,93 @@ export function HelpModal({ onStartTour }: Props) {
                 <X size={16} />
               </button>
             </Dialog.Close>
+          </div>
+
+          {/* What's new — collapsed by default, pinned below the header. The
+              dot mirrors the trigger's unseen-release affordance. */}
+          <div className="border-b border-sand-300 dark:border-husk-50">
+            <button
+              type="button"
+              onClick={handleToggleWhatsNew}
+              aria-expanded={whatsNewOpen}
+              aria-controls={whatsNewOpen ? 'whats-new-panel' : undefined}
+              aria-label={hasUnseen ? "What's new (new version available)" : "What's new"}
+              className="flex w-full items-center gap-2 px-5 py-3 text-left hover:bg-sand-100 dark:hover:bg-husk-100 transition-colors"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                What's new
+              </span>
+              {latest && (
+                <span className="font-mono text-xs text-coconut-400 dark:text-sand-400">
+                  v{latest}
+                </span>
+              )}
+              {hasUnseen && (
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-full bg-palm-400 dark:bg-sun-300"
+                />
+              )}
+              <ChevronDown
+                size={16}
+                aria-hidden="true"
+                className={`ml-auto text-coconut-400 dark:text-sand-300 transition-transform ${
+                  whatsNewOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {whatsNewOpen && (
+              <div
+                id="whats-new-panel"
+                className="px-5 pb-4 text-sm text-coconut-600 dark:text-sand-200"
+              >
+                {releasesError || (releases && releases.length === 0) ? (
+                  <p className="text-coconut-400 dark:text-sand-300">
+                    Release notes couldn't be loaded right now. See the{' '}
+                    <a
+                      href={REPO_CHANGELOG_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-palm-500 dark:text-sun-300 underline hover:text-palm-400 dark:hover:text-sun-200"
+                    >
+                      full changelog
+                    </a>
+                    .
+                  </p>
+                ) : releases === null ? (
+                  <p className="text-coconut-400 dark:text-sand-400">Loading release notes…</p>
+                ) : (
+                  <>
+                    {latestRelease?.date && (
+                      <p className="mb-2 text-xs text-coconut-400 dark:text-sand-400">
+                        {formatDate(latestRelease.date)}
+                      </p>
+                    )}
+                    <ul className="space-y-1.5">
+                      {features.map((entry, i) => (
+                        <li key={i} className="flex gap-2 leading-relaxed">
+                          <span
+                            aria-hidden="true"
+                            className="mt-2 h-1 w-1 shrink-0 rounded-full bg-sand-300 dark:bg-husk-50"
+                          />
+                          <span>{renderInlineMarkdown(entry)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-3 text-xs">
+                      <a
+                        href={REPO_CHANGELOG_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-palm-500 dark:text-sun-300 hover:text-palm-400 dark:hover:text-sun-200 transition-colors"
+                      >
+                        Full changelog →
+                      </a>
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Body */}
@@ -225,86 +332,6 @@ export function HelpModal({ onStartTour }: Props) {
                   [<Kbd key="brand">Brand × 5</Kbd>, 'Click the logo five times for a surprise'],
                 ]}
               />
-            </Section>
-
-            <Section title="What's new">
-              {releasesError || (releases && releases.length === 0) ? (
-                <p className="text-coconut-400 dark:text-sand-300">
-                  Release notes couldn't be loaded right now. See the{' '}
-                  <a
-                    href={REPO_CHANGELOG_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-palm-500 dark:text-sun-300 underline hover:text-palm-400 dark:hover:text-sun-200"
-                  >
-                    full changelog
-                  </a>
-                  .
-                </p>
-              ) : releases === null ? (
-                <p className="text-coconut-400 dark:text-sand-400">Loading release notes…</p>
-              ) : (
-                <>
-                  <ol className="space-y-6">
-                    {releases.map((release) => (
-                      <li
-                        key={release.version}
-                        className="border-l border-sand-200 dark:border-husk-100 pl-4"
-                      >
-                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                          <h4 className="text-sm font-semibold text-coconut-700 dark:text-sand-50">
-                            v{release.version}
-                          </h4>
-                          {release.date && (
-                            <time className="text-xs text-coconut-400 dark:text-sand-400">
-                              {formatDate(release.date)}
-                            </time>
-                          )}
-                        </div>
-                        <div className="mt-2 space-y-3">
-                          {release.sections.map((section, sectionIdx) => (
-                            // A single release can have multiple sections with
-                            // the same name (e.g. two `### Added` blocks in
-                            // CHANGELOG.md), so index-by-position rather than
-                            // by section name to keep React keys unique.
-                            <div key={`${section.name}-${sectionIdx}`}>
-                              <span
-                                className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${
-                                  SECTION_ACCENT[section.name] ??
-                                  'text-coconut-400 dark:text-sand-300 border-sand-300 dark:border-husk-50'
-                                }`}
-                              >
-                                {section.name}
-                              </span>
-                              <ul className="mt-1.5 space-y-1.5">
-                                {section.entries.map((entry, i) => (
-                                  <li key={i} className="flex gap-2 leading-relaxed">
-                                    <span
-                                      aria-hidden="true"
-                                      className="mt-2 h-1 w-1 shrink-0 rounded-full bg-sand-300 dark:bg-husk-50"
-                                    />
-                                    <span>{renderInlineMarkdown(entry)}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                  <p className="mt-4 text-xs">
-                    <a
-                      href={REPO_CHANGELOG_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-palm-500 dark:text-sun-300 hover:text-palm-400 dark:hover:text-sun-200 transition-colors"
-                    >
-                      Full changelog →
-                    </a>
-                  </p>
-                </>
-              )}
             </Section>
           </div>
 
