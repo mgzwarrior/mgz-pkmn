@@ -192,8 +192,45 @@ class RequestNoEnumerationTests(_IsolatedDbMixin):
         self.assertEqual(msg["To"], "click@example.com")
         self.assertEqual(msg["From"], "noreply@example.com")
         # Body carries the absolute callback URL.
-        body = msg.get_content()
+        plain = msg.get_body(preferencelist=("plain",))
+        assert plain is not None
+        body = plain.get_content()
         self.assertIn("/api/v1/auth/magic/callback?token=", body)
+
+    def test_message_includes_branded_html_and_plain_text_fallback(self) -> None:
+        msg = magic_mod._build_message(
+            "collector@example.com",
+            "noreply@example.com",
+            "https://mgz-pkmn.com/api/v1/auth/magic/callback?token=abc",
+        )
+
+        plain = msg.get_body(preferencelist=("plain",))
+        html_part = msg.get_body(preferencelist=("html",))
+        assert plain is not None
+        assert html_part is not None
+
+        plain_body = plain.get_content()
+        html_body = html_part.get_content()
+        self.assertIn("Sign in to mgz-pkmn", plain_body)
+        self.assertIn("https://mgz-pkmn.com/api/v1/auth/magic/callback?token=abc", plain_body)
+        self.assertIn("This link is good for 15 minutes.", plain_body)
+
+        self.assertIn("<!-- Colors resolved from design/tokens/colors_and_type.css", html_body)
+        self.assertIn("#F5C94B", html_body)
+        self.assertIn("#4A8B3B", html_body)
+        self.assertIn("#6B4A2F", html_body)
+        self.assertIn('src="cid:mgz-pkmn-logo"', html_body)
+        self.assertIn('alt="mgz-pkmn"', html_body)
+        self.assertIn("Use this link to sign in.", html_body)
+        self.assertIn("https://mgz-pkmn.com/api/v1/auth/magic/callback?token=abc", html_body)
+
+        image_parts = [
+            part
+            for part in msg.walk()
+            if part.get_content_maintype() == "image" and part.get_content_subtype() == "png"
+        ]
+        self.assertEqual(len(image_parts), 1)
+        self.assertEqual(image_parts[0]["Content-ID"], "<mgz-pkmn-logo>")
 
 
 class CallbackTokenTests(_IsolatedDbMixin):
