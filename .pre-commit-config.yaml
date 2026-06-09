@@ -25,3 +25,11 @@ repos:
         language: system
         stages: [commit-msg]
         entry: .githooks/dco-signoff
+
+  - repo: https://github.com/jorisroovers/gitlint
+    rev: v0.19.1
+    hooks:
+      # Conventional Commits check at commit-msg time. Configured in
+      # `.gitlint` — same regex the `Conventional Commits` GitHub
+      # Action enforces, so a green local commit is a green CI check.
+      - id: gitlint

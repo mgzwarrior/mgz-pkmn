@@ -1,0 +1,46 @@
+name: release-please
+
+# Drafts the next version-bump PR from Conventional Commits on `main`,
+# rotating `[Unreleased]` into a new versioned CHANGELOG section. The
+# bot's PR becomes the canonical release PR; the releasing
+# agent / human extends it to cover the other version surfaces
+# (`api/pyproject.toml`, `web/package.json`, `site/package.json`,
+# `CITATION.cff`) and applies the CHANGELOG consolidation pass (#571)
+# before merging.
+#
+# When the PR merges, `release-on-version-bump.yml` fires (it watches
+# `pyproject.toml`), tags the commit, and `release.yml` publishes to
+# PyPI. release-please's own GitHub-Release step is skipped via
+# `skip-github-release: true` in the config so we don't double-tag.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  # release-please manages its own labels (`autorelease: pending`,
+  # `autorelease: tagged`) through the Issues API — without this scope
+  # the first push to `main` fails before the release PR is usable.
+  issues: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          # PAT (same secret as the existing tag-push flow) so the
+          # opened PR can be edited by subsequent agent / human
+          # extensions without triggering the "GITHUB_TOKEN-authored
+          # commits don't fire downstream workflows" footgun.
+          token: ${{ secrets.RELEASE_PAT }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          # PR-only: when the release PR merges, the existing
+          # `release-on-version-bump.yml` flow tags + publishes. Letting
+          # release-please cut its own GitHub Release here would
+          # double-tag and fight Sigstore / PEP 740 attestation that the
+          # existing chain owns.
+          skip-github-release: true

@@ -1,0 +1,73 @@
+name: Conventional Commits
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  conventional-commits:
+    name: Conventional Commits check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check every non-merge commit on the PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # Same shape as `dco.yml`: we walk every non-merge commit on the
+        # PR and validate the subject line in pure shell so the workflow
+        # has no Node / Python dependency to bootstrap. Merge commits are
+        # excluded because they represent integration, not authored
+        # content — matching the convention DCO uses.
+        run: |
+          set -euo pipefail
+          # Conventional Commits subject line:
+          #   <type>(<scope>)?!?: <subject>
+          # Types are the Angular set plus "revert", matching
+          # release-please's default vocabulary. Scope is optional and
+          # free-form (we use it for `web`, `api`, `cli`, `docs`, etc.).
+          # The `!` marker flags a breaking change; release-please picks
+          # it up. Subject must be non-empty.
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?!?: .+$'
+          # Subject-line length cap. Keeps `gh pr view` + email previews
+          # readable. Set generously — existing commits sometimes ran
+          # over 80 chars — but reject the truly unwieldy.
+          max_subject_len=100
+          bad=0
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            subject=$(git log -1 --format='%s' "$sha")
+            len=${#subject}
+            if ! [[ "$subject" =~ $pattern ]]; then
+              echo "::error::Commit $sha subject does not match Conventional Commits: '$subject'"
+              bad=$((bad + 1))
+              continue
+            fi
+            if [ "$len" -gt "$max_subject_len" ]; then
+              echo "::error::Commit $sha subject is $len chars (max $max_subject_len): '$subject'"
+              bad=$((bad + 1))
+            fi
+          done < <(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA")
+          if [ "$bad" -gt 0 ]; then
+            echo ""
+            echo "$bad commit(s) failed the Conventional Commits check."
+            echo ""
+            echo "Expected:  <type>(<scope>)?!?: <subject>"
+            echo "Types:     build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test"
+            echo "Examples:"
+            echo "  feat(web): add binder progress chart"
+            echo "  fix(api): handle empty card_json in promote endpoint"
+            echo "  docs: clarify release flow"
+            echo "  refactor(cli)!: drop deprecated --legacy flag"
+            echo ""
+            echo "See docs/contributing.md#commit-messages for the full guide."
+            exit 1
+          fi
+          echo "All commits follow Conventional Commits."
