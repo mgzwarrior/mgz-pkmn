@@ -136,6 +136,54 @@ describe('LibraryPanel', () => {
     expect(screen.getByRole('tab', { name: /Wishlists/i })).toBeInTheDocument()
   })
 
+  it('does not leak a stale saved-search count when no user is identified', async () => {
+    // signOut() clears auth.user but leaves the cached `runs` in zustand;
+    // the count surfaces in three places (collapsed sidebar, accordion
+    // header, Searches tab badge) and none should display the previous
+    // user's value.
+    vi.mocked(client.fetchMe).mockResolvedValue({ user: null, authEnabled: true })
+    useAppStore.setState({
+      runs: [
+        {
+          id: 1,
+          created_at: '2026-06-01T12:00:00Z',
+          elapsed_seconds: 1,
+          row_count: 3,
+          summary: {
+            total_rows: 3,
+            matched: 2,
+            missed: 1,
+            priced: 2,
+            totals_by_currency: {},
+            tag_counts: {},
+          },
+          name: 'Stale',
+          view_state: null,
+        },
+        {
+          id: 2,
+          created_at: '2026-06-01T12:00:00Z',
+          elapsed_seconds: 1,
+          row_count: 1,
+          summary: {
+            total_rows: 1,
+            matched: 1,
+            missed: 0,
+            priced: 1,
+            totals_by_currency: {},
+            tag_counts: {},
+          },
+          name: 'Old',
+          view_state: null,
+        },
+      ],
+    })
+    render(<LibraryPanel variant="accordion" onRun={vi.fn()} />)
+    const trigger = await screen.findByRole('button', { name: /Library/i })
+    // Accordion header — no "(2)" badge for the signed-out visitor.
+    expect(trigger.textContent ?? '').not.toMatch(/\(2\)/)
+  })
+
   it('Recent re-run threads through to the parent onRun callback', () => {
     const onRun = vi.fn()
     useAppStore.setState({

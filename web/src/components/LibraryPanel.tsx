@@ -66,6 +66,12 @@ export function LibraryPanel({ variant, onRun }: Props) {
   const resolvedActive: LibraryTab =
     !showUserScoped && USER_SCOPED_TABS.has(activeTab) ? 'searches' : activeTab
   const tabContent = renderTab(resolvedActive, onRun)
+  // The cached `runs` array is server-fetched and user-scoped; signOut()
+  // only clears `auth.user`, not the store, so reading `runs.length`
+  // straight through would leak the previous user's saved-search count
+  // after sign-out. Treat it as zero (hidden) until an identified user
+  // is back.
+  const savedSearchCount = showUserScoped ? runs.length : 0
 
   if (variant === 'sidebar') {
     if (sidebarCollapsed) {
@@ -84,9 +90,11 @@ export function LibraryPanel({ variant, onRun }: Props) {
             <ChevronRight size={16} />
           </button>
           <Library size={14} className="text-coconut-400 dark:text-sand-400" aria-hidden />
-          <span className="text-[10px] font-medium text-coconut-400 dark:text-sand-400 tabular-nums">
-            {runs.length}
-          </span>
+          {showUserScoped && (
+            <span className="text-[10px] font-medium text-coconut-400 dark:text-sand-400 tabular-nums">
+              {savedSearchCount}
+            </span>
+          )}
         </aside>
       )
     }
@@ -115,7 +123,7 @@ export function LibraryPanel({ variant, onRun }: Props) {
           tabs={tabs}
           activeTab={resolvedActive}
           onChange={setActiveTab}
-          runsCount={runs.length}
+          runsCount={savedSearchCount}
           recentCount={recentCount}
         />
         <div className="overflow-y-auto">{tabContent}</div>
@@ -136,7 +144,9 @@ export function LibraryPanel({ variant, onRun }: Props) {
         <span className="flex items-center gap-2">
           <Library size={14} aria-hidden />
           Library
-          <span className="text-coconut-400 dark:text-sand-400">({runs.length})</span>
+          {showUserScoped && (
+            <span className="text-coconut-400 dark:text-sand-400">({savedSearchCount})</span>
+          )}
         </span>
         <ChevronDown
           size={14}
@@ -150,7 +160,7 @@ export function LibraryPanel({ variant, onRun }: Props) {
             tabs={tabs}
             activeTab={resolvedActive}
             onChange={setActiveTab}
-            runsCount={runs.length}
+            runsCount={savedSearchCount}
             recentCount={recentCount}
           />
           {tabContent}
