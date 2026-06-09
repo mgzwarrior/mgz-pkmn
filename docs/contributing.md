@@ -582,14 +582,26 @@ config, internal refactors, and test-only changes.
 
 ## Releasing
 
-Releases are driven by `pyproject.toml`. A PR that bumps the version
-**is** the release — once it merges to `main`, the
-`release-on-version-bump` workflow tags the new commit. The tag push
-triggers `release.yml`, which builds the package, runs the test
-suite, publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via
-trusted publishing (with PEP 740 attestations), and creates a GitHub
-Release with the built distribution attached and notes linking to the
-new PyPI version.
+Releases are driven by `pyproject.toml`. A PR that bumps the version **is** the release — once it merges to `main`, the `release-on-version-bump` workflow tags the new commit. The tag push triggers `release.yml`, which builds the package, runs the test suite, publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via trusted publishing (with PEP 740 attestations), and creates a GitHub Release with the built distribution attached and notes linking to the new PyPI version.
+
+### The release PR is drafted by release-please
+
+`.github/workflows/release-please.yml` watches `main` and opens a version-bump PR whenever release-worthy Conventional Commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `revert:`) accumulate. The bot's PR is the **canonical release PR** — don't open a competing one. The bot:
+
+- Bumps the root `pyproject.toml` version.
+- Rotates `[Unreleased]` in `CHANGELOG.md` into a new versioned section with bullets generated from the commit subjects.
+- Signs the commit with `Signed-off-by: github-actions[bot] …` so the DCO check passes.
+
+The release-please flow is PR-only (`skip-github-release: true`). It does not tag, does not cut a GitHub Release, and does not push to PyPI — the existing `release-on-version-bump.yml` → `release.yml` chain still owns all of that. Merging the bot's PR trips the version-watch trigger and the established flow carries it from there.
+
+### The agent / human extends the bot PR before merging
+
+The bot only bumps the root `pyproject.toml`. The releasing agent or human checks out the bot's branch (`gh pr checkout <PR>`), applies two passes, and pushes back to the same branch:
+
+1. **Version extension.** Bump every other surface to the same number so the artifacts ship aligned: `api/pyproject.toml`, `web/package.json` (+ `npm install` to refresh the lockfile), `site/package.json` (+ `npm install`), `CITATION.cff` (`version` + `date-released`), `src/mgz_pkmn/__init__.py` (`__version__`), and `uv lock`.
+2. **CHANGELOG consolidation pass.** Dedupe duplicate `### Added` / `### Changed` / `### Fixed` blocks, promote impactful entries to the top of each subsection, drop or merge low-signal entries (dep bumps, CI tweaks, internal renames). The marketing site and the live-demo "what's new" surface render the CHANGELOG verbatim, so whatever ships in the release section is exactly what every visitor reads. See `.claude/skills/cut-release/SKILL.md` Step 5a for the full rules.
+
+Don't close the bot's PR and open your own — release-please reuses the branch on the next `main` push, and a human-authored replacement breaks that loop.
 
 The other three surfaces ship on their own deploy paths and don't
 need an explicit release action:
@@ -614,13 +626,7 @@ need an explicit release action:
 
 ### Running this from Claude Code
 
-The repo ships a [`cut-release`](../.claude/skills/cut-release/SKILL.md)
-skill that automates the steps below: it asks for the target version,
-creates a tracking issue if one doesn't exist, bumps every surface,
-rotates the changelog, runs the local gate, and opens the PR. Invoke it
-from any Claude Code session with `/cut-release` (or just ask Claude to
-"cut the next release"). You still merge the PR yourself — everything
-downstream is automatic from there.
+The repo ships a [`cut-release`](../.claude/skills/cut-release/SKILL.md) skill that walks the bot-PR extension above: it checks out the bot's branch, bumps every other surface to the same number, runs the CHANGELOG consolidation pass, runs the local gate, and pushes back to the same branch. Invoke it from any Claude Code session with `/cut-release` (or just ask Claude to "cut the next release"). You still merge the PR yourself — everything downstream is automatic from there.
 
 ### Doing it by hand
 
