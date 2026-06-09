@@ -35,29 +35,21 @@ trace in `area:design`-or-similar.
 
 ## Step 1 — Add brand assets to the repo
 
-Copy these into `assets/` (next to your existing `logo.svg`):
+This scaffolding PR keeps the existing wordmarks (`assets/logo.svg` and
+`assets/logo-dark.svg`) and adds tropical supporting marks next to them:
 
-| From this project | To `mgz-pkmn/` |
+| Asset | What it is for |
 |---|---|
-| `assets/logo-tropical.svg` | `assets/logo-tropical.svg` |
-| `assets/mark-palm.svg` | `assets/mark-palm.svg` |
-| `assets/icon-palm.svg` | `assets/icon-palm.svg` |
-| `assets/icon-card.svg` | `assets/icon-card.svg` |
-| `assets/icon-binder.svg` | `assets/icon-binder.svg` |
-| `assets/icon-coconut.svg` | `assets/icon-coconut.svg` |
-
-Then mirror two of them into the site's public folder so the favicon and
-brand mark work:
-
-```bash
-cp assets/logo-tropical.svg site/public/logo-tropical.svg
-cp assets/mark-palm.svg     site/public/favicon-tropical.svg
-# also drop a copy into the web app so the React import path works:
-cp assets/logo-tropical.svg web/src/assets/logo-tropical.svg
-```
+| `assets/mark-palm.svg` | App icon, favicon, social badge, compact brand mark. |
+| `assets/icon-palm.svg` | Exeggutor easter egg, theme indicators. |
+| `assets/icon-card.svg` | Lookup and card-result surfaces. |
+| `assets/icon-binder.svg` | Binder/export surfaces. |
+| `assets/icon-coconut.svg` | Tropical detail icon. |
+| `site/public/favicon-tropical.svg` | Site favicon candidate derived from the palm mark. |
 
 **Keep the original `assets/logo.svg`** — both for backward compatibility
-with the GitHub README badge and so you can revert without breaking links.
+with the GitHub README badge and because this PR does not add a replacement
+wordmark.
 
 ---
 
@@ -126,13 +118,6 @@ Then in `App.tsx`, change the root wrapper:
 + <div className="min-h-screen bg-sand-50 text-coconut-600">
 ```
 
-And the brand image source:
-
-```diff
-- import logoUrl from './assets/logo.svg'
-+ import logoUrl from './assets/logo-tropical.svg'
-```
-
 ---
 
 ## Step 5 — Sweep `web/src/components/*.tsx`
@@ -182,16 +167,11 @@ runtime dependency), download from
 
 ---
 
-## Step 7 — Update the GitHub README
+## Step 7 — Review the styleguide index
 
-The badge image in `README.md` references `assets/logo.svg`. Swap it:
-
-```diff
-- <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/logo.svg" alt="mgz-pkmn" height="64">
-+ <img src="https://raw.githubusercontent.com/mgzwarrior/mgz-pkmn/main/assets/logo-tropical.svg" alt="mgz-pkmn" height="64">
-```
-
-(Or keep both, side by side, for a v1-vs-v2 visual changelog.)
+Open [`design/styleguide/index.html`](styleguide/index.html) directly in a
+browser. It links every rendered card in `design/styleguide/` and is the
+lightweight site for this PR; no build step or generated output is required.
 
 ---
 
@@ -235,7 +215,7 @@ new one on a beta path. Once the new theme is signed off, remove the
 | [`site/src/styles/global.css`](../site/src/styles/global.css) | Tailwind v4 implementation for the marketing site. |
 | [`web/src/index.css`](../web/src/index.css) | Tailwind v4 implementation for the React app. |
 | [`design/CLASS_CHEATSHEET.md`](CLASS_CHEATSHEET.md) | Find/replace table for zinc/blue Tailwind classes. |
-| [`design/styleguide/`](styleguide/) | Rendered visual reference cards for palette, type, components, and voice. |
+| [`design/styleguide/index.html`](styleguide/index.html) | Static styleguide index linking every rendered card. |
 
 ---
 

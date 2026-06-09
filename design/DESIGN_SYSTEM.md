@@ -4,7 +4,7 @@
 > card-show prep tool. Anchored by Exeggutor's signature trio: sun-yellow, palm-frond
 > green, coconut-bark brown.
 
-![logo](assets/logo-tropical.svg)
+![logo](../assets/logo.svg)
 
 ---
 
@@ -325,7 +325,7 @@ they render across system fonts.
 | [`tokens/colors_and_type.css`](tokens/colors_and_type.css) | All CSS variables — palette, semantic tokens, type scale, spacing, radii, shadows, motion. |
 | [`../assets/`](../assets/) | Logos, brand mark, icon SVGs, marketing imagery. |
 | [`CLASS_CHEATSHEET.md`](CLASS_CHEATSHEET.md) | Find/replace table for zinc/blue Tailwind classes. |
-| [`styleguide/`](styleguide/) | Design-system cards for palette, type specimen, components, and voice. |
+| [`styleguide/index.html`](styleguide/index.html) | Static styleguide index linking every rendered card. Open it directly in a browser; no build step is required. |
 
 ### Styleguide cards
 
@@ -350,11 +350,11 @@ they render across system fonts.
    - keep yellow primary but reintroduce blue as the "info" semantic color, or
    - flip to a green-primary direction (mature, less playful), or
    - mock a side-by-side comparison so you can pick at the asset-review stage.
-3. **Logo direction.** Two logos ship: the **original** zinc + blue mark
-   (`assets/logo.svg`), preserved for compatibility; and the **tropical**
-   recolor (`assets/logo-tropical.svg`) which keeps the same card-frame
-   silhouette but recolors and adds a tiny palm + coconuts inside the art
-   window. Same for the marketing site favicon — both versions are available.
+3. **Logo direction.** The existing wordmarks (`assets/logo.svg` and
+   `assets/logo-dark.svg`) stay in place for this scaffolding PR. The new
+   tropical brand mark and icon set are additive references; a full wordmark
+   recolor should land with the site or web surface PR that actually swaps the
+   chrome.
 4. **Iconography.** I added a handful of brand SVGs (palm, coconut, card,
    binder) at Lucide's weight; if you want a denser custom set, this is a
    place to invest.

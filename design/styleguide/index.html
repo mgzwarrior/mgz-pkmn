@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>mgz-pkmn design styleguide</title>
+    <link rel="stylesheet" href="../tokens/colors_and_type.css">
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        background: var(--bg-app);
+        color: var(--fg-1);
+        font-family: var(--font-body);
+        padding: 32px;
+      }
+
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: end;
+        margin-bottom: 28px;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-family: var(--font-display);
+        font-size: clamp(32px, 6vw, 56px);
+        line-height: 0.95;
+        color: var(--fg-1);
+      }
+
+      .dek {
+        max-width: 620px;
+        margin-top: 10px;
+        color: var(--fg-2);
+        font-size: var(--size-md);
+        line-height: var(--leading-relaxed);
+      }
+
+      .meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--border-1);
+        border-radius: var(--radius-pill);
+        background: var(--bg-surface);
+        padding: 6px 12px;
+        color: var(--fg-3);
+        font-family: var(--font-mono);
+        font-size: var(--size-2xs);
+      }
+
+      .groups {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 18px;
+      }
+
+      section {
+        border: 1px solid var(--border-1);
+        border-radius: var(--radius-lg);
+        background: var(--bg-surface);
+        box-shadow: var(--shadow-xs);
+        padding: 18px;
+      }
+
+      h2 {
+        font-family: var(--font-display);
+        font-size: var(--size-xl);
+        color: var(--fg-1);
+      }
+
+      ul {
+        list-style: none;
+        display: grid;
+        gap: 8px;
+        margin: 14px 0 0;
+        padding: 0;
+      }
+
+      a {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        min-height: 38px;
+        border: 1px solid var(--border-1);
+        border-radius: var(--radius-md);
+        padding: 8px 10px;
+        background: var(--bg-surface-2);
+        color: var(--fg-1);
+        text-decoration: none;
+        font-weight: var(--weight-semibold);
+      }
+
+      a:hover,
+      a:focus-visible {
+        border-color: var(--palm-400);
+        box-shadow: var(--shadow-glow-palm);
+        outline: none;
+      }
+
+      .file {
+        color: var(--fg-3);
+        font-family: var(--font-mono);
+        font-size: var(--size-2xs);
+        font-weight: var(--weight-regular);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Design Styleguide</h1>
+          <p class="dek">
+            Static reference cards for the tropical mgz-pkmn design system. Open
+            any card directly; no build step is required.
+          </p>
+        </div>
+        <div class="meta">design/styleguide/index.html</div>
+      </header>
+
+      <div class="groups">
+        <section>
+          <h2>Brand</h2>
+          <ul>
+            <li><a href="brand-logo.html">Logo <span class="file">brand-logo.html</span></a></li>
+            <li><a href="brand-mark.html">Mark <span class="file">brand-mark.html</span></a></li>
+            <li><a href="brand-icons.html">Icons <span class="file">brand-icons.html</span></a></li>
+            <li><a href="voice-tone.html">Voice tone <span class="file">voice-tone.html</span></a></li>
+            <li><a href="voice-pillars.html">Voice pillars <span class="file">voice-pillars.html</span></a></li>
+            <li><a href="voice-moments.html">Voice moments <span class="file">voice-moments.html</span></a></li>
+            <li><a href="voice-vocabulary.html">Voice vocabulary <span class="file">voice-vocabulary.html</span></a></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Colors</h2>
+          <ul>
+            <li><a href="color-sun.html">Sun <span class="file">color-sun.html</span></a></li>
+            <li><a href="color-palm.html">Palm <span class="file">color-palm.html</span></a></li>
+            <li><a href="color-coconut.html">Coconut <span class="file">color-coconut.html</span></a></li>
+            <li><a href="color-neutral.html">Neutral <span class="file">color-neutral.html</span></a></li>
+            <li><a href="color-semantic.html">Semantic <span class="file">color-semantic.html</span></a></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Type</h2>
+          <ul>
+            <li><a href="type-display.html">Display <span class="file">type-display.html</span></a></li>
+            <li><a href="type-body.html">Body <span class="file">type-body.html</span></a></li>
+            <li><a href="type-mono.html">Mono <span class="file">type-mono.html</span></a></li>
+            <li><a href="type-scale.html">Scale <span class="file">type-scale.html</span></a></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Components</h2>
+          <ul>
+            <li><a href="buttons.html">Buttons <span class="file">buttons.html</span></a></li>
+            <li><a href="inputs.html">Inputs <span class="file">inputs.html</span></a></li>
+            <li><a href="badges-chips.html">Badges and chips <span class="file">badges-chips.html</span></a></li>
+            <li><a href="dropdown.html">Dropdown <span class="file">dropdown.html</span></a></li>
+            <li><a href="empty-state.html">Empty state <span class="file">empty-state.html</span></a></li>
+            <li><a href="progress.html">Progress <span class="file">progress.html</span></a></li>
+            <li><a href="result-row.html">Result row <span class="file">result-row.html</span></a></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Foundations</h2>
+          <ul>
+            <li><a href="spacing.html">Spacing <span class="file">spacing.html</span></a></li>
+            <li><a href="radii.html">Radii <span class="file">radii.html</span></a></li>
+            <li><a href="shadows.html">Shadows <span class="file">shadows.html</span></a></li>
+            <li><a href="motion.html">Motion <span class="file">motion.html</span></a></li>
+          </ul>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
