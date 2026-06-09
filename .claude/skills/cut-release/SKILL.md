@@ -65,15 +65,38 @@ The milestone should match the version's minor (e.g. `v1.2` for any
 
 Capture the issue number as `ISSUE`.
 
-## Step 3 — Branch off latest main
+## Step 3 — Find the bot's release branch, or open one
+
+**Check for an existing release-please PR before doing anything else.** Once #68's release-please flow is in place, the bot watches `main` and opens a draft version-bump PR whenever release-worthy Conventional Commits land. If one already exists for the current version arc, the cut-release flow **extends that bot PR on its own branch** — opening a parallel human-authored PR breaks release-please's loop (it reuses the same branch on the next `main` push) and produces a duplicate that has to be reconciled by hand.
+
+```bash
+gh pr list --repo mgzwarrior/mgz-pkmn \
+  --state open \
+  --author "app/github-actions" \
+  --search "release-please" \
+  --json number,title,headRefName
+```
+
+### If a release-please PR exists
+
+Check it out and reuse its branch. Steps 4 + 5 apply on top of the bot's existing root `pyproject.toml` bump + CHANGELOG rotation — you're extending, not starting from scratch.
+
+```bash
+gh pr checkout <PR_NUMBER>
+```
+
+Capture the bot PR number as `BOT_PR`. Subsequent steps (commit, push) target this branch; Step 8 (PR open) is replaced by a "extend the bot PR's body" pass.
+
+### If no release-please PR exists
+
+Either release-please-able commits haven't accumulated yet, the bot is misconfigured, or you're cutting a manual / emergency release. Branch off `main` the normal way:
 
 ```bash
 git checkout main && git pull origin main
 git checkout -b "$ISSUE-v$VERSION-release"
 ```
 
-Branch name is `<issueNumber>-v<version>-release` per the project's
-branch-naming rule (number prefix + short kebab description).
+Branch name is `<issueNumber>-v<version>-release` per the project's branch-naming rule (number prefix + short kebab description).
 
 ## Step 4 — Bump versions across every surface
 
@@ -165,18 +188,9 @@ After the consolidation pass:
    where `$PREV_VERSION` is the immediately previous shipped version
    (the next compare-link entry that already exists).
 
-### When release-please opens the PR for you
+### When you're extending a release-please PR
 
-Once #68's release-please flow is in place, the bot opens the version-
-bump PR ahead of the cut-release skill being invoked. In that case:
-
-- Pull the bot's branch (`gh pr checkout <PR>`), apply Steps 4 + 5
-  (the bot only bumps the root `pyproject.toml` and rotates the
-  CHANGELOG; you still extend to the other version surfaces and run
-  the consolidation pass), commit + push to the same branch.
-- Don't close the bot's PR and open your own — the bot will reuse the
-  branch on the next `main` push, and a human-authored replacement
-  PR breaks that loop.
+If you came from Step 3 having checked out the bot's branch (`BOT_PR` set), the bot has already done part of the work — root `pyproject.toml` is bumped and `[Unreleased]` is rotated into a versioned section. The consolidation pass in 5a still applies (the bot's bullets are commit-subject literals; the editorial pass shapes them). The rotation in 5b is partially done — you're auditing what the bot wrote, not redoing it from scratch.
 
 ## Step 6 — Verify locally
 
@@ -207,11 +221,24 @@ Should print `Latest shipped: $VERSION $RELEASE_DATE`.
 
 ## Step 7 — Commit + push
 
-Sign off the commit (DCO is enforced):
+Sign off the commit (DCO is enforced). The Conventional Commits check requires the `<type>(<scope>)?!?: <subject>` format — `chore(release):` is the right prefix for the release commit.
+
+**If you're extending a bot PR (`BOT_PR` set from Step 3):** push to the existing bot branch (`gh pr checkout` already set the upstream). Don't change the branch name. The bot's commit stays as the first commit in the PR; yours is the extension.
 
 ```bash
 git add -A
-git commit -s -m "chore: release v$VERSION
+git commit -s -m "chore(release): extend v$VERSION bump across remaining surfaces
+
+<commit body — see template below>
+"
+git push
+```
+
+**If you branched off `main` (no bot PR):**
+
+```bash
+git add -A
+git commit -s -m "chore(release): v$VERSION
 
 <commit body — see template below>
 "
@@ -243,9 +270,25 @@ attestation and cut a GitHub Release.
 Closes #$ISSUE
 ```
 
-## Step 8 — Open the PR
+## Step 8 — Open or extend the PR
 
-Pull the issue's labels + milestone first (so the PR mirrors them):
+**If you're extending a bot PR (`BOT_PR` set from Step 3):** the PR already exists — edit its body instead of opening a new one. Pull the issue's labels + milestone, sync them to the bot PR, and rewrite the bot's body to reflect the full multi-surface extension.
+
+```bash
+gh issue view "$ISSUE" --repo mgzwarrior/mgz-pkmn --json labels,milestone
+gh pr edit "$BOT_PR" --repo mgzwarrior/mgz-pkmn \
+  --add-label "area:devops" --add-label "version:v1.x" --add-label "type:docs" \
+  --add-label "agent:claude" \
+  --milestone "v$MILESTONE" \
+  --body "$(cat <<'EOF'
+<see body template below>
+EOF
+)"
+```
+
+The PR's `Closes #$ISSUE` line goes in the body via `gh pr edit`. Don't open a parallel `gh pr create` — release-please reuses the branch on the next `main` push and a competing PR breaks that loop.
+
+**If you branched off `main` (no bot PR):** open the PR fresh.
 
 ```bash
 gh issue view "$ISSUE" --repo mgzwarrior/mgz-pkmn --json labels,milestone
@@ -255,8 +298,9 @@ Open the PR with that metadata + the project board:
 
 ```bash
 gh pr create --repo mgzwarrior/mgz-pkmn \
-  --title "chore: release v$VERSION" \
+  --title "chore(release): v$VERSION" \
   --label "area:devops" --label "version:v1.x" --label "type:docs" \
+  --label "agent:claude" \
   --milestone "v$MILESTONE" \
   --project "mgz-pkmn" \
   --body "$(cat <<'EOF'
