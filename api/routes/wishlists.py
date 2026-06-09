@@ -20,6 +20,7 @@ Endpoints:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,6 +29,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..auth.session import current_user_or_default
+from ..db.card_payload import extract_card_identity, extract_price_snapshot
 from ..db.models import User, Wishlist, WishlistItem
 from ..db.session import get_db
 
@@ -58,6 +60,19 @@ class WishlistItemOut(BaseModel):
     notes: str | None
     max_price: float | None
     added_at: str
+    # ---- v1.5 collections-rework fields (#574) ----
+    card_set_id: str | None
+    card_number: str | None
+    card_name: str | None
+    card_rarity: str | None
+    card_types: list[str] | None
+    card_image_url: str | None
+    price_snapshot: float | None
+    priced_at: str | None
+    #: Lifecycle plumbing for the wishlist → collection promote (#504).
+    #: Non-null once the user has marked the chase complete.
+    acquired_at: str | None
+    acquired_collection_item_id: int | None
 
 
 class WishlistOut(BaseModel):
@@ -179,11 +194,16 @@ def add_wishlist_item(
     current_user: CurrentUser,
 ) -> dict:
     wishlist = _load_wishlist(db, wishlist_id, current_user.id)
+    promoted = extract_card_identity(req.card)
+    price = extract_price_snapshot(req.card)
     item = WishlistItem(
         wishlist_id=wishlist.id,
         card_json=req.card,
         notes=req.notes,
         max_price=req.max_price,
+        price_snapshot=price,
+        priced_at=datetime.now(UTC) if price is not None else None,
+        **promoted,
     )
     db.add(item)
     db.commit()
@@ -256,4 +276,14 @@ def _item_out(item: WishlistItem) -> WishlistItemOut:
         notes=item.notes,
         max_price=float(item.max_price) if item.max_price is not None else None,
         added_at=item.added_at.isoformat(),
+        card_set_id=item.card_set_id,
+        card_number=item.card_number,
+        card_name=item.card_name,
+        card_rarity=item.card_rarity,
+        card_types=item.card_types_json,
+        card_image_url=item.card_image_url,
+        price_snapshot=(float(item.price_snapshot) if item.price_snapshot is not None else None),
+        priced_at=item.priced_at.isoformat() if item.priced_at is not None else None,
+        acquired_at=item.acquired_at.isoformat() if item.acquired_at is not None else None,
+        acquired_collection_item_id=item.acquired_collection_item_id,
     )

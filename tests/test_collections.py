@@ -101,6 +101,120 @@ class CollectionsMigrationTests(_IsolatedDbMixin):
         self.assertIn("collection_items", names)
 
 
+class CollectionsModelReworkMigrationTests(_IsolatedDbMixin):
+    """The collections-rework revision (#574) is the foundation every
+    other child in the epic builds on, so the schema it lands must be
+    well-defined: promoted columns on both item tables, quantity on
+    ``collection_items``, ``kind`` on ``collections``, and a
+    ``collection_snapshots`` table."""
+
+    def test_promoted_columns_present_on_collection_items(self) -> None:
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collection_items")}
+        for col in (
+            "quantity",
+            "card_set_id",
+            "card_number",
+            "card_name",
+            "card_rarity",
+            "card_types_json",
+            "card_image_url",
+            "price_snapshot",
+            "priced_at",
+            "added_via",
+        ):
+            self.assertIn(col, cols, f"expected collection_items.{col}")
+
+    def test_promoted_columns_present_on_wishlist_items(self) -> None:
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("wishlist_items")}
+        for col in (
+            "card_set_id",
+            "card_number",
+            "card_name",
+            "card_image_url",
+            "acquired_at",
+            "acquired_collection_item_id",
+        ):
+            self.assertIn(col, cols, f"expected wishlist_items.{col}")
+
+    def test_collections_carries_kind_and_rule_columns(self) -> None:
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertIn("kind", cols)
+        self.assertIn("source_set_id", cols)
+        self.assertIn("rule_json", cols)
+
+    def test_collection_snapshots_table_exists(self) -> None:
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        self.assertIn("collection_snapshots", set(inspect(engine).get_table_names()))
+
+    def test_backfill_populates_promoted_columns_on_legacy_rows(self) -> None:
+        # Real-world parity check: roll the schema to the revision
+        # *before* this one, insert a row that only carries ``card_json``
+        # (i.e. exactly what existing prod rows look like), then upgrade.
+        # The promoted columns must come out populated, not null.
+        from alembic import command
+
+        from api.db import migrate as migrate_mod
+
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cfg = migrate_mod._alembic_config()
+        cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+        # Step back to the immediate parent of the rework revision.
+        command.downgrade(cfg, "7d2e3a8c4b91")
+
+        from sqlalchemy import text
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO collections (user_id, name, created_at) VALUES (1, 'legacy', :ts)"
+                ),
+                {"ts": "2026-06-01 00:00:00"},
+            )
+            cid = conn.execute(text("SELECT id FROM collections")).scalar_one()
+            import json as _json
+
+            conn.execute(
+                text(
+                    "INSERT INTO collection_items "
+                    "(collection_id, card_json, added_at) "
+                    "VALUES (:cid, :card, :ts)"
+                ),
+                {
+                    "cid": cid,
+                    "card": _json.dumps(SAMPLE_CARD),
+                    "ts": "2026-06-01 00:00:00",
+                },
+            )
+
+        upgrade_head(engine)
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT card_set_id, card_number, card_name, card_image_url, "
+                    "       quantity, added_via "
+                    "FROM collection_items"
+                )
+            ).one()
+        self.assertEqual(row.card_set_id, "base1")
+        self.assertEqual(row.card_number, "4")
+        self.assertEqual(row.card_name, "Charizard")
+        self.assertEqual(row.card_image_url, "https://example.com/charizard.png")
+        # quantity carries its server-default for the legacy row.
+        self.assertEqual(row.quantity, 1)
+        # added_via was nullable on backfill; legacy rows stay None.
+        self.assertIsNone(row.added_via)
+
+
 # ---------------------------------------------------------------------------
 # Endpoint behavior
 # ---------------------------------------------------------------------------
@@ -220,6 +334,45 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             resp = c.delete(f"/api/v1/collections/{cid}/items/{item_id}")
             self.assertEqual(resp.status_code, 204)
             self.assertEqual(len(c.get(f"/api/v1/collections/{cid}").json()["items"]), 0)
+
+    def test_add_item_promotes_card_identity_and_defaults_quantity(self) -> None:
+        # The promoted columns are what every other surface in the epic
+        # queries against — the ownership badge (#576), the insights
+        # dashboard (#575), library-aware swipe (#581). They have to
+        # land on every new insert without the caller asking for them.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            item = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()
+            self.assertEqual(item["quantity"], 1)
+            self.assertEqual(item["card_set_id"], "base1")
+            self.assertEqual(item["card_number"], "4")
+            self.assertEqual(item["card_name"], "Charizard")
+            self.assertEqual(item["card_rarity"], "Rare Holo")
+            self.assertEqual(item["card_image_url"], "https://example.com/charizard.png")
+            self.assertEqual(item["added_via"], "manual")
+
+    def test_add_item_accepts_quantity_and_added_via(self) -> None:
+        # Vendor multiples ride on ``quantity``; the wishlist promote
+        # endpoint (#504) and haul mode (#509) will pass ``added_via``.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            item = c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": SAMPLE_CARD, "quantity": 3, "added_via": "haul"},
+            ).json()
+            self.assertEqual(item["quantity"], 3)
+            self.assertEqual(item["added_via"], "haul")
+
+    def test_add_item_rejects_zero_quantity(self) -> None:
+        # ``quantity = 0`` would mean "I own zero of this" — that's a
+        # delete, not an insert. 422 keeps the caller honest.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            resp = c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": SAMPLE_CARD, "quantity": 0},
+            )
+            self.assertEqual(resp.status_code, 422)
 
     def test_delete_item_404_when_wrong_collection(self) -> None:
         with self._client() as c:

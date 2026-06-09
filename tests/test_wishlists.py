@@ -217,6 +217,19 @@ class WishlistsEndpointTests(_IsolatedDbMixin):
             )
             self.assertEqual(resp.status_code, 422)
 
+    def test_add_card_promotes_card_identity_columns(self) -> None:
+        # Symmetric with collection_items: the same promoted columns
+        # land on the wishlist row so cross-surface queries (is this
+        # card already chased *or* owned?) hit one indexed shape.
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "hunt"}).json()["id"]
+            item = c.post(f"/api/v1/wishlists/{wid}/items", json={"card": SAMPLE_CARD}).json()
+            self.assertEqual(item["card_set_id"], "base1")
+            self.assertEqual(item["card_number"], "4")
+            self.assertEqual(item["card_name"], "Charizard")
+            self.assertIsNone(item["acquired_at"])
+            self.assertIsNone(item["acquired_collection_item_id"])
+
     def test_add_item_404_for_missing_wishlist(self) -> None:
         with self._client() as c:
             resp = c.post("/api/v1/wishlists/9999/items", json={"card": SAMPLE_CARD})
