@@ -55,7 +55,7 @@ class TCGClient:
         Returns `(cards, status)` where `status` is the worst page-level
         cache outcome across the walk (MISS > STALE > HIT). A single MISS
         page upgrades the whole call's status to MISS."""
-        cache_key = f"all:{query}:{page_size}:{max_pages}:{cache_only}"
+        cache_key = f"all:{query}:{page_size}:{max_pages}"
         if cache_key in self._cache:
             return self._cache[cache_key]
 
@@ -71,13 +71,17 @@ class TCGClient:
             all_cards.extend(data)
             if len(data) < page_size:
                 break  # short page → last page
-        self._cache[cache_key] = (all_cards, status)
+        # Don't memoize cache-only misses — a later authenticated call should
+        # still get a chance to hit upstream rather than re-reading the empty
+        # MISS-CACHE-ONLY result from L1.
+        if status != "MISS-CACHE-ONLY":
+            self._cache[cache_key] = (all_cards, status)
         return all_cards, status
 
     def _fetch_page(
         self, query: str, *, page: int, page_size: int, cache_only: bool = False
     ) -> tuple[list[dict[str, Any]], str]:
-        cache_key = f"page:{query}:{page}:{page_size}:{cache_only}"
+        cache_key = f"page:{query}:{page}:{page_size}"
         if cache_key in self._cache:
             return self._cache[cache_key]
         url = f"{API_BASE}/cards?q={quote(query)}&pageSize={page_size}&page={page}"
@@ -94,9 +98,15 @@ class TCGClient:
             self._cache[cache_key] = (cached, "HIT")
             return cached, "HIT"
         if cached is not None and status == "STALE":
-            if self.verbose:
-                print(f"  stale {url} (background refresh kicked off)", file=sys.stderr)
-            disk_cache.spawn_pricing_refresh(url, lambda u=url: self._refetch_for_pricing(u))
+            # cache_only callers (hosted-demo anonymous traffic) must not
+            # trigger upstream requests, even backgrounded ones — skip the
+            # SWR refresh and serve the stale value as-is.
+            if not cache_only:
+                if self.verbose:
+                    print(f"  stale {url} (background refresh kicked off)", file=sys.stderr)
+                disk_cache.spawn_pricing_refresh(url, lambda u=url: self._refetch_for_pricing(u))
+            elif self.verbose:
+                print(f"  stale {url} (cache-only — skipping refresh)", file=sys.stderr)
             self._cache[cache_key] = (cached, "STALE")
             return cached, "STALE"
         if self.verbose:
@@ -105,9 +115,11 @@ class TCGClient:
         if data is None:
             # Transient failure already swallowed below; return empty MISS so
             # callers see "no candidates" without poisoning the cache.
-            status = "MISS-CACHE-ONLY" if cache_only else "MISS"
-            self._cache[cache_key] = ([], status)
-            return [], status
+            # Cache-only misses skip L1 too — see `search_all`.
+            if cache_only:
+                return [], "MISS-CACHE-ONLY"
+            self._cache[cache_key] = ([], "MISS")
+            return [], "MISS"
         self._cache[cache_key] = (data, "MISS")
         disk_cache.write_api_split(url, data)
         return data, "MISS"

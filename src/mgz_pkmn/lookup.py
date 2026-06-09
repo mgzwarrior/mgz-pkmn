@@ -208,9 +208,11 @@ def find_card(
     to ``"ja"`` to make every untagged line fall through to TCGdex Japanese
     after pokemontcg.io misses.
 
-    `cache_only` applies to pokemontcg.io lookups. When True, cached results
-    can still resolve but disk misses are treated as empty results instead of
-    live upstream requests.
+    `cache_only` makes the whole coordinator non-network: pokemontcg.io disk
+    misses degrade to MISS-CACHE-ONLY instead of fetching upstream, and the
+    PriceCharting / TCGdex branches are skipped entirely (neither has disk
+    persistence today, so any call would be a live HTTP request — exactly
+    what hosted-demo anonymous traffic must not do).
 
     `on_stage`, when provided, is called with the name of each pipeline stage
     as the lookup advances (`url_hint` / `looking_up` / `fallback`) so the web
@@ -253,7 +255,10 @@ def find_card(
     primary = search_pokemontcg(pkmn, q, cache_only=cache_only)
     if primary.card:
         return _apply_price_bounds(primary, q)
-    if cache_only and primary.cache_status == "MISS-CACHE-ONLY":
+    # cache_only must short-circuit before the TCGdex fallback even when
+    # pokemontcg.io served a cache HIT/STALE with zero candidates — TCGdex
+    # has no disk cache, so any fallback call is a live upstream request.
+    if cache_only:
         return primary
 
     # 3. TCGdex — fall back through any languages hinted in the input, then EN.
