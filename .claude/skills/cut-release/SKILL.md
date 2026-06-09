@@ -96,9 +96,60 @@ own number." Don't skip any of the five.
 After editing, run `uv lock` and the two `npm install`s once — they're
 fast and idempotent.
 
-## Step 5 — Rotate the CHANGELOG
+## Step 5 — Consolidate, then rotate the CHANGELOG
 
-In `CHANGELOG.md`:
+Two passes on `CHANGELOG.md`, in order. The consolidation is the
+**load-bearing editorial pass** that #571 codified — the marketing site
+and the live-demo "what's new" surface render the CHANGELOG verbatim,
+so the version section the releasing agent / human ships is exactly
+what every visitor reads.
+
+### Step 5a — Consolidation pass over `[Unreleased]`
+
+Walk the existing `[Unreleased]` section and apply the rules below
+before rotating it into a versioned section. This is editorial work —
+no automation makes the call about what's "most impactful"; release-
+please (#68) drafts the bullets from Conventional Commits, the agent /
+human curates them.
+
+**Rules:**
+
+1. **Dedupe subsection headings.** Collapse multiple `### Added` /
+   `### Changed` / `### Fixed` blocks within `[Unreleased]` into one
+   block per heading. The Keep-a-Changelog spec allows one of each
+   per release; multiple blocks are noise that breaks the marketing
+   site's table-of-contents.
+2. **Promote impactful entries to the top of each subsection.**
+   Rank by user-visible weight: a new top-level capability beats a
+   refinement, a refinement beats a bugfix description, a bugfix
+   beats a refactor that happened to surface here. The top three
+   bullets in each subsection are what the live-demo "what's new"
+   preview will lead with — order accordingly.
+3. **Drop or merge low-signal entries.**
+   - **Drop:** dependency bumps with no behaviour change, CI-only
+     tweaks, internal renames, formatting passes, test additions
+     against unchanged code.
+   - **Merge:** related small changes that share a theme. Three
+     incremental commits to the same screen become one bullet.
+   - Preserve the historical record for anything user-visible —
+     don't delete real changes, even small ones; reorder + merge.
+4. **Lead each bullet with the surface it changes.** Existing
+   convention: `Web:`, `API:`, `CLI:`, `Design:`, `DevOps:`. Use the
+   same prefix release-please / Conventional Commits scopes used.
+5. **Bold the user-facing headline.** First sentence in `**bold**`,
+   matching the existing pattern. The marketing site's "what's new"
+   preview shows only that first sentence.
+6. **No emoji in product copy.** Per the design system guide; the
+   single exception (🌴 Exeggutor) doesn't appear in the CHANGELOG.
+
+When release-please opened the original bot PR, the bullets it
+generated map directly from commit subjects. The consolidation pass
+edits them into the shape above. Don't blindly accept the bot's
+ordering or wording.
+
+### Step 5b — Rotation
+
+After the consolidation pass:
 
 1. Rename the existing `## [Unreleased]` heading to `## [$VERSION] - $RELEASE_DATE`.
 2. Insert a fresh empty `## [Unreleased]` block above it. Don't add
@@ -113,6 +164,19 @@ In `CHANGELOG.md`:
 
    where `$PREV_VERSION` is the immediately previous shipped version
    (the next compare-link entry that already exists).
+
+### When release-please opens the PR for you
+
+Once #68's release-please flow is in place, the bot opens the version-
+bump PR ahead of the cut-release skill being invoked. In that case:
+
+- Pull the bot's branch (`gh pr checkout <PR>`), apply Steps 4 + 5
+  (the bot only bumps the root `pyproject.toml` and rotates the
+  CHANGELOG; you still extend to the other version surfaces and run
+  the consolidation pass), commit + push to the same branch.
+- Don't close the bot's PR and open your own — the bot will reuse the
+  branch on the next `main` push, and a human-authored replacement
+  PR breaks that loop.
 
 ## Step 6 — Verify locally
 
