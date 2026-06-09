@@ -268,7 +268,7 @@ class CacheWarmSetCardsCLITests(_IsolatedCacheMixin):
 
     def test_warm_command_writes_manifest_and_summarises(self) -> None:
         fake_result = WarmSetCardsResult(sets_attempted=3, sets_warmed=2, sets_failed=["bogus"])
-        with patch("mgz_pkmn.cli.warm_set_cards", return_value=fake_result):
+        with patch("mgz_pkmn.cli.cache.warm_set_cards", return_value=fake_result):
             result = self._invoke("--set", "sv8", "--set", "sv9", "--set", "bogus")
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("3 sets", result.output)
@@ -286,7 +286,7 @@ class CacheWarmSetCardsCLITests(_IsolatedCacheMixin):
         # returned nothing) should surface as a click error rather than
         # silently writing a zero-count manifest.
         fake_result = WarmSetCardsResult(sets_attempted=0, sets_warmed=0, sets_failed=[])
-        with patch("mgz_pkmn.cli.warm_set_cards", return_value=fake_result):
+        with patch("mgz_pkmn.cli.cache.warm_set_cards", return_value=fake_result):
             result = self._invoke()
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("no sets to warm", result.output.lower())
@@ -295,7 +295,7 @@ class CacheWarmSetCardsCLITests(_IsolatedCacheMixin):
         import requests as req_lib
 
         with patch(
-            "mgz_pkmn.cli.warm_set_cards",
+            "mgz_pkmn.cli.cache.warm_set_cards",
             side_effect=req_lib.ConnectionError("upstream down"),
         ):
             result = self._invoke("--set", "sv8")

@@ -160,7 +160,7 @@ mgz-pkmn/
 src/mgz_pkmn/
 ├── __init__.py
 ├── __main__.py        # python -m mgz_pkmn
-├── cli.py             # Click command, top-level orchestration
+├── cli/               # Click commands split per surface (lookup/, set_cards/, cache/, exeggutor/)
 ├── parser.py          # parse_line, CardQuery, language + bulk-phrase detection
 ├── lookup.py          # find_card / find_top_cards, plus warm_concepts / warm_set_cards / warm_cards
 ├── pricing.py         # extract_pricing, Pricing, COMP_PERCENTS
@@ -322,7 +322,8 @@ make coverage           # python tests under coverage; emits htmlcov/ + coverage
 make lint               # ruff + eslint
 make format             # ruff format in-place
 make fix                # ruff --fix + ruff format
-make check              # CI-equivalent: lint + format-check + tests + web lint
+make complexity         # radon CC + MI gate — fails on D+ functions or B+ files (see Makefile RADON_*_EXCLUDE for the shrink-as-we-refactor allowlist; pair with the [`repo-analysis`](../.claude/skills/repo-analysis/SKILL.md) skill to find the next refactor target)
+make check              # CI-equivalent: lint + format-check + complexity gate + tests + web lint
 make precommit          # run all pre-commit hooks against every file
 ```
 

@@ -127,8 +127,36 @@ fix:  ## Auto-fix safe ruff issues + reformat.
 	uv run ruff check --fix $(PY_PATHS)
 	uv run ruff format $(PY_PATHS)
 
+# Files that radon's complexity gate currently allowlists. Tracked in one
+# place so each new refactor can shrink the list (the goal is empty). Every
+# file listed here has a D-rank-or-worse function or a B-rank-or-worse
+# maintainability index that pre-dates the gate; the gate stays green on
+# green-field, then tightens as each is brought to A. See issue #387.
+RADON_CC_EXCLUDE := src/mgz_pkmn/spreadsheet.py,src/mgz_pkmn/lookup.py,src/mgz_pkmn/cache.py,src/mgz_pkmn/card_images.py,src/mgz_pkmn/parser.py,src/mgz_pkmn/pricing.py,src/mgz_pkmn/binder.py,src/mgz_pkmn/report.py
+RADON_MI_EXCLUDE := src/mgz_pkmn/cache.py
+
+.PHONY: complexity
+complexity:  ## Maintainability gate: fail on D+ cyclomatic complexity or B+ maintainability index.
+	@out=$$(uv run radon cc src/ api/ -n D --exclude '$(RADON_CC_EXCLUDE)'); \
+	  if [ -n "$$out" ]; then \
+	    echo "$$out" >&2; \
+	    echo >&2; \
+	    echo "✗ Cyclomatic complexity gate failed: D-rank or worse function above." >&2; \
+	    echo "  Either refactor it, or (if it pre-dates the gate) add the file to RADON_CC_EXCLUDE in Makefile." >&2; \
+	    exit 1; \
+	  fi
+	@out=$$(uv run radon mi src/ api/ -n B --exclude '$(RADON_MI_EXCLUDE)'); \
+	  if [ -n "$$out" ]; then \
+	    echo "$$out" >&2; \
+	    echo >&2; \
+	    echo "✗ Maintainability index gate failed: B-rank or worse file above." >&2; \
+	    echo "  Either refactor it, or (if it pre-dates the gate) add the file to RADON_MI_EXCLUDE in Makefile." >&2; \
+	    exit 1; \
+	  fi
+	@echo "✓ complexity gate passed"
+
 .PHONY: check
-check: lint-py format-check test lint-web lint-design test-site  ## CI-equivalent: lint + format-check + tests + web lint + design lint + site regressions.
+check: lint-py format-check complexity test lint-web lint-design test-site  ## CI-equivalent: lint + format-check + complexity gate + tests + web lint + design lint + site regressions.
 
 .PHONY: precommit
 precommit:  ## Run all pre-commit hooks against every file in the repo.
