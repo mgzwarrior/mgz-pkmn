@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Design: **Styleguide published to GitHub Pages** ([#547](https://github.com/mgzwarrior/mgz-pkmn/issues/547)). New `.github/workflows/pages.yml` stages `design/styleguide/`, `design/tokens/`, and `assets/` into a deploy artifact and publishes the tree to <https://mgzwarrior.github.io/mgz-pkmn/> on every push to `main` that touches `design/` or `assets/`. The root index redirects to `design/styleguide/index.html`; the relative `../tokens/colors_and_type.css` and `../../assets/*.svg` references the cards already use resolve unchanged. Separate from the marketing-site Render deploy (which still hosts the product). A new `tests/test_styleguide_links.py` guard fails CI when any local `href` / `src` in a styleguide card stops resolving so a broken stylesheet or asset surfaces before review. `design/DESIGN_SYSTEM.md`, `design/INTEGRATION.md`, and `README.md` point at the hosted URL.
+
 ### Fixed
 
 - Web: **Bookmark / heart actions pinned to the left of every ResultsTable row** ([#540](https://github.com/mgzwarrior/mgz-pkmn/issues/540)). `AddToCollectionButton` and `AddToWishlistButton` used to render in the rightmost cell, which sat off-screen behind a horizontal scrollbar whenever the table overflowed (narrow viewports, or once the comp-tier + price-source columns kicked in). They now live in their own fixed-width cell on the left edge so they stay visible regardless of column count, matching the row-actions convention used by Gmail / Linear / GitHub PR lists. The external-link icon stays at its right-end position. The new actions column is only rendered when the row-level save buttons would actually be visible (signed-in or self-host) so anonymous hosted-demo visitors see no extra empty cell.

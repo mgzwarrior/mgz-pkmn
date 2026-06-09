@@ -1,0 +1,80 @@
+name: Pages
+
+# Publish the in-repo design styleguide (`design/styleguide/`) to GitHub
+# Pages. Separate from the marketing-site Render deploy (see render.yaml) —
+# Pages hosts the static design reference; Render hosts the product.
+#
+# The styleguide cards reference `../tokens/colors_and_type.css` and
+# `../../assets/*.svg` relative to `design/styleguide/`, so the published
+# tree mirrors that layout: `design/styleguide/`, `design/tokens/`, and
+# `assets/` all sit under the site root. A small redirect at `/` lands
+# visitors on the styleguide index.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "design/styleguide/**"
+      - "design/tokens/**"
+      - "assets/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Stage styleguide tree
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site/design/styleguide _site/design/tokens _site/assets
+          cp -R design/styleguide/. _site/design/styleguide/
+          cp -R design/tokens/. _site/design/tokens/
+          cp -R assets/. _site/assets/
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <title>mgz-pkmn design styleguide</title>
+              <meta http-equiv="refresh" content="0; url=design/styleguide/index.html">
+              <link rel="canonical" href="design/styleguide/index.html">
+            </head>
+            <body>
+              <p>Redirecting to <a href="design/styleguide/index.html">the design styleguide</a>.</p>
+            </body>
+          </html>
+          HTML
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
