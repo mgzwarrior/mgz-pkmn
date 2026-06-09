@@ -115,10 +115,6 @@ indent-style = "space"
 [tool.coverage.run]
 branch = true
 source = ["src/mgz_pkmn", "api"]
-# `cli/exeggutor.py` is the Exeggutor easter-egg surface (--exeggutor flag +
-# bulk-lookup checkpoint). It's intentionally hidden, exercising it in tests
-# would defeat the easter-egg discoverability, and its coverage drags the
-# overall % down for no real signal — omit it from the report.
 omit = ["tests/*", "api/tests/*", "src/mgz_pkmn/cli/exeggutor.py"]
 
 [tool.coverage.report]
