@@ -145,6 +145,28 @@ describe('HelpModal', () => {
     )
   })
 
+  it('marks the version seen when the changelog resolves after the bar is already open', async () => {
+    useAppStore.setState({ lastSeenChangelogVersion: '1.1.0' })
+    let resolveFetch: (releases: ChangelogRelease[]) => void = () => {}
+    mockFetchChangelog.mockReturnValue(
+      new Promise<ChangelogRelease[]>((res) => {
+        resolveFetch = res
+      }),
+    )
+    render(<HelpModal onStartTour={vi.fn()} />)
+    // Open the modal and expand the bar before the changelog arrives.
+    fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /what's new/i }))
+    // Latest is still unknown, so nothing is persisted yet.
+    expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.0')
+    // The changelog resolves while the panel is open — the late `latest` should
+    // still mark the release seen without a collapse/re-expand.
+    resolveFetch(RELEASES)
+    await waitFor(() =>
+      expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1'),
+    )
+  })
+
   it('renders only the latest release\'s top 3 features in the What\'s new bar', async () => {
     useAppStore.setState({ lastSeenChangelogVersion: '1.1.1' })
     render(<HelpModal onStartTour={vi.fn()} />)

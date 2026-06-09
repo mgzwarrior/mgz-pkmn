@@ -110,6 +110,15 @@ export function HelpModal({ onStartTour }: Props) {
 
   const hasUnseen = !!latest && lastSeen !== null && latest !== lastSeen
 
+  // Expanding the What's new bar marks the latest release seen — clearing the
+  // unseen dot on both the bar and the trigger. An effect (rather than the
+  // click handler alone) also covers the panel being opened before the
+  // changelog fetch resolved: a late-arriving `latest` still clears the dot
+  // without forcing the user to collapse and re-expand.
+  useEffect(() => {
+    if (whatsNewOpen && latest && lastSeen !== latest) setLastSeen(latest)
+  }, [whatsNewOpen, latest, lastSeen, setLastSeen])
+
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (next && hint) {
@@ -120,15 +129,8 @@ export function HelpModal({ onStartTour }: Props) {
     if (!next) setWhatsNewOpen(false)
   }
 
-  // Expanding the What's new bar is the moment the user "sees" the release, so
-  // mark the latest version seen here (not on modal open) — that's what clears
-  // the unseen dot on both the bar and the trigger.
   function handleToggleWhatsNew() {
-    setWhatsNewOpen((prev) => {
-      const next = !prev
-      if (next && latest) setLastSeen(latest)
-      return next
-    })
+    setWhatsNewOpen((prev) => !prev)
   }
 
   function handleTakeTour() {
