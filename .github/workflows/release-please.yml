@@ -29,7 +29,7 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         with:
           # PAT (same secret as the existing tag-push flow) so the
           # opened PR can be edited by subsequent agent / human
