@@ -157,6 +157,24 @@ class Run(Base):
     )
 
 
+#: Allowed values for ``Collection.kind``. ``manual`` is the default
+#: catalog ("Show Binder", "Trade Stock"); ``set`` anchors to a
+#: ``source_set_id`` so completion % is well-defined; ``dynamic``
+#: stores a ``rule_json`` and recomputes membership. See #506.
+COLLECTION_KIND_MANUAL = "manual"
+COLLECTION_KIND_SET = "set"
+COLLECTION_KIND_DYNAMIC = "dynamic"
+
+#: Allowed values for ``CollectionItem.added_via`` — provenance tag,
+#: used by the insights dashboard to answer "how do users actually get
+#: cards into their collections."
+ADDED_VIA_MANUAL = "manual"
+ADDED_VIA_WISHLIST_PROMOTE = "wishlist_promote"
+ADDED_VIA_HAUL = "haul"
+ADDED_VIA_DYNAMIC_MATCH = "dynamic_match"
+ADDED_VIA_SWIPE = "swipe"
+
+
 class Collection(Base):
     __tablename__ = "collections"
 
@@ -169,11 +187,28 @@ class Collection(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+    # ---- v1.5 collections-rework columns (#574) ----
+    #: One of ``manual``, ``set``, ``dynamic``. Default keeps existing
+    #: behavior unchanged. Set-based and dynamic kinds ride #506 — the
+    #: column exists now so future migrations are additive.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default=COLLECTION_KIND_MANUAL)
+    #: Required when ``kind == 'set'``. Matches the promoted
+    #: ``card_set_id`` on items, so set-completion is a single JOIN.
+    source_set_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: Required when ``kind == 'dynamic'``. Stores the rule definition
+    #: (the query DSL from ADR-0022); the membership query is recomputed
+    #: lazily and never materialised as ``collection_items`` rows.
+    rule_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     items: Mapped[list[CollectionItem]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",
         order_by="CollectionItem.added_at",
+    )
+    snapshots: Mapped[list[CollectionSnapshot]] = relationship(
+        back_populates="collection",
+        cascade="all, delete-orphan",
+        order_by="CollectionSnapshot.captured_at",
     )
 
 
@@ -190,8 +225,69 @@ class CollectionItem(Base):
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+    # ---- v1.5 collections-rework columns (#574) ----
+    #: Vendor multiples. Default 1 keeps existing behavior unchanged.
+    #: Per-condition (NM/LP/MP/HP/DM) breakdown is a deliberate future
+    #: child — don't collapse it into this column.
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: Promoted card-identity columns, extracted from ``card_json`` at
+    #: insert. ``card_json`` stays as source of truth for unpromoted
+    #: fields; these exist so cross-collection lookup, set-completion,
+    #: and the insights dashboard are indexed SQL instead of JSON scans.
+    #: See :mod:`api.db.card_payload` for the extractor.
+    card_set_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    card_number: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    card_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    card_rarity: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    card_types_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    card_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    #: Snapshot at insert time. Powers value-over-time + top-N. Null when
+    #: the payload didn't carry a recognizable price.
+    price_snapshot: Mapped[float | None] = mapped_column(
+        Numeric(12, 2, asdecimal=False), nullable=True
+    )
+    priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Provenance tag — one of the ``ADDED_VIA_*`` constants. Nullable
+    #: on backfilled rows; new inserts always set it.
+    added_via: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     collection: Mapped[Collection] = relationship(back_populates="items")
+
+
+class CollectionSnapshot(Base):
+    """Periodic snapshot of a collection's headline metrics.
+
+    Backs the value-over-time chart on the insights dashboard (#575) and
+    the set-ID-card progress view (#508). Written on item add/remove and
+    by a nightly cron (separate child issue). Append-only — old rows are
+    history, not state to mutate."""
+
+    __tablename__ = "collection_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    collection_id: Mapped[int] = mapped_column(
+        ForeignKey("collections.id", ondelete="CASCADE"), nullable=False
+    )
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    #: Distinct cards (ignores quantity).
+    unique_cards: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Sum of ``CollectionItem.quantity`` at snapshot time.
+    total_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Sum of ``price_snapshot * quantity`` in cents (integer to avoid
+    #: float drift on charts that subtract day-over-day).
+    est_value_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: For ``kind == 'set'`` collections: ``unique_cards / total_in_set``
+    #: as a fraction in [0, 1]. Null for non-set collections.
+    set_completion_pct: Mapped[float | None] = mapped_column(
+        Numeric(5, 4, asdecimal=False), nullable=True
+    )
+    #: Free-form room for headline breakdowns (top rarity, top type) so
+    #: the dashboard doesn't have to recompute them on every render.
+    payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+    collection: Mapped[Collection] = relationship(back_populates="snapshots")
 
 
 class Wishlist(Base):
@@ -206,6 +302,11 @@ class Wishlist(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+    # ---- v1.5 collections-rework column (#574) ----
+    #: Optional "for the Allentown show on June 14" anchor. Powers
+    #: post-show retrospectives in the insights dashboard. Route plumbing
+    #: rides on #504.
+    target_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     items: Mapped[list[WishlistItem]] = relationship(
         back_populates="wishlist",
@@ -229,6 +330,29 @@ class WishlistItem(Base):
     max_price: Mapped[float | None] = mapped_column(Numeric(12, 2, asdecimal=False), nullable=True)
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    # ---- v1.5 collections-rework columns (#574) ----
+    #: Same promoted card-identity columns as ``CollectionItem`` — kept
+    #: symmetric so cross-surface queries (e.g. "is this card already
+    #: chased or owned?") don't need a discriminator.
+    card_set_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    card_number: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    card_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    card_rarity: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    card_types_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    card_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    price_snapshot: Mapped[float | None] = mapped_column(
+        Numeric(12, 2, asdecimal=False), nullable=True
+    )
+    priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Lifecycle plumbing for the wishlist → collection promote in #504.
+    #: ``acquired_at`` is when the user marked the chase complete;
+    #: ``acquired_collection_item_id`` points at the resulting
+    #: ``collection_items`` row so the SPA can render "got it" with a
+    #: link instead of deleting the wishlist row.
+    acquired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    acquired_collection_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collection_items.id", ondelete="SET NULL"), nullable=True
     )
 
     wishlist: Mapped[Wishlist] = relationship(back_populates="items")
