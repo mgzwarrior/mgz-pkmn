@@ -1,6 +1,8 @@
 /**
- * HelpModal — onboarding/help dialog with sections covering queries,
- * settings, exports, shortcuts, and what's new. Includes a "Take the
+ * HelpModal — onboarding/help dialog whose sections track the live app:
+ * what it does, the Search / Browse / Swipe modes, writing queries,
+ * results + card details, the Library (Searches / Recent / Collections /
+ * Wishlists), settings, exports, and shortcuts. Includes a "Take the
  * tour" button that hands control off to the Tour component.
  *
  * The "what's new" surface is a collapsible bar pinned below the header,
@@ -274,17 +276,33 @@ export function HelpModal({ onStartTour }: Props) {
           >
             <Section title="What this does">
               <p>
-                Paste a list of Pokémon cards (one per line), click{' '}
-                <Kbd>Look up</Kbd>, and get matched cards with current market
-                prices and negotiation comps. Then download an .xlsx, PDF
-                binder, condensed PDF, or checklist for the table.
+                mgz-pkmn helps you prep for a card show. Find cards three ways —
+                paste a want-list, walk a whole set, or swipe card by card — then
+                get current market prices and negotiation comps for every match.
+                Save what you own to a collection, keep a want-list of what
+                you&apos;re hunting, and download an .xlsx, PDF binder, condensed
+                PDF, or checklist for the table.
               </p>
+            </Section>
+
+            <Section title="Finding cards">
+              <p className="mb-2 text-coconut-400 dark:text-sand-300">
+                Switch modes from the bar above the card list:
+              </p>
+              <Definitions
+                rows={[
+                  ['Search', 'Paste or type a want-list, one card per line, and look them all up at once.'],
+                  ['Browse', 'Walk a whole set card by card, filtered by series, rarity, or release year.'],
+                  ['Swipe', 'Flip through one card at a time — pass, save, or love — then turn the keepers into a want-list.'],
+                ]}
+              />
             </Section>
 
             <Section title="Writing queries">
               <p className="mb-2 text-coconut-400 dark:text-sand-300">
-                One card per line. Blank lines and <code>#</code> comments are
-                skipped. Common formats:
+                In Search mode, one card per line. Click <Kbd>Look up</Kbd> to run
+                it. Blank lines and <code>#</code> comments are skipped. Common
+                formats:
               </p>
               <Examples
                 rows={[
@@ -298,6 +316,33 @@ export function HelpModal({ onStartTour }: Props) {
                   ['Pikachu >=20 <=50', 'Price-bound filter'],
                 ]}
               />
+            </Section>
+
+            <Section title="Results & card details">
+              <Definitions
+                rows={[
+                  ['Sort', 'Click any column header to sort. Your sort and filters ride along when you save the search.'],
+                  ['Filter', 'Narrow a big result set by per-column text or a price range.'],
+                  ['Card details', 'Click any row for the full-size card and every field the source returned. Left and right arrows step through your results.'],
+                  ['Save a card', 'Per-row buttons add a card to a collection (you own it) or a want-list (you want it).'],
+                ]}
+              />
+            </Section>
+
+            <Section title="Library">
+              <Definitions
+                rows={[
+                  ['Searches', 'Lookups you have saved with a name. Click one to reload its cards, sort, and filters.'],
+                  ['Recent', 'Your last few lookups, kept on this device. One tap re-runs them.'],
+                  ['Collections', 'Cards you own, grouped into lists. Build them with the save button on any result row.'],
+                  ['Wishlists', 'Your want-lists — cards you are hunting, each with an optional price cap.'],
+                ]}
+              />
+              <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">
+                Collections, want-lists, and saved searches are tied to your
+                account — sign in on the hosted demo to use them. The self-hosted
+                build keeps everything locally.
+              </p>
             </Section>
 
             <Section title="Settings">
@@ -328,7 +373,22 @@ export function HelpModal({ onStartTour }: Props) {
             <Section title="Shortcuts">
               <Definitions
                 rows={[
-                  [<Kbd key="run">Ctrl/Cmd + Enter</Kbd>, 'Run the lookup'],
+                  [<Kbd key="run">Ctrl/Cmd + Enter</Kbd>, 'Run the lookup in Search mode'],
+                  [
+                    <span key="swipe" className="flex gap-1">
+                      <Kbd>←</Kbd>
+                      <Kbd>→</Kbd>
+                      <Kbd>↑</Kbd>
+                    </span>,
+                    'Swipe mode: pass, save, love',
+                  ],
+                  [
+                    <span key="detail" className="flex gap-1">
+                      <Kbd>←</Kbd>
+                      <Kbd>→</Kbd>
+                    </span>,
+                    'Step between cards in the detail view',
+                  ],
                   [<Kbd key="brand">Brand × 5</Kbd>, 'Click the logo five times for a surprise'],
                 ]}
               />
