@@ -31,24 +31,6 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          # PAT (not GITHUB_TOKEN) is load-bearing here. Per GitHub's
-          # docs, events triggered by GITHUB_TOKEN do not create new
-          # workflow runs — so a release PR opened with GITHUB_TOKEN
-          # would not fire `pull_request` workflows (CI, DCO,
-          # Conventional Commits check), leaving the bot's PR without
-          # the required validation runs until someone pushes another
-          # commit with a different credential.
-          #
-          # RELEASE_PAT must carry these fine-grained scopes (or the
-          # classic `repo` scope):
-          #   - contents: write
-          #   - pull-requests: write   ← required by the action below;
-          #                              the workflow's permissions:
-          #                              block only applies to
-          #                              GITHUB_TOKEN
-          #   - issues: write          ← release-please manages its
-          #                              own autorelease:* labels
-          #                              through the Issues API
           token: ${{ secrets.RELEASE_PAT }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
