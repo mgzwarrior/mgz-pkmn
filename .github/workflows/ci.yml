@@ -80,7 +80,8 @@ jobs:
         run: npm run lint
 
       - name: Design adherence (oxlint)
-        run: npx oxlint -c ../.oxlintrc.json ../site/src ./src
+        working-directory: .
+        run: web/node_modules/.bin/oxlint -c .oxlintrc.json site/src web/src
 
       - name: Test (vitest) with coverage
         run: npx vitest run --coverage
