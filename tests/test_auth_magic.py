@@ -231,6 +231,12 @@ class RequestNoEnumerationTests(_IsolatedDbMixin):
         ]
         self.assertEqual(len(image_parts), 1)
         self.assertEqual(image_parts[0]["Content-ID"], "<mgz-pkmn-logo>")
+        self.assertEqual(
+            image_parts[0].get_payload(decode=True),
+            (
+                Path(__file__).resolve().parents[1] / "api" / "templates" / "auth_logo.png"
+            ).read_bytes(),
+        )
 
 
 class CallbackTokenTests(_IsolatedDbMixin):

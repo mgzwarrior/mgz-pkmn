@@ -101,7 +101,7 @@ POST_SIGNIN_REDIRECT = "/"
 MAIL_SUBJECT = "Sign in to mgz-pkmn"
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "auth_magic.txt"
-_LOGO_PATH = Path(__file__).resolve().parents[2] / "src" / "mgz_pkmn" / "assets" / "logo.png"
+_LOGO_PATH = Path(__file__).resolve().parent.parent / "templates" / "auth_logo.png"
 _LOGO_CID = "mgz-pkmn-logo"
 
 # Email clients do not reliably preserve CSS variables, so these are
