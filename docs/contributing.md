@@ -570,15 +570,16 @@ SPA). Thresholds will be revisited once we have a stable baseline.
 
 ## Changelog
 
-[CHANGELOG.md](../CHANGELOG.md) follows the [Keep a
-Changelog](https://keepachangelog.com/en/1.1.0/) format. A PR with a
-**user-facing** change — a new feature, bug fix, behaviour change,
-deprecation, or removal — adds a bullet under the matching subsection
-(`Added` / `Changed` / `Fixed` / `Deprecated` / `Removed`) of the
-`[Unreleased]` section at the top of the file.
+[CHANGELOG.md](../CHANGELOG.md) follows the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
-Skip the changelog for changes users never see: dependency bumps, CI
-config, internal refactors, and test-only changes.
+**Don't add `[Unreleased]` entries by hand in your PR.** release-please reads the Conventional Commits between releases and drafts the next release's bullets automatically — adding a hand-written entry on top of that produces a duplicate that ships to the marketing site and the live-demo "what's new" surface as the same change listed twice. The cut-release editorial consolidation pass (`.claude/skills/cut-release/SKILL.md` Step 5a) then rewrites release-please's terse bullets into the project's rich-paragraph style, pulling detail from PR bodies — so the things that matter for the final CHANGELOG are:
+
+- **Your Conventional Commits subject** (`<type>(<scope>): <subject>`) — release-please uses it verbatim as the seed bullet. `feat:` lands under `### Added`, `fix:` under `### Fixed`, `perf:` / `refactor:` / `docs:` / `revert:` under `### Changed`. `chore:` / `ci:` / `test:` / `build:` / `style:` are hidden from the changelog by design — that's how you mark "changes users never see" (dependency bumps, CI config, internal refactors, test-only PRs).
+- **Your PR body** — the cut-release editorial pass reads it when rewriting bullets into the rich style. Include the **why**, the user-visible impact, and the files / surfaces touched. The richer your PR description, the richer the final changelog entry.
+
+If your change really has no user-visible impact, use a hidden type (`chore:`, `ci:`, `refactor:` for internal-only restructures, `test:`, `build:`, `style:`) and nothing ships to the changelog. No manual `### Hidden` block, no opt-out flag — the commit type is the contract.
+
+This rule is forward-looking: existing hand-written `[Unreleased]` entries that predate release-please stay until the next release's editorial pass folds or rewrites them.
 
 ## Releasing
 

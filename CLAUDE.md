@@ -76,10 +76,17 @@ No other format is acceptable. Keep the description short (2–4 words, kebab-ca
 - Keep the change **focused**: one issue, one PR.
 - Prefer cross-agent review: implementation by one AI tool should be reviewed by
   a different AI tool when practical, then approved by the human.
-- For **user-facing** changes (features, fixes, behavior changes, deprecations,
-  removals), add a bullet under the matching subsection of `[Unreleased]` in
-  [CHANGELOG.md](CHANGELOG.md). Skip it for dependency bumps, CI tweaks,
-  internal refactors, and test-only changes.
+- **Do NOT add `[Unreleased]` entries to [CHANGELOG.md](CHANGELOG.md) by hand.** release-please
+  drafts the next release's bullets from your Conventional Commits subjects at release time,
+  and the cut-release editorial consolidation pass rewrites them in the project's rich-paragraph
+  style by referencing PR bodies. A hand-written entry on top of that produces a duplicate
+  that ships to the marketing site + live-demo "what's new" surface twice. Contributor
+  contract is now (1) a Conventional Commits subject — `feat:` → `### Added`,
+  `fix:` → `### Fixed`, `perf:` / `refactor:` / `docs:` / `revert:` → `### Changed`,
+  and `chore:` / `ci:` / `test:` / `build:` / `style:` are hidden from the changelog by
+  design (use these for dependency bumps, CI tweaks, internal refactors, test-only PRs) —
+  and (2) a rich PR body the editorial pass can pull detail from. See
+  [docs/contributing.md → Changelog](docs/contributing.md#changelog).
 - For **deployment-affecting** changes, update [render.yaml](render.yaml) in the
   same PR so the hosted-demo blueprint stays in sync with the code. The blueprint
   is the canonical declaration of what the deployed API needs — keeping it in the
