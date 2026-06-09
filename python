@@ -1,0 +1,144 @@
+"""Spreadsheet generation for Pokémon card data."""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import openpyxl
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+
+from mgz_pkmn.models import Card
+
+logger = logging.getLogger(__name__)
+
+# ── Constants ──────────────────────────────────────────────────────────────
+HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
+PRICE_CAP_FILL = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+THIN_BORDER = Border(
+    left=Side(style="thin"),
+    right=Side(style="thin"),
+    top=Side(style="thin"),
+    bottom=Side(style="thin"),
+)
+
+COLUMNS: List[Tuple[str, int]] = [
+    ("Image", 15),
+    ("Name", 30),
+    ("Set", 20),
+    ("Card Number", 12),
+    ("Rarity", 15),
+    ("Market Price", 14),
+    ("Listed Price", 14),
+    ("Price Cap", 12),
+    ("Notes", 40),
+]
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────
+
+
+def _write_headers(ws: openpyxl.worksheet.worksheet.Worksheet) -> None:
+    """Write column headers and set column widths."""
+    for col_idx, (header, width) in enumerate(COLUMNS, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = THIN_BORDER
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+
+def _write_row(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+    row: int,
+    card: Card,
+    image_path: Optional[Path],
+) -> None:
+    """Write a single row of card data into the worksheet."""
+    values = [
+        "",  # Image placeholder
+        card.name,
+        card.set_name,
+        card.card_number,
+        card.rarity,
+        card.market_price,
+        card.listed_price,
+        card.price_cap,
+        card.notes,
+    ]
+    for col_idx, value in enumerate(values, start=1):
+        cell = ws.cell(row=row, column=col_idx, value=value)
+        cell.border = THIN_BORDER
+        cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    if image_path and image_path.exists():
+        _embed_image(ws, row, image_path)
+
+    if card.price_cap and card.listed_price and card.listed_price > card.price_cap:
+        _highlight_price_cap(ws, row)
+
+
+def _embed_image(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+    row: int,
+    image_path: Path,
+) -> None:
+    """Embed a card image into the first column of the given row."""
+    try:
+        img = openpyxl.drawing.image.Image(str(image_path))
+        img.width = 100
+        img.height = 140
+        cell_ref = f"A{row}"
+        ws.add_image(img, cell_ref)
+        ws.row_dimensions[row].height = 140
+    except Exception as exc:
+        logger.warning("Failed to embed image %s: %s", image_path, exc)
+
+
+def _highlight_price_cap(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+    row: int,
+) -> None:
+    """Highlight cells in the row where listed price exceeds price cap."""
+    for col_idx in (6, 7, 8):  # Market Price, Listed Price, Price Cap
+        cell = ws.cell(row=row, column=col_idx)
+        cell.fill = PRICE_CAP_FILL
+
+
+# ── Public API ─────────────────────────────────────────────────────────────
+
+
+def write_spreadsheet(
+    cards: List[Card],
+    output_path: Path,
+    image_dir: Optional[Path] = None,
+) -> Path:
+    """Write a list of cards to an xlsx spreadsheet.
+
+    Args:
+        cards: List of Card objects to write.
+        output_path: Destination path for the .xlsx file.
+        image_dir: Optional directory containing card images (named by card ID).
+
+    Returns:
+        The path to the written spreadsheet.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Pokémon Cards"
+
+    _write_headers(ws)
+
+    for row_idx, card in enumerate(cards, start=2):
+        image_path = None
+        if image_dir:
+            image_path = image_dir / f"{card.id}.png"
+        _write_row(ws, row_idx, card, image_path)
+
+    wb.save(str(output_path))
+    logger.info("Spreadsheet written to %s", output_path)
+    return output_path
