@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-08
+
 ### Added
 
 - Design: **Tropical design system landed as a durable, machine-checkable package** ([#543](https://github.com/mgzwarrior/mgz-pkmn/issues/543)). Adds a new `design/` folder with the canonical token source (`design/tokens/colors_and_type.css` — the `@theme` blocks in `site/src/styles/global.css` and `web/src/index.css` derive from this) plus the supporting docs (`INTEGRATION.md` cutover playbook, `CLASS_CHEATSHEET.md` find-and-replace table, `DESIGN_SYSTEM.md` voice + component guide) and `design/styleguide/*.html` rendered reference cards (publishable via GitHub Pages later). Wires `.oxlintrc.json` into `make check` via a new `lint-design` target and a CI step in the `web` job — `oxlint` enforces `no-restricted-imports` (no deep imports from `ui_kits/web/**`); the dropin's `no-restricted-syntax` regex rules for raw hex / raw px / off-system fonts are documented as a known TODO in `CLAUDE.md` since `oxlint` doesn't implement that selector yet (likely landing as an `eslint` preset with an allowlist for brand-mark SVGs and Tailwind arbitrary values). Appends a "Design system" section to `CLAUDE.md` covering the source-of-truth rule, the hard rules + exceptions, the voice pillars, and the visual-reference pointer so every agent reads the same brief.
@@ -1019,7 +1021,8 @@ UI, multi-source card lookup, all output formats, and release infrastructure.
 - Incomplete URL substring sanitization (CodeQL alerts).
 - Workflow permissions hardening (CodeQL alerts).
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.1.1...v1.2.0
