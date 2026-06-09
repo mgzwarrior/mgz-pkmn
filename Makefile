@@ -137,7 +137,8 @@ RADON_MI_EXCLUDE := src/mgz_pkmn/cache.py
 
 .PHONY: complexity
 complexity:  ## Maintainability gate: fail on D+ cyclomatic complexity or B+ maintainability index.
-	@out=$$(uv run radon cc src/ api/ -n D --exclude '$(RADON_CC_EXCLUDE)'); \
+	@out=$$(uv run radon cc src/ api/ -n D --exclude '$(RADON_CC_EXCLUDE)') \
+	  || { echo "✗ radon cc invocation failed (uv / radon could not run)" >&2; exit 1; }; \
 	  if [ -n "$$out" ]; then \
 	    echo "$$out" >&2; \
 	    echo >&2; \
@@ -145,7 +146,8 @@ complexity:  ## Maintainability gate: fail on D+ cyclomatic complexity or B+ mai
 	    echo "  Either refactor it, or (if it pre-dates the gate) add the file to RADON_CC_EXCLUDE in Makefile." >&2; \
 	    exit 1; \
 	  fi
-	@out=$$(uv run radon mi src/ api/ -n B --exclude '$(RADON_MI_EXCLUDE)'); \
+	@out=$$(uv run radon mi src/ api/ -n B --exclude '$(RADON_MI_EXCLUDE)') \
+	  || { echo "✗ radon mi invocation failed (uv / radon could not run)" >&2; exit 1; }; \
 	  if [ -n "$$out" ]; then \
 	    echo "$$out" >&2; \
 	    echo >&2; \
