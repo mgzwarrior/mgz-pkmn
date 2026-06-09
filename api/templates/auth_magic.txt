@@ -1,9 +1,9 @@
 Sign in to mgz-pkmn
 
-Click the link below to sign in. The link is good for 15 minutes.
+Use this link to sign in. This link is good for 15 minutes.
 
 {link}
 
-If you didn't ask to sign in, you can safely ignore this email — the link just expires on its own. Anyone who has this link can sign in until it expires, so don't share or forward it.
+If you didn't ask to sign in, you can ignore this email. Anyone with this link can sign in until it expires, so don't share or forward it.
 
 — mgz-pkmn
