@@ -12,20 +12,17 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bookmark, Heart, Library, Search } from 'lucide-react'
+import { Heart, Library, Search } from 'lucide-react'
 import { bulkLookup, listRuns, lookupLine, saveRun } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { SaveSearchNameDialog } from './components/SaveSearchNameDialog'
 import { BrowsePanel } from './components/BrowsePanel'
 import { SwipePanel } from './components/SwipePanel'
-import { CollectionsModal } from './components/CollectionsModal'
-import { WishlistsModal } from './components/WishlistsModal'
 import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
-import { RecentRuns } from './components/RecentRuns'
+import { LibraryPanel } from './components/LibraryPanel'
 import { ResultsTable } from './components/ResultsTable'
 import { consumePendingSaveSearch, type PendingSaveSearch } from './components/pendingSaveSearch'
-import { SavedSearchesSidebar } from './components/SavedSearchesSidebar'
 import { ExportBar } from './components/ExportBar'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
@@ -69,14 +66,8 @@ function App() {
 
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
-  const [collectionsOpen, setCollectionsOpen] = useState(false)
-  const [wishlistsOpen, setWishlistsOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('search')
-  // Collections / wishlists chips only render when there's an identified
-  // user behind the request. Production-signed-out → null → hidden;
-  // production-signed-in → user → shown; self-host → default user → shown.
   const { user: authedUser } = useAuth()
-  const showUserScopedChips = authedUser !== null
   // `active` flips when the user switches into browse mode so the
   // controller's reset effect fires.
   const browseController = useBrowseController(mode === 'browse')
@@ -293,30 +284,6 @@ function App() {
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
           </button>
           <div className="flex items-center gap-2">
-            {showUserScopedChips && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setCollectionsOpen(true)}
-                  className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
-                  title="Collections"
-                  aria-label="Collections"
-                >
-                  <Bookmark size={15} />
-                  <span className="hidden sm:inline">Collections</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWishlistsOpen(true)}
-                  className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors sm:px-3"
-                  title="Wishlists"
-                  aria-label="Wishlists"
-                >
-                  <Heart size={15} />
-                  <span className="hidden sm:inline">Wishlists</span>
-                </button>
-              </>
-            )}
             <div data-tour="exports">
               <ExportBar />
             </div>
@@ -333,10 +300,13 @@ function App() {
       {/* Main content */}
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex gap-4">
-          <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="saved-searches">
-            <SavedSearchesSidebar />
+          <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="library">
+            <LibraryPanel variant="sidebar" onRun={handleRun} />
           </div>
           <div className="flex-1 min-w-0 space-y-6">
+            <div className="lg:hidden" data-tour="library-mobile">
+              <LibraryPanel variant="accordion" onRun={handleRun} />
+            </div>
             <nav
               role="tablist"
               aria-label="Discovery mode"
@@ -376,9 +346,6 @@ function App() {
                     Card list
                   </h2>
                   <InputEditor onRun={handleRun} onStop={handleStop} />
-                  <div className="mt-3">
-                    <RecentRuns onRun={handleRun} />
-                  </div>
                 </section>
 
                 <section data-tour="results">
@@ -411,10 +378,6 @@ function App() {
       {tourOpen && (
         <Tour onClose={() => setTourOpen(false)} onRun={handleRun} onStop={handleStop} />
       )}
-
-      <CollectionsModal open={collectionsOpen} onOpenChange={setCollectionsOpen} />
-
-      <WishlistsModal open={wishlistsOpen} onOpenChange={setWishlistsOpen} />
 
       <SaveSearchNameDialog
         open={pendingSave !== null}

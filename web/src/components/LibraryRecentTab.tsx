@@ -1,16 +1,13 @@
 /**
- * RecentRuns — a collapsible panel under the input editor showing the
- * last N (default 10) bulk-lookup submissions. Entries are clickable:
- * one click restores the list into the editor and triggers a lookup
- * via the parent's `onRun` callback. A small × on hover deletes a
- * single entry; **Clear all** in the header wipes the whole list.
+ * LibraryRecentTab — list of the last N (10) bulk-lookup *submissions*
+ * for the Recent tab inside [LibraryPanel](./LibraryPanel.tsx). One tap
+ * restores the input lines and triggers a fresh lookup via the parent's
+ * `onRun` callback.
  *
- * The panel renders nothing when there are no entries — the
- * empty-state example chips already cover the "what do I do?"
- * moment, and an empty Recent panel would just be noise.
+ * Distinct from [LibrarySearchesTab](./LibrarySearchesTab.tsx) which
+ * lists explicitly *saved* (named) runs persisted server-side.
  */
-import { useState } from 'react'
-import { History, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useAppStore } from '../store'
 import { formatRelativeTime } from '../utils/format'
 import type { RecentRun } from '../types'
@@ -19,14 +16,18 @@ interface Props {
   onRun: (overrideText: string) => void
 }
 
-/** How many of an entry's lines we show inline before the `+N more` tail. */
 const PREVIEW_LIMIT = 2
 
-export function RecentRuns({ onRun }: Props) {
+export function LibraryRecentTab({ onRun }: Props) {
   const { recentRuns, removeRecentRun, clearRecentRuns, isRunning, setInputText } = useAppStore()
-  const [collapsed, setCollapsed] = useState(false)
 
-  if (recentRuns.length === 0) return null
+  if (recentRuns.length === 0) {
+    return (
+      <p className="text-xs text-coconut-500 dark:text-sand-300">
+        Your recent searches will land here once you run a lookup.
+      </p>
+    )
+  }
 
   const handleRerun = (run: RecentRun) => {
     if (isRunning) return
@@ -36,46 +37,31 @@ export function RecentRuns({ onRun }: Props) {
   }
 
   return (
-    <section
-      aria-label="Recent searches"
-      className="flex flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
-    >
-      <header className="flex items-center justify-between">
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-coconut-400 dark:text-sand-400">
+          {recentRuns.length} {recentRuns.length === 1 ? 'entry' : 'entries'}
+        </span>
         <button
           type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-expanded={!collapsed}
-          className="flex items-center gap-1.5 rounded text-xs font-medium text-coconut-400 dark:text-sand-300 hover:text-coconut-600 dark:hover:text-sand-200"
+          onClick={clearRecentRuns}
+          className="rounded px-1.5 py-0.5 text-xs text-coconut-400 dark:text-sand-400 hover:text-coconut-600 dark:hover:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
         >
-          <History size={12} />
-          Recent searches
-          <span className="text-coconut-400 dark:text-sand-400">({recentRuns.length})</span>
-          {collapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+          Clear all
         </button>
-        {!collapsed && (
-          <button
-            type="button"
-            onClick={clearRecentRuns}
-            className="rounded px-1.5 py-0.5 text-xs text-coconut-400 dark:text-sand-400 hover:text-coconut-600 dark:hover:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
-          >
-            Clear all
-          </button>
-        )}
-      </header>
-      {!collapsed && (
-        <ul className="flex flex-col gap-1">
-          {recentRuns.map((run) => (
-            <RecentRunRow
-              key={run.id}
-              run={run}
-              disabled={isRunning}
-              onRerun={() => handleRerun(run)}
-              onDelete={() => removeRecentRun(run.id)}
-            />
-          ))}
-        </ul>
-      )}
-    </section>
+      </div>
+      <ul className="flex flex-col gap-1">
+        {recentRuns.map((run) => (
+          <RecentRunRow
+            key={run.id}
+            run={run}
+            disabled={isRunning}
+            onRerun={() => handleRerun(run)}
+            onDelete={() => removeRecentRun(run.id)}
+          />
+        ))}
+      </ul>
+    </div>
   )
 }
 

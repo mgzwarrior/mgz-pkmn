@@ -490,7 +490,7 @@ function ExhaustedState({ onReset }: { onReset: () => void }) {
  * wishlist from the user's saved cards and adds each one in order. On
  * success it clears the local saved list so the user starts fresh on
  * the next swipe session; the new wishlist is visible immediately in
- * the WishlistsModal because both surfaces share the
+ * the Library because both surfaces share the
  * [useWishlists](./useWishlists.ts) cache.
  */
 function BuildPrepList({

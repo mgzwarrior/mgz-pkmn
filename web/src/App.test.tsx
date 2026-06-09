@@ -12,7 +12,7 @@
  * just enough of the UI to set inputText + click Look up / Stop.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, act, screen, waitFor } from '@testing-library/react'
+import { render, fireEvent, act, screen, waitFor, within } from '@testing-library/react'
 import App from './App'
 import { useAppStore } from './store'
 import { _resetAuthStoreForTests } from './hooks/useAuth'
@@ -271,16 +271,24 @@ describe('App: discovery mode switcher', () => {
     mockBulkLookup.mockReset()
   })
 
+  // The Library panel's tablist now also lives in App, so scope every
+  // discovery-mode lookup to the discovery-mode tablist instead of
+  // matching on the bare tab name (which would also hit Library's
+  // "Searches" tab).
+  function discoveryTabs() {
+    return within(screen.getByRole('tablist', { name: /Discovery mode/i }))
+  }
+
   it('defaults to Search mode and shows the card-list editor', () => {
     render(<App />)
-    const searchTab = screen.getByRole('tab', { name: /Search/ })
+    const searchTab = discoveryTabs().getByRole('tab', { name: /Search/ })
     expect(searchTab).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('textbox', { name: /Card list/i })).toBeInTheDocument()
   })
 
   it('switching to Browse hides the editor and renders the inline browse panel', () => {
     render(<App />)
-    fireEvent.click(screen.getByRole('tab', { name: /Browse/ }))
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
     expect(screen.queryByRole('textbox', { name: /Card list/i })).not.toBeInTheDocument()
     // The inline BrowsePanel renders its description and a section
     // wrapper labelled "Browse cards by set".
@@ -292,7 +300,7 @@ describe('App: discovery mode switcher', () => {
 
   it('switching to Swipe mounts the SwipePanel', () => {
     render(<App />)
-    fireEvent.click(screen.getByRole('tab', { name: /Swipe/ }))
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Swipe/ }))
     expect(screen.getByRole('region', { name: /Swipe mode/i })).toBeInTheDocument()
     expect(
       screen.getByText(/One card at a time — right to save/i),
@@ -302,8 +310,8 @@ describe('App: discovery mode switcher', () => {
   it('switching back to Search restores the editor without losing input', () => {
     useAppStore.setState({ inputText: 'Charizard | Base Set | 4' })
     render(<App />)
-    fireEvent.click(screen.getByRole('tab', { name: /Browse/ }))
-    fireEvent.click(screen.getByRole('tab', { name: /Search/ }))
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Search/ }))
     const textbox = screen.getByRole('textbox', { name: /Card list/i })
     expect(textbox).toHaveValue('Charizard | Base Set | 4')
   })

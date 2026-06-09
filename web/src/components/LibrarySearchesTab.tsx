@@ -1,29 +1,20 @@
 /**
- * SavedSearchesSidebar — collapsible left-rail panel listing runs the
- * user has explicitly *saved* (named) via the in-page Save button.
+ * LibrarySearchesTab — list of *saved* runs (curated, named) for the
+ * Searches tab inside [LibraryPanel](./LibraryPanel.tsx). Click a row to
+ * hydrate the editor + results store with the saved input and persisted
+ * `view_state`. Server-side every completed `/bulk` stream is persisted,
+ * but only runs with a non-null `name` surface here.
  *
- * Server-side every completed `/bulk` stream is persisted, but only
- * runs with a non-null `name` surface here — `/api/v1/runs` filters on
- * that. The result is a curated list, not a noisy chronological log.
- *
- * Clicking a saved search fetches the full record from
- * `/api/v1/runs/{id}` and hydrates the editor + results store with its
- * `input_text` and rows. The persisted `view_state` is replayed so the
- * ResultsTable opens with the exact sort + column filters the user had
- * when they saved.
- *
- * Distinct from {@link RecentRuns} which lives under the editor and
- * stores submitted *inputs* client-side for quick re-runs.
+ * Distinct from [LibraryRecentTab](./LibraryRecentTab.tsx) which lists
+ * recent *inputs* stored client-side for one-tap re-runs.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bookmark, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getRun, listRuns } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { formatMoney, formatRelativeTime } from '../utils/format'
 import type { RunDetail, RunRowDetail, RunSummary, Row } from '../types'
 
-/** How many runs to request from `/runs` on initial load. */
 const RUN_LIST_LIMIT = 50
 
 function runRowToRow(rr: RunRowDetail): Row {
@@ -44,7 +35,7 @@ function summaryTotal(run: RunSummary): { amount: number; currency: string } | n
   return { amount, currency }
 }
 
-export function SavedSearchesSidebar() {
+export function LibrarySearchesTab() {
   const auth = useAuth()
   const {
     runs,
@@ -61,22 +52,14 @@ export function SavedSearchesSidebar() {
     setRunEndedAt,
     setViewState,
   } = useAppStore()
-  const [collapsed, setCollapsed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null)
-  // Synchronous guard against rapid-fire concurrent loads. A useState
-  // value would be stale across consecutive native click events in the
-  // same tick — React batches re-renders, so closures captured at
-  // render time still see `loadingRunId === null` on the second click.
-  // A ref updates synchronously and is the right tool for the race.
+  // Synchronous guard against rapid-fire concurrent loads — see
+  // SavedSearchesSidebar history; a ref updates synchronously where a
+  // useState value would be stale across consecutive native click events
+  // in the same tick.
   const loadInFlightRef = useRef(false)
-
-  // Bumping `refreshKey` triggers the loader effect. Kept as a counter
-  // (rather than calling a refresh callback) so the actual fetch +
-  // setState happen inside the effect — keeping
-  // `react-hooks/set-state-in-effect` happy, matching the pattern used
-  // by `BrowseModal` for its in-set card loader.
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -102,9 +85,8 @@ export function SavedSearchesSidebar() {
     }
   }, [auth.authEnabled, auth.loading, auth.user, refreshKey, setRuns])
 
-  // Refresh when a streaming run finishes — `/bulk` persists the run on
-  // completion, and the user may then save it. Re-listing pulls newly
-  // saved entries without a manual reload.
+  // Refresh when a streaming run finishes so a fresh save shows up
+  // without a manual reload.
   const prevRunningRef = useRef(isRunning)
   useEffect(() => {
     if (prevRunningRef.current && !isRunning) {
@@ -115,10 +97,6 @@ export function SavedSearchesSidebar() {
 
   const handleLoad = useCallback(
     async (run: RunSummary) => {
-      // Concurrency guard: bail on any in-flight load (not just this row's)
-      // so rapid-fire clicks on different rows can't race — last response
-      // wins would otherwise hydrate the wrong run. Also no-op while a
-      // bulk lookup is streaming.
       if (isRunning || loadInFlightRef.current) return
       loadInFlightRef.current = true
       setLoadingRunId(run.id)
@@ -128,17 +106,11 @@ export function SavedSearchesSidebar() {
         setInputText(detail.input_text)
         clearRows()
         setRows(detail.rows.map(runRowToRow))
-        // Reset ephemeral lookup-progress UI so the ProcessingQueue and
-        // LookupTimer don't reflect an unrelated streaming run after the
-        // hydrate.
         setProgress(null)
         setProcessingLines([])
         setRunStartedAt(null)
         setRunEndedAt(null)
         setCurrentRunId(detail.id)
-        // Replay the saved view (sort + column filters). Older saved
-        // runs may have no view_state — fall back to the empty view so
-        // a stale filter from the previous run doesn't bleed across.
         setViewState(
           detail.view_state ?? {
             ...EMPTY_VIEW_STATE,
@@ -166,89 +138,20 @@ export function SavedSearchesSidebar() {
     ],
   )
 
-  if (collapsed) {
-    return (
-      <aside
-        aria-label="Saved searches (collapsed)"
-        className="sticky top-20 flex h-fit w-9 flex-col items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-1 py-2"
-      >
-        <button
-          type="button"
-          onClick={() => setCollapsed(false)}
-          aria-label="Expand saved searches"
-          aria-expanded={false}
-          className="flex h-7 w-7 items-center justify-center rounded text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
-        >
-          <ChevronRight size={16} />
-        </button>
-        <Bookmark size={14} className="text-coconut-400 dark:text-sand-400" aria-hidden />
-        <span className="text-[10px] font-medium text-coconut-400 dark:text-sand-400 tabular-nums">
-          {runs.length}
-        </span>
-      </aside>
-    )
-  }
-
   if (auth.loading) {
-    return (
-      <aside
-        aria-label="Saved searches"
-        className="sticky top-20 flex h-fit max-h-[calc(100vh-6rem)] w-64 flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
-      >
-        <header className="flex items-center justify-between">
-          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-            <Bookmark size={12} aria-hidden />
-            Saved searches
-          </h2>
-        </header>
-        <p className="text-xs text-coconut-400 dark:text-sand-400">Loading...</p>
-      </aside>
-    )
+    return <p className="text-xs text-coconut-400 dark:text-sand-400">Loading...</p>
   }
 
   if (auth.authEnabled && auth.user === null) {
     return (
-      <aside
-        aria-label="Saved searches"
-        className="sticky top-20 flex h-fit max-h-[calc(100vh-6rem)] w-64 flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
-      >
-        <header className="flex items-center justify-between">
-          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-            <Bookmark size={12} aria-hidden />
-            Saved searches
-          </h2>
-        </header>
-        <p className="text-xs text-coconut-500 dark:text-sand-300">
-          Sign in to see saved searches.
-        </p>
-      </aside>
+      <p className="text-xs text-coconut-500 dark:text-sand-300">
+        Sign in to see saved searches.
+      </p>
     )
   }
 
   return (
-    <aside
-      aria-label="Saved searches"
-      className="sticky top-20 flex h-fit max-h-[calc(100vh-6rem)] w-64 flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
-    >
-      <header className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-          <Bookmark size={12} aria-hidden />
-          Saved searches
-          <span className="text-coconut-400 dark:text-sand-400 normal-case font-medium">
-            ({runs.length})
-          </span>
-        </h2>
-        <button
-          type="button"
-          onClick={() => setCollapsed(true)}
-          aria-label="Collapse saved searches"
-          aria-expanded={true}
-          className="rounded p-1 text-coconut-400 dark:text-sand-400 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
-        >
-          <ChevronLeft size={14} />
-        </button>
-      </header>
-
+    <div className="flex flex-col gap-2">
       {error && (
         <p role="alert" className="text-xs text-red-600 dark:text-red-300">
           {error}
@@ -279,7 +182,7 @@ export function SavedSearchesSidebar() {
           ))}
         </ul>
       )}
-    </aside>
+    </div>
   )
 }
 
