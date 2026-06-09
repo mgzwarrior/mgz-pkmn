@@ -31,18 +31,25 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          # Default GITHUB_TOKEN (no `token:` input) is intentional. The
-          # block-level `permissions:` above grants the three scopes
-          # release-please needs (contents, pull-requests, issues).
+          # PAT (not GITHUB_TOKEN) is load-bearing here. Per GitHub's
+          # docs, events triggered by GITHUB_TOKEN do not create new
+          # workflow runs — so a release PR opened with GITHUB_TOKEN
+          # would not fire `pull_request` workflows (CI, DCO,
+          # Conventional Commits check), leaving the bot's PR without
+          # the required validation runs until someone pushes another
+          # commit with a different credential.
           #
-          # The "GITHUB_TOKEN-authored commits don't trigger downstream
-          # workflows" footgun that drives the PAT use in
-          # `release-on-version-bump.yml` doesn't apply here: that
-          # constraint is about direct `push` events. release-please
-          # opens a PR, and when the PR merges, the merge push to
-          # `main` is attributed to the merging actor (human or agent),
-          # not to GITHUB_TOKEN — so `release-on-version-bump.yml`
-          # fires regardless of who authored the PR commits.
+          # RELEASE_PAT must carry these fine-grained scopes (or the
+          # classic `repo` scope):
+          #   - contents: write
+          #   - pull-requests: write   ← required by the action below;
+          #                              the workflow's permissions:
+          #                              block only applies to
+          #                              GITHUB_TOKEN
+          #   - issues: write          ← release-please manages its
+          #                              own autorelease:* labels
+          #                              through the Issues API
+          token: ${{ secrets.RELEASE_PAT }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           # PR-only: when the release PR merges, the existing
