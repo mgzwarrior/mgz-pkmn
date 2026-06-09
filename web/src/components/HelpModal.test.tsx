@@ -18,9 +18,15 @@ const RELEASES: ChangelogRelease[] = [
     date: '2026-05-25',
     sections: [
       {
-        name: 'Fixed',
-        entries: ['README logo renders on the [PyPI tab](https://pypi.org/project/mgz-pkmn/).'],
+        name: 'Added',
+        entries: [
+          'eBay sold-listings pricing source.',
+          'Want-list sharing via the [PyPI tab](https://pypi.org/project/mgz-pkmn/).',
+          'Set-walk progress tracker.',
+          'A fourth feature that should be capped out of the bar.',
+        ],
       },
+      { name: 'Fixed', entries: ['README logo renders on the PyPI page.'] },
     ],
   },
   {
@@ -120,26 +126,40 @@ describe('HelpModal', () => {
     ).toBeNull()
   })
 
-  it('opening the modal marks the latest version seen, clearing the dot', async () => {
+  it('opening the modal alone does not mark the version seen (the dot persists)', async () => {
     useAppStore.setState({ lastSeenChangelogVersion: '1.1.0' })
     render(<HelpModal onStartTour={vi.fn()} />)
-    const btn = await screen.findByRole('button', { name: /help \(new release available\)/i })
-    fireEvent.click(btn)
+    fireEvent.click(await screen.findByRole('button', { name: /help \(new release available\)/i }))
+    // The bar is collapsed by default; the modal opening must not clear the dot.
+    await waitFor(() => expect(mockFetchChangelog).toHaveBeenCalled())
+    expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.0')
+  })
+
+  it('expanding the What\'s new bar marks the latest version seen', async () => {
+    useAppStore.setState({ lastSeenChangelogVersion: '1.1.0' })
+    render(<HelpModal onStartTour={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /help \(new release available\)/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /what's new \(new version available\)/i }))
     await waitFor(() =>
       expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1'),
     )
   })
 
-  it('renders release versions, dates, sections, and bullets in the What\'s new section', async () => {
+  it('renders only the latest release\'s top 3 features in the What\'s new bar', async () => {
     useAppStore.setState({ lastSeenChangelogVersion: '1.1.1' })
     render(<HelpModal onStartTour={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
+    // Collapsed by default: latest version shown, but features hidden.
     expect(await screen.findByText('v1.1.1')).toBeInTheDocument()
-    expect(screen.getByText('v1.1.0')).toBeInTheDocument()
-    expect(screen.getByText('Fixed')).toBeInTheDocument()
-    expect(screen.getByText('Added')).toBeInTheDocument()
-    expect(screen.getByText('Changed')).toBeInTheDocument()
-    // Inline markdown link inside a bullet rendered as an anchor.
+    expect(screen.queryByText(/eBay sold-listings/)).toBeNull()
+    // Expand the bar.
+    fireEvent.click(screen.getByRole('button', { name: /what's new/i }))
+    expect(await screen.findByText(/eBay sold-listings/)).toBeInTheDocument()
+    expect(screen.getByText(/Set-walk progress tracker/)).toBeInTheDocument()
+    // Fourth Added entry is capped out, and older releases aren't listed.
+    expect(screen.queryByText(/capped out of the bar/)).toBeNull()
+    expect(screen.queryByText('v1.1.0')).toBeNull()
+    // Inline markdown link inside a feature rendered as an anchor.
     expect(screen.getByRole('link', { name: 'PyPI tab' })).toBeInTheDocument()
   })
 
@@ -147,6 +167,7 @@ describe('HelpModal', () => {
     mockFetchChangelog.mockRejectedValue(new Error('boom'))
     render(<HelpModal onStartTour={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /what's new/i }))
     expect(await screen.findByText(/couldn't be loaded/i)).toBeInTheDocument()
   })
 
