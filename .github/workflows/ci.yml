@@ -35,6 +35,9 @@ jobs:
       - name: Format check (ruff format)
         run: uv run ruff format --check src/ api/
 
+      - name: Complexity gate (radon)
+        run: make complexity
+
       - name: Run tests with coverage
         run: |
           uv run coverage run -m pytest tests/ --junitxml=junit.xml -o junit_family=legacy

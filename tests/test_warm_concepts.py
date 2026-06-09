@@ -360,7 +360,7 @@ class CacheWarmConceptsCLITests(_IsolatedCacheMixin):
         from unittest.mock import patch as _patch
 
         fake, calls = self._stub_warm(attempted=5, warmed=5)
-        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+        with _patch("mgz_pkmn.cli.cache.warm_concepts", side_effect=fake):
             result = self._invoke()
 
         self.assertEqual(result.exit_code, 0, result.output)
@@ -381,7 +381,7 @@ class CacheWarmConceptsCLITests(_IsolatedCacheMixin):
         from unittest.mock import patch as _patch
 
         fake, calls = self._stub_warm()
-        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+        with _patch("mgz_pkmn.cli.cache.warm_concepts", side_effect=fake):
             result = self._invoke("--source", "pokemontcg")
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(calls["source"], "pokemontcg")
@@ -394,7 +394,7 @@ class CacheWarmConceptsCLITests(_IsolatedCacheMixin):
         from unittest.mock import patch as _patch
 
         fake, _calls = self._stub_warm(attempted=3, warmed=3)
-        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+        with _patch("mgz_pkmn.cli.cache.warm_concepts", side_effect=fake):
             result = self._invoke("-v")
         self.assertEqual(result.exit_code, 0, result.output)
         # Each [i/total] line plus its name renders to the stream.
@@ -406,7 +406,7 @@ class CacheWarmConceptsCLITests(_IsolatedCacheMixin):
         from unittest.mock import patch as _patch
 
         fake, _calls = self._stub_warm(attempted=3, warmed=2, failed=["Eevee"])
-        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+        with _patch("mgz_pkmn.cli.cache.warm_concepts", side_effect=fake):
             result = self._invoke("-v")
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("1 missed", result.output)
@@ -420,7 +420,7 @@ class CacheWarmConceptsCLITests(_IsolatedCacheMixin):
         import requests as _requests
 
         with _patch(
-            "mgz_pkmn.cli.warm_concepts",
+            "mgz_pkmn.cli.cache.warm_concepts",
             side_effect=_requests.ConnectionError("network down"),
         ):
             result = self._invoke()
@@ -435,7 +435,7 @@ class CacheWarmConceptsCLITests(_IsolatedCacheMixin):
         from unittest.mock import patch as _patch
 
         fake, _calls = self._stub_warm(attempted=0, warmed=0)
-        with _patch("mgz_pkmn.cli.warm_concepts", side_effect=fake):
+        with _patch("mgz_pkmn.cli.cache.warm_concepts", side_effect=fake):
             result = self._invoke()
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("_CONCEPT_KEYWORDS produced no names", result.output)

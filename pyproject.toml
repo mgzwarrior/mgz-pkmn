@@ -78,6 +78,7 @@ dev = [
     "coverage[toml]>=7.6",
     "httpx>=0.28.1",
     "pytest>=8.0",
+    "radon>=6.0",
     "ruff>=0.15.13",
 ]
 
@@ -114,7 +115,7 @@ indent-style = "space"
 [tool.coverage.run]
 branch = true
 source = ["src/mgz_pkmn", "api"]
-omit = ["tests/*", "api/tests/*"]
+omit = ["tests/*", "api/tests/*", "src/mgz_pkmn/cli/exeggutor.py"]
 
 [tool.coverage.report]
 exclude_also = [

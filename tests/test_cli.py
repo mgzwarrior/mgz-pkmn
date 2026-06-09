@@ -382,8 +382,8 @@ class CacheStatsCommandTests(unittest.TestCase):
             return len(rows)
 
         with (
-            _patch("mgz_pkmn.cli.fetch_all_sets", return_value=sets),
-            _patch("mgz_pkmn.cli.write_set_cards_pdf", side_effect=_fake_writer),
+            _patch("mgz_pkmn.cli.set_cards.fetch_all_sets", return_value=sets),
+            _patch("mgz_pkmn.cli.set_cards.write_set_cards_pdf", side_effect=_fake_writer),
             tempfile.TemporaryDirectory() as tmp,
         ):
             out = Path(tmp) / "out.pdf"
@@ -403,7 +403,7 @@ class CacheStatsCommandTests(unittest.TestCase):
         sets = [{"id": "sv8", "name": "Surging Sparks", "images": {}}]
 
         with (
-            _patch("mgz_pkmn.cli.fetch_all_sets", return_value=sets),
+            _patch("mgz_pkmn.cli.set_cards.fetch_all_sets", return_value=sets),
             tempfile.TemporaryDirectory() as tmp,
         ):
             out = Path(tmp) / "out.pdf"
@@ -627,7 +627,7 @@ class LookupSummaryCacheTests(unittest.TestCase):
         input_path = self._write_inputs(["Mew", "Pikachu"])
         out = Path(self._tmp.name) / "out.xlsx"
 
-        with patch("mgz_pkmn.cli.find_card", side_effect=self._make_stub()):
+        with patch("mgz_pkmn.cli.lookup.find_card", side_effect=self._make_stub()):
             result = CliRunner().invoke(
                 cli,
                 ["lookup", str(input_path), "-o", str(out), "--no-images"],
@@ -643,7 +643,7 @@ class LookupSummaryCacheTests(unittest.TestCase):
         out = Path(self._tmp.name) / "out.xlsx"
         report_path = Path(self._tmp.name) / "summary.json"
 
-        with patch("mgz_pkmn.cli.find_card", side_effect=self._make_stub()):
+        with patch("mgz_pkmn.cli.lookup.find_card", side_effect=self._make_stub()):
             result = CliRunner().invoke(
                 cli,
                 [
@@ -671,7 +671,7 @@ class LookupSummaryCacheTests(unittest.TestCase):
         pdf = Path(self._tmp.name) / "binder.pdf"
         report_path = Path(self._tmp.name) / "summary.json"
 
-        with patch("mgz_pkmn.cli.find_card", side_effect=self._make_stub()):
+        with patch("mgz_pkmn.cli.lookup.find_card", side_effect=self._make_stub()):
             result = CliRunner().invoke(
                 cli,
                 [
@@ -700,7 +700,7 @@ class LookupSummaryCacheTests(unittest.TestCase):
         input_path = self._write_inputs(["Pikachu"])
         out = Path(self._tmp.name) / "out.xlsx"
 
-        with patch("mgz_pkmn.cli.find_card", side_effect=self._make_stub()):
+        with patch("mgz_pkmn.cli.lookup.find_card", side_effect=self._make_stub()):
             result = CliRunner().invoke(
                 cli,
                 ["lookup", str(input_path), "-o", str(out), "--no-images"],
@@ -781,7 +781,7 @@ class LookupCurrencyWarningTests(unittest.TestCase):
         input_path = self._write_inputs(["Mew", "Pikachu"])
         out = Path(self._tmp.name) / "out.xlsx"
 
-        with patch("mgz_pkmn.cli.find_card", side_effect=self._mixed_currency_stub):
+        with patch("mgz_pkmn.cli.lookup.find_card", side_effect=self._mixed_currency_stub):
             result = CliRunner().invoke(
                 cli,
                 ["lookup", str(input_path), "-o", str(out), "--no-images", "--max-price", "20"],
@@ -794,7 +794,7 @@ class LookupCurrencyWarningTests(unittest.TestCase):
         input_path = self._write_inputs(["Mew", "Pikachu"])
         out = Path(self._tmp.name) / "out.xlsx"
 
-        with patch("mgz_pkmn.cli.find_card", side_effect=self._usd_only_stub):
+        with patch("mgz_pkmn.cli.lookup.find_card", side_effect=self._usd_only_stub):
             result = CliRunner().invoke(
                 cli,
                 ["lookup", str(input_path), "-o", str(out), "--no-images", "--max-price", "20"],
@@ -807,7 +807,7 @@ class LookupCurrencyWarningTests(unittest.TestCase):
         input_path = self._write_inputs(["Mew", "Pikachu"])
         out = Path(self._tmp.name) / "out.xlsx"
 
-        with patch("mgz_pkmn.cli.find_card", side_effect=self._mixed_currency_stub):
+        with patch("mgz_pkmn.cli.lookup.find_card", side_effect=self._mixed_currency_stub):
             result = CliRunner().invoke(
                 cli,
                 ["lookup", str(input_path), "-o", str(out), "--no-images"],
@@ -856,7 +856,7 @@ class CacheWarmCardsCommandTests(unittest.TestCase):
             sets_failed=[],
         )
 
-        with _patch("mgz_pkmn.cli.warm_cards", return_value=fake_result):
+        with _patch("mgz_pkmn.cli.cache.warm_cards", return_value=fake_result):
             result = CliRunner().invoke(
                 cli, ["cache", "warm-cards", "--set", "sv8", "--set", "sv7"]
             )
@@ -879,7 +879,7 @@ class CacheWarmCardsCommandTests(unittest.TestCase):
         import requests as _requests
 
         with _patch(
-            "mgz_pkmn.cli.warm_cards", side_effect=_requests.ConnectionError("network down")
+            "mgz_pkmn.cli.cache.warm_cards", side_effect=_requests.ConnectionError("network down")
         ):
             result = CliRunner().invoke(cli, ["cache", "warm-cards"])
 
@@ -907,7 +907,7 @@ class CacheWarmCardsCommandTests(unittest.TestCase):
                 sets_failed=["ghost"],
             )
 
-        with _patch("mgz_pkmn.cli.warm_cards", side_effect=fake_warm):
+        with _patch("mgz_pkmn.cli.cache.warm_cards", side_effect=fake_warm):
             result = CliRunner().invoke(
                 cli,
                 [
@@ -940,7 +940,7 @@ class CacheWarmCardsCommandTests(unittest.TestCase):
         from mgz_pkmn.lookup import WarmCardsResult
 
         with _patch(
-            "mgz_pkmn.cli.warm_cards",
+            "mgz_pkmn.cli.cache.warm_cards",
             return_value=WarmCardsResult(
                 sets_attempted=0, cards_warmed=0, cards_failed=0, sets_failed=[]
             ),
@@ -991,7 +991,7 @@ class CacheWarmCardImagesCommandTests(unittest.TestCase):
             budget_reached=False,
             sets_failed=[],
         )
-        with _patch("mgz_pkmn.cli.warm_card_images", return_value=fake_result):
+        with _patch("mgz_pkmn.cli.cache.warm_card_images", return_value=fake_result):
             result = CliRunner().invoke(
                 cli, ["cache", "warm-card-images", "--set", "sv8", "--set", "sv7", "--set", "base1"]
             )
@@ -1028,7 +1028,7 @@ class CacheWarmCardImagesCommandTests(unittest.TestCase):
                 sets_failed=[],
             )
 
-        with _patch("mgz_pkmn.cli.warm_card_images", side_effect=fake_warm):
+        with _patch("mgz_pkmn.cli.cache.warm_card_images", side_effect=fake_warm):
             result = CliRunner().invoke(
                 cli,
                 [
@@ -1082,7 +1082,7 @@ class CacheWarmCardImagesCommandTests(unittest.TestCase):
                 sets_failed=["ghost"],
             )
 
-        with _patch("mgz_pkmn.cli.warm_card_images", side_effect=fake_warm):
+        with _patch("mgz_pkmn.cli.cache.warm_card_images", side_effect=fake_warm):
             result = CliRunner().invoke(
                 cli,
                 ["cache", "warm-card-images", "--set", "sv8", "--set", "ghost", "-v"],
@@ -1101,7 +1101,7 @@ class CacheWarmCardImagesCommandTests(unittest.TestCase):
         import requests as _requests
 
         with _patch(
-            "mgz_pkmn.cli.warm_card_images",
+            "mgz_pkmn.cli.cache.warm_card_images",
             side_effect=_requests.ConnectionError("network down"),
         ):
             result = CliRunner().invoke(cli, ["cache", "warm-card-images"])
@@ -1116,7 +1116,7 @@ class CacheWarmCardImagesCommandTests(unittest.TestCase):
         from mgz_pkmn.card_images import WarmCardImagesResult
 
         with _patch(
-            "mgz_pkmn.cli.warm_card_images",
+            "mgz_pkmn.cli.cache.warm_card_images",
             return_value=WarmCardImagesResult(
                 sets_attempted=0,
                 images_warmed=0,

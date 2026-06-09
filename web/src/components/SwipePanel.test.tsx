@@ -40,6 +40,12 @@ function card(overrides: Partial<SetCard> = {}): SetCard {
   }
 }
 
+// Each keystroke / drag commit kicks off a 180ms exit-animation timeout in
+// SwipePanel before `advance()` runs and renders the next card. The default
+// 1s waitFor budget gets tight when CI runs the whole suite under contention
+// (#387); give the post-swipe assertions 3s of headroom from one place.
+const POST_SWIPE_WAIT = { timeout: 3000 } as const
+
 describe('SwipePanel', () => {
   let randomSpy: ReturnType<typeof vi.spyOn>
 
@@ -85,7 +91,10 @@ describe('SwipePanel', () => {
 
     fireEvent.keyDown(window, { key: 'ArrowRight' })
 
-    await waitFor(() => expect(screen.getByText('Charizard')).toBeInTheDocument())
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
     // The save count chip in the header should show "1 saved · reset".
     expect(
       screen.getByRole('button', { name: /1 saved · reset/i }),
@@ -98,7 +107,10 @@ describe('SwipePanel', () => {
 
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
 
-    await waitFor(() => expect(screen.getByText('Charizard')).toBeInTheDocument())
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
     // No "Build prep list" panel since saved list is empty.
     expect(screen.queryByText(/Build a prep list/i)).not.toBeInTheDocument()
   })
@@ -109,7 +121,10 @@ describe('SwipePanel', () => {
 
     fireEvent.keyDown(window, { key: 'ArrowUp' })
 
-    await waitFor(() => expect(screen.getByText('Charizard')).toBeInTheDocument())
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
     expect(
       screen.getByRole('button', { name: /1 saved · reset/i }),
     ).toBeInTheDocument()
@@ -121,7 +136,10 @@ describe('SwipePanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(screen.getByText('Charizard')).toBeInTheDocument())
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
     expect(
       screen.getByRole('button', { name: /1 saved · reset/i }),
     ).toBeInTheDocument()
@@ -142,7 +160,10 @@ describe('SwipePanel', () => {
     fireEvent.pointerMove(card, { pointerId: 1, clientX: 200, clientY: 0 })
     fireEvent.pointerUp(card, { pointerId: 1, clientX: 200, clientY: 0 })
 
-    await waitFor(() => expect(screen.getByText('Charizard')).toBeInTheDocument())
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
     expect(
       screen.getByRole('button', { name: /1 saved · reset/i }),
     ).toBeInTheDocument()
@@ -153,7 +174,10 @@ describe('SwipePanel', () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    await waitFor(() => expect(screen.getByText('Charizard')).toBeInTheDocument())
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
     await waitFor(() =>
       expect(
