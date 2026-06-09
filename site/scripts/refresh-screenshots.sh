@@ -71,9 +71,11 @@ render_pdf_page() {
 # Arguments: <png-name-in-WORK_DIR> <out-basename>
 to_webp() {
   local png_name="$1" out_name="$2"
-  # 1600px wide handles 2x retina at the gallery card's ~800px render size
-  # without blowing up file size beyond ~120 KB.
-  cwebp -q 82 -resize 1600 0 \
+  # 1000px wide is ~2x retina at the gallery cards' render size. The binder
+  # page is photo-dense (a 3x3 grid of card scans), so quality 76 at this
+  # width keeps it inside the landing page's ~40-80 KB Lighthouse budget;
+  # the text-only checklist lands far smaller at the same settings.
+  cwebp -q 76 -resize 1000 0 \
     "${WORK_DIR}/${png_name}.png" \
     -o "${OUT_DIR}/${out_name}.webp" \
     >/dev/null

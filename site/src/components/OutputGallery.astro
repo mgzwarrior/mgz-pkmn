@@ -1,13 +1,16 @@
 ---
-const outputs = [
-  {
-    src: "/screenshots/cards-xlsx.webp",
-    title: "Spreadsheet",
-    caption:
-      "Per-tag sections, thumbnails inline, market price and your 80 / 85 / 90 / 95 % comps on every row.",
-    alt: "Screenshot of the generated cards.xlsx workbook showing card rows with thumbnails, set, number, market price, and comparison columns.",
-    suffix: "cards.xlsx",
-  },
+// The spreadsheet is landscape, so it gets a dedicated full-width card; the
+// two PDFs are portrait and sit in a row beneath it.
+const spreadsheet = {
+  src: "/screenshots/cards-xlsx.webp",
+  title: "Spreadsheet",
+  caption:
+    "Per-tag sections, thumbnails inline, market price and your 80 / 85 / 90 / 95 % comps on every row — with a totals row at the bottom.",
+  alt: "Screenshot of the generated cards.xlsx workbook showing card rows with thumbnails, set, number, market price, comparison columns, and a totals row.",
+  suffix: "cards.xlsx",
+};
+
+const pdfs = [
   {
     src: "/screenshots/binder-page.webp",
     title: "Binder PDF",
@@ -25,6 +28,9 @@ const outputs = [
     suffix: "checklist.pdf",
   },
 ];
+
+const cardClass =
+  "flex flex-col rounded-xl border border-sand-300 bg-sand-100 shadow-xs overflow-hidden hover:border-sand-400 hover:shadow-md dark:border-husk-50 dark:bg-husk-200/40 dark:shadow-none dark:hover:border-coconut-400 transition";
 ---
 
 <section
@@ -43,31 +49,54 @@ const outputs = [
       </p>
     </div>
 
-    <ul class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {
-        outputs.map((output) => (
-          <li class="flex flex-col rounded-xl border border-sand-300 bg-sand-100 shadow-xs overflow-hidden hover:border-sand-400 hover:shadow-md dark:border-husk-50 dark:bg-husk-200/40 dark:shadow-none dark:hover:border-coconut-400 transition">
-            <div class="bg-sand-200 dark:bg-husk-500/60 aspect-[5/6] overflow-hidden flex items-start justify-center">
-              <img
-                src={output.src}
-                alt={output.alt}
-                loading="lazy"
-                decoding="async"
-                class="w-full h-auto object-cover object-top"
-              />
-            </div>
-            <div class="p-5">
-              <div class="flex items-baseline justify-between gap-3">
-                <h3 class="text-lg font-semibold text-coconut-700 dark:text-sand-50">{output.title}</h3>
-                <code class="text-xs text-sand-500 dark:text-sand-400 font-mono">{output.suffix}</code>
+    <div class="mt-12 flex flex-col gap-6">
+      <article class={cardClass}>
+        <div class="bg-sand-200 dark:bg-husk-500/60 overflow-hidden">
+          <img
+            src={spreadsheet.src}
+            alt={spreadsheet.alt}
+            loading="lazy"
+            decoding="async"
+            class="block w-full h-auto"
+          />
+        </div>
+        <div class="p-5">
+          <div class="flex items-baseline justify-between gap-3">
+            <h3 class="text-lg font-semibold text-coconut-700 dark:text-sand-50">{spreadsheet.title}</h3>
+            <code class="text-xs text-sand-500 dark:text-sand-400 font-mono">{spreadsheet.suffix}</code>
+          </div>
+          <p class="mt-2 text-sm leading-relaxed text-coconut-400 dark:text-sand-300">
+            {spreadsheet.caption}
+          </p>
+        </div>
+      </article>
+
+      <ul class="grid gap-6 sm:grid-cols-2">
+        {
+          pdfs.map((output) => (
+            <li class={cardClass}>
+              <div class="bg-sand-200 dark:bg-husk-500/60 aspect-[5/6] overflow-hidden flex items-start justify-center">
+                <img
+                  src={output.src}
+                  alt={output.alt}
+                  loading="lazy"
+                  decoding="async"
+                  class="w-full h-auto object-cover object-top"
+                />
               </div>
-              <p class="mt-2 text-sm leading-relaxed text-coconut-400 dark:text-sand-300">
-                {output.caption}
-              </p>
-            </div>
-          </li>
-        ))
-      }
-    </ul>
+              <div class="p-5">
+                <div class="flex items-baseline justify-between gap-3">
+                  <h3 class="text-lg font-semibold text-coconut-700 dark:text-sand-50">{output.title}</h3>
+                  <code class="text-xs text-sand-500 dark:text-sand-400 font-mono">{output.suffix}</code>
+                </div>
+                <p class="mt-2 text-sm leading-relaxed text-coconut-400 dark:text-sand-300">
+                  {output.caption}
+                </p>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
   </div>
 </section>
