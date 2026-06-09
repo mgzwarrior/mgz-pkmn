@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -20,6 +22,7 @@ from mgz_pkmn.lookup import (
 )
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.sources.base import MatchResult
+from mgz_pkmn.sources.pokemontcg import API_BASE, TCGClient
 
 
 class _StubTCGClient:
@@ -708,6 +711,65 @@ class CacheStatusPropagationTests(unittest.TestCase):
         seen: list[str] = []
         find_top_cards(client, q, limit=1, on_cache_status=seen.append)
         self.assertIn("STALE", seen)
+
+
+class TCGClientCacheOnlyTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+
+    def _url(self, query: str, page_size: int = 12, page: int = 1) -> str:
+        return f"{API_BASE}/cards?q={quote(query)}&pageSize={page_size}&page={page}"
+
+    def test_cache_only_miss_skips_network_and_reports_cache_only_miss(self) -> None:
+        client = TCGClient()
+        with patch.object(client.session, "get") as get:
+            cards, status = client.search("name:Pikachu", cache_only=True)
+
+        self.assertEqual(cards, [])
+        self.assertEqual(status, "MISS-CACHE-ONLY")
+        get.assert_not_called()
+
+    def test_cache_only_hit_reads_disk_cache_without_network(self) -> None:
+        card = _card("base1-25", "Pikachu", 10.0)
+        query = "name:Pikachu"
+        cache.write_api_split(self._url(query), [card])
+
+        client = TCGClient()
+        with patch.object(client.session, "get") as get:
+            cards, status = client.search(query, cache_only=True)
+
+        self.assertEqual(status, "HIT")
+        self.assertEqual([c["id"] for c in cards], ["base1-25"])
+        get.assert_not_called()
+
+    def test_default_miss_fetches_upstream(self) -> None:
+        card = _card("base1-25", "Pikachu", 10.0)
+        response = Mock(status_code=200)
+        response.json.return_value = {"data": [card]}
+
+        client = TCGClient()
+        with patch.object(client.session, "get", return_value=response) as get:
+            cards, status = client.search("name:Pikachu")
+
+        self.assertEqual(status, "MISS")
+        self.assertEqual([c["id"] for c in cards], ["base1-25"])
+        get.assert_called_once()
+        response.raise_for_status.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -32,14 +32,18 @@ class TCGClient:
         # promoting STALE/MISS to HIT on the second call within a process.
         self._cache: dict[str, tuple[list[dict[str, Any]], str]] = {}
 
-    def search(self, query: str, page_size: int = 12) -> tuple[list[dict[str, Any]], str]:
-        return self._fetch_page(query, page=1, page_size=page_size)
+    def search(
+        self, query: str, page_size: int = 12, *, cache_only: bool = False
+    ) -> tuple[list[dict[str, Any]], str]:
+        return self._fetch_page(query, page=1, page_size=page_size, cache_only=cache_only)
 
     def search_all(
         self,
         query: str,
         page_size: int = 50,
         max_pages: int = 12,
+        *,
+        cache_only: bool = False,
     ) -> tuple[list[dict[str, Any]], str]:
         """Paginate through every match for `query` (up to max_pages * page_size).
 
@@ -51,14 +55,16 @@ class TCGClient:
         Returns `(cards, status)` where `status` is the worst page-level
         cache outcome across the walk (MISS > STALE > HIT). A single MISS
         page upgrades the whole call's status to MISS."""
-        cache_key = f"all:{query}:{page_size}:{max_pages}"
+        cache_key = f"all:{query}:{page_size}:{max_pages}:{cache_only}"
         if cache_key in self._cache:
             return self._cache[cache_key]
 
         all_cards: list[dict[str, Any]] = []
         status = "HIT"
         for page in range(1, max_pages + 1):
-            data, page_status = self._fetch_page(query, page=page, page_size=page_size)
+            data, page_status = self._fetch_page(
+                query, page=page, page_size=page_size, cache_only=cache_only
+            )
             status = worse_cache_status(status, page_status)
             if not data:
                 break
@@ -69,9 +75,9 @@ class TCGClient:
         return all_cards, status
 
     def _fetch_page(
-        self, query: str, *, page: int, page_size: int
+        self, query: str, *, page: int, page_size: int, cache_only: bool = False
     ) -> tuple[list[dict[str, Any]], str]:
-        cache_key = f"page:{query}:{page}:{page_size}"
+        cache_key = f"page:{query}:{page}:{page_size}:{cache_only}"
         if cache_key in self._cache:
             return self._cache[cache_key]
         url = f"{API_BASE}/cards?q={quote(query)}&pageSize={page_size}&page={page}"
@@ -95,20 +101,23 @@ class TCGClient:
             return cached, "STALE"
         if self.verbose:
             print(f"  GET {url}", file=sys.stderr)
-        data = self._network_fetch(url)
+        data = self._network_fetch(url, cache_only=cache_only)
         if data is None:
             # Transient failure already swallowed below; return empty MISS so
             # callers see "no candidates" without poisoning the cache.
-            self._cache[cache_key] = ([], "MISS")
-            return [], "MISS"
+            status = "MISS-CACHE-ONLY" if cache_only else "MISS"
+            self._cache[cache_key] = ([], status)
+            return [], status
         self._cache[cache_key] = (data, "MISS")
         disk_cache.write_api_split(url, data)
         return data, "MISS"
 
-    def _network_fetch(self, url: str) -> list[dict[str, Any]] | None:
+    def _network_fetch(self, url: str, *, cache_only: bool = False) -> list[dict[str, Any]] | None:
         """Issue the upstream GET with 429-aware retry. Returns the `data`
         array on success, None on a transient failure (timeout / connection
         error after retries). Raises on persistent non-retryable errors."""
+        if cache_only:
+            return None
         for attempt in range(4):
             try:
                 resp = self.session.get(url, timeout=60)
@@ -136,7 +145,7 @@ class TCGClient:
         return self._network_fetch(url)
 
 
-def search_pokemontcg(client: TCGClient, q: CardQuery) -> MatchResult:
+def search_pokemontcg(client: TCGClient, q: CardQuery, *, cache_only: bool = False) -> MatchResult:
     """Build a sequence of progressively-looser queries against pokemontcg.io
     and pick the best candidate. Returns reason='set_mismatch' if candidates
     exist but none satisfy the user's set hint."""
@@ -174,7 +183,7 @@ def search_pokemontcg(client: TCGClient, q: CardQuery) -> MatchResult:
         if query in seen:
             continue
         seen.add(query)
-        candidates, status = client.search(query)
+        candidates, status = client.search(query, cache_only=cache_only)
         aggregate_status = worse_cache_status(aggregate_status, status)
         if candidates:
             all_candidates = candidates

@@ -27,7 +27,7 @@ from mgz_pkmn.sources import PriceChartingClient, TCGClient, TCGDexClient
 from mgz_pkmn.sources.base import worse_cache_status
 from mgz_pkmn.spreadsheet import Row
 
-from ..auth.session import CurrentUserOptional
+from ..auth.session import CurrentUserOptional, auth_enabled
 from ..db.models import DEFAULT_USER_ID, Run
 from ..db.serialize import build_run_summary, row_to_run_row
 from ..db.session import get_session_factory
@@ -136,6 +136,8 @@ def _do_lookup(
     q: CardQuery,
     settings: Settings,
     on_stage: Callable[[str], None] | None = None,
+    *,
+    cache_only: bool = False,
 ) -> tuple[list[tuple[Row, str]], str]:
     """Run a blocking card lookup and return `(pairs, cache_status)`.
 
@@ -178,6 +180,7 @@ def _do_lookup(
                 max_price=settings.max_price,
                 on_stage=on_stage,
                 on_cache_status=_bump_status,
+                cache_only=cache_only,
             )
             err = False
         except req_lib.RequestException:
@@ -191,7 +194,15 @@ def _do_lookup(
             out.append((Row(query=q, card=None, pricing=Pricing(), tag=settings.tag), reason))
     else:
         try:
-            result = find_card(pkmn, tcgdex, pc, q, default_lang=settings.lang, on_stage=on_stage)
+            result = find_card(
+                pkmn,
+                tcgdex,
+                pc,
+                q,
+                default_lang=settings.lang,
+                on_stage=on_stage,
+                cache_only=cache_only,
+            )
         except req_lib.RequestException:
             from mgz_pkmn.sources.base import MatchResult
 
@@ -235,8 +246,12 @@ def _unparseable_row(line: str, tag: str) -> Row:
     return Row(query=placeholder, card=None, pricing=Pricing(), tag=tag)
 
 
+def _cache_only_for_user(current_user: object | None) -> bool:
+    return auth_enabled() and current_user is None
+
+
 @router.post("/lookup")
-async def lookup(req: LookupRequest) -> JSONResponse:
+async def lookup(req: LookupRequest, current_user: CurrentUserOptional) -> JSONResponse:
     """Look up a single card line and return resolved rows.
 
     A bulk query (top-N) expands into multiple rows. A regular query returns
@@ -262,7 +277,15 @@ async def lookup(req: LookupRequest) -> JSONResponse:
         )
 
     pkmn, tcgdex, pc = _make_clients(req.settings)
-    pairs, cache_status = await run_in_threadpool(_do_lookup, pkmn, tcgdex, pc, q, req.settings)
+    pairs, cache_status = await run_in_threadpool(
+        _do_lookup,
+        pkmn,
+        tcgdex,
+        pc,
+        q,
+        req.settings,
+        cache_only=_cache_only_for_user(current_user),
+    )
     return JSONResponse(
         content={"rows": [_row_to_dict(r, reason) for r, reason in pairs]},
         headers={"X-Cache": cache_status},
@@ -311,6 +334,7 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
     total = len(indexed)
 
     pkmn, tcgdex, pc = _make_clients(req.settings)
+    cache_only = _cache_only_for_user(current_user)
 
     async def event_stream():
         loop = asyncio.get_running_loop()
@@ -347,7 +371,16 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
                 loop.call_soon_threadsafe(_q.put_nowait, name)
 
             task = asyncio.ensure_future(
-                run_in_threadpool(_do_lookup, pkmn, tcgdex, pc, q, req.settings, on_stage)
+                run_in_threadpool(
+                    _do_lookup,
+                    pkmn,
+                    tcgdex,
+                    pc,
+                    q,
+                    req.settings,
+                    on_stage,
+                    cache_only=cache_only,
+                )
             )
             task.add_done_callback(lambda _t, _q=stage_queue: _q.put_nowait(_STAGE_DONE))
 

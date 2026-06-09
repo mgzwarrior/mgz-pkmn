@@ -82,6 +82,27 @@ class ParseRouteTests(unittest.TestCase):
 
 
 class LookupRouteTests(unittest.TestCase):
+    def _lookup_row(self):
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        row = Row(
+            query=CardQuery(raw="Pikachu", name="Pikachu"),
+            card=None,
+            pricing=Pricing(),
+            tag="",
+        )
+        return [(row, "no_candidates")], "MISS"
+
+    def _restore_auth_env(self, old_auth: str | None) -> None:
+        from api.auth.session import AUTH_ENABLED_ENV
+
+        if old_auth is None:
+            os.environ.pop(AUTH_ENABLED_ENV, None)
+        else:
+            os.environ[AUTH_ENABLED_ENV] = old_auth
+
     def test_blank_line_returns_empty_rows(self) -> None:
         resp = client.post("/api/v1/lookup", json={"line": ""})
         self.assertEqual(resp.status_code, 200)
@@ -137,6 +158,50 @@ class LookupRouteTests(unittest.TestCase):
         # Blank line → skipped (no rows, no L2 lookup): default to MISS.
         resp = client.post("/api/v1/lookup", json={"line": "   "})
         self.assertEqual(resp.headers["X-Cache"], "MISS")
+
+    def test_lookup_route_uses_cache_only_for_auth_on_anonymous_user(self) -> None:
+        from api.auth.session import AUTH_ENABLED_ENV
+
+        old_auth = os.environ.get(AUTH_ENABLED_ENV)
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        try:
+            with patch("api.routes.lookup._do_lookup", return_value=self._lookup_row()) as do:
+                resp = client.post("/api/v1/lookup", json={"line": "Pikachu"})
+        finally:
+            self._restore_auth_env(old_auth)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(do.call_args.kwargs["cache_only"])
+
+    def test_lookup_route_fetches_upstream_for_authenticated_user(self) -> None:
+        from api.auth.session import AUTH_ENABLED_ENV, get_current_user
+
+        old_auth = os.environ.get(AUTH_ENABLED_ENV)
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        app.dependency_overrides[get_current_user] = lambda: object()
+        try:
+            with patch("api.routes.lookup._do_lookup", return_value=self._lookup_row()) as do:
+                resp = client.post("/api/v1/lookup", json={"line": "Pikachu"})
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+            self._restore_auth_env(old_auth)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(do.call_args.kwargs["cache_only"])
+
+    def test_lookup_route_fetches_upstream_when_auth_is_off(self) -> None:
+        from api.auth.session import AUTH_ENABLED_ENV
+
+        old_auth = os.environ.get(AUTH_ENABLED_ENV)
+        os.environ.pop(AUTH_ENABLED_ENV, None)
+        try:
+            with patch("api.routes.lookup._do_lookup", return_value=self._lookup_row()) as do:
+                resp = client.post("/api/v1/lookup", json={"line": "Pikachu"})
+        finally:
+            self._restore_auth_env(old_auth)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(do.call_args.kwargs["cache_only"])
 
     def test_matched_line_returns_matched_row(self) -> None:
         from mgz_pkmn.parser import CardQuery
@@ -201,7 +266,7 @@ class BulkStageStreamTests(unittest.TestCase):
         from mgz_pkmn.pricing import Pricing
         from mgz_pkmn.spreadsheet import Row
 
-        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None):
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False):
             if on_stage is not None:
                 on_stage("looking_up")
                 on_stage("fallback")
@@ -231,7 +296,7 @@ class BulkStageStreamTests(unittest.TestCase):
         from mgz_pkmn.pricing import Pricing
         from mgz_pkmn.spreadsheet import Row
 
-        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None):
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False):
             if on_stage is not None:
                 on_stage("looking_up")
             return [(Row(query=q, card=None, pricing=Pricing(), tag=""), "no_candidates")], "MISS"

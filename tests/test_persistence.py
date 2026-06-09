@@ -177,7 +177,7 @@ class BulkPersistenceTests(_IsolatedDbMixin):
         # persistence shape, not match correctness.
         from api.routes import lookup as lookup_route
 
-        def fake_do_lookup(pkmn, tcgdex, pc, q, settings, on_stage=None):
+        def fake_do_lookup(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False):
             from mgz_pkmn.pricing import Pricing
             from mgz_pkmn.spreadsheet import Row
 
@@ -508,7 +508,7 @@ class SavedSearchesAuthGateTests(_IsolatedDbMixin):
         from api.main import app
         from api.routes import lookup as lookup_route
 
-        def fake_do_lookup(pkmn, tcgdex, pc, q, settings, on_stage=None):
+        def fake_do_lookup(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False):
             from mgz_pkmn.pricing import Pricing
             from mgz_pkmn.spreadsheet import Row
 
