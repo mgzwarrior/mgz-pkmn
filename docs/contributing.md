@@ -697,16 +697,20 @@ that OIDC trusted-publisher auth uses.
 
 ### `RELEASE_PAT` secret
 
-`release-on-version-bump.yml` pushes the release tag with a
-fine-grained Personal Access Token stored as the repo secret
-`RELEASE_PAT`. A PAT is required because tags pushed with the
-default `GITHUB_TOKEN` do not trigger downstream workflows, and
-`release.yml` needs to fire on the tag push.
+Two workflows authenticate with the repo secret `RELEASE_PAT` (a fine-grained Personal Access Token), each for a different reason:
 
-Scope the PAT to this repository with **Contents: read and write**.
-Rotate it on the standard cadence and update the
-`RELEASE_PAT` secret under repo Settings → Secrets and variables →
-Actions.
+- **`release-on-version-bump.yml`** pushes the release tag. Tags pushed with the default `GITHUB_TOKEN` don't trigger downstream workflows, and `release.yml` needs to fire on the tag push.
+- **`release-please.yml`** opens the version-bump PR. PRs opened with `GITHUB_TOKEN` don't trigger `pull_request` workflows (CI, DCO, Conventional Commits check), so the bot's PR would sit there with no validation runs until someone pushed another commit.
+
+The PAT needs three scopes (fine-grained) — or `repo` on a classic PAT:
+
+| Scope | Why |
+|---|---|
+| **Contents: read and write** | Tag pushes (`release-on-version-bump.yml`) + release branch commits (`release-please.yml`) |
+| **Pull requests: read and write** | Open + maintain the release PR (`release-please.yml`). The workflow's block-level `permissions:` doesn't help PATs — only `GITHUB_TOKEN`. |
+| **Issues: read and write** | release-please manages its own `autorelease: pending` / `autorelease: tagged` labels through the Issues API |
+
+Rotate on the standard cadence and update the `RELEASE_PAT` secret under repo Settings → Secrets and variables → Actions.
 
 ### Cloudflare Pages deploy hook
 
