@@ -12,7 +12,8 @@ writer uses) and the on-disk thumbnails in `output/images/`.
 
 Output: site/public/screenshots/cards-xlsx.webp — a styled PNG that
 mirrors the workbook's per-tag section layout: header band, ~8 data
-rows with thumbnails, name, set, number, market price, comps.
+rows with thumbnails, name, set, number, market price, comps, and a
+totals row summing the visible cards (matching the xlsx's SUM row).
 
 Driven by `site/scripts/refresh-screenshots.sh`.
 """
@@ -38,6 +39,7 @@ ROW_COUNT = 8
 ROW_HEIGHT = 110
 HEADER_HEIGHT = 64
 TAG_BAND_HEIGHT = 44
+TOTALS_HEIGHT = 72
 COL_PAD = 18
 CANVAS_WIDTH = 1600
 
@@ -127,7 +129,7 @@ def main() -> None:
     # Group the visible rows by tag so the preview mirrors the workbook's
     # per-tag section layout (header band + matching rows underneath).
     tag = rows[0].get("tag", "")
-    canvas_height = HEADER_HEIGHT + TAG_BAND_HEIGHT + ROW_HEIGHT * len(rows) + 24
+    canvas_height = HEADER_HEIGHT + TAG_BAND_HEIGHT + ROW_HEIGHT * len(rows) + TOTALS_HEIGHT + 24
     img = Image.new("RGB", (CANVAS_WIDTH, canvas_height), BG)
     draw = ImageDraw.Draw(img)
 
@@ -228,6 +230,23 @@ def main() -> None:
         )
 
         y += ROW_HEIGHT
+
+    # Totals row — mirrors the workbook's bottom SUM row (Market / 80% /
+    # 90% summed over the visible cards) so the preview matches the real
+    # xlsx, which gained a totals row in the branded-export work.
+    def col_x(index: int) -> int:
+        return COL_PAD + sum(width for _, width in COLUMNS[:index])
+
+    draw.rectangle((0, y, CANVAS_WIDTH, y + TOTALS_HEIGHT), fill=HEADER_BG)
+    draw.line((0, y, CANVAS_WIDTH, y), fill=ACCENT, width=2)
+    total_market = sum(row.get("market") or 0 for row in rows)
+    total_80 = sum((row.get("comps") or {}).get("80%") or 0 for row in rows)
+    total_90 = sum((row.get("comps") or {}).get("90%") or 0 for row in rows)
+    ty = y + TOTALS_HEIGHT // 2 - 12
+    draw.text((col_x(1), ty), "Totals:", fill=HEADER_TEXT, font=fnt_body_bold)
+    draw.text((col_x(5), ty), format_currency(total_market), fill=PRICE, font=fnt_body_bold)
+    draw.text((col_x(6), ty), format_currency(total_80), fill=ACCENT, font=fnt_body)
+    draw.text((col_x(7), ty), format_currency(total_90), fill=ACCENT, font=fnt_body)
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     # Write WebP at marketing quality. PIL's WebP encoder defaults to
