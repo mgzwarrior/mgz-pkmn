@@ -21,17 +21,17 @@
 #
 #   Cubone | Chinese Gem Pack Vol 3 | 407 https://www.pricecharting.com/game/pokemon-chinese-gem-pack-3/cubone-407
 #
-# Examples (uncomment to try):
-Charizard | Base | 4/102
-Pikachu | Base | 58/102
-Mewtwo | Base | 10/102
-Blastoise | Base | 2/102
-Charizard V | Champion's Path | 74/73
-
 # Bulk lookup ("top-N chase cards"):
 #   "All <subject> cards|prints|versions" → 5 highest-priced matches
 #   "top:<N> <subject>" / "top <N> <subject>" → N highest-priced matches
+#   Append a price bound (<, <=, >, >=) to filter: "top:5 Charizard <$50".
+#   Family aliases expand to a whole evolution line (e.g. "eeveelution").
 # Each result becomes its own row in the spreadsheet / cell in the PDF.
-#
-# All Exeggutor cards
-# top:3 Charizard
+
+top:9 Eeveelution
+top:5 Charizard <$50
+
+# Or list exact cards, one per line (uncomment to try):
+# Charizard | Base | 4/102
+# Pikachu | Base | 58/102
+# Charizard V | Champion's Path | 74/73

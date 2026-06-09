@@ -2,10 +2,16 @@
 
 Centralizes the `mgz-pkmn` mark, URL, and PDF metadata so the .xlsx and
 the four PDF writers (binder, condensed, checklist, set-cards) agree on
-how an exported file is signed. The PNG at `assets/logo.png` is the
-rasterized version of the repo-root `assets/logo.svg` — regenerate with
-`rsvg-convert -w 640 -h 160 assets/logo.svg -o src/mgz_pkmn/assets/logo.png`
-when the source changes.
+how an exported file is signed. Two PNG marks are bundled, both
+rasterized from the repo-root SVGs preserving the 285x88 viewBox aspect
+(regenerate when the source changes):
+
+  rsvg-convert -w 640 assets/logo.svg      -o src/mgz_pkmn/assets/logo.png
+  rsvg-convert -w 640 assets/logo-dark.svg -o src/mgz_pkmn/assets/logo-dark.png
+
+`logo.png` is the dark-wordmark mark (for light backgrounds); the
+`-dark` variant is the light wordmark that reads on the colored header
+band the exports paint behind it.
 """
 
 from __future__ import annotations
@@ -16,6 +22,8 @@ import sys
 from importlib import resources
 from typing import TYPE_CHECKING
 
+from . import palette
+
 if TYPE_CHECKING:
     from reportlab.pdfgen.canvas import Canvas
 
@@ -24,31 +32,37 @@ PROJECT_URL = "https://mgz-pkmn.com"
 PROJECT_AUTHOR = "mgz-pkmn"
 PROJECT_CREATOR = f"mgz-pkmn ({PROJECT_URL})"
 
-_LOGO_RESOURCE = "assets/logo.png"
-LOGO_ASPECT = 320 / 80  # source SVG viewBox: w / h
+_LOGO_RESOURCES = {
+    "on-light": "assets/logo.png",  # dark wordmark, for light backgrounds
+    "on-dark": "assets/logo-dark.png",  # light wordmark, for the colored band
+}
+LOGO_ASPECT = 285 / 88  # source SVG viewBox: w / h
 
-# Dark slate panel used wherever the logo sits, so the light-grey
-# wordmark reads. Matches the existing section-header band color in the
-# binder + checklist writers so the logo blends with those headers
-# rather than introducing a third shade.
-HEADER_PANEL_RGB = (0.16, 0.21, 0.30)
+# Tropical header band the exports paint wherever the logo sits, so the
+# light-wordmark mark reads. Deep frond green (palm-600) from the design
+# tokens — the in-brand successor to the old dark-slate band. Matches the
+# section-header band in the binder + checklist writers so the logo blends
+# with those headers rather than introducing a third shade.
+HEADER_PANEL_RGB = palette.rgb01(palette.HEADER_BAND)
 
-_logo_bytes_cache: bytes | None = None
+_logo_bytes_cache: dict[str, bytes] = {}
 _logo_warned = False
 
 
-def logo_bytes() -> bytes:
-    """Read the bundled PNG logo as raw bytes.
+def logo_bytes(variant: str = "on-light") -> bytes:
+    """Read a bundled PNG logo mark as raw bytes.
 
-    Goes through `importlib.resources.files(...).read_bytes()` so the
-    asset resolves whether the package is installed from a wheel, a
-    zipimport, or a source checkout (no on-disk path assumption). The
-    result is cached for the life of the process — the file is small
-    (<10 KB) and gets touched on every export."""
-    global _logo_bytes_cache
-    if _logo_bytes_cache is None:
-        _logo_bytes_cache = (resources.files("mgz_pkmn") / _LOGO_RESOURCE).read_bytes()
-    return _logo_bytes_cache
+    `variant` is `"on-light"` (dark wordmark, default) or `"on-dark"`
+    (light wordmark for the colored header band). Goes through
+    `importlib.resources.files(...).read_bytes()` so the asset resolves
+    whether the package is installed from a wheel, a zipimport, or a
+    source checkout (no on-disk path assumption). Results are cached per
+    variant for the life of the process — the files are small (<15 KB)
+    and get touched on every export."""
+    if variant not in _logo_bytes_cache:
+        resource = _LOGO_RESOURCES[variant]
+        _logo_bytes_cache[variant] = (resources.files("mgz_pkmn") / resource).read_bytes()
+    return _logo_bytes_cache[variant]
 
 
 def apply_pdf_metadata(c: Canvas, title: str) -> None:
@@ -79,7 +93,7 @@ def draw_pdf_footer(
     when = (generated_at or _dt.datetime.now()).strftime("%Y-%m-%d")
     c.saveState()
     c.setFont("Helvetica", 8)
-    c.setFillColorRGB(0.55, 0.55, 0.55)
+    c.setFillColorRGB(*palette.rgb01("fg-3"))
     c.drawString(margin, y, PROJECT_NAME)
     c.drawCentredString(page_w / 2, y, f"generated {when} · {PROJECT_URL}")
     c.drawRightString(page_w - margin, y, f"p.{page_num}")
@@ -114,10 +128,10 @@ def draw_pdf_logo(
     """Draw the rasterized logo with bottom-left at (x, y) and the given
     height in points. Width is derived from `LOGO_ASPECT`.
 
-    `draw_panel=True` paints a dark slate background behind the logo so
-    the light-grey wordmark reads on otherwise-white pages (set-cards
-    layout). Callers that already place the logo inside an existing
-    dark header band leave this `False`.
+    Draws the light-wordmark mark, which reads on the colored header
+    band. `draw_panel=True` paints that band behind the logo on
+    otherwise-white pages (set-cards layout); callers that already place
+    the logo inside an existing header band leave this `False`.
 
     Failures fetching or decoding the bundled asset are logged to
     stderr once per process; the export proceeds without a logo so a
@@ -125,7 +139,7 @@ def draw_pdf_logo(
     canvas in a bad state) are re-raised."""
     width = height * LOGO_ASPECT
     try:
-        data = logo_bytes()
+        data = logo_bytes("on-dark")
     except (FileNotFoundError, OSError, ModuleNotFoundError) as exc:
         _warn_once(f"logo asset unavailable: {exc}")
         return

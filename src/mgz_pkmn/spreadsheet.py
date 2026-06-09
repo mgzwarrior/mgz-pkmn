@@ -13,7 +13,7 @@ from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from . import branding
+from . import branding, palette
 from .images import THUMB_H, THUMB_W, make_thumbnail
 from .parser import CardQuery
 from .pricing import COMP_PERCENTS, Pricing
@@ -62,9 +62,9 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
     ws = wb.active
     ws.title = "Cards"
 
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill("solid", fgColor="2C3E50")
-    over_cap_fill = PatternFill("solid", fgColor="FFE9A8")  # soft amber for above-cap rows
+    header_font = Font(bold=True, color=palette.hex("fg-on-dark"))
+    header_fill = PatternFill("solid", fgColor=palette.hex(palette.HEADER_BAND))
+    over_cap_fill = PatternFill("solid", fgColor=palette.hex("warning-bg"))  # above-cap rows
 
     ws.append(HEADERS)
     for col_idx, _ in enumerate(HEADERS, start=1):
@@ -121,7 +121,10 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
             market_cell.number_format = money_fmt
             if is_over_cap:
                 market_cell.fill = over_cap_fill
-                market_cell.font = Font(bold=True, color="8A4B00")
+                market_cell.font = Font(bold=True, color=palette.hex("warning-fg"))
+            else:
+                # In-budget market in brand green, matching the binder/checklist.
+                market_cell.font = Font(bold=True, color=palette.hex("success-fg"))
             for offset, pct in enumerate(COMP_PERCENTS):
                 cell = ws.cell(row=i, column=12 + offset, value=round(market * pct / 100, 2))
                 cell.number_format = money_fmt
@@ -134,7 +137,7 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
         if row.pricing.url:
             link_cell = ws.cell(row=i, column=17, value=row.pricing.url)
             link_cell.hyperlink = row.pricing.url
-            link_cell.font = Font(color="1F4E78", underline="single")
+            link_cell.font = Font(color=palette.hex("fg-link"), underline="single")
 
         if row.image_path and row.image_path.exists():
             try:
@@ -169,7 +172,7 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
     # site so a recipient can trace where the file came from.
     brand_cell = ws.cell(row=last + 1, column=2, value=branding.PROJECT_NAME)
     brand_cell.hyperlink = branding.PROJECT_URL
-    brand_cell.font = Font(bold=True, color="1F4E78", underline="single")
+    brand_cell.font = Font(bold=True, color=palette.hex("fg-link"), underline="single")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
@@ -192,7 +195,7 @@ def _apply_workbook_branding(wb: Workbook, out_path: Path) -> None:
 
     ws = wb.active
     try:
-        logo_data = branding.logo_bytes()
+        logo_data = branding.logo_bytes("on-dark")
     except (FileNotFoundError, OSError, ModuleNotFoundError) as exc:
         print(f"  ! branding logo unavailable, skipping xlsx logo: {exc}", file=sys.stderr)
         return

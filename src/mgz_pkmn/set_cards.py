@@ -36,7 +36,7 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
-from . import branding
+from . import branding, palette
 from . import cache as disk_cache
 from .images import download_image
 from .sources import TCGClient
@@ -345,7 +345,7 @@ def _draw_cutout(c: canvas.Canvas, x: float, y: float, co: dict[str, Any]) -> No
 
     Dashed cell border = cut line. Logo on top half, text block underneath."""
     c.saveState()
-    c.setStrokeColorRGB(0.6, 0.6, 0.6)
+    c.setStrokeColorRGB(*palette.rgb01("border-2"))
     c.setLineWidth(0.4)
     c.setDash(2, 2)
     c.rect(x, y, CARD_W, CARD_H, stroke=1, fill=0)
@@ -386,10 +386,10 @@ def _draw_logo(c: canvas.Canvas, path: Path | None, x: float, y: float, w: float
 
 def _draw_placeholder(c: canvas.Canvas, x: float, y: float, w: float, h: float, label: str) -> None:
     c.saveState()
-    c.setFillColorRGB(0.95, 0.95, 0.95)
-    c.setStrokeColorRGB(0.85, 0.85, 0.85)
+    c.setFillColorRGB(*palette.rgb01("bg-sunken"))
+    c.setStrokeColorRGB(*palette.rgb01("border-1"))
     c.rect(x, y, w, h, stroke=1, fill=1)
-    c.setFillColorRGB(0.55, 0.55, 0.55)
+    c.setFillColorRGB(*palette.rgb01("fg-3"))
     c.setFont("Helvetica-Oblique", 9)
     c.drawCentredString(x + w / 2, y + h / 2 - 3, label)
     c.restoreState()
@@ -409,32 +409,32 @@ def _draw_text_block(
     name_size = 13
     cur_y = y + h - name_size
     c.setFont("Helvetica-Bold", name_size)
-    c.setFillColorRGB(0.1, 0.1, 0.1)
+    c.setFillColorRGB(*palette.rgb01("fg-1"))
     for line in name_lines:
         c.drawCentredString(x + w / 2, cur_y, line)
         cur_y -= name_size + 1
 
     if series:
         c.setFont("Helvetica", 9)
-        c.setFillColorRGB(0.35, 0.35, 0.35)
+        c.setFillColorRGB(*palette.rgb01("fg-2"))
         cur_y -= 2
         c.drawCentredString(x + w / 2, cur_y, series)
         cur_y -= 11
 
     if year:
         c.setFont("Helvetica", 9)
-        c.setFillColorRGB(0.5, 0.5, 0.5)
+        c.setFillColorRGB(*palette.rgb01("fg-3"))
         c.drawCentredString(x + w / 2, cur_y, year)
         cur_y -= 11
 
     if total:
         cur_y -= 4
         c.setFont("Helvetica-Bold", 11)
-        c.setFillColorRGB(0.16, 0.21, 0.30)
+        c.setFillColorRGB(*palette.rgb01("brand-secondary"))
         c.drawCentredString(x + w / 2, cur_y, f"{total} cards")
 
     c.setFont("Helvetica", 7)
-    c.setFillColorRGB(0.55, 0.55, 0.55)
+    c.setFillColorRGB(*palette.rgb01("fg-3"))
     c.drawCentredString(x + w / 2, y + 2, f"generated {generated}")
 
 
