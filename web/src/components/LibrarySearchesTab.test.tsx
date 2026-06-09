@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { SavedSearchesSidebar } from './SavedSearchesSidebar'
+import { LibrarySearchesTab } from './LibrarySearchesTab'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import * as client from '../api/client'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
-import type { RunDetail, RunSummary, SavedViewState } from '../types'
+import type { RunDetail, RunRowDetail, RunSummary, SavedViewState } from '../types'
 
 function makeRun(id: number, overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -27,34 +27,33 @@ function makeRun(id: number, overrides: Partial<RunSummary> = {}): RunSummary {
 }
 
 function makeDetail(id: number, viewState: SavedViewState | null = null): RunDetail {
+  const row: RunRowDetail = {
+    position: 0,
+    tag: 'keep',
+    market_price: 10,
+    currency: 'USD',
+    query: {
+      raw: 'Charizard',
+      name: 'Charizard',
+      set_hint: null,
+      number: null,
+      variant_hint: null,
+      url_hint: null,
+      bulk_top: null,
+      bulk_all: false,
+      price_min: null,
+      price_max: null,
+    },
+    card: { id: 'card-1', name: 'Charizard' },
+    pricing: { market: 10, variant: null, source: null, url: null, currency: 'USD' },
+  }
   return {
     id,
     created_at: '2026-06-01T12:00:00Z',
     elapsed_seconds: 1.2,
     input_text: 'Charizard\nPikachu',
     summary: makeRun(id).summary,
-    rows: [
-      {
-        position: 0,
-        tag: 'keep',
-        market_price: 10,
-        currency: 'USD',
-        query: {
-          raw: 'Charizard',
-          name: 'Charizard',
-          set_hint: null,
-          number: null,
-          variant_hint: null,
-          url_hint: null,
-          bulk_top: null,
-          bulk_all: false,
-          price_min: null,
-          price_max: null,
-        },
-        card: { id: 'card-1', name: 'Charizard' },
-        pricing: { market: 10, variant: null, source: null, url: null, currency: 'USD' },
-      },
-    ],
+    rows: [row],
     name: `Saved ${id}`,
     view_state: viewState,
   }
@@ -75,7 +74,7 @@ function resetStore() {
   })
 }
 
-describe('SavedSearchesSidebar', () => {
+describe('LibrarySearchesTab', () => {
   beforeEach(() => {
     resetStore()
     _resetAuthStoreForTests()
@@ -90,7 +89,7 @@ describe('SavedSearchesSidebar', () => {
 
   it('shows the empty state when there are no saved searches', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [], total: 0 })
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
     expect(await screen.findByText(/No saved searches yet/i)).toBeInTheDocument()
   })
 
@@ -101,7 +100,7 @@ describe('SavedSearchesSidebar', () => {
     })
     const listSpy = vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [], total: 0 })
 
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
 
     expect(await screen.findByText(/Sign in to see saved searches/i)).toBeInTheDocument()
     expect(listSpy).not.toHaveBeenCalled()
@@ -112,7 +111,7 @@ describe('SavedSearchesSidebar', () => {
       items: [makeRun(1, { name: 'Show prep' }), makeRun(2, { name: 'Wishlist', row_count: 5 })],
       total: 2,
     })
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(2))
     expect(screen.getByText('Show prep')).toBeInTheDocument()
     expect(screen.getByText('Wishlist')).toBeInTheDocument()
@@ -139,7 +138,7 @@ describe('SavedSearchesSidebar', () => {
       total: 1,
     })
     vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7, savedView))
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Load saved search/i }))
@@ -153,7 +152,6 @@ describe('SavedSearchesSidebar', () => {
   it('falls back to the empty view when a saved search has no stored view_state', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(7)], total: 1 })
     vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7, null))
-    // Seed a non-empty view to confirm it gets cleared on load.
     useAppStore.setState({
       viewState: {
         ...EMPTY_VIEW_STATE,
@@ -162,7 +160,7 @@ describe('SavedSearchesSidebar', () => {
         filters: { ...EMPTY_VIEW_STATE.filters, name: 'pika' },
       },
     })
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Load saved search/i }))
@@ -173,7 +171,7 @@ describe('SavedSearchesSidebar', () => {
   it('hydrating a saved search clears ephemeral progress + timer state', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(7)], total: 1 })
     vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7))
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Load saved search/i }))
@@ -196,7 +194,7 @@ describe('SavedSearchesSidebar', () => {
           setTimeout(() => resolve(makeDetail(id)), 10)
         }),
     )
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(2))
 
     const [first, second] = screen.getAllByRole('button', { name: /Load saved search/i })
@@ -210,7 +208,7 @@ describe('SavedSearchesSidebar', () => {
   it('load is blocked while a lookup is in flight', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(7)], total: 1 })
     const getSpy = vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7))
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
     await act(async () => {
       useAppStore.setState({ isRunning: true })
@@ -222,22 +220,9 @@ describe('SavedSearchesSidebar', () => {
     expect(getSpy).not.toHaveBeenCalled()
   })
 
-  it('collapse button toggles a compact rail and announces state via aria-expanded', async () => {
-    vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(1)], total: 1 })
-    render(<SavedSearchesSidebar />)
-    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
-
-    const collapseBtn = screen.getByRole('button', { name: /Collapse saved searches/i })
-    expect(collapseBtn).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(collapseBtn)
-
-    const expandBtn = screen.getByRole('button', { name: /Expand saved searches/i })
-    expect(expandBtn).toHaveAttribute('aria-expanded', 'false')
-  })
-
   it('surfaces the listRuns error', async () => {
     vi.spyOn(client, 'listRuns').mockRejectedValue(new Error('boom'))
-    render(<SavedSearchesSidebar />)
+    render(<LibrarySearchesTab />)
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
   })
 })

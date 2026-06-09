@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import { CollectionsModal } from './CollectionsModal'
+import { LibraryCollectionsTab } from './LibraryCollectionsTab'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { fetchCollections } from '../api/client'
 
@@ -12,21 +12,15 @@ vi.mock('../api/client', () => ({
 
 const mockFetch = vi.mocked(fetchCollections)
 
-describe('CollectionsModal', () => {
+describe('LibraryCollectionsTab', () => {
   beforeEach(() => {
     _resetCollectionsCacheForTests()
     mockFetch.mockReset()
   })
 
-  it('renders nothing when closed', () => {
-    mockFetch.mockResolvedValue([])
-    render(<CollectionsModal open={false} onOpenChange={() => {}} />)
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
   it('shows the empty state when the user has no collections', async () => {
     mockFetch.mockResolvedValue([])
-    render(<CollectionsModal open onOpenChange={() => {}} />)
+    render(<LibraryCollectionsTab />)
     await waitFor(() => expect(mockFetch).toHaveBeenCalled())
     expect(
       screen.getByText(/You don't have any collections yet/i),
@@ -50,22 +44,21 @@ describe('CollectionsModal', () => {
         item_count: 1,
       },
     ])
-    render(<CollectionsModal open onOpenChange={() => {}} />)
+    render(<LibraryCollectionsTab />)
 
     await waitFor(() =>
       expect(screen.getByText('Charizard masters')).toBeInTheDocument(),
     )
     expect(screen.getByText('all the holos')).toBeInTheDocument()
     expect(screen.getByText('4 cards')).toBeInTheDocument()
-    // Single-item count uses the singular form.
     expect(screen.getByText('1 card')).toBeInTheDocument()
   })
 
   it('surfaces a fetch error', async () => {
     mockFetch.mockRejectedValue(new Error('network down'))
-    render(<CollectionsModal open onOpenChange={() => {}} />)
+    render(<LibraryCollectionsTab />)
     await waitFor(() =>
-      expect(screen.getByText(/network down/i)).toBeInTheDocument(),
+      expect(screen.getByRole('alert')).toHaveTextContent(/network down/i),
     )
   })
 })
