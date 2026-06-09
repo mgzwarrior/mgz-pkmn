@@ -402,6 +402,95 @@ If you already hit that error, the fix is the same two commands above
 — `uv tool install pre-commit` then `pre-commit install` regenerates
 the hook with a stable Python path.
 
+## Commit messages
+
+Every non-merge commit on a PR must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). The CI workflow [`conventional-commits.yml`](../.github/workflows/conventional-commits.yml) fails any PR whose commits don't match; the same rule fires locally at commit-msg time via [gitlint](https://jorisroovers.github.io/gitlint/) (configured in [`.gitlint`](../.gitlint), wired through [`.pre-commit-config.yaml`](../.pre-commit-config.yaml)).
+
+### Format
+
+```
+<type>(<scope>)?!?: <subject>
+
+<body — optional, free-form, no hard line wraps>
+
+<footer — optional; release-please reads BREAKING CHANGE: footers>
+```
+
+### Allowed types
+
+| Type | Use for | Shows up in CHANGELOG as |
+|------|---------|--------------------------|
+| `feat` | New user-facing capability | `### Added` |
+| `fix` | User-facing bug fix | `### Fixed` |
+| `perf` | Performance improvement | `### Changed` |
+| `refactor` | Internal restructure with no behavior change | `### Changed` |
+| `docs` | Documentation only | `### Changed` |
+| `revert` | Revert of a prior commit | `### Changed` |
+| `chore` | Tooling, deps, internal housekeeping | *hidden* |
+| `ci` | CI / workflow changes | *hidden* |
+| `test` | Test-only changes | *hidden* |
+| `build` | Build system, packaging | *hidden* |
+| `style` | Formatting only | *hidden* |
+
+Append `!` after the type/scope (`feat(api)!:`) for a breaking change. [release-please](https://github.com/googleapis/release-please) reads that marker and bumps the major version.
+
+### Scope
+
+The `<scope>` is optional and free-form. The project's existing prefixes still apply — `web`, `api`, `cli`, `docs`, `design`, `site`, plus area tags from `area:*` labels — but use the Conventional Commits shape:
+
+| Old shape | New shape |
+|-----------|-----------|
+| `web: unify Library destination` | `feat(web): unify Library destination` |
+| `api: collections data model rework` | `feat(api): collections data model rework` |
+| `docs: clarify release flow` | `docs: clarify release flow` |
+| `[Agent]: refactor X` | `refactor(cli): X` (and use the `agent:claude` label) |
+
+### Subject line
+
+- Imperative mood ("add", "fix", "remove" — not "added", "adds").
+- Lowercase first character after the colon.
+- No trailing period.
+- Max 100 chars (CI and gitlint cap; aim for 72 to keep `gh pr view` and email previews clean).
+
+### Body
+
+No hard line wraps in commit bodies — each paragraph is one line; let renderers wrap responsively. The subject line still follows the usual short / imperative discipline.
+
+### Examples
+
+```
+feat(web): add binder progress chart
+
+The dashboard now reads from `collection_snapshots` to render value-over-time. Backs #575.
+```
+
+```
+fix(api): handle empty card_json in promote endpoint
+
+Closes #604.
+```
+
+```
+refactor(cli)!: drop deprecated --legacy flag
+
+BREAKING CHANGE: `pkmn lookup --legacy` is removed. Use `pkmn lookup` without flags.
+```
+
+### Local enforcement
+
+`make install` (or `make install-hooks`) registers the commit-msg-stage gitlint hook alongside the DCO sign-off hook, so a malformed subject is rejected at commit time. Manual install:
+
+```bash
+uv tool install gitlint
+gitlint install-hook
+```
+
+The CI workflow is authoritative — if gitlint and the workflow ever disagree, fix the workflow's regex first (it's the contract release-please reads).
+
+### Why this matters
+
+release-please walks the Conventional Commits between releases to draft the next version-bump PR — see [release-please.yml](../.github/workflows/release-please.yml) and [release-please-config.json](../release-please-config.json). A non-conforming commit is invisible to that drafting pass, which means a real user-facing change can silently miss the changelog. The CI check is the gate that keeps the auto-drafted notes complete.
+
 ## Signing off your commits
 
 Every non-merge commit on a PR needs a [DCO](https://developercertificate.org/)
@@ -481,26 +570,39 @@ SPA). Thresholds will be revisited once we have a stable baseline.
 
 ## Changelog
 
-[CHANGELOG.md](../CHANGELOG.md) follows the [Keep a
-Changelog](https://keepachangelog.com/en/1.1.0/) format. A PR with a
-**user-facing** change — a new feature, bug fix, behaviour change,
-deprecation, or removal — adds a bullet under the matching subsection
-(`Added` / `Changed` / `Fixed` / `Deprecated` / `Removed`) of the
-`[Unreleased]` section at the top of the file.
+[CHANGELOG.md](../CHANGELOG.md) follows the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
-Skip the changelog for changes users never see: dependency bumps, CI
-config, internal refactors, and test-only changes.
+**Don't add `[Unreleased]` entries by hand in your PR.** release-please reads the Conventional Commits between releases and drafts the next release's bullets automatically — adding a hand-written entry on top of that produces a duplicate that ships to the marketing site and the live-demo "what's new" surface as the same change listed twice. The cut-release editorial consolidation pass (`.claude/skills/cut-release/SKILL.md` Step 5a) then rewrites release-please's terse bullets into the project's rich-paragraph style, pulling detail from PR bodies — so the things that matter for the final CHANGELOG are:
+
+- **Your Conventional Commits subject** (`<type>(<scope>): <subject>`) — release-please uses it verbatim as the seed bullet. `feat:` lands under `### Added`, `fix:` under `### Fixed`, `perf:` / `refactor:` / `docs:` / `revert:` under `### Changed`. `chore:` / `ci:` / `test:` / `build:` / `style:` are hidden from the changelog by design — that's how you mark "changes users never see" (dependency bumps, CI config, internal refactors, test-only PRs).
+- **Your PR body** — the cut-release editorial pass reads it when rewriting bullets into the rich style. Include the **why**, the user-visible impact, and the files / surfaces touched. The richer your PR description, the richer the final changelog entry.
+
+If your change really has no user-visible impact, use a hidden type (`chore:`, `ci:`, `refactor:` for internal-only restructures, `test:`, `build:`, `style:`) and nothing ships to the changelog. No manual `### Hidden` block, no opt-out flag — the commit type is the contract.
+
+This rule is forward-looking: existing hand-written `[Unreleased]` entries that predate release-please stay until the next release's editorial pass folds or rewrites them.
 
 ## Releasing
 
-Releases are driven by `pyproject.toml`. A PR that bumps the version
-**is** the release — once it merges to `main`, the
-`release-on-version-bump` workflow tags the new commit. The tag push
-triggers `release.yml`, which builds the package, runs the test
-suite, publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via
-trusted publishing (with PEP 740 attestations), and creates a GitHub
-Release with the built distribution attached and notes linking to the
-new PyPI version.
+Releases are driven by `pyproject.toml`. A PR that bumps the version **is** the release — once it merges to `main`, the `release-on-version-bump` workflow tags the new commit. The tag push triggers `release.yml`, which builds the package, runs the test suite, publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via trusted publishing (with PEP 740 attestations), and creates a GitHub Release with the built distribution attached and notes linking to the new PyPI version.
+
+### The release PR is drafted by release-please
+
+`.github/workflows/release-please.yml` watches `main` and opens a version-bump PR whenever release-worthy Conventional Commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `revert:`) accumulate. The bot's PR is the **canonical release PR** — don't open a competing one. The bot:
+
+- Bumps the root `pyproject.toml` version.
+- Rotates `[Unreleased]` in `CHANGELOG.md` into a new versioned section with bullets generated from the commit subjects.
+- Signs the commit with `Signed-off-by: github-actions[bot] …` so the DCO check passes.
+
+The release-please flow is PR-only (`skip-github-release: true`). It does not tag, does not cut a GitHub Release, and does not push to PyPI — the existing `release-on-version-bump.yml` → `release.yml` chain still owns all of that. Merging the bot's PR trips the version-watch trigger and the established flow carries it from there.
+
+### The agent / human extends the bot PR before merging
+
+The bot only bumps the root `pyproject.toml`. The releasing agent or human checks out the bot's branch (`gh pr checkout <PR>`), applies two passes, and pushes back to the same branch:
+
+1. **Version extension.** Bump every other surface to the same number so the artifacts ship aligned: `api/pyproject.toml`, `web/package.json` (+ `npm install` to refresh the lockfile), `site/package.json` (+ `npm install`), `CITATION.cff` (`version` + `date-released`), `src/mgz_pkmn/__init__.py` (`__version__`), and `uv lock`.
+2. **CHANGELOG consolidation pass.** Dedupe duplicate `### Added` / `### Changed` / `### Fixed` blocks, promote impactful entries to the top of each subsection, drop or merge low-signal entries (dep bumps, CI tweaks, internal renames). The marketing site and the live-demo "what's new" surface render the CHANGELOG verbatim, so whatever ships in the release section is exactly what every visitor reads. See `.claude/skills/cut-release/SKILL.md` Step 5a for the full rules.
+
+Don't close the bot's PR and open your own — release-please reuses the branch on the next `main` push, and a human-authored replacement breaks that loop.
 
 The other three surfaces ship on their own deploy paths and don't
 need an explicit release action:
@@ -525,13 +627,7 @@ need an explicit release action:
 
 ### Running this from Claude Code
 
-The repo ships a [`cut-release`](../.claude/skills/cut-release/SKILL.md)
-skill that automates the steps below: it asks for the target version,
-creates a tracking issue if one doesn't exist, bumps every surface,
-rotates the changelog, runs the local gate, and opens the PR. Invoke it
-from any Claude Code session with `/cut-release` (or just ask Claude to
-"cut the next release"). You still merge the PR yourself — everything
-downstream is automatic from there.
+The repo ships a [`cut-release`](../.claude/skills/cut-release/SKILL.md) skill that walks the bot-PR extension above: it checks out the bot's branch, bumps every other surface to the same number, runs the CHANGELOG consolidation pass, runs the local gate, and pushes back to the same branch. Invoke it from any Claude Code session with `/cut-release` (or just ask Claude to "cut the next release"). You still merge the PR yourself — everything downstream is automatic from there.
 
 ### Doing it by hand
 

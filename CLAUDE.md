@@ -76,10 +76,17 @@ No other format is acceptable. Keep the description short (2–4 words, kebab-ca
 - Keep the change **focused**: one issue, one PR.
 - Prefer cross-agent review: implementation by one AI tool should be reviewed by
   a different AI tool when practical, then approved by the human.
-- For **user-facing** changes (features, fixes, behavior changes, deprecations,
-  removals), add a bullet under the matching subsection of `[Unreleased]` in
-  [CHANGELOG.md](CHANGELOG.md). Skip it for dependency bumps, CI tweaks,
-  internal refactors, and test-only changes.
+- **Do NOT add `[Unreleased]` entries to [CHANGELOG.md](CHANGELOG.md) by hand.** release-please
+  drafts the next release's bullets from your Conventional Commits subjects at release time,
+  and the cut-release editorial consolidation pass rewrites them in the project's rich-paragraph
+  style by referencing PR bodies. A hand-written entry on top of that produces a duplicate
+  that ships to the marketing site + live-demo "what's new" surface twice. Contributor
+  contract is now (1) a Conventional Commits subject — `feat:` → `### Added`,
+  `fix:` → `### Fixed`, `perf:` / `refactor:` / `docs:` / `revert:` → `### Changed`,
+  and `chore:` / `ci:` / `test:` / `build:` / `style:` are hidden from the changelog by
+  design (use these for dependency bumps, CI tweaks, internal refactors, test-only PRs) —
+  and (2) a rich PR body the editorial pass can pull detail from. See
+  [docs/contributing.md → Changelog](docs/contributing.md#changelog).
 - For **deployment-affecting** changes, update [render.yaml](render.yaml) in the
   same PR so the hosted-demo blueprint stays in sync with the code. The blueprint
   is the canonical declaration of what the deployed API needs — keeping it in the
@@ -105,6 +112,8 @@ make fix
 
 Pre-commit hooks run `ruff check --fix` and `ruff format` automatically — make sure they
 pass.
+
+**Every commit subject must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).** The CI workflow `Conventional Commits` and the local gitlint commit-msg hook both enforce the shape `<type>(<scope>)?!?: <subject>`. Allowed types: `feat`, `fix`, `perf`, `refactor`, `docs`, `revert`, `chore`, `ci`, `test`, `build`, `style`. Use the project's existing prefixes (`web`, `api`, `cli`, `docs`, `design`, `site`) as the scope. Append `!` after the scope (`feat(api)!:`) for a breaking change — release-please reads it and bumps the major version. Subject line max 100 chars, lowercase first char after the colon, no trailing period, imperative mood. See [docs/contributing.md#commit-messages](docs/contributing.md#commit-messages) for the full guide and examples.
 
 **Sign off every commit with `-s`.** This project runs a DCO check on every PR; the
 `DCO` job fails when any non-merge commit is missing a `Signed-off-by:` trailer (the
@@ -198,7 +207,8 @@ Pick a reviewer from the [pairing table in .agent-workflow.md](.agent-workflow.m
 
 You're done when the PR is open and CI is green. The `CI` workflow
 (`.github/workflows/ci.yml`) defines three jobs, and `DCO`
-(`.github/workflows/dco.yml`) runs separately on PRs:
+(`.github/workflows/dco.yml`) and `Conventional Commits`
+(`.github/workflows/conventional-commits.yml`) run separately on PRs:
 
 | Job | What it checks |
 |-----|---------------|
@@ -206,6 +216,7 @@ You're done when the PR is open and CI is green. The `CI` workflow
 | `web` | ESLint + TypeScript typecheck/build (`npm run build`) for `web/` |
 | `site` | Astro build for the marketing site (`site/`) |
 | `DCO` | Every non-merge PR commit carries a well-formed `Signed-off-by:` trailer (advisory until added to branch protection's required-checks list) |
+| `Conventional Commits` | Every non-merge PR commit subject matches `<type>(<scope>)?!?: <subject>` per [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). release-please reads these to draft the next version-bump PR. |
 
 CodeQL (`Analyze`) also runs on every PR — wait for those checks to pass too.
 

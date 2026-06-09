@@ -1,0 +1,39 @@
+# gitlint config — local commit-msg-stage check that mirrors the
+# `Conventional Commits` GitHub Action. Both run against the same
+# vocabulary so a green local commit is a green CI check.
+#
+# Wired into pre-commit via `.pre-commit-config.yaml`; manual install
+# is `uv tool install gitlint && gitlint install-hook`.
+
+[general]
+# We treat "merge commits are integration, not new content" the same
+# way the DCO check does — skip them.
+ignore-merge-commits=true
+
+# Allow fixup / squash commits through without forcing them into our
+# exact format. Reverts run through release-please cleanly when they
+# follow the standard `revert: <subject>` shape, so they're validated.
+ignore-fixup-commits=true
+ignore-squash-commits=true
+ignore-revert-commits=false
+
+# Disable rules that conflict with project conventions:
+# - `title-trailing-punctuation` / `title-must-not-contain-word`: the
+#   conventional-commit regex below is the single source of truth for
+#   subject shape.
+# - `B1` (body-max-line-length) / `B5` (body-min-length): commit bodies
+#   in this project use one-line-per-paragraph with no hard wraps so
+#   `git log` / `gh pr view` / the GitHub UI wrap responsively. Enforcing
+#   80-char body lines would force re-wraps every time we wrote one.
+ignore=title-trailing-punctuation,title-must-not-contain-word,B1,B5
+
+[title-max-length]
+# Subject-line length cap. Generous on purpose — existing commits
+# sometimes ran over 80 chars — but reject the truly unwieldy. CI
+# enforces the same cap.
+line-length=100
+
+[title-match-regex]
+# Conventional Commits subject line — kept in sync with
+# `.github/workflows/conventional-commits.yml`. Update both together.
+regex=^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?!?: .+$
