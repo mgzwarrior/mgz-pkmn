@@ -19,6 +19,7 @@
  */
 import { useState } from 'react'
 import { Bookmark, ChevronDown, ChevronLeft, ChevronRight, Heart, History, Library, Search } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import { LibrarySearchesTab } from './LibrarySearchesTab'
 import { LibraryRecentTab } from './LibraryRecentTab'
@@ -27,12 +28,18 @@ import { LibraryWishlistsTab } from './LibraryWishlistsTab'
 
 type LibraryTab = 'searches' | 'recent' | 'collections' | 'wishlists'
 
-const TABS: { value: LibraryTab; label: string; icon: typeof Search }[] = [
+const ALL_TABS: { value: LibraryTab; label: string; icon: typeof Search }[] = [
   { value: 'searches', label: 'Searches', icon: Bookmark },
   { value: 'recent', label: 'Recent', icon: History },
   { value: 'collections', label: 'Collections', icon: Library },
   { value: 'wishlists', label: 'Wishlists', icon: Heart },
 ]
+
+// Collections / wishlists are user-scoped surfaces. On auth-enabled
+// deploys with no identified user the tabs are hidden — same gate the
+// pre-Library header chips applied. Self-host (authEnabled=false)
+// falls back to the default user so both tabs stay visible.
+const USER_SCOPED_TABS = new Set<LibraryTab>(['collections', 'wishlists'])
 
 interface Props {
   variant: 'sidebar' | 'accordion'
@@ -46,8 +53,19 @@ export function LibraryPanel({ variant, onRun }: Props) {
 
   const runs = useAppStore((s) => s.runs)
   const recentCount = useAppStore((s) => s.recentRuns.length)
+  const auth = useAuth()
+  const showUserScoped = auth.user !== null
+  const tabs = showUserScoped
+    ? ALL_TABS
+    : ALL_TABS.filter((t) => !USER_SCOPED_TABS.has(t.value))
 
-  const tabContent = renderTab(activeTab, onRun)
+  // Sign-out while sitting on a user-scoped tab → fall back to Searches
+  // for rendering. Resolving inline (instead of via useEffect+setState)
+  // keeps `react-hooks/set-state-in-effect` happy and avoids a render
+  // flicker; the stored activeTab catches up on the next user click.
+  const resolvedActive: LibraryTab =
+    !showUserScoped && USER_SCOPED_TABS.has(activeTab) ? 'searches' : activeTab
+  const tabContent = renderTab(resolvedActive, onRun)
 
   if (variant === 'sidebar') {
     if (sidebarCollapsed) {
@@ -94,7 +112,8 @@ export function LibraryPanel({ variant, onRun }: Props) {
           </button>
         </header>
         <TabStrip
-          activeTab={activeTab}
+          tabs={tabs}
+          activeTab={resolvedActive}
           onChange={setActiveTab}
           runsCount={runs.length}
           recentCount={recentCount}
@@ -128,7 +147,8 @@ export function LibraryPanel({ variant, onRun }: Props) {
       {accordionOpen && (
         <div className="flex flex-col gap-2 border-t border-sand-200 dark:border-husk-100 px-3 py-2">
           <TabStrip
-            activeTab={activeTab}
+            tabs={tabs}
+            activeTab={resolvedActive}
             onChange={setActiveTab}
             runsCount={runs.length}
             recentCount={recentCount}
@@ -154,11 +174,13 @@ function renderTab(tab: LibraryTab, onRun: (overrideText: string) => void) {
 }
 
 function TabStrip({
+  tabs,
   activeTab,
   onChange,
   runsCount,
   recentCount,
 }: {
+  tabs: typeof ALL_TABS
   activeTab: LibraryTab
   onChange: (tab: LibraryTab) => void
   runsCount: number
@@ -176,7 +198,7 @@ function TabStrip({
       aria-label="Library sections"
       className="grid grid-cols-2 gap-1 rounded border border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200 p-0.5"
     >
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const Icon = t.icon
         const active = t.value === activeTab
         const count = counts[t.value]

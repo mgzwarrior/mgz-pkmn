@@ -43,12 +43,14 @@ describe('LibraryPanel', () => {
 
   it('sidebar variant renders all four tabs with Searches active', async () => {
     render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+    // Collections / wishlists are gated on a resolved signed-in user,
+    // so wait for the auth load before asserting the full tab set.
+    expect(await screen.findByRole('tab', { name: /Collections/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Searches/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
     expect(screen.getByRole('tab', { name: /Recent/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Collections/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Wishlists/i })).toBeInTheDocument()
     expect(await screen.findByText(/No saved searches yet/i)).toBeInTheDocument()
   })
@@ -70,7 +72,7 @@ describe('LibraryPanel', () => {
 
   it('clicking the Collections tab fetches and shows the empty state', async () => {
     render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
-    fireEvent.click(screen.getByRole('tab', { name: /Collections/i }))
+    fireEvent.click(await screen.findByRole('tab', { name: /Collections/i }))
     expect(
       await screen.findByText(/You don't have any collections yet/i),
     ).toBeInTheDocument()
@@ -78,7 +80,7 @@ describe('LibraryPanel', () => {
 
   it('clicking the Wishlists tab fetches and shows the empty state', async () => {
     render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
-    fireEvent.click(screen.getByRole('tab', { name: /Wishlists/i }))
+    fireEvent.click(await screen.findByRole('tab', { name: /Wishlists/i }))
     expect(
       await screen.findByText(/You don't have any wishlists yet/i),
     ).toBeInTheDocument()
@@ -108,6 +110,30 @@ describe('LibraryPanel', () => {
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('tab', { name: /Searches/i })).toBeInTheDocument()
+  })
+
+  it('hides the Collections + Wishlists tabs when no user is identified', async () => {
+    vi.mocked(client.fetchMe).mockResolvedValue({ user: null, authEnabled: true })
+    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+
+    expect(
+      await screen.findByText(/Sign in to see saved searches/i),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Searches/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Recent/i })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Collections/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Wishlists/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the Collections + Wishlists tabs on self-host (authEnabled false)', async () => {
+    vi.mocked(client.fetchMe).mockResolvedValue({
+      user: { id: 1, email: null, display_name: 'default' },
+      authEnabled: false,
+    })
+    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+
+    expect(await screen.findByRole('tab', { name: /Collections/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Wishlists/i })).toBeInTheDocument()
   })
 
   it('Recent re-run threads through to the parent onRun callback', () => {
