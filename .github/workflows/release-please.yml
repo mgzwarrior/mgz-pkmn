@@ -38,12 +38,6 @@ jobs:
           token: ${{ secrets.RELEASE_PAT }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-          # DCO is enforced on every non-merge PR commit; without
-          # `signoff`, the bot's auto-generated version-bump commit has
-          # no `Signed-off-by:` trailer and the release PR can't merge.
-          # The identity below matches the persona GitHub renders for
-          # Actions-authored commits.
-          signoff: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
           # PR-only: when the release PR merges, the existing
           # `release-on-version-bump.yml` flow tags + publishes. Letting
           # release-please cut its own GitHub Release here would
