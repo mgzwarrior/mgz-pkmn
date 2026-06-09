@@ -1,0 +1,25 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Type" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .row-spec { display: grid; grid-template-columns: 80px 1fr 90px; align-items: baseline; gap: 12px; padding: 4px 0; border-bottom: 1px dashed var(--border-1); }
+  .row-spec:last-child { border-bottom: 0; }
+  .row-spec .tok { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+  .row-spec .sz  { font-family: var(--font-mono); font-size: 11px; color: var(--coconut-500); text-align:right; }
+</style>
+</head><body>
+<div class="col" style="gap:6px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Semantic styles · h1–h4 · body · caption</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">applied directly to HTML elements</div>
+  </div>
+  <div class="row-spec"><span class="tok">h1</span><span class="ds-h1" style="font-size:40px">Card show prep</span><span class="sz">5xl · 800</span></div>
+  <div class="row-spec"><span class="tok">h2</span><span class="ds-h2" style="font-size:28px">Three steps from idea to floor</span><span class="sz">3xl · 700</span></div>
+  <div class="row-spec"><span class="tok">h3</span><span class="ds-h3">Multi-source pricing</span><span class="sz">xl · 600</span></div>
+  <div class="row-spec"><span class="tok">body</span><span class="ds-body">Pulls from pokemontcg.io, TCGdex, and PriceCharting.</span><span class="sz">md · 400</span></div>
+  <div class="row-spec"><span class="tok">caption</span><span class="ds-caption">Market price as of last lookup.</span><span class="sz">xs · 400</span></div>
+  <div class="row-spec"><span class="tok">eyebrow</span><span class="ds-eyebrow">Now shipping 1.1.1</span><span class="sz">2xs · 600 caps</span></div>
+</div>
+</body></html>

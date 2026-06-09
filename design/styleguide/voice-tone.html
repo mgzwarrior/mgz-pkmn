@@ -1,0 +1,38 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Brand" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .pair { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .col-h { display:flex; flex-direction:column; gap:6px; padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid; }
+  .yes { background: var(--success-bg); border-color: var(--success-border); }
+  .no  { background: var(--danger-bg); border-color: var(--danger-border); }
+  .col-h .lbl { font-family: var(--font-mono); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: var(--tracking-caps); }
+  .yes .lbl { color: var(--success-fg); }
+  .no  .lbl { color: var(--danger-fg); }
+  .col-h .line { font-size: 14px; line-height: 1.4; color: var(--fg-1); }
+  .col-h .line + .line { padding-top: 4px; border-top: 1px dashed var(--border-1); margin-top: 4px; }
+</style>
+</head><body>
+<div class="col" style="gap:12px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Voice · friendly, plainspoken, never cute</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">sentence case · contractions · you</div>
+  </div>
+  <div class="pair">
+    <div class="col-h yes">
+      <div class="lbl">✓ Do</div>
+      <div class="line"><b>Look up</b> · <span style="font-family:var(--font-mono);font-size:11px">⌘↵</span></div>
+      <div class="line"><b>Walk into your next card show with a plan, not a hope.</b></div>
+      <div class="line">5 matched · 1 unmatched · 6 shown</div>
+    </div>
+    <div class="col-h no">
+      <div class="lbl">✗ Don't</div>
+      <div class="line"><b>Submit</b> · <b>Go!</b> · <b>Search Now</b> 🚀</div>
+      <div class="line"><b>Unlock the power of next-gen TCG pricing!</b></div>
+      <div class="line">⚡ 5 cards successfully looked up</div>
+    </div>
+  </div>
+</div>
+</body></html>

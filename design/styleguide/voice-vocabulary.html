@@ -1,0 +1,78 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Brand" name="Voice · vocabulary" subtitle="Say this, not that — locked terms & casing" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .vocab { display:grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .vtable { display:flex; flex-direction:column; gap:0; }
+  .vhead {
+    font-family: var(--font-mono); font-size: 10px; font-weight:700;
+    text-transform: uppercase; letter-spacing: var(--tracking-caps);
+    color: var(--fg-3); padding-bottom: 6px;
+    display:grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+  .vrow {
+    display:grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    padding: 8px 0; align-items: baseline;
+  }
+  .vrow + .vrow { border-top: 1px solid var(--border-1); }
+  .vrow .say { font-size: 14px; font-weight: 600; color: var(--fg-1); }
+  .vrow .say .why { display:block; font-weight: 400; font-size: 11px; color: var(--fg-3); margin-top: 2px; line-height: 1.3; }
+  .vrow .not { font-size: 14px; color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--danger-border); }
+  .sect-h { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--fg-1); margin-bottom: 4px; }
+  .casing { display:flex; flex-direction:column; gap:10px; }
+  .crow { display:grid; grid-template-columns: 128px 1fr; gap:12px; align-items:baseline; font-size: 13px; }
+  .crow .ex { font-family: var(--font-mono); font-size: 12px; color: var(--fg-1); line-height: 1.35; }
+  .crow .note { color: var(--fg-3); font-size: 12px; }
+  .banned { display:flex; flex-wrap:wrap; gap:6px; margin-top: 4px; }
+  .banned .w {
+    font-family: var(--font-mono); font-size: 11px;
+    padding: 3px 8px; border-radius: var(--radius-pill);
+    background: var(--danger-bg); color: var(--danger-fg);
+    border: 1px solid var(--danger-border);
+    text-decoration: line-through;
+  }
+</style>
+</head><body>
+<div class="col" style="gap:14px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Voice · vocabulary</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">say this · not that · casing · banned</div>
+  </div>
+
+  <div class="vocab">
+    <div class="vtable">
+      <div class="vhead"><span>Say this</span><span>Not that</span></div>
+      <div class="vrow"><div class="say">Look up<span class="why">the core verb of the app</span></div><div class="not">Search · Submit · Go</div></div>
+      <div class="vrow"><div class="say">Want-list<span class="why">one term, hyphenated, everywhere</span></div><div class="not">wishlist · cart · queue</div></div>
+      <div class="vrow"><div class="say">Comps<span class="why">recent comparable sales</span></div><div class="not">data · the numbers</div></div>
+      <div class="vrow"><div class="say">Market<span class="why">the headline price</span></div><div class="not">value · worth · est.</div></div>
+      <div class="vrow"><div class="say">Walk a set<span class="why">browse a full set in order</span></div><div class="not">explore · discover</div></div>
+    </div>
+
+    <div class="col" style="gap:16px">
+      <div>
+        <div class="sect-h">Casing</div>
+        <div class="casing">
+          <div class="crow"><span class="ex">Look up</span><span class="note">Sentence case for all UI — buttons, headings, titles.</span></div>
+          <div class="crow"><span class="ex">PriceCharting</span><span class="note">Title Case only for product &amp; brand names.</span></div>
+          <div class="crow"><span class="ex">TCGdex · pokemontcg.io</span><span class="note">Keep source names exactly as the source writes them.</span></div>
+          <div class="crow"><span class="ex">.xlsx · ⌘↵</span><span class="note">Mono for file types, keys, prices, card numbers.</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="sect-h">Never ships</div>
+        <div class="banned">
+          <span class="w">unlock</span><span class="w">supercharge</span><span class="w">powerful</span>
+          <span class="w">seamless</span><span class="w">revolutionary</span><span class="w">effortless</span>
+          <span class="w">game-changing</span><span class="w">next-gen</span>
+        </div>
+        <div style="font-size: 11px; color: var(--fg-3); margin-top: 8px; line-height: 1.4;">
+          Emoji stay out of product copy — the one exception is the 🌴 Exeggutor Easter egg, surfaced on purpose.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

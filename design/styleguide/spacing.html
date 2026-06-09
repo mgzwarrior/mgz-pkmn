@@ -1,0 +1,30 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Spacing" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .scale { display: flex; align-items: flex-end; gap: 18px; }
+  .bar { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .bar .b { background: var(--sun-300); border: 1px solid var(--sun-400); border-radius: var(--radius-xs); }
+  .bar .lab { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); }
+  .bar .val { font-family: var(--font-mono); font-size: 11px; color: var(--fg-1); font-weight: 600; }
+</style>
+</head><body>
+<div class="col" style="gap:14px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Spacing · 4px base</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">--space-1 → --space-16</div>
+  </div>
+  <div class="scale">
+    <div class="bar"><div class="b" style="width:4px;height:4px"></div><div class="val">4</div><div class="lab">--space-1</div></div>
+    <div class="bar"><div class="b" style="width:8px;height:8px"></div><div class="val">8</div><div class="lab">--space-2</div></div>
+    <div class="bar"><div class="b" style="width:12px;height:12px"></div><div class="val">12</div><div class="lab">--space-3</div></div>
+    <div class="bar"><div class="b" style="width:16px;height:16px"></div><div class="val">16</div><div class="lab">--space-4</div></div>
+    <div class="bar"><div class="b" style="width:24px;height:24px"></div><div class="val">24</div><div class="lab">--space-6</div></div>
+    <div class="bar"><div class="b" style="width:32px;height:32px"></div><div class="val">32</div><div class="lab">--space-8</div></div>
+    <div class="bar"><div class="b" style="width:48px;height:48px"></div><div class="val">48</div><div class="lab">--space-12</div></div>
+    <div class="bar"><div class="b" style="width:64px;height:64px"></div><div class="val">64</div><div class="lab">--space-16</div></div>
+  </div>
+</div>
+</body></html>

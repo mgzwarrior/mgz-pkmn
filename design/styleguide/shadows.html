@@ -1,0 +1,33 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Spacing" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .row-s { display: flex; gap: 28px; }
+  .s { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .s .box {
+    width: 96px; height: 64px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-md);
+  }
+  .s .lab { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); }
+  .s .val { font-family: var(--font-mono); font-size: 11px; color: var(--fg-1); font-weight: 600; }
+</style>
+</head><body>
+<div class="col" style="gap:14px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Elevation · warm coconut alpha shadows</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">--shadow-xs → --shadow-xl + glow</div>
+  </div>
+  <div class="row-s">
+    <div class="s"><div class="box" style="box-shadow:var(--shadow-xs)"></div><div class="val">xs</div><div class="lab">hairline</div></div>
+    <div class="s"><div class="box" style="box-shadow:var(--shadow-sm)"></div><div class="val">sm</div><div class="lab">default</div></div>
+    <div class="s"><div class="box" style="box-shadow:var(--shadow-md)"></div><div class="val">md</div><div class="lab">card</div></div>
+    <div class="s"><div class="box" style="box-shadow:var(--shadow-lg)"></div><div class="val">lg</div><div class="lab">dropdown</div></div>
+    <div class="s"><div class="box" style="box-shadow:var(--shadow-xl)"></div><div class="val">xl</div><div class="lab">modal</div></div>
+    <div class="s"><div class="box" style="box-shadow:var(--shadow-glow-palm); border-color:var(--palm-400)"></div><div class="val">glow</div><div class="lab">focus</div></div>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,78 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Brand" name="Voice · pillars" subtitle="The four traits every string answers to" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pillar {
+    display:flex; flex-direction:column; gap:8px;
+    padding: 16px 18px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-1);
+    box-shadow: var(--shadow-xs);
+  }
+  .pillar .num {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    color: var(--fg-3); letter-spacing: var(--tracking-caps);
+  }
+  .pillar h3 {
+    margin: 0; font-family: var(--font-display); font-weight: 800;
+    font-size: 22px; color: var(--fg-1); line-height: 1.1;
+  }
+  .pillar .desc { font-size: 13px; line-height: 1.45; color: var(--fg-2); }
+  .pillar .saynot { display:flex; flex-direction:column; gap:6px; margin-top: 4px; }
+  .pillar .sn { font-size: 12px; line-height: 1.4; display:grid; grid-template-columns: 26px 1fr; gap:7px; align-items:baseline; }
+  .pillar .sn .k { font-family: var(--font-mono); font-size: 10px; font-weight:700; }
+  .sn .k.say { color: var(--success-fg); }
+  .sn .k.not { color: var(--danger-fg); }
+  .sn .say-t { color: var(--fg-1); }
+  .sn .not-t { color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--danger-border); }
+</style>
+</head><body>
+<div class="col" style="gap:14px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Voice · four pillars</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">one voice · tone flexes by moment</div>
+  </div>
+  <div class="grid2">
+    <div class="pillar">
+      <div class="num">01</div>
+      <h3>Plainspoken</h3>
+      <div class="desc">Say what the thing does in the fewest plain words. Clear over clever, every time. If a verb works, use the verb.</div>
+      <div class="saynot">
+        <div class="sn"><span class="k say">say</span><span class="say-t">Look up · Walk a set · Download .xlsx</span></div>
+        <div class="sn"><span class="k not">not</span><span class="not-t">Initiate lookup · Leverage pricing intelligence</span></div>
+      </div>
+    </div>
+    <div class="pillar">
+      <div class="num">02</div>
+      <h3>On your side</h3>
+      <div class="desc">Assume good faith and hand over the fix. Errors point at the next step, never scold. We're the friend who knows the dealer room.</div>
+      <div class="saynot">
+        <div class="sn"><span class="k say">say</span><span class="say-t">Add a PriceCharting URL to price this one.</span></div>
+        <div class="sn"><span class="k not">not</span><span class="not-t">Invalid input. Lookup failed.</span></div>
+      </div>
+    </div>
+    <div class="pillar">
+      <div class="num">03</div>
+      <h3>Quietly knowledgeable</h3>
+      <div class="desc">We know the hobby — 1st Edition vs unlimited, market vs median, raw vs graded — and use the right word without showing off.</div>
+      <div class="saynot">
+        <div class="sn"><span class="k say">say</span><span class="say-t">5 matched · 1 unmatched · 6 shown</span></div>
+        <div class="sn"><span class="k not">not</span><span class="not-t">Your query returned 6 total results!</span></div>
+      </div>
+    </div>
+    <div class="pillar">
+      <div class="num">04</div>
+      <h3>Warm to everyone</h3>
+      <div class="desc">A kid with a Sprigatito binder and a vendor with a $2k case both feel addressed. Never talk down, never gatekeep the fun.</div>
+      <div class="saynot">
+        <div class="sn"><span class="k say">say</span><span class="say-t">Walk into your next show with a plan, not a hope.</span></div>
+        <div class="sn"><span class="k not">not</span><span class="not-t">For serious collectors only.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

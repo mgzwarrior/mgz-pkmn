@@ -1,0 +1,25 @@
+<!doctype html><html><head>
+<!-- @dsCard group="Spacing" -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="../tokens/colors_and_type.css">
+<link rel="stylesheet" href="_card.css">
+<style>
+  .lane { display:flex; flex-direction:column; gap:6px; }
+  .track { position: relative; height: 8px; background: var(--bg-sunken); border-radius: var(--radius-pill); overflow: hidden; }
+  .dot { position: absolute; top: -3px; width: 14px; height: 14px; border-radius: 50%; background: var(--sun-300); border: 2px solid var(--sun-500); box-shadow: var(--shadow-sm);
+    animation-name: glide; animation-timing-function: var(--ease-out); animation-iteration-count: infinite; animation-direction: alternate; }
+  @keyframes glide { from { left: 0; } to { left: calc(100% - 14px); } }
+  .lab { display:flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); }
+</style>
+</head><body>
+<div class="col" style="gap:12px">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <div class="ds-eyebrow">Motion · duration + easing</div>
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--fg-3);">--dur-* · --ease-out is default</div>
+  </div>
+  <div class="lane"><div class="track"><div class="dot" style="animation-duration: 120ms"></div></div><div class="lab"><span>--dur-fast</span><span>120ms · hovers</span></div></div>
+  <div class="lane"><div class="track"><div class="dot" style="animation-duration: 200ms"></div></div><div class="lab"><span>--dur-base</span><span>200ms · transitions</span></div></div>
+  <div class="lane"><div class="track"><div class="dot" style="animation-duration: 320ms"></div></div><div class="lab"><span>--dur-slow</span><span>320ms · drawers + modals</span></div></div>
+  <div class="lane"><div class="track"><div class="dot" style="animation-duration: 480ms; animation-timing-function: var(--ease-spring); background: var(--palm-400); border-color: var(--palm-500);"></div></div><div class="lab"><span>--ease-spring</span><span>480ms · easter egg, "match" pulse</span></div></div>
+</div>
+</body></html>
