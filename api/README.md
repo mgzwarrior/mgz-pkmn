@@ -69,6 +69,7 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | `POST` | `/api/v1/bulk` | Resolve many lines, streaming each row as SSE |
 | `POST` | `/api/v1/export` | Build an `.xlsx` or PDF binder from rows |
 | `GET`  | `/api/v1/sets` | Cached list of Pokémon TCG sets (weekly TTL) |
+| `GET`  | `/api/v1/pokedex/{number}/cards` | Every printing of one species (national dex #), newest-first |
 | `POST` | `/api/v1/overrides` | Record a sticky PriceCharting URL override |
 | `GET`  | `/api/v1/overrides` | List all recorded URL overrides |
 | `GET`  | `/api/v1/set-cards.pdf` | Printable set identification cards PDF (no input needed) |

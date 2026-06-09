@@ -12,6 +12,7 @@ import type {
   CardQuery,
   ChangelogRelease,
   ExportFormat,
+  PokedexCard,
   Row,
   RunDetail,
   RunSummary,
@@ -293,6 +294,33 @@ export async function fetchSetCards(setId: string, apiKey?: string): Promise<Set
   }
   const data = await res.json()
   return data.cards as SetCard[]
+}
+
+/**
+ * Fetch every printing of one species across all sets, newest-first, for
+ * Browse's pokedex-# view. The backend keys off the national dex `number`
+ * and returns rows pre-sorted (release date desc, set, collector number)
+ * with per-card set context. Browser-cacheable for a day like
+ * `fetchSetCards`.
+ */
+export async function fetchPokedexCards(
+  number: number,
+  apiKey?: string,
+): Promise<PokedexCard[]> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/pokedex/${number}/cards${params}`)
+  if (!res.ok) {
+    let detail = `pokedex cards failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  const data = await res.json()
+  return data.cards as PokedexCard[]
 }
 
 // ---------------------------------------------------------------------------

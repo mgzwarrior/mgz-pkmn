@@ -53,6 +53,7 @@ from .routes import (
     lookup,
     overrides,
     parse,
+    pokedex,
     runs,
     set_cards,
     sets,
@@ -531,6 +532,7 @@ app.include_router(lookup.router, prefix="/api/v1", tags=["lookup"])
 app.include_router(export.router, prefix="/api/v1", tags=["export"])
 app.include_router(sets.router, prefix="/api/v1", tags=["sets"])
 app.include_router(set_cards.router, prefix="/api/v1", tags=["set-cards"])
+app.include_router(pokedex.router, prefix="/api/v1", tags=["pokedex"])
 app.include_router(cards.router, prefix="/api/v1", tags=["cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
