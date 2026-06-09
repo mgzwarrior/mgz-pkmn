@@ -149,7 +149,7 @@ push to `main`.
 | Disk cache + URL overrides | [Cache](docs/cache.md) |
 | Render / Docker / production recipe | [Deployment](docs/deployment.md) |
 | Marketing site (Astro + Tailwind, Cloudflare Pages) | [site/README.md](site/README.md) |
-| Design system, tokens, and styleguide | [Design system](design/DESIGN_SYSTEM.md) |
+| Design system, tokens, and styleguide | [Design system](design/DESIGN_SYSTEM.md) · hosted at <https://mgzwarrior.github.io/mgz-pkmn/> |
 | Project layout, dev workflow, CI, release | [Contributing](docs/contributing.md) |
 
 ## AI-assisted development
