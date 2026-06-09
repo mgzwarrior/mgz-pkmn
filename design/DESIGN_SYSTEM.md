@@ -320,22 +320,20 @@ they render across system fonts.
 
 | File | What it is |
 |---|---|
-| [`README.md`](README.md) | This file — brand context, content + visual foundations, iconography. |
+| [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) | This file — brand context, content + visual foundations, iconography. |
 | [`INTEGRATION.md`](INTEGRATION.md) | **Step-by-step guide for adopting the system in the `mgz-pkmn` repo.** |
-| [`SKILL.md`](SKILL.md) | Cross-compatible Agent Skill manifest. Read first if you're an agent. |
-| [`colors_and_type.css`](colors_and_type.css) | All CSS variables — palette, semantic tokens, type scale, spacing, radii, shadows, motion. |
-| [`assets/`](assets/) | Logos, brand mark, icon SVGs, marketing imagery. |
-| [`migration/`](migration/) | Ready-to-paste files for the cutover — `site-global.css`, `web-index.css`, `CLASS_CHEATSHEET.md`. |
-| [`preview/`](preview/) | Design-system tab cards (palette, type specimen, components). |
-| [`ui_kits/web/`](ui_kits/web/) | React UI-kit recreation of the web app (`mgz-pkmn` lookup interface). |
-| [`ui_kits/site/`](ui_kits/site/) | Astro-equivalent recreation of the marketing site. |
+| [`tokens/colors_and_type.css`](tokens/colors_and_type.css) | All CSS variables — palette, semantic tokens, type scale, spacing, radii, shadows, motion. |
+| [`../assets/`](../assets/) | Logos, brand mark, icon SVGs, marketing imagery. |
+| [`CLASS_CHEATSHEET.md`](CLASS_CHEATSHEET.md) | Find/replace table for zinc/blue Tailwind classes. |
+| [`styleguide/`](styleguide/) | Design-system cards for palette, type specimen, components, and voice. |
 
-### UI kits
+### Styleguide cards
 
-| Kit | What it covers |
+| Area | What it covers |
 |---|---|
-| [`ui_kits/web/`](ui_kits/web/) | Header with logo + export menu, card-list input editor, streaming results table, settings drawer, recent runs, empty + loading + error states, the Exeggutor easter egg overlay. |
-| [`ui_kits/site/`](ui_kits/site/) | Header, hero, features grid, "how it works" steps, "built in the open" cards, roadmap teaser, footer. Faithful to the existing `site/src/components/*.astro` layout, recolored to the tropical palette. |
+| [`styleguide/buttons.html`](styleguide/buttons.html), [`styleguide/inputs.html`](styleguide/inputs.html), [`styleguide/result-row.html`](styleguide/result-row.html) | Product component treatments for the React app. |
+| [`styleguide/brand-logo.html`](styleguide/brand-logo.html), [`styleguide/brand-mark.html`](styleguide/brand-mark.html), [`styleguide/brand-icons.html`](styleguide/brand-icons.html) | Brand assets and iconography. |
+| [`styleguide/voice-pillars.html`](styleguide/voice-pillars.html), [`styleguide/voice-moments.html`](styleguide/voice-moments.html), [`styleguide/voice-vocabulary.html`](styleguide/voice-vocabulary.html) | Product voice references for UI copy. |
 
 ---
 

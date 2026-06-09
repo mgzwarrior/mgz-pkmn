@@ -274,7 +274,6 @@ playbook from the old zinc/blue theme.
 
 1. Reach for an existing token first. If none fits, add it to
    `colors_and_type.css` (don't inline a one-off value).
-2. Run `make check` — the adherence linter blocks raw hex/px and off-system
-   fonts.
+2. Run `make check` — the adherence linter blocks restricted imports, while
+   reviewers still enforce the documented raw-value rules.
 3. Keep `site/` and `web/` in visual sync; both consume the same tokens.
-

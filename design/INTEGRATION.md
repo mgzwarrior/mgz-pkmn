@@ -63,9 +63,10 @@ with the GitHub README badge and so you can revert without breaking links.
 
 ## Step 2 — Replace `site/src/styles/global.css`
 
-Replace your current file (the one with `--color-brand-*` blue tokens) with
-the contents of [`migration/site-global.css`](migration/site-global.css) in
-this project. The new file is a drop-in Tailwind v4 `@theme` block that:
+Use [`design/tokens/colors_and_type.css`](tokens/colors_and_type.css) as the
+canonical source when updating `site/src/styles/global.css`. The current
+`site/src/styles/global.css` file is the Tailwind v4 implementation derived
+from those tokens, with an `@theme` block that:
 
 - Defines `sun-*`, `palm-*`, `coconut-*`, `sand-*`, `husk-*`, `ember-*`,
   `sky-*` color scales — Tailwind auto-generates utilities (`bg-sun-300`,
@@ -89,7 +90,7 @@ Then in `BaseLayout.astro`, change the body class:
 ## Step 3 — Sweep `site/src/components/*.astro`
 
 These components hardcode `zinc-*` and `brand-*` classes. Run the cheatsheet
-in [`migration/CLASS_CHEATSHEET.md`](migration/CLASS_CHEATSHEET.md) against
+in [`design/CLASS_CHEATSHEET.md`](CLASS_CHEATSHEET.md) against
 each file. Most replacements are 1-to-1 — e.g.
 
 ```diff
@@ -104,18 +105,19 @@ Files to touch:
 - `FeaturesGrid.astro`, `HowItWorks.astro`, `BuiltInTheOpen.astro`, `RoadmapTeaser.astro` — same card pattern
 - `Footer.astro` — `text-zinc-400` → `text-coconut-400`; `text-zinc-500` → `text-coconut-400`
 
-**Reference implementation:** the file `ui_kits/site/index.html` in this
-project is a faithful recreation of your site after the swap. Open it
-side-by-side with your existing site to compare hue by hue.
+**Reference implementation:** open the cards in `design/styleguide/` for the
+canonical palette, type, buttons, inputs, and result-row treatments while you
+compare the site side-by-side.
 
 ---
 
 ## Step 4 — Replace `web/src/index.css`
 
-Drop in [`migration/web-index.css`](migration/web-index.css). It's the same
-`@theme` block as the site, scoped for the React app — plus the
-`fadeInRow` keyframe you already use is preserved, and the `tour-highlight`
-ring is recolored from red to palm.
+Use [`design/tokens/colors_and_type.css`](tokens/colors_and_type.css) as the
+source of truth and keep `web/src/index.css` aligned with the existing
+`site/src/styles/global.css` implementation. The React file carries the same
+palette, type, radii, and shadows, plus the SPA-specific `fadeInRow` keyframe
+and `tour-highlight` treatment.
 
 Then in `App.tsx`, change the root wrapper:
 
@@ -229,12 +231,11 @@ new one on a beta path. Once the new theme is signed off, remove the
 
 | File in this project | What it's for |
 |---|---|
-| [`colors_and_type.css`](colors_and_type.css) | Canonical token source. The `@theme` files below are derived from this. |
-| [`migration/site-global.css`](migration/site-global.css) | Paste over `site/src/styles/global.css`. |
-| [`migration/web-index.css`](migration/web-index.css) | Paste over `web/src/index.css`. |
-| [`migration/CLASS_CHEATSHEET.md`](migration/CLASS_CHEATSHEET.md) | Find/replace table for zinc/blue Tailwind classes. |
-| [`ui_kits/site/index.html`](ui_kits/site/index.html) | Visual reference for what your marketing site should look like after the swap. |
-| [`ui_kits/web/index.html`](ui_kits/web/index.html) | Visual reference for the web app after the swap. |
+| [`design/tokens/colors_and_type.css`](tokens/colors_and_type.css) | Canonical token source. The site and web `@theme` blocks are derived from this. |
+| [`site/src/styles/global.css`](../site/src/styles/global.css) | Tailwind v4 implementation for the marketing site. |
+| [`web/src/index.css`](../web/src/index.css) | Tailwind v4 implementation for the React app. |
+| [`design/CLASS_CHEATSHEET.md`](CLASS_CHEATSHEET.md) | Find/replace table for zinc/blue Tailwind classes. |
+| [`design/styleguide/`](styleguide/) | Rendered visual reference cards for palette, type, components, and voice. |
 
 ---
 
