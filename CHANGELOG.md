@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Web: **Bookmark / heart actions pinned to the left of every ResultsTable row** ([#540](https://github.com/mgzwarrior/mgz-pkmn/issues/540)). `AddToCollectionButton` and `AddToWishlistButton` used to render in the rightmost cell, which sat off-screen behind a horizontal scrollbar whenever the table overflowed (narrow viewports, or once the comp-tier + price-source columns kicked in). They now live in their own fixed-width cell on the left edge so they stay visible regardless of column count, matching the row-actions convention used by Gmail / Linear / GitHub PR lists. The external-link icon stays at its right-end position. The new actions column is only rendered when the row-level save buttons would actually be visible (signed-in or self-host) so anonymous hosted-demo visitors see no extra empty cell.
+
 ## [1.4.0] - 2026-06-08
 
 ### Added

@@ -161,6 +161,11 @@ export function ResultsTable({ onRerunLine }: Props) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-left">
+              {showSavedActions && (
+                <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-20">
+                  <span className="sr-only">Save actions</span>
+                </th>
+              )}
               {!settings.noImages && (
                 <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-16">Img</th>
               )}
@@ -208,11 +213,16 @@ export function ResultsTable({ onRerunLine }: Props) {
                 className="hidden sm:table-cell"
               />
               <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-8">
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">Listing link</span>
               </th>
             </tr>
             {showFilters && (
               <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200">
+                {showSavedActions && (
+                  <th>
+                    <span className="sr-only">Save actions (no filter)</span>
+                  </th>
+                )}
                 {!settings.noImages && (
                   <th>
                     <span className="sr-only">Image (no filter)</span>
@@ -283,7 +293,7 @@ export function ResultsTable({ onRerunLine }: Props) {
                   />
                 </FilterCell>
                 <th>
-                  <span className="sr-only">Actions (no filter)</span>
+                  <span className="sr-only">Listing link (no filter)</span>
                 </th>
               </tr>
             )}
@@ -480,6 +490,21 @@ function ResultRow({
             : undefined
         }
       >
+        {/* Row actions — pinned left so they stay visible on narrow
+            viewports where the table overflows horizontally. */}
+        {showSavedActions && (
+          <td className="px-3 py-1.5 w-20">
+            <div className="flex items-center gap-1">
+              {row.matched && card && (
+                <>
+                  <AddToCollectionButton card={card as Record<string, unknown>} />
+                  <AddToWishlistButton card={card as Record<string, unknown>} />
+                </>
+              )}
+            </div>
+          </td>
+        )}
+
         {/* Thumbnail */}
         {showImage && (
           <td className="px-3 py-1.5 w-16">
@@ -562,27 +587,19 @@ function ResultRow({
           {p.source ?? '—'}
         </td>
 
-        {/* Link + collection / wishlist actions */}
-        <td className="px-3 py-2 w-20">
-          <div className="flex items-center justify-end gap-1">
-            {row.matched && card && showSavedActions && (
-              <>
-                <AddToCollectionButton card={card as Record<string, unknown>} />
-                <AddToWishlistButton card={card as Record<string, unknown>} />
-              </>
-            )}
-            {p.url && (
-              <a
-                href={p.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
-                title="Open listing"
-              >
-                <ExternalLink size={13} />
-              </a>
-            )}
-          </div>
+        {/* Listing link */}
+        <td className="px-3 py-2 w-8">
+          {p.url && (
+            <a
+              href={p.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
+              title="Open listing"
+            >
+              <ExternalLink size={13} />
+            </a>
+          )}
         </td>
       </tr>
 
