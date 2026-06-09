@@ -402,6 +402,95 @@ If you already hit that error, the fix is the same two commands above
 — `uv tool install pre-commit` then `pre-commit install` regenerates
 the hook with a stable Python path.
 
+## Commit messages
+
+Every non-merge commit on a PR must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). The CI workflow [`conventional-commits.yml`](../.github/workflows/conventional-commits.yml) fails any PR whose commits don't match; the same rule fires locally at commit-msg time via [gitlint](https://jorisroovers.github.io/gitlint/) (configured in [`.gitlint`](../.gitlint), wired through [`.pre-commit-config.yaml`](../.pre-commit-config.yaml)).
+
+### Format
+
+```
+<type>(<scope>)?!?: <subject>
+
+<body — optional, free-form, no hard line wraps>
+
+<footer — optional; release-please reads BREAKING CHANGE: footers>
+```
+
+### Allowed types
+
+| Type | Use for | Shows up in CHANGELOG as |
+|------|---------|--------------------------|
+| `feat` | New user-facing capability | `### Added` |
+| `fix` | User-facing bug fix | `### Fixed` |
+| `perf` | Performance improvement | `### Changed` |
+| `refactor` | Internal restructure with no behavior change | `### Changed` |
+| `docs` | Documentation only | `### Changed` |
+| `revert` | Revert of a prior commit | `### Changed` |
+| `chore` | Tooling, deps, internal housekeeping | *hidden* |
+| `ci` | CI / workflow changes | *hidden* |
+| `test` | Test-only changes | *hidden* |
+| `build` | Build system, packaging | *hidden* |
+| `style` | Formatting only | *hidden* |
+
+Append `!` after the type/scope (`feat(api)!:`) for a breaking change. [release-please](https://github.com/googleapis/release-please) reads that marker and bumps the major version.
+
+### Scope
+
+The `<scope>` is optional and free-form. The project's existing prefixes still apply — `web`, `api`, `cli`, `docs`, `design`, `site`, plus area tags from `area:*` labels — but use the Conventional Commits shape:
+
+| Old shape | New shape |
+|-----------|-----------|
+| `web: unify Library destination` | `feat(web): unify Library destination` |
+| `api: collections data model rework` | `feat(api): collections data model rework` |
+| `docs: clarify release flow` | `docs: clarify release flow` |
+| `[Agent]: refactor X` | `refactor(cli): X` (and use the `agent:claude` label) |
+
+### Subject line
+
+- Imperative mood ("add", "fix", "remove" — not "added", "adds").
+- Lowercase first character after the colon.
+- No trailing period.
+- Max 100 chars (CI and gitlint cap; aim for 72 to keep `gh pr view` and email previews clean).
+
+### Body
+
+No hard line wraps in commit bodies — each paragraph is one line; let renderers wrap responsively. The subject line still follows the usual short / imperative discipline.
+
+### Examples
+
+```
+feat(web): add binder progress chart
+
+The dashboard now reads from `collection_snapshots` to render value-over-time. Backs #575.
+```
+
+```
+fix(api): handle empty card_json in promote endpoint
+
+Closes #604.
+```
+
+```
+refactor(cli)!: drop deprecated --legacy flag
+
+BREAKING CHANGE: `pkmn lookup --legacy` is removed. Use `pkmn lookup` without flags.
+```
+
+### Local enforcement
+
+`make install` (or `make install-hooks`) registers the commit-msg-stage gitlint hook alongside the DCO sign-off hook, so a malformed subject is rejected at commit time. Manual install:
+
+```bash
+uv tool install gitlint
+gitlint install-hook
+```
+
+The CI workflow is authoritative — if gitlint and the workflow ever disagree, fix the workflow's regex first (it's the contract release-please reads).
+
+### Why this matters
+
+release-please walks the Conventional Commits between releases to draft the next version-bump PR — see [release-please.yml](../.github/workflows/release-please.yml) and [release-please-config.json](../release-please-config.json). A non-conforming commit is invisible to that drafting pass, which means a real user-facing change can silently miss the changelog. The CI check is the gate that keeps the auto-drafted notes complete.
+
 ## Signing off your commits
 
 Every non-merge commit on a PR needs a [DCO](https://developercertificate.org/)
