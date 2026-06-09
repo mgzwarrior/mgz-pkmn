@@ -272,38 +272,16 @@ Closes #$ISSUE
 
 ## Step 8 — Open or extend the PR
 
-**If you're extending a bot PR (`BOT_PR` set from Step 3):** the PR already exists — edit its body instead of opening a new one. Pull the issue's labels + milestone, sync them to the bot PR, and rewrite the bot's body to reflect the full multi-surface extension.
-
-```bash
-gh issue view "$ISSUE" --repo mgzwarrior/mgz-pkmn --json labels,milestone
-gh pr edit "$BOT_PR" --repo mgzwarrior/mgz-pkmn \
-  --add-label "area:devops" --add-label "version:v1.x" --add-label "type:docs" \
-  --add-label "agent:claude" \
-  --milestone "v$MILESTONE" \
-  --body "$(cat <<'EOF'
-<see body template below>
-EOF
-)"
-```
-
-The PR's `Closes #$ISSUE` line goes in the body via `gh pr edit`. Don't open a parallel `gh pr create` — release-please reuses the branch on the next `main` push and a competing PR breaks that loop.
-
-**If you branched off `main` (no bot PR):** open the PR fresh.
+The body template is the same regardless of whether you're opening a fresh PR or replacing the bot's draft body — defining it once in a shell variable keeps the two paths from drifting. Pull the issue's metadata first:
 
 ```bash
 gh issue view "$ISSUE" --repo mgzwarrior/mgz-pkmn --json labels,milestone
 ```
 
-Open the PR with that metadata + the project board:
+Then build the shared body:
 
 ```bash
-gh pr create --repo mgzwarrior/mgz-pkmn \
-  --title "chore(release): v$VERSION" \
-  --label "area:devops" --label "version:v1.x" --label "type:docs" \
-  --label "agent:claude" \
-  --milestone "v$MILESTONE" \
-  --project "mgz-pkmn" \
-  --body "$(cat <<'EOF'
+PR_BODY=$(cat <<EOF
 Closes #$ISSUE
 
 ## What
@@ -313,38 +291,67 @@ version in one PR:
 
 | Surface | File(s) | Was → Now |
 |---|---|---|
-| CLI | `pyproject.toml`, `src/mgz_pkmn/__init__.py`, `uv.lock` | … → $VERSION |
-| API | `api/pyproject.toml` | … → $VERSION |
-| Web SPA | `web/package.json`, `web/package-lock.json` | … → $VERSION |
-| Marketing site | `site/package.json`, `site/package-lock.json` | … → $VERSION |
-| Citation | `CITATION.cff` (`version` + `date-released`) | … → $VERSION / $RELEASE_DATE |
+| CLI | \`pyproject.toml\`, \`src/mgz_pkmn/__init__.py\`, \`uv.lock\` | … → $VERSION |
+| API | \`api/pyproject.toml\` | … → $VERSION |
+| Web SPA | \`web/package.json\`, \`web/package-lock.json\` | … → $VERSION |
+| Marketing site | \`site/package.json\`, \`site/package-lock.json\` | … → $VERSION |
+| Citation | \`CITATION.cff\` (\`version\` + \`date-released\`) | … → $VERSION / $RELEASE_DATE |
 
-Rotates `CHANGELOG.md`: renames the long `[Unreleased]` section to
-`[$VERSION] - $RELEASE_DATE`, inserts a fresh empty `[Unreleased]`
-block above it, and updates the compare-links footer.
+Rotates \`CHANGELOG.md\`: renames the long \`[Unreleased]\` section to
+\`[$VERSION] - $RELEASE_DATE\`, inserts a fresh empty \`[Unreleased]\`
+block above it, and updates the compare-links footer. Applies the
+consolidation pass (Step 5a) so duplicate \`### Added\` / \`### Changed\` /
+\`### Fixed\` blocks within the release are collapsed and impactful
+entries lead each subsection.
 
 ## Why
 
-The version bump PR **is** the release. Once this merges to `main`,
-the auto-release flow tags `v$VERSION`, publishes to PyPI with PEP 740
+The version bump PR **is** the release. Once this merges to \`main\`,
+the auto-release flow tags \`v$VERSION\`, publishes to PyPI with PEP 740
 attestation, and cuts a GitHub Release.
 
 ## How to verify
 
-- [ ] `make check` is green.
-- [ ] `cd web && npm run build` is green.
-- [ ] `cd site && npm run build` is green.
-- [ ] `uv run pkmn --version` reports `pkmn, version $VERSION`.
-- [ ] `curl http://localhost:8000/version` returns `{"version": "$VERSION"}`.
-- [ ] `GET /api/v1/changelog` parses `[$VERSION] - $RELEASE_DATE` as the latest shipped release.
-- [ ] After merge: `release-on-version-bump` workflow tags `v$VERSION`,
-      `release.yml` publishes to PyPI, GitHub Release appears.
+- [ ] \`make check\` is green.
+- [ ] \`cd web && npm run build\` is green.
+- [ ] \`cd site && npm run build\` is green.
+- [ ] \`uv run pkmn --version\` reports \`pkmn, version $VERSION\`.
+- [ ] \`curl http://localhost:8000/version\` returns \`{"version": "$VERSION"}\`.
+- [ ] \`GET /api/v1/changelog\` parses \`[$VERSION] - $RELEASE_DATE\` as the latest shipped release.
+- [ ] After merge: \`release-on-version-bump\` workflow tags \`v$VERSION\`,
+      \`release.yml\` publishes to PyPI, GitHub Release appears.
 
 ## Out of scope
 
-- Backport release notes to the Wiki (`sync-wiki.yml` handles this).
+- Backport release notes to the Wiki (\`sync-wiki.yml\` handles this).
 EOF
-)"
+)
+```
+
+Note: the heredoc is **unquoted** (`<<EOF`, not `<<'EOF'`) so `$VERSION`, `$ISSUE`, `$RELEASE_DATE`, and `$MILESTONE` interpolate; the backticks in the body are escaped (`\``) so the shell doesn't try to execute them as command substitutions.
+
+**If you're extending a bot PR (`BOT_PR` set from Step 3):** the PR already exists — edit its labels + body in place. Don't open a parallel `gh pr create` (release-please reuses the branch on the next `main` push and a competing PR breaks that loop).
+
+```bash
+gh pr edit "$BOT_PR" --repo mgzwarrior/mgz-pkmn \
+  --add-label "area:devops" --add-label "version:v1.x" --add-label "type:docs" \
+  --add-label "agent:claude" \
+  --milestone "v$MILESTONE" \
+  --body "$PR_BODY"
+```
+
+The `Closes #$ISSUE` line is already in `$PR_BODY` so the bot PR will auto-close the tracking issue on merge.
+
+**If you branched off `main` (no bot PR):** open the PR fresh with the same body.
+
+```bash
+gh pr create --repo mgzwarrior/mgz-pkmn \
+  --title "chore(release): v$VERSION" \
+  --label "area:devops" --label "version:v1.x" --label "type:docs" \
+  --label "agent:claude" \
+  --milestone "v$MILESTONE" \
+  --project "mgz-pkmn" \
+  --body "$PR_BODY"
 ```
 
 ## Step 9 — Wait for CI; do NOT merge
