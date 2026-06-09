@@ -120,7 +120,9 @@ Prefer not to install anything? The same UI is hosted at
 The hosted demo can sign users in with GitHub, Google, Discord, or an
 email magic link when auth is enabled. See
 [Deployment](docs/deployment.md#environment-variables) for the provider
-credentials, callback URLs, and production session settings.
+credentials, callback URLs, and production session settings. Anonymous
+hosted-demo lookups run against the warmed cache only; sign in to let a
+cache miss query the live upstream API.
 
 For deeper docs (endpoint reference, troubleshooting, architecture),
 see [api/README.md](api/README.md) and [web/README.md](web/README.md).

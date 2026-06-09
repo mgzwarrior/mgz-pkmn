@@ -32,14 +32,18 @@ class TCGClient:
         # promoting STALE/MISS to HIT on the second call within a process.
         self._cache: dict[str, tuple[list[dict[str, Any]], str]] = {}
 
-    def search(self, query: str, page_size: int = 12) -> tuple[list[dict[str, Any]], str]:
-        return self._fetch_page(query, page=1, page_size=page_size)
+    def search(
+        self, query: str, page_size: int = 12, *, cache_only: bool = False
+    ) -> tuple[list[dict[str, Any]], str]:
+        return self._fetch_page(query, page=1, page_size=page_size, cache_only=cache_only)
 
     def search_all(
         self,
         query: str,
         page_size: int = 50,
         max_pages: int = 12,
+        *,
+        cache_only: bool = False,
     ) -> tuple[list[dict[str, Any]], str]:
         """Paginate through every match for `query` (up to max_pages * page_size).
 
@@ -58,18 +62,24 @@ class TCGClient:
         all_cards: list[dict[str, Any]] = []
         status = "HIT"
         for page in range(1, max_pages + 1):
-            data, page_status = self._fetch_page(query, page=page, page_size=page_size)
+            data, page_status = self._fetch_page(
+                query, page=page, page_size=page_size, cache_only=cache_only
+            )
             status = worse_cache_status(status, page_status)
             if not data:
                 break
             all_cards.extend(data)
             if len(data) < page_size:
                 break  # short page → last page
-        self._cache[cache_key] = (all_cards, status)
+        # Don't memoize cache-only misses — a later authenticated call should
+        # still get a chance to hit upstream rather than re-reading the empty
+        # MISS-CACHE-ONLY result from L1.
+        if status != "MISS-CACHE-ONLY":
+            self._cache[cache_key] = (all_cards, status)
         return all_cards, status
 
     def _fetch_page(
-        self, query: str, *, page: int, page_size: int
+        self, query: str, *, page: int, page_size: int, cache_only: bool = False
     ) -> tuple[list[dict[str, Any]], str]:
         cache_key = f"page:{query}:{page}:{page_size}"
         if cache_key in self._cache:
@@ -88,27 +98,38 @@ class TCGClient:
             self._cache[cache_key] = (cached, "HIT")
             return cached, "HIT"
         if cached is not None and status == "STALE":
-            if self.verbose:
-                print(f"  stale {url} (background refresh kicked off)", file=sys.stderr)
-            disk_cache.spawn_pricing_refresh(url, lambda u=url: self._refetch_for_pricing(u))
+            # cache_only callers (hosted-demo anonymous traffic) must not
+            # trigger upstream requests, even backgrounded ones — skip the
+            # SWR refresh and serve the stale value as-is.
+            if not cache_only:
+                if self.verbose:
+                    print(f"  stale {url} (background refresh kicked off)", file=sys.stderr)
+                disk_cache.spawn_pricing_refresh(url, lambda u=url: self._refetch_for_pricing(u))
+            elif self.verbose:
+                print(f"  stale {url} (cache-only — skipping refresh)", file=sys.stderr)
             self._cache[cache_key] = (cached, "STALE")
             return cached, "STALE"
         if self.verbose:
             print(f"  GET {url}", file=sys.stderr)
-        data = self._network_fetch(url)
+        data = self._network_fetch(url, cache_only=cache_only)
         if data is None:
             # Transient failure already swallowed below; return empty MISS so
             # callers see "no candidates" without poisoning the cache.
+            # Cache-only misses skip L1 too — see `search_all`.
+            if cache_only:
+                return [], "MISS-CACHE-ONLY"
             self._cache[cache_key] = ([], "MISS")
             return [], "MISS"
         self._cache[cache_key] = (data, "MISS")
         disk_cache.write_api_split(url, data)
         return data, "MISS"
 
-    def _network_fetch(self, url: str) -> list[dict[str, Any]] | None:
+    def _network_fetch(self, url: str, *, cache_only: bool = False) -> list[dict[str, Any]] | None:
         """Issue the upstream GET with 429-aware retry. Returns the `data`
         array on success, None on a transient failure (timeout / connection
         error after retries). Raises on persistent non-retryable errors."""
+        if cache_only:
+            return None
         for attempt in range(4):
             try:
                 resp = self.session.get(url, timeout=60)
@@ -136,7 +157,7 @@ class TCGClient:
         return self._network_fetch(url)
 
 
-def search_pokemontcg(client: TCGClient, q: CardQuery) -> MatchResult:
+def search_pokemontcg(client: TCGClient, q: CardQuery, *, cache_only: bool = False) -> MatchResult:
     """Build a sequence of progressively-looser queries against pokemontcg.io
     and pick the best candidate. Returns reason='set_mismatch' if candidates
     exist but none satisfy the user's set hint."""
@@ -174,7 +195,7 @@ def search_pokemontcg(client: TCGClient, q: CardQuery) -> MatchResult:
         if query in seen:
             continue
         seen.add(query)
-        candidates, status = client.search(query)
+        candidates, status = client.search(query, cache_only=cache_only)
         aggregate_status = worse_cache_status(aggregate_status, status)
         if candidates:
             all_candidates = candidates

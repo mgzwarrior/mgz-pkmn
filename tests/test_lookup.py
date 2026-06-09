@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -20,6 +22,7 @@ from mgz_pkmn.lookup import (
 )
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.sources.base import MatchResult
+from mgz_pkmn.sources.pokemontcg import API_BASE, TCGClient
 
 
 class _StubTCGClient:
@@ -708,6 +711,142 @@ class CacheStatusPropagationTests(unittest.TestCase):
         seen: list[str] = []
         find_top_cards(client, q, limit=1, on_cache_status=seen.append)
         self.assertIn("STALE", seen)
+
+
+class TCGClientCacheOnlyTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        self._tmp.cleanup()
+
+    def _url(self, query: str, page_size: int = 12, page: int = 1) -> str:
+        return f"{API_BASE}/cards?q={quote(query)}&pageSize={page_size}&page={page}"
+
+    def test_cache_only_miss_skips_network_and_reports_cache_only_miss(self) -> None:
+        client = TCGClient()
+        with patch.object(client.session, "get") as get:
+            cards, status = client.search("name:Pikachu", cache_only=True)
+
+        self.assertEqual(cards, [])
+        self.assertEqual(status, "MISS-CACHE-ONLY")
+        get.assert_not_called()
+
+    def test_cache_only_hit_reads_disk_cache_without_network(self) -> None:
+        card = _card("base1-25", "Pikachu", 10.0)
+        query = "name:Pikachu"
+        cache.write_api_split(self._url(query), [card])
+
+        client = TCGClient()
+        with patch.object(client.session, "get") as get:
+            cards, status = client.search(query, cache_only=True)
+
+        self.assertEqual(status, "HIT")
+        self.assertEqual([c["id"] for c in cards], ["base1-25"])
+        get.assert_not_called()
+
+    def test_default_miss_fetches_upstream(self) -> None:
+        card = _card("base1-25", "Pikachu", 10.0)
+        response = Mock(status_code=200)
+        response.json.return_value = {"data": [card]}
+
+        client = TCGClient()
+        with patch.object(client.session, "get", return_value=response) as get:
+            cards, status = client.search("name:Pikachu")
+
+        self.assertEqual(status, "MISS")
+        self.assertEqual([c["id"] for c in cards], ["base1-25"])
+        get.assert_called_once()
+        response.raise_for_status.assert_called_once()
+
+    def test_cache_only_stale_skips_background_refresh(self) -> None:
+        card = _card("base1-25", "Pikachu", 10.0)
+        query = "name:Pikachu"
+        url = self._url(query)
+        cache.write_api_split(url, [card])
+        # Age the pricing slice past the 24h TTL so the next read is STALE.
+        cache.write_pricing_only(url, [card])
+        pricing_path = cache._api_pricing_path(url)
+        stale_mtime = pricing_path.stat().st_mtime - (cache.DEFAULT_PRICING_TTL_SECONDS + 60)
+        os.utime(pricing_path, (stale_mtime, stale_mtime))
+
+        client = TCGClient()
+        with (
+            patch.object(client.session, "get") as get,
+            patch("mgz_pkmn.cache.spawn_pricing_refresh") as refresh,
+        ):
+            cards, status = client.search(query, cache_only=True)
+
+        self.assertEqual(status, "STALE")
+        self.assertEqual([c["id"] for c in cards], ["base1-25"])
+        get.assert_not_called()
+        refresh.assert_not_called()
+
+    def test_cache_only_miss_is_not_memoized_in_l1(self) -> None:
+        """A cache-only MISS must not pin an empty entry into L1 — a later
+        authenticated call on the same client should still try upstream."""
+        card = _card("base1-25", "Pikachu", 10.0)
+        response = Mock(status_code=200)
+        response.json.return_value = {"data": [card]}
+
+        client = TCGClient()
+        cards, status = client.search("name:Pikachu", cache_only=True)
+        self.assertEqual((cards, status), ([], "MISS-CACHE-ONLY"))
+
+        with patch.object(client.session, "get", return_value=response) as get:
+            cards, status = client.search("name:Pikachu")
+
+        self.assertEqual(status, "MISS")
+        self.assertEqual([c["id"] for c in cards], ["base1-25"])
+        get.assert_called_once()
+
+
+class FindCardCacheOnlyTests(unittest.TestCase):
+    """cache_only=True must keep the lookup non-network end-to-end — no
+    TCGdex fallback, no PriceCharting URL-hint fetches."""
+
+    def test_cache_only_skips_tcgdex_fallback_on_cached_empty_pokemontcg(self) -> None:
+        class _ExplodingTCGDex:
+            def search(self, *_: object, **__: object) -> list[dict]:
+                raise AssertionError("TCGdex must not be called in cache_only mode")
+
+        class _ExplodingPC:
+            def fetch(self, *_: object, **__: object) -> MatchResult:
+                raise AssertionError("PriceCharting must not be called in cache_only mode")
+
+        # pokemontcg.io returns a HIT with no candidates — the bug this guards
+        # was that find_card then dropped through to TCGdex anyway.
+        client = _StubTCGClient()  # empty map → ([], "HIT") for every query
+        q = CardQuery(raw="Charizard", name="Charizard")
+        result = find_card(client, _ExplodingTCGDex(), _ExplodingPC(), q, cache_only=True)
+
+        self.assertIsNone(result.card)
+        # Reason comes from search_pokemontcg's no_candidates exit.
+        self.assertEqual(result.reason, "no_candidates")
+
+    def test_cache_only_skips_url_hint_pricecharting_fetch(self) -> None:
+        class _ExplodingPC:
+            def fetch(self, *_: object, **__: object) -> MatchResult:
+                raise AssertionError("PriceCharting must not be called in cache_only mode")
+
+        url = "https://www.pricecharting.com/game/pokemon-base-set/charizard-4"
+        client = _StubTCGClient()
+        q = CardQuery(raw=f"Charizard | {url}", name="Charizard", url_hint=url)
+        result = find_card(client, _NullTCGDexClient(), _ExplodingPC(), q, cache_only=True)
+
+        self.assertIsNone(result.card)
 
 
 if __name__ == "__main__":

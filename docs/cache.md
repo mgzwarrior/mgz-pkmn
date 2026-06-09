@@ -57,6 +57,7 @@ an **`X-Cache`** response header:
 | `HIT` | Both slices on disk; pricing within the 24 h TTL. No upstream call. |
 | `STALE` | Both slices on disk, pricing older than 24 h. Cached value returned immediately; background refresh kicked off. |
 | `MISS` | At least one slice not on disk (or a paged search hit a fresh page). Upstream was consulted. |
+| `MISS-CACHE-ONLY` | Hosted-demo anonymous lookup missed the warmed cache and deliberately skipped the upstream call. |
 
 Concurrent stale reads on the same key **coalesce** to one background
 refresh — the in-flight set is process-local and a single

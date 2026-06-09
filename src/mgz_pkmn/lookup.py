@@ -193,6 +193,7 @@ def find_card(
     q: CardQuery,
     default_lang: str | None = None,
     on_stage: StageCallback | None = None,
+    cache_only: bool = False,
 ) -> MatchResult:
     """Coordinate lookups across pokemontcg.io, TCGdex (multilingual), and an
     optional explicit URL hint (currently PriceCharting). The first source
@@ -206,6 +207,12 @@ def find_card(
     name a language. It's used by the CLI/API global ``--lang`` knob — set it
     to ``"ja"`` to make every untagged line fall through to TCGdex Japanese
     after pokemontcg.io misses.
+
+    `cache_only` makes the whole coordinator non-network: pokemontcg.io disk
+    misses degrade to MISS-CACHE-ONLY instead of fetching upstream, and the
+    PriceCharting / TCGdex branches are skipped entirely (neither has disk
+    persistence today, so any call would be a live HTTP request — exactly
+    what hosted-demo anonymous traffic must not do).
 
     `on_stage`, when provided, is called with the name of each pipeline stage
     as the lookup advances (`url_hint` / `looking_up` / `fallback`) so the web
@@ -222,7 +229,7 @@ def find_card(
     #    nothing matched. The override is recorded ONLY on success so a bad
     #    URL the user pastes once doesn't get pinned as a sticky override
     #    that quietly fails on every subsequent run.
-    if q.url_hint and _is_pricecharting_url(q.url_hint):
+    if not cache_only and q.url_hint and _is_pricecharting_url(q.url_hint):
         _stage("url_hint")
         result = pc.fetch(q.url_hint)
         if result.card:
@@ -237,7 +244,7 @@ def find_card(
     #    is stale or the scrape fails, fall through to DB sources rather than
     #    failing the lookup — the user didn't paste it this run.
     override = disk_cache.find_url_override(q.name, q.set_hint)
-    if override and _is_pricecharting_url(override):
+    if not cache_only and override and _is_pricecharting_url(override):
         _stage("url_hint")
         override_result = pc.fetch(override)
         if override_result.card:
@@ -245,9 +252,14 @@ def find_card(
 
     # 3. pokemontcg.io — best for English / international English releases.
     _stage("looking_up")
-    primary = search_pokemontcg(pkmn, q)
+    primary = search_pokemontcg(pkmn, q, cache_only=cache_only)
     if primary.card:
         return _apply_price_bounds(primary, q)
+    # cache_only must short-circuit before the TCGdex fallback even when
+    # pokemontcg.io served a cache HIT/STALE with zero candidates — TCGdex
+    # has no disk cache, so any fallback call is a live upstream request.
+    if cache_only:
+        return primary
 
     # 3. TCGdex — fall back through any languages hinted in the input, then EN.
     langs = detect_languages(q.name) or []
@@ -398,6 +410,7 @@ def find_top_cards(
     max_price: float | None = None,
     on_stage: StageCallback | None = None,
     on_cache_status: Callable[[str], None] | None = None,
+    cache_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return up to `limit` chase cards for a name, ranked by market price.
 
@@ -422,6 +435,10 @@ def find_top_cards(
     so an inline `>= $20` on the line excludes cheap fillers and inline
     `<= $50` further tightens the global cap.
 
+    `cache_only` applies to pokemontcg.io lookups. When True, cached results
+    can still resolve but disk misses are treated as empty results instead of
+    live upstream requests.
+
     `on_stage`, when provided, is called with `looking_up` before the upstream
     searches and `pricing` before the pool is ranked, so the web UI can show
     per-line progress for bulk (`top:N` / `All <set>`) queries."""
@@ -435,7 +452,7 @@ def find_top_cards(
     def _search_all_with_status(query: str) -> list[dict[str, Any]]:
         """Wrap `pkmn.search_all` so the per-query cache status flows out
         through `on_cache_status` even when the result is iterated inline."""
-        cards, status = pkmn.search_all(query)
+        cards, status = pkmn.search_all(query, cache_only=cache_only)
         if on_cache_status is not None:
             on_cache_status(status)
         return cards
