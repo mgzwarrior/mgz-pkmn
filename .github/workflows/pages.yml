@@ -44,12 +44,6 @@ jobs:
           cp -R design/styleguide/. _site/design/styleguide/
           cp -R design/tokens/. _site/design/tokens/
           cp -R assets/. _site/assets/
-          # No CNAME in the artifact: with actions/deploy-pages the custom
-          # domain is held in repo Settings → Pages (set to
-          # styleguide.mgz-pkmn.com), and an artifact CNAME is ignored per
-          # https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site
-          # — without that Settings value the deploy would follow the
-          # user-level mgzwarrior.github.io → matt-grant.com redirect (#567).
           cat > _site/index.html <<'HTML'
           <!doctype html>
           <html lang="en">
