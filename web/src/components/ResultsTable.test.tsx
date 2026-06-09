@@ -240,6 +240,45 @@ describe('ResultsTable', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('renders the row-level save buttons in a cell to the left of the Name column (#540)', async () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    const { container } = render(<ResultsTable />)
+    // useAuth resolves async — wait for the row-level save buttons to mount.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /save to collection/i }),
+      ).toBeInTheDocument()
+    })
+    const bodyRow = container.querySelector('tbody tr')!
+    const cells = bodyRow.querySelectorAll(':scope > td')
+    const firstCell = cells[0]
+    expect(firstCell.querySelector('button[aria-label="Save to collection"]')).not.toBeNull()
+    expect(firstCell.querySelector('button[aria-label="Save to wishlist"]')).not.toBeNull()
+    const nameCell = Array.from(cells).find((td) =>
+      td.textContent?.includes('Charizard'),
+    )
+    expect(nameCell).toBeTruthy()
+    expect(
+      firstCell.compareDocumentPosition(nameCell!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    useAppStore.setState({ rows: [] })
+  })
+
   it('hides the row-level save buttons for an anonymous (auth-on) user', async () => {
     // Anonymous on a hosted deploy → the collections / wishlists chips
     // can't fire without a user, so the row buttons hide.
