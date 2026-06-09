@@ -193,6 +193,19 @@ describe('HelpModal', () => {
     expect(await screen.findByText(/couldn't be loaded/i)).toBeInTheDocument()
   })
 
+  it('documents the current app surfaces (modes, results, library)', async () => {
+    useAppStore.setState({ lastSeenChangelogVersion: '1.1.1' })
+    render(<HelpModal onStartTour={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
+    // Discovery modes, results/detail surface, and the Library tabs each
+    // have a matching help section.
+    expect(await screen.findByText('Finding cards')).toBeInTheDocument()
+    expect(screen.getByText('Results & card details')).toBeInTheDocument()
+    expect(screen.getByText('Library')).toBeInTheDocument()
+    expect(screen.getByText('Collections')).toBeInTheDocument()
+    expect(screen.getByText('Wishlists')).toBeInTheDocument()
+  })
+
   it('Take the tour button closes the modal and fires the callback', async () => {
     const onStartTour = vi.fn()
     render(<HelpModal onStartTour={onStartTour} />)
