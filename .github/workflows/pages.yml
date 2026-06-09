@@ -44,6 +44,12 @@ jobs:
           cp -R design/styleguide/. _site/design/styleguide/
           cp -R design/tokens/. _site/design/tokens/
           cp -R assets/. _site/assets/
+          # CNAME pins the deploy to the project subdomain so it doesn't
+          # follow the user-level mgzwarrior.github.io → matt-grant.com
+          # redirect (and so a force re-deploy can't wipe whatever GitHub
+          # wrote into the artifact from Settings). DNS lives in the
+          # Cloudflare zone for mgz-pkmn.com (#567).
+          echo "styleguide.mgz-pkmn.com" > _site/CNAME
           cat > _site/index.html <<'HTML'
           <!doctype html>
           <html lang="en">

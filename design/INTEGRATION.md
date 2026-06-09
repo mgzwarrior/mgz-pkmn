@@ -173,7 +173,7 @@ Open [`design/styleguide/index.html`](styleguide/index.html) directly in a
 browser. It links every rendered card in `design/styleguide/` and is the
 lightweight site for this PR; no build step or generated output is required.
 
-The same tree is published to <https://mgzwarrior.github.io/mgz-pkmn/> by
+The same tree is published to <https://styleguide.mgz-pkmn.com> by
 [`.github/workflows/pages.yml`](../.github/workflows/pages.yml) on every
 push to `main` that touches `design/` or `assets/` — share that URL when
 you want a stable reference instead of asking a reviewer to clone.
@@ -220,7 +220,7 @@ new one on a beta path. Once the new theme is signed off, remove the
 | [`site/src/styles/global.css`](../site/src/styles/global.css) | Tailwind v4 implementation for the marketing site. |
 | [`web/src/index.css`](../web/src/index.css) | Tailwind v4 implementation for the React app. |
 | [`design/CLASS_CHEATSHEET.md`](CLASS_CHEATSHEET.md) | Find/replace table for zinc/blue Tailwind classes. |
-| [`design/styleguide/index.html`](styleguide/index.html) | Static styleguide index linking every rendered card. Hosted at <https://mgzwarrior.github.io/mgz-pkmn/>. |
+| [`design/styleguide/index.html`](styleguide/index.html) | Static styleguide index linking every rendered card. Hosted at <https://styleguide.mgz-pkmn.com>. |
 
 ---
 

@@ -325,7 +325,7 @@ they render across system fonts.
 | [`tokens/colors_and_type.css`](tokens/colors_and_type.css) | All CSS variables — palette, semantic tokens, type scale, spacing, radii, shadows, motion. |
 | [`../assets/`](../assets/) | Logos, brand mark, icon SVGs, marketing imagery. |
 | [`CLASS_CHEATSHEET.md`](CLASS_CHEATSHEET.md) | Find/replace table for zinc/blue Tailwind classes. |
-| [`styleguide/index.html`](styleguide/index.html) | Static styleguide index linking every rendered card. Open it directly in a browser; no build step is required. Hosted at <https://mgzwarrior.github.io/mgz-pkmn/> for reviewer-friendly sharing. |
+| [`styleguide/index.html`](styleguide/index.html) | Static styleguide index linking every rendered card. Open it directly in a browser; no build step is required. Hosted at <https://styleguide.mgz-pkmn.com> for reviewer-friendly sharing. |
 
 ### Styleguide cards
 
