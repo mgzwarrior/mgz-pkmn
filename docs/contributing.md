@@ -138,7 +138,7 @@ modules — those benefit from a design discussion first.
 ## Project layout
 
 The repo carries four production surfaces (CLI + API + SPA + marketing
-site) plus the usual test / doc / output dirs.
+site), plus the shared design system and the usual test / doc / output dirs.
 
 ```
 mgz-pkmn/
@@ -146,6 +146,7 @@ mgz-pkmn/
 ├── api/             # FastAPI service + SSE streaming + auth + persistence
 ├── web/             # React 19 + Vite SPA (served by api/ in production)
 ├── site/            # Astro static marketing site (mgz-pkmn.com)
+├── design/          # tropical design tokens, styleguide cards, integration guide
 ├── tests/           # pytest suite for src/ and api/
 ├── docs/            # reference + ADRs (canonical; the wiki is a mirror)
 ├── input/           # sample input files used by the docs and examples
@@ -204,6 +205,14 @@ served as a static SPA from the FastAPI app in production.
 
 Astro static site at <https://mgz-pkmn.com>. Deployed to Cloudflare
 Pages on every push to `main` (see [ADR-0016](adr/0016-deployment-topology.md)).
+
+### `design/` — tokens and styleguide
+
+[`design/DESIGN_SYSTEM.md`](../design/DESIGN_SYSTEM.md) is the human-readable
+guide for the tropical brand direction. Visual changes should start from
+[`design/tokens/colors_and_type.css`](../design/tokens/colors_and_type.css) and
+check [`design/styleguide/index.html`](../design/styleguide/index.html) for the
+rendered reference cards before touching `site/` or `web/` styles.
 
 Adding a new lookup source is a matter of dropping a module under
 `src/mgz_pkmn/sources/` that returns the normalized card shape, then
