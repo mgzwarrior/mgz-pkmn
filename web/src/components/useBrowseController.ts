@@ -10,15 +10,29 @@
  * lands on the set list, not whatever they were browsing last time.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchSetCards, fetchSets } from '../api/client'
+import { fetchPokedexCards, fetchSetCards, fetchSets } from '../api/client'
+import { BAKED_POKEDEX, POKEDEX_GENERATIONS } from '../data/pokedex'
 import { BAKED_SETS } from '../data/sets'
 import { useAppStore } from '../store'
-import type { SetCard, SetInfo } from '../types'
+import type { PokedexCard, PokedexEntry, SetCard, SetInfo } from '../types'
 
 export interface SeriesGroup {
   series: string
   sets: SetInfo[]
 }
+
+/** One generation section of the national dex species index. */
+export interface PokedexGroup {
+  label: string
+  species: PokedexEntry[]
+}
+
+/**
+ * Which organisation Browse is showing: `set` walks series → set → cards;
+ * `pokedex` walks national dex # → every printing of that species across
+ * every set (issue #577).
+ */
+export type BrowseViewMode = 'set' | 'pokedex'
 
 const OTHER_SERIES = 'Other'
 
@@ -39,6 +53,13 @@ function groupBySeries(sets: SetInfo[]): SeriesGroup[] {
     buckets.get(key)!.push(s)
   }
   return order.map((series) => ({ series, sets: buckets.get(series)! }))
+}
+
+function groupByGeneration(species: PokedexEntry[]): PokedexGroup[] {
+  return POKEDEX_GENERATIONS.map((gen) => ({
+    label: gen.label,
+    species: species.filter((s) => s.number >= gen.start && s.number <= gen.end),
+  })).filter((group) => group.species.length > 0)
 }
 
 export type RarityBucket = 'all' | 'holo' | 'rare' | 'ultra'
@@ -75,11 +96,13 @@ function compareCards(a: SetCard, b: SetCard, sort: CardSort): number {
   return (a.number || '').localeCompare(b.number || '')
 }
 
-function toInputLine(card: SetCard, set: SetInfo): string {
-  return `${card.name} | ${set.name} | ${card.number}`
+function toInputLine(card: SetCard, setName: string): string {
+  return `${card.name} | ${setName} | ${card.number}`
 }
 
 export interface BrowseController {
+  viewMode: BrowseViewMode
+  setViewMode: (m: BrowseViewMode) => void
   groups: SeriesGroup[]
   activeSet: SetInfo | null
   setActiveSet: (s: SetInfo | null) => void
@@ -98,6 +121,17 @@ export interface BrowseController {
   addAll: () => void
   addHolos: () => void
   addRares: () => void
+  // Pokedex view (#577) — national dex # → every printing across all sets.
+  pokedexGroups: PokedexGroup[]
+  pokedexFilter: string
+  setPokedexFilter: (v: string) => void
+  activePokemon: PokedexEntry | null
+  setActivePokemon: (p: PokedexEntry | null) => void
+  pokedexCards: PokedexCard[] | null
+  pokedexCardsLoading: boolean
+  pokedexCardsError: string | null
+  addPokedexCards: (toAdd: PokedexCard[]) => void
+  addAllPrintings: () => void
 }
 
 export function useBrowseController(active: boolean): BrowseController {
@@ -115,11 +149,20 @@ export function useBrowseController(active: boolean): BrowseController {
   const [sort, setSort] = useState<CardSort>('number')
   const [addedCount, setAddedCount] = useState<number | null>(null)
 
+  const [viewMode, setViewModeState] = useState<BrowseViewMode>('set')
+  const [pokedexFilter, setPokedexFilter] = useState('')
+  const [activePokemon, setActivePokemon] = useState<PokedexEntry | null>(null)
+  const [pokedexCards, setPokedexCards] = useState<PokedexCard[] | null>(null)
+  const [pokedexCardsError, setPokedexCardsError] = useState<string | null>(null)
+  const [pokedexCardsLoading, setPokedexCardsLoading] = useState(false)
+
   const cardCacheRef = useRef<Map<string, SetCard[]>>(new Map())
+  const pokedexCacheRef = useRef<Map<number, PokedexCard[]>>(new Map())
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!active) return
+    setViewModeState('set')
     setActiveSet(null)
     setCards(null)
     setCardsError(null)
@@ -127,8 +170,23 @@ export function useBrowseController(active: boolean): BrowseController {
     setBucket('all')
     setSort('number')
     setAddedCount(null)
+    setActivePokemon(null)
+    setPokedexCards(null)
+    setPokedexCardsError(null)
+    setPokedexFilter('')
   }, [active])
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Switching organisation always lands on that view's top-level list:
+  // set view → the set grid, pokedex view → the species index. Clears the
+  // drill-in state on both sides and the shared "added N lines" status so
+  // the toggle is a clean reset, not a half-remembered prior position.
+  function setViewMode(mode: BrowseViewMode) {
+    setViewModeState(mode)
+    setActiveSet(null)
+    setActivePokemon(null)
+    setAddedCount(null)
+  }
 
   useEffect(() => {
     if (!active || revalidatedSets) return
@@ -182,7 +240,51 @@ export function useBrowseController(active: boolean): BrowseController {
     }
   }, [activeSet, settings.apiKey])
 
+  useEffect(() => {
+    if (!activePokemon) return
+    let cancelled = false
+    const load = async () => {
+      setAddedCount(null)
+      setPokedexCardsError(null)
+
+      const cached = pokedexCacheRef.current.get(activePokemon.number)
+      if (cached) {
+        setPokedexCards(cached)
+        setPokedexCardsLoading(false)
+        return
+      }
+
+      setPokedexCardsLoading(true)
+      setPokedexCards(null)
+      try {
+        const data = await fetchPokedexCards(activePokemon.number, settings.apiKey || undefined)
+        if (!cancelled) {
+          pokedexCacheRef.current.set(activePokemon.number, data)
+          setPokedexCards(data)
+        }
+      } catch (err) {
+        if (!cancelled) setPokedexCardsError(err instanceof Error ? err.message : String(err))
+      } finally {
+        if (!cancelled) setPokedexCardsLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [activePokemon, settings.apiKey])
+
   const groups = useMemo(() => groupBySeries(sets), [sets])
+
+  const pokedexGroups = useMemo(() => {
+    const term = pokedexFilter.trim().toLowerCase()
+    const species = term
+      ? BAKED_POKEDEX.filter(
+          (s) => s.name.toLowerCase().includes(term) || String(s.number) === term,
+        )
+      : BAKED_POKEDEX
+    return groupByGeneration(species)
+  }, [pokedexFilter])
 
   const filteredCards = useMemo(() => {
     if (!cards) return []
@@ -202,7 +304,7 @@ export function useBrowseController(active: boolean): BrowseController {
 
   function addCards(toAdd: SetCard[]) {
     if (!activeSet || toAdd.length === 0) return
-    const added = appendInputLines(toAdd.map((c) => toInputLine(c, activeSet)))
+    const added = appendInputLines(toAdd.map((c) => toInputLine(c, activeSet.name)))
     setAddedCount(added)
   }
 
@@ -218,7 +320,19 @@ export function useBrowseController(active: boolean): BrowseController {
     addCards((cards ?? []).filter((c) => inBucket(c, 'rare')))
   }
 
+  function addPokedexCards(toAdd: PokedexCard[]) {
+    if (toAdd.length === 0) return
+    const added = appendInputLines(toAdd.map((c) => toInputLine(c, c.setName)))
+    setAddedCount(added)
+  }
+
+  function addAllPrintings() {
+    addPokedexCards(pokedexCards ?? [])
+  }
+
   return {
+    viewMode,
+    setViewMode,
     groups,
     activeSet,
     setActiveSet,
@@ -237,5 +351,15 @@ export function useBrowseController(active: boolean): BrowseController {
     addAll,
     addHolos,
     addRares,
+    pokedexGroups,
+    pokedexFilter,
+    setPokedexFilter,
+    activePokemon,
+    setActivePokemon,
+    pokedexCards,
+    pokedexCardsLoading,
+    pokedexCardsError,
+    addPokedexCards,
+    addAllPrintings,
   }
 }

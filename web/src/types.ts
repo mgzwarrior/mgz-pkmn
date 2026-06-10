@@ -185,6 +185,31 @@ export interface SetCard {
 }
 
 /**
+ * One species in the national Pokédex, as baked into `data/pokedex.json`
+ * and rendered by Browse's pokedex-# view. `number` is the national dex
+ * number Browse keys the printings fetch off of.
+ */
+export interface PokedexEntry {
+  number: number
+  name: string
+}
+
+/**
+ * One printing returned by `GET /api/v1/pokedex/{number}/cards` — every
+ * card of a given species across every set.
+ *
+ * A superset of `SetCard`: because printings span sets, each row carries
+ * its own set id / name / release date (the set context that's implicit
+ * in set view's single-set grid) so the pokedex grid can label and sort
+ * by set, and synthesise an "add to list" line without an active set.
+ */
+export interface PokedexCard extends SetCard {
+  setId: string
+  setName: string
+  releaseDate: string
+}
+
+/**
  * One section within a release (Added / Changed / Fixed / …) as returned
  * by `GET /api/v1/changelog`. Bullet `entries` are raw Markdown — the
  * renderer formats inline links and code spans.
