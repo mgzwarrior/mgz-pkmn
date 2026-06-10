@@ -34,8 +34,10 @@ HEADERS = [
     "85%",  # M
     "90%",  # N
     "95%",  # O
-    "Price Source",  # P
-    "Listing URL",  # Q
+    "eBay Sold (median)",  # P
+    "eBay Active (floor)",  # Q
+    "Price Source",  # R
+    "Listing URL",  # S
 ]
 
 
@@ -89,8 +91,10 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
         "M": 10,
         "N": 10,
         "O": 10,
-        "P": 14,  # Price Source
-        "Q": 38,  # Listing URL
+        "P": 16,  # eBay Sold (median)
+        "Q": 16,  # eBay Active (floor)
+        "R": 14,  # Price Source
+        "S": 38,  # Listing URL
     }
     for col, w in widths.items():
         ws.column_dimensions[col].width = w
@@ -133,9 +137,16 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
         else:
             ws.cell(row=i, column=11, value="—")
 
-        ws.cell(row=i, column=16, value=row.pricing.source or "")
+        for offset, value in enumerate(
+            (row.pricing.ebay_sold_median, row.pricing.ebay_active_floor)
+        ):
+            cell = ws.cell(row=i, column=16 + offset, value=value if value is not None else "—")
+            if value is not None:
+                cell.number_format = money_fmt
+
+        ws.cell(row=i, column=18, value=row.pricing.source or "")
         if row.pricing.url:
-            link_cell = ws.cell(row=i, column=17, value=row.pricing.url)
+            link_cell = ws.cell(row=i, column=19, value=row.pricing.url)
             link_cell.hyperlink = row.pricing.url
             link_cell.font = Font(color=palette.hex("fg-link"), underline="single")
 

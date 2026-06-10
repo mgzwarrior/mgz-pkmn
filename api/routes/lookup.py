@@ -95,6 +95,8 @@ def _pricing_to_dict(p: Pricing) -> dict[str, Any]:
         "source": p.source,
         "url": p.url,
         "currency": p.currency,
+        "ebay_sold_median": p.ebay_sold_median,
+        "ebay_active_floor": p.ebay_active_floor,
     }
 
 

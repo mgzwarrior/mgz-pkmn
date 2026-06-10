@@ -37,6 +37,8 @@ class PricingIn(BaseModel):
     source: str | None = None
     url: str | None = None
     currency: str = "USD"
+    ebay_sold_median: float | None = None
+    ebay_active_floor: float | None = None
 
 
 class CardQueryIn(BaseModel):
@@ -185,6 +187,8 @@ def _to_row(
         source=r.pricing.source,
         url=r.pricing.url,
         currency=r.pricing.currency,
+        ebay_sold_median=r.pricing.ebay_sold_median,
+        ebay_active_floor=r.pricing.ebay_active_floor,
     )
     image_path = _download_card_image(r.card, images_dir, session)
     return Row(query=q, card=r.card, pricing=pricing, image_path=image_path, tag=r.tag)

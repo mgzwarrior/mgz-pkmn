@@ -2,8 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from statistics import median
 from typing import Any
+
+# The price sources a `Pricing.source` may name. pokemontcg.io exposes
+# tcgplayer + cardmarket; pricecharting is the URL-hint path; ebay_active /
+# ebay_sold come from the eBay Browse / Marketplace-Insights adapter
+# (`sources.ebay_client`). Documentation-only — the pipeline fails soft on an
+# unknown source rather than validating against this set.
+PRICE_SOURCES = (
+    "tcgplayer",
+    "cardmarket",
+    "pricecharting",
+    "ebay_active",
+    "ebay_sold",
+)
 
 # Variants we look at when picking a market price, in preference order.
 PRICE_VARIANT_PREFERENCE = (
@@ -24,9 +39,30 @@ COMP_PERCENTS = (80, 85, 90, 95)
 class Pricing:
     market: float | None = None
     variant: str | None = None
-    source: str | None = None  # "tcgplayer" | "cardmarket" | "pricecharting"
+    source: str | None = None  # one of PRICE_SOURCES
     url: str | None = None
     currency: str = "USD"
+    # eBay listing-comp signals carried alongside the primary market price:
+    # the median of recent sold comps and the lowest current active listing.
+    # Both stay None until the eBay source contributes (see summarize_ebay_comps).
+    ebay_sold_median: float | None = None
+    ebay_active_floor: float | None = None
+
+
+def summarize_ebay_comps(comps: Iterable[Pricing]) -> tuple[float | None, float | None]:
+    """Reduce eBay comps into (median sold, active floor).
+
+    Takes the ``ebay_sold`` / ``ebay_active`` ``Pricing`` entries the eBay
+    adapter (`sources.ebay_client.EbayClient.fetch_comps`) returns and folds
+    them into the two scalar signals the serializers carry: the median of the
+    sold prices and the floor (cheapest) of the active listings. Either is
+    ``None`` when that tier contributed no priced comps.
+    """
+    sold = [c.market for c in comps if c.source == "ebay_sold" and c.market is not None]
+    active = [c.market for c in comps if c.source == "ebay_active" and c.market is not None]
+    median_sold = round(median(sold), 2) if sold else None
+    active_floor = round(min(active), 2) if active else None
+    return median_sold, active_floor
 
 
 def extract_pricing(card: dict[str, Any], variant_hint: str | None) -> Pricing:
