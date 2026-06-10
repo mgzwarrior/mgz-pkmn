@@ -7,7 +7,7 @@ import { _resetAuthStoreForTests } from '../hooks/useAuth'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { _resetWishlistsCacheForTests } from './useWishlists'
 import * as client from '../api/client'
-import type { PokedexCard } from '../types'
+import type { PokedexCard, SetCard } from '../types'
 
 function Harness() {
   const controller = useBrowseController(true)
@@ -110,6 +110,82 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     expect(within(dialog).getByText('$250.00')).toBeInTheDocument()
   })
 
+  it('set view: drills into a set, opens the detail modal, and shows the save buttons', async () => {
+    const SET_CARDS: SetCard[] = [
+      {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        rarity: 'Rare Holo',
+        supertype: 'Pokémon',
+        subtypes: ['Stage 2'],
+        thumb: 'https://img/base1-4.png',
+        market: 250,
+      },
+    ]
+    const fetchCards = vi
+      .spyOn(client, 'fetchSetCards')
+      .mockResolvedValue(SET_CARDS)
+
+    render(<Harness />)
+
+    // Default view is "By set"; the baked catalog renders the set tiles with
+    // no round-trip. Drill into the first one (Base).
+    const setTile = screen
+      .getAllByRole('button')
+      .find((b) => /\bcards$|count unknown/.test(b.textContent ?? ''))!
+    fireEvent.click(setTile)
+
+    await waitFor(() => expect(fetchCards).toHaveBeenCalled())
+    expect(await screen.findByText('1 of 1 card')).toBeInTheDocument()
+
+    // Signed-in, so each tile carries the collection + wishlist save pair.
+    // Assert these before opening the modal — the dialog makes the grid inert.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /save to collection/i }),
+      ).toBeInTheDocument(),
+    )
+    expect(
+      screen.getByRole('button', { name: /save to wishlist/i }),
+    ).toBeInTheDocument()
+
+    // A broken thumbnail falls back to the placeholder.
+    fireEvent.error(screen.getByAltText('Charizard'))
+    await waitFor(() =>
+      expect(screen.queryByAltText('Charizard')).not.toBeInTheDocument(),
+    )
+
+    // The set-detail toolbar handlers (search / rarity bucket / sort) run;
+    // Charizard (Rare Holo) survives all three filters.
+    fireEvent.change(screen.getByLabelText('Search cards in this set'), {
+      target: { value: 'char' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Holos' }))
+    fireEvent.change(screen.getByLabelText('Sort cards'), {
+      target: { value: 'price-desc' },
+    })
+    expect(screen.getByText('1 of 1 card')).toBeInTheDocument()
+
+    // Clicking the card tile opens the same detail modal Search rows use.
+    fireEvent.click(
+      screen.getByRole('button', { name: /View details for Charizard/ }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getAllByText('Charizard').length).toBeGreaterThan(0)
+    expect(within(dialog).getByText('$250.00')).toBeInTheDocument()
+
+    // Escape closes the modal (onChangeIndex back to null)…
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+
+    // …and the back control returns to the set list.
+    fireEvent.click(screen.getByRole('button', { name: 'Back to set list' }))
+    expect(screen.getByText('Browse sets')).toBeInTheDocument()
+  })
+
   it('shows the collection / wishlist save buttons on a printing when signed in', async () => {
     vi.spyOn(client, 'fetchPokedexCards').mockResolvedValue(CHARIZARD_PRINTINGS)
 
@@ -130,5 +206,24 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     expect(
       screen.getByRole('button', { name: /save to wishlist/i }),
     ).toBeInTheDocument()
+  })
+
+  it('swaps a broken printing thumbnail for the placeholder', async () => {
+    vi.spyOn(client, 'fetchPokedexCards').mockResolvedValue([
+      { ...CHARIZARD_PRINTINGS[0], thumb: 'https://img/base1-4.png' },
+    ])
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
+    fireEvent.change(screen.getByLabelText('Find a Pokémon'), {
+      target: { value: 'charizard' },
+    })
+    fireEvent.click(await screen.findByText('Charizard'))
+
+    const img = await screen.findByAltText('Charizard')
+    fireEvent.error(img)
+    await waitFor(() =>
+      expect(screen.queryByAltText('Charizard')).not.toBeInTheDocument(),
+    )
   })
 })

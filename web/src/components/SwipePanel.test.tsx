@@ -362,4 +362,104 @@ describe('SwipePanel', () => {
       screen.queryByRole('button', { name: /save to wishlist/i }),
     ).not.toBeInTheDocument()
   })
+
+  it('pressing Enter on the focused card opens the detail modal', async () => {
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    fireEvent.keyDown(screen.getByTestId('swipe-card'), { key: 'Enter' })
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getAllByText('Pikachu').length).toBeGreaterThan(0)
+
+    // Escape closes it (onChangeIndex back to null).
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+  })
+
+  it('a drag past the leftward threshold commits a pass (no save)', async () => {
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const card = screen.getByTestId('swipe-card')
+    Object.defineProperty(card, 'setPointerCapture', { value: () => {}, configurable: true })
+    Object.defineProperty(card, 'releasePointerCapture', { value: () => {}, configurable: true })
+    Object.defineProperty(card, 'hasPointerCapture', { value: () => false, configurable: true })
+
+    fireEvent.pointerDown(card, { pointerId: 1, clientX: 0, clientY: 0 })
+    fireEvent.pointerMove(card, { pointerId: 1, clientX: -200, clientY: 0 })
+    fireEvent.pointerUp(card, { pointerId: 1, clientX: -200, clientY: 0 })
+
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
+    // A pass saves nothing — the header still offers a plain reset.
+    expect(
+      screen.getByRole('button', { name: 'Reset profile' }),
+    ).toBeInTheDocument()
+  })
+
+  it('a drag past the upward threshold commits a love (save + weight)', async () => {
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const card = screen.getByTestId('swipe-card')
+    Object.defineProperty(card, 'setPointerCapture', { value: () => {}, configurable: true })
+    Object.defineProperty(card, 'releasePointerCapture', { value: () => {}, configurable: true })
+    Object.defineProperty(card, 'hasPointerCapture', { value: () => false, configurable: true })
+
+    fireEvent.pointerDown(card, { pointerId: 1, clientX: 0, clientY: 0 })
+    fireEvent.pointerMove(card, { pointerId: 1, clientX: 0, clientY: -200 })
+    fireEvent.pointerUp(card, { pointerId: 1, clientX: 0, clientY: -200 })
+
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
+    expect(
+      screen.getByRole('button', { name: /1 saved · reset/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('the Pass and More-like-this action buttons commit decisions', async () => {
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pass' }))
+    await waitFor(
+      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'More like this' }))
+    // Love saves the card; the header chip reflects the one save.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole('button', { name: /1 saved · reset/i }),
+        ).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
+  })
+
+  it('falls back to the placeholder when the card art fails to load', async () => {
+    mockFetchSetCards.mockReset()
+    mockFetchSetCards.mockResolvedValue([
+      card({ id: 'sv1-1', name: 'Pikachu', thumb: 'https://img/pikachu.png' }),
+    ])
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const img = screen.getByAltText('Pikachu') as HTMLImageElement
+    fireEvent.error(img)
+
+    // The broken image is swapped for the ImageOff placeholder.
+    await waitFor(() =>
+      expect(screen.queryByAltText('Pikachu')).not.toBeInTheDocument(),
+    )
+  })
 })
