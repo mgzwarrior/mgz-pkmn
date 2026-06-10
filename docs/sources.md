@@ -47,6 +47,13 @@ Configure one of two ways:
 
 `MGZ_PKMN_EBAY_ENV` selects the host: unset (or anything other than `sandbox`) targets production (`api.ebay.com`); set it to `sandbox` to target `api.sandbox.ebay.com`.
 
+### Active vs sold comps
+
+`EbayClient.fetch_comps(query)` returns two flavors of comp, both filtered to raw singles (graded slabs, lots, and bundles are dropped) and deduped on item id:
+
+- **Active** (`source="ebay_active"`) — what's listed right now, from the **Browse API**. Available with the application token above, so this tier is always on.
+- **Sold** (`source="ebay_sold"`) — recent sales, from the **Marketplace Insights API**. That API is limited-release (it needs separate eBay business approval; the legacy `findCompletedItems` Finding API was retired in early 2025), so the sold path is gated behind `MGZ_PKMN_EBAY_SOLD_ENABLED` (default off) and fails soft on a 403. Leave it off until eBay grants Insights access to your app, then set it to `1` / `true`.
+
 ### Sandbox credentials
 
 Develop against the sandbox first. In the eBay Developer portal your keyset exposes both a **Production** and a **Sandbox** set of App ID (client id) / Cert ID (client secret). For local sandbox work:
