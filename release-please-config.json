@@ -8,7 +8,14 @@
     ".": {
       "package-name": "mgz-pkmn",
       "changelog-path": "CHANGELOG.md",
-      "draft-pull-request": false
+      "draft-pull-request": false,
+      "extra-files": [
+        { "type": "toml", "path": "api/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "json", "path": "web/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "site/package.json", "jsonpath": "$.version" },
+        { "type": "yaml", "path": "CITATION.cff", "jsonpath": "$.version" },
+        "src/mgz_pkmn/__init__.py"
+      ]
     }
   },
   "changelog-sections": [

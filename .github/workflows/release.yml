@@ -1,9 +1,14 @@
 name: Release
 
+# release-please owns tagging + cutting the GitHub Release (it creates both with
+# RELEASE_PAT, so the `release` event fires downstream workflows). This workflow
+# runs on that event to build, publish to PyPI (trusted publishing + PEP 740
+# attestation), attach the dist to release-please's Release, close the milestone,
+# and rebuild the marketing site. The Sigstore identity stays this workflow in
+# the `pypi` environment, so the existing PyPI trusted publisher needs no change.
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -56,8 +61,8 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  github-release:
-    name: Publish GitHub Release
+  finalize:
+    name: Finalize release
     needs: pypi-publish
     runs-on: ubuntu-latest
     permissions:
@@ -70,23 +75,14 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Compute PyPI version
-        id: pypi
-        run: |
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: dist/*
-          generate_release_notes: true
-          body: |
-            **Install from PyPI:** https://pypi.org/project/mgz-pkmn/${{ steps.pypi.outputs.version }}/
-
-            ```bash
-            pip install mgz-pkmn==${{ steps.pypi.outputs.version }}
-            ```
+      # release-please already cut the Release (with its changelog body); just
+      # attach the built sdist + wheel so they show up on the Release page.
+      # `--clobber` overwrites assets on a re-run without touching the notes.
+      - name: Attach dist to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Close matching milestone
         env:
@@ -107,7 +103,7 @@ jobs:
 
   rebuild-site:
     name: Rebuild marketing site
-    needs: github-release
+    needs: finalize
     runs-on: ubuntu-latest
     # Don't fail the release if the hook is missing or the rebuild trigger
     # bounces — the GitHub Release is already cut and PyPI is published.

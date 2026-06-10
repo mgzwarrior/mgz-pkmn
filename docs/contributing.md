@@ -583,24 +583,23 @@ This rule is forward-looking: existing hand-written `[Unreleased]` entries that 
 
 ## Releasing
 
-Releases are driven by `pyproject.toml`. A PR that bumps the version **is** the release — once it merges to `main`, the `release-on-version-bump` workflow tags the new commit. The tag push triggers `release.yml`, which builds the package, runs the test suite, publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via trusted publishing (with PEP 740 attestations), and creates a GitHub Release with the built distribution attached and notes linking to the new PyPI version.
+release-please owns the release end to end. A version-bump PR **is** the release — once it merges to `main`, release-please tags the commit and cuts the GitHub Release. That `release` event triggers `release.yml`, which builds the package, runs the test suite, publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via trusted publishing (with PEP 740 attestations), and attaches the built distribution to the Release.
 
 ### The release PR is drafted by release-please
 
 `.github/workflows/release-please.yml` watches `main` and opens a version-bump PR whenever release-worthy Conventional Commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `revert:`) accumulate. The bot's PR is the **canonical release PR** — don't open a competing one. The bot:
 
-- Bumps the root `pyproject.toml` version.
+- Bumps **every** version surface in one commit — root `pyproject.toml` (via the `python` release type) plus `api/pyproject.toml`, `web/package.json`, `site/package.json`, `CITATION.cff` (`version`), and `src/mgz_pkmn/__init__.py` (via the `extra-files` config in `release-please-config.json`).
 - Rotates `[Unreleased]` in `CHANGELOG.md` into a new versioned section with bullets generated from the commit subjects.
 - Signs the commit with `Signed-off-by: github-actions[bot] …` so the DCO check passes.
 
-The release-please flow is PR-only (`skip-github-release: true`). It does not tag, does not cut a GitHub Release, and does not push to PyPI — the existing `release-on-version-bump.yml` → `release.yml` chain still owns all of that. Merging the bot's PR trips the version-watch trigger and the established flow carries it from there.
+release-please can't run `uv lock` or `npm install`, so [`release-please-lock.yml`](../.github/workflows/release-please-lock.yml) watches the bot branch and re-syncs `uv.lock`, `web/package-lock.json`, and `site/package-lock.json` after the bump — without this the `web` / `site` CI jobs (which run `npm ci`) would fail on the version mismatch. The PR's checks may flash red until that re-sync commit lands; that's expected.
 
-### The agent / human extends the bot PR before merging
+### The agent / human reviews the bot PR before merging
 
-The bot only bumps the root `pyproject.toml`. The releasing agent or human checks out the bot's branch (`gh pr checkout <PR>`), applies two passes, and pushes back to the same branch:
+The bot bumps every surface, but it can't curate prose. The releasing agent or human checks out the bot's branch (`gh pr checkout <PR>`) and applies one pass, then pushes back to the same branch:
 
-1. **Version extension.** Bump every other surface to the same number so the artifacts ship aligned: `api/pyproject.toml`, `web/package.json` (+ `npm install` to refresh the lockfile), `site/package.json` (+ `npm install`), `CITATION.cff` (`version` + `date-released`), `src/mgz_pkmn/__init__.py` (`__version__`), and `uv lock`.
-2. **CHANGELOG consolidation pass.** Dedupe duplicate `### Added` / `### Changed` / `### Fixed` blocks, promote impactful entries to the top of each subsection, drop or merge low-signal entries (dep bumps, CI tweaks, internal renames). The marketing site and the live-demo "what's new" surface render the CHANGELOG verbatim, so whatever ships in the release section is exactly what every visitor reads. See `.claude/skills/cut-release/SKILL.md` Step 5a for the full rules.
+- **CHANGELOG consolidation pass.** Dedupe duplicate `### Added` / `### Changed` / `### Fixed` blocks, promote impactful entries to the top of each subsection, drop or merge low-signal entries (dep bumps, CI tweaks, internal renames). The marketing site and the live-demo "what's new" surface render the CHANGELOG verbatim, so whatever ships in the release section is exactly what every visitor reads. See `.claude/skills/cut-release/SKILL.md` for the full rules. While you're there, bump `date-released` in `CITATION.cff` to today (release-please bumps the `version` but not the date).
 
 Don't close the bot's PR and open your own — release-please reuses the branch on the next `main` push, and a human-authored replacement breaks that loop.
 
@@ -627,17 +626,18 @@ need an explicit release action:
 
 ### Running this from Claude Code
 
-The repo ships a [`cut-release`](../.claude/skills/cut-release/SKILL.md) skill that walks the bot-PR extension above: it checks out the bot's branch, bumps every other surface to the same number, runs the CHANGELOG consolidation pass, runs the local gate, and pushes back to the same branch. Invoke it from any Claude Code session with `/cut-release` (or just ask Claude to "cut the next release"). You still merge the PR yourself — everything downstream is automatic from there.
+The repo ships a [`cut-release`](../.claude/skills/cut-release/SKILL.md) skill that walks the bot-PR review above: it checks out the bot's branch, runs the CHANGELOG consolidation pass, runs the local gate, and pushes back to the same branch. Invoke it from any Claude Code session with `/cut-release` (or just ask Claude to "cut the next release"). You still merge the PR yourself — everything downstream is automatic from there.
 
 ### Doing it by hand
 
-To cut a release, open a single PR that:
+release-please normally drafts the bump and cuts the Release. If it's
+unavailable (misconfigured, or an emergency release off-cycle), you can
+cut a release yourself:
 
-1. Rotates the changelog: rename the `[Unreleased]` section to the new
-   version with today's date, add a fresh empty `[Unreleased]` above
-   it, and update the compare links at the bottom of the file.
-2. Bumps the version string in **every** surface so the artifacts
-   ship the same number:
+1. Open a single PR that bumps the version string in **every** surface
+   so the artifacts ship the same number, and rotates the changelog
+   (rename `[Unreleased]` to the new version with today's date, add a
+   fresh empty `[Unreleased]` above it, update the compare links):
    - **CLI** — `pyproject.toml` (root) and `src/mgz_pkmn/__init__.py`.
      Run `uv lock` afterwards to refresh `uv.lock`.
    - **API** — `api/pyproject.toml`. Served as `{"version": "..."}` by
@@ -647,29 +647,17 @@ To cut a release, open a single PR that:
    - **Marketing site** — `site/package.json`. Run `npm install`
      afterwards so `site/package-lock.json` picks up the new version.
    - **Citation metadata** — `CITATION.cff`: bump `version` and
-     `date-released` so the "How to cite" snippet GitHub renders
-     in the sidebar matches the published release.
+     `date-released`.
+   - **release-please bookkeeping** — bump the version in
+     `.release-please-manifest.json` to match, so release-please's next
+     run anchors on this release instead of re-proposing it.
+2. Merge the PR.
+3. Cut the GitHub Release at that commit — this is what triggers
+   `release.yml` (it runs `on: release`, not on a bare tag push):
 
-Only `pyproject.toml` (root) is load-bearing for the release
-automation — `release-on-version-bump.yml` only fires when that
-file changes — but aligning every surface in one PR keeps the
-mental model "the project is at version X" instead of "each
-folder is on its own number."
-
-Merge the PR — the rest is automatic. The
-`release-on-version-bump` workflow no-ops if the `v<version>` tag
-already exists, so unrelated `pyproject.toml` edits (dependency
-bumps, metadata tweaks) don't trigger spurious releases.
-
-### Emergency manual release
-
-If automation is unavailable, the underlying `release.yml` workflow
-still accepts a manually pushed tag:
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
+   ```bash
+   gh release create v0.2.0 --generate-notes
+   ```
 
 ### PyPI trusted publisher wiring
 
@@ -686,27 +674,27 @@ the trusted publisher in the PyPI project's **Publishing** settings
 with those same four values and recreate the `pypi` Environment
 under repo Settings → Environments.
 
-Only **one** binding is required because both the auto-release path
-and a manually pushed `v*` tag converge on `release.yml` running as
-a top-level workflow. `release-on-version-bump.yml` deliberately
-pushes the tag (rather than calling `release.yml` via
-`workflow_call`) so the Sigstore certificate's Build Config URI
-matches the binding — attestation verification looks at the
-top-level workflow ref, which differs from the reusable workflow ref
-that OIDC trusted-publisher auth uses.
+Only **one** binding is required because every release path converges
+on `release.yml` running as a **top-level** workflow on the `release`
+event — never via `workflow_call`. The binding matches on owner, repo,
+workflow filename, and environment, *not* the trigger event, so moving
+the trigger from a tag push to the `release` event needs no change on
+PyPI. (Attestation verification looks at the top-level workflow ref,
+which differs from the reusable-workflow ref that OIDC
+trusted-publisher auth would use — so keep `release.yml` top-level.)
 
 ### `RELEASE_PAT` secret
 
-Two workflows authenticate with the repo secret `RELEASE_PAT` (a fine-grained Personal Access Token), each for a different reason:
+Two workflows authenticate with the repo secret `RELEASE_PAT` (a fine-grained Personal Access Token), each because the default `GITHUB_TOKEN` doesn't trigger downstream workflows:
 
-- **`release-on-version-bump.yml`** pushes the release tag. Tags pushed with the default `GITHUB_TOKEN` don't trigger downstream workflows, and `release.yml` needs to fire on the tag push.
-- **`release-please.yml`** opens the version-bump PR. PRs opened with `GITHUB_TOKEN` don't trigger `pull_request` workflows (CI, DCO, Conventional Commits check), so the bot's PR would sit there with no validation runs until someone pushed another commit.
+- **`release-please.yml`** opens the version-bump PR and, on merge, tags the commit + cuts the GitHub Release. PRs opened with `GITHUB_TOKEN` don't trigger `pull_request` workflows (CI, DCO, Conventional Commits check), and a Release cut with `GITHUB_TOKEN` wouldn't fire `release.yml`'s `release` trigger — so release-please needs the PAT for both.
+- **`release-please-lock.yml`** pushes the lockfile-sync commit to the bot branch. Pushing with `GITHUB_TOKEN` wouldn't re-run the PR's `pull_request` checks, leaving the synced lockfiles unvalidated.
 
 The PAT needs three scopes (fine-grained) — or `repo` on a classic PAT:
 
 | Scope | Why |
 |---|---|
-| **Contents: read and write** | Tag pushes (`release-on-version-bump.yml`) + release branch commits (`release-please.yml`) |
+| **Contents: read and write** | Release branch commits + tag + GitHub Release (`release-please.yml`); lockfile-sync commits (`release-please-lock.yml`) |
 | **Pull requests: read and write** | Open + maintain the release PR (`release-please.yml`). The workflow's block-level `permissions:` doesn't help PATs — only `GITHUB_TOKEN`. |
 | **Issues: read and write** | release-please manages its own `autorelease: pending` / `autorelease: tagged` labels through the Issues API |
 
