@@ -16,7 +16,7 @@
  * [useWishlists](./useWishlists.ts) and adds every saved card, then
  * clears the local saved list so the next session starts fresh.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,7 +27,11 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import type { SetCard } from '../types'
+import { useAuth } from '../hooks/useAuth'
+import type { Row, SetCard } from '../types'
+import { browseCardToPayload, browseCardToRow } from './browseCard'
+import { CardDetailModal } from './CardDetailModal'
+import { SaveCardActions } from './SaveCardActions'
 import {
   useSwipeProfile,
   type SavedCard,
@@ -40,6 +44,9 @@ import { useWishlists } from './useWishlists'
 const SWIPE_THRESHOLD_X = 110
 /** Vertical-drag threshold (px) — up commits a "love". */
 const SWIPE_THRESHOLD_Y = 110
+/** Pointer movement (px) past which a gesture counts as a drag, not a tap.
+ *  Below it, releasing opens the detail modal instead. */
+const CLICK_SLOP = 6
 
 interface Drag {
   startX: number
@@ -60,10 +67,28 @@ export function SwipePanel({ active }: SwipePanelProps) {
     active,
     seenSet,
   })
+  const { user } = useAuth()
+  const showSavedActions = user !== null
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [outgoing, setOutgoing] = useState<SwipeAction | null>(null)
+  // Open the detail modal for the current candidate. The modal navigates a
+  // `Row[]`, so a one-element array of the current card is enough — there's
+  // no queue to step through here.
+  const [detailOpen, setDetailOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement | null>(null)
+  // Distinguishes a tap (opens the detail modal) from a drag (a swipe
+  // decision). Set true once a pointer moves past the click slop so the
+  // trailing click event after a drag doesn't pop the modal open.
+  const movedRef = useRef(false)
+
+  const detailRows = useMemo<Row[]>(
+    () =>
+      current
+        ? [browseCardToRow(current.card, { id: current.setId, name: current.setName })]
+        : [],
+    [current],
+  )
 
   const commit = useCallback(
     (action: SwipeAction) => {
@@ -84,7 +109,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
   useEffect(() => {
     if (!active) return
     function onKey(e: KeyboardEvent) {
-      if (!current || outgoing) return
+      if (!current || outgoing || detailOpen) return
       const target = e.target as HTMLElement | null
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
       if (e.key === 'ArrowLeft') {
@@ -100,13 +125,14 @@ export function SwipePanel({ active }: SwipePanelProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [active, current, outgoing, commit])
+  }, [active, current, outgoing, detailOpen, commit])
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (outgoing) return
       const el = e.currentTarget
       el.setPointerCapture(e.pointerId)
+      movedRef.current = false
       setDrag({
         startX: e.clientX,
         startY: e.clientY,
@@ -120,14 +146,25 @@ export function SwipePanel({ active }: SwipePanelProps) {
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      setDrag((d) =>
-        d && d.pointerId === e.pointerId
-          ? { ...d, dx: e.clientX - d.startX, dy: e.clientY - d.startY }
-          : d,
-      )
+      setDrag((d) => {
+        if (!d || d.pointerId !== e.pointerId) return d
+        const dx = e.clientX - d.startX
+        const dy = e.clientY - d.startY
+        if (Math.abs(dx) > CLICK_SLOP || Math.abs(dy) > CLICK_SLOP)
+          movedRef.current = true
+        return { ...d, dx, dy }
+      })
     },
     [],
   )
+
+  // A pointer release that never crossed the click slop is a tap → open the
+  // detail modal. A real drag (movedRef set) or an in-flight exit animation
+  // suppresses it so swipes don't double as taps.
+  const onCardClick = useCallback(() => {
+    if (outgoing || movedRef.current) return
+    setDetailOpen(true)
+  }, [outgoing])
 
   const onPointerEnd = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -177,12 +214,22 @@ export function SwipePanel({ active }: SwipePanelProps) {
           <div
             ref={cardRef}
             data-testid="swipe-card"
+            role="button"
+            tabIndex={0}
+            aria-label={`View details for ${current.card.name}`}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerEnd}
             onPointerCancel={onPointerEnd}
+            onClick={onCardClick}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                setDetailOpen(true)
+              }
+            }}
             style={cardTransformStyle(drag, outgoing)}
-            className="relative w-full max-w-xs touch-none select-none rounded-xl border border-sand-300 bg-sand-50 p-3 shadow-lg shadow-coconut-700/10 dark:border-husk-50 dark:bg-husk-400 dark:shadow-coconut-900/40"
+            className="relative w-full max-w-xs cursor-pointer touch-none select-none rounded-xl border border-sand-300 bg-sand-50 p-3 shadow-lg shadow-coconut-700/10 dark:border-husk-50 dark:bg-husk-400 dark:shadow-coconut-900/40"
           >
             <CardArtwork card={current.card} />
             <CardMeta
@@ -202,12 +249,29 @@ export function SwipePanel({ active }: SwipePanelProps) {
           />
         )}
 
+        {current && (
+          <SaveCardActions
+            show={showSavedActions}
+            card={browseCardToPayload(current.card, {
+              id: current.setId,
+              name: current.setName,
+            })}
+            className="justify-center"
+          />
+        )}
+
         <KeyboardHint />
       </div>
 
       {profile.saved.length > 0 && (
         <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
       )}
+
+      <CardDetailModal
+        rows={detailRows}
+        index={detailOpen && current ? 0 : null}
+        onChangeIndex={(next) => setDetailOpen(next !== null)}
+      />
     </section>
   )
 }

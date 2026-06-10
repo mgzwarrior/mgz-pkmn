@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { BrowsePanel } from './BrowsePanel'
 import { useBrowseController } from './useBrowseController'
 import { useAppStore } from '../store'
+import { _resetAuthStoreForTests } from '../hooks/useAuth'
+import { _resetCollectionsCacheForTests } from './useCollections'
+import { _resetWishlistsCacheForTests } from './useWishlists'
 import * as client from '../api/client'
 import type { PokedexCard } from '../types'
 
@@ -35,6 +38,19 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     // baked catalog stays on screen and no real network is hit.
     vi.spyOn(client, 'fetchSets').mockResolvedValue([])
     vi.spyOn(client, 'fetchSetCards').mockResolvedValue([])
+    // BrowsePanel now reads useAuth to gate the per-card save buttons, and
+    // the buttons mount the collections / wishlists pickers. Default to a
+    // signed-in user with empty lists so the save surface renders without
+    // touching the network; reset the shared caches between tests.
+    vi.spyOn(client, 'fetchMe').mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+    vi.spyOn(client, 'fetchCollections').mockResolvedValue([])
+    vi.spyOn(client, 'fetchWishlists').mockResolvedValue([])
+    _resetAuthStoreForTests()
+    _resetCollectionsCacheForTests()
+    _resetWishlistsCacheForTests()
   })
 
   it('toggles to pokedex view and lists species from the national dex', async () => {
@@ -64,7 +80,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     expect(screen.queryByText('Bulbasaur')).not.toBeInTheDocument()
   })
 
-  it('drills into a species, fetches every printing, and adds one to the list', async () => {
+  it('drills into a species, fetches every printing, and opens the card detail modal', async () => {
     const fetchPokedex = vi
       .spyOn(client, 'fetchPokedexCards')
       .mockResolvedValue(CHARIZARD_PRINTINGS)
@@ -83,8 +99,36 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     expect(await screen.findByText('Base')).toBeInTheDocument()
     expect(screen.getByText('1 printing')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Add Charizard from Base to list/ }))
+    // Clicking the printing tile opens the same detail modal Search rows use.
+    fireEvent.click(
+      screen.getByRole('button', { name: /View details for Charizard from Base/ }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    // Name shows in both the title and the Identity row; the market price is
+    // unique to the modal's pricing block.
+    expect(within(dialog).getAllByText('Charizard').length).toBeGreaterThan(0)
+    expect(within(dialog).getByText('$250.00')).toBeInTheDocument()
+  })
 
-    expect(useAppStore.getState().inputText).toContain('Charizard | Base | 4')
+  it('shows the collection / wishlist save buttons on a printing when signed in', async () => {
+    vi.spyOn(client, 'fetchPokedexCards').mockResolvedValue(CHARIZARD_PRINTINGS)
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
+    fireEvent.change(screen.getByLabelText('Find a Pokémon'), {
+      target: { value: 'charizard' },
+    })
+    fireEvent.click(await screen.findByText('Charizard'))
+    expect(await screen.findByText('Base')).toBeInTheDocument()
+
+    // useAuth resolves async — wait for the per-card save buttons to mount.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /save to collection/i }),
+      ).toBeInTheDocument()
+    })
+    expect(
+      screen.getByRole('button', { name: /save to wishlist/i }),
+    ).toBeInTheDocument()
   })
 })
