@@ -53,6 +53,15 @@ _INSIGHTS_SEARCH_PATH = "/buy/marketplace_insights/v1/item_sales/search"
 #: Capability flag for the gated sold path.
 SOLD_ENABLED_ENV = "MGZ_PKMN_EBAY_SOLD_ENABLED"
 
+#: Operator hint for the unconfigured warning. Spelled out as a literal — these
+#: are env-var *names*, never secret values — so the warning doesn't interpolate
+#: the secret-suffixed `ebay` constants into a logging sink (a false-positive
+#: ``py/clear-text-logging-sensitive-data`` trip).
+_UNCONFIGURED_HINT = (
+    "set MGZ_PKMN_EBAY_TOKEN, or both MGZ_PKMN_EBAY_CLIENT_ID and "
+    "MGZ_PKMN_EBAY_CLIENT_SECRET, to enable"
+)
+
 #: Titles matching these skew raw-single comps (graded slabs inflate, lots /
 #: bundles aren't a single card) — drop them before returning comps.
 _EXCLUDE_TITLE_RE = re.compile(r"\b(psa|bgs|cgc|sgc|lot|bundle|playset|x\s?\d)\b", re.IGNORECASE)
@@ -78,6 +87,7 @@ class EbayClient:
         if sold_enabled is None:
             sold_enabled = os.environ.get(SOLD_ENABLED_ENV, "").strip() in ("1", "true", "True")
         self._sold_enabled = sold_enabled
+        self._warned_unconfigured = False
 
     @property
     def api_base(self) -> str:
@@ -91,11 +101,31 @@ class EbayClient:
         when the gated sold path is enabled. A network or auth failure on
         either tier yields no comps for that tier rather than raising, so a
         flaky source degrades to "no eBay price" instead of breaking lookup.
+
+        When no eBay credentials are configured the source is disabled
+        outright (one loud warning, then silence) rather than minting on
+        every call — a missing secret stays a no-op, never a crash (#426).
         """
+        if not self.auth.configured:
+            self._warn_unconfigured()
+            return []
         comps = self._fetch_active(query, limit=limit)
         if self._sold_enabled:
             comps += self._fetch_sold(query, limit=limit)
         return comps
+
+    def _warn_unconfigured(self) -> None:
+        """Warn once that eBay comps are off because no credentials are set.
+
+        Loud enough to surface a misconfigured deploy, quiet enough not to
+        spam every lookup — unlike the verbose-gated per-fetch diagnostics,
+        a missing secret is an operator-facing config error worth one
+        unconditional line on stderr.
+        """
+        if self._warned_unconfigured:
+            return
+        self._warned_unconfigured = True
+        print(f"  ! eBay comps disabled: {_UNCONFIGURED_HINT}", file=sys.stderr)
 
     def _fetch_active(self, query: str, *, limit: int) -> list[Pricing]:
         return self._fetch_tier(

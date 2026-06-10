@@ -97,6 +97,16 @@ class EbayAuthClient:
         self._cached: tuple[str, float] | None = None
 
     @property
+    def configured(self) -> bool:
+        """True when a static token or a client-credentials pair is set.
+
+        The deploy-time gate (#426): an unconfigured client can't mint, so
+        callers skip the eBay source — with one loud warning — instead of
+        issuing a token request that's certain to fail on every lookup.
+        """
+        return bool(self.static_token or (self.client_id and self.client_secret))
+
+    @property
     def token_url(self) -> str:
         return _SANDBOX_TOKEN_URL if self.environment == "sandbox" else _PROD_TOKEN_URL
 

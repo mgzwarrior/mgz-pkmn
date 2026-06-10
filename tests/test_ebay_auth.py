@@ -124,6 +124,18 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(EbayAuthError):
             client.get_token()
 
+    def test_configured_reflects_available_credentials(self) -> None:
+        def _client(**kw) -> EbayAuthClient:
+            kw.setdefault("client_id", "")
+            kw.setdefault("client_secret", "")
+            kw.setdefault("static_token", "")
+            return EbayAuthClient(**kw)
+
+        self.assertFalse(_client().configured)
+        self.assertFalse(_client(client_id="id").configured)  # secret still missing
+        self.assertTrue(_client(client_id="id", client_secret="secret").configured)
+        self.assertTrue(_client(static_token="STATIC").configured)
+
     def test_token_response_without_access_token_raises(self) -> None:
         client = EbayAuthClient(client_id="id", client_secret="secret")
         with (
