@@ -5,37 +5,19 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.5.0](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.4.0...v1.5.0) (2026-06-10)
-
-
-### Added
-
-* **auth:** brand magic-link email ([#591](https://github.com/mgzwarrior/mgz-pkmn/issues/591)) ([e0d58be](https://github.com/mgzwarrior/mgz-pkmn/commit/e0d58bede3582310431d3c4c1728aa89a2355bab))
-* rebrand generated exports to the tropical design system + refresh gallery ([#599](https://github.com/mgzwarrior/mgz-pkmn/issues/599)) ([7075f7c](https://github.com/mgzwarrior/mgz-pkmn/commit/7075f7c7a64b43f80f833dde14179d89a798f4c2))
-* **web:** browse + swipe cards reach parity with search result rows ([#605](https://github.com/mgzwarrior/mgz-pkmn/issues/605)) ([a649e2c](https://github.com/mgzwarrior/mgz-pkmn/commit/a649e2c63c25fb9b1ffb8367800978ae10545e41))
-* **web:** browse pokedex-# view toggle across all sets ([#602](https://github.com/mgzwarrior/mgz-pkmn/issues/602)) ([c925c73](https://github.com/mgzwarrior/mgz-pkmn/commit/c925c73594080effae3dfbd1f359128bec80cbff))
-* **web:** collapse what's new into a help-modal top bar with version indicator ([#600](https://github.com/mgzwarrior/mgz-pkmn/issues/600)) ([1b97f94](https://github.com/mgzwarrior/mgz-pkmn/commit/1b97f94b685c289763f5acfdde007347809581d5))
-* **web:** refresh help modal to match current app surfaces ([#601](https://github.com/mgzwarrior/mgz-pkmn/issues/601)) ([c6f20a2](https://github.com/mgzwarrior/mgz-pkmn/commit/c6f20a2de8468f3d46a9c300a3e326da8b82dc74))
-
-
-### Fixed
-
-* **auth:** refresh magic-link email logo to current brand ([#595](https://github.com/mgzwarrior/mgz-pkmn/issues/595)) ([0700c72](https://github.com/mgzwarrior/mgz-pkmn/commit/0700c7269e5d710d5f610a70e8b1ac9eba489bbd))
-* **ci:** document RELEASE_PAT scopes required by release-please ([#588](https://github.com/mgzwarrior/mgz-pkmn/issues/588)) ([7a6b958](https://github.com/mgzwarrior/mgz-pkmn/commit/7a6b95854c533198198e803aed60aea68239d0d9))
-
-
-### Changed
-
-* **changelog:** consolidate historical release notes ([#589](https://github.com/mgzwarrior/mgz-pkmn/issues/589)) ([b0f2fb8](https://github.com/mgzwarrior/mgz-pkmn/commit/b0f2fb816eec82257f91897a25c93bac642cd238))
-* **release:** add CHANGELOG consolidation step to cut-release skill ([#585](https://github.com/mgzwarrior/mgz-pkmn/issues/585)) ([41c37b7](https://github.com/mgzwarrior/mgz-pkmn/commit/41c37b7b22bdb572845bc25032b5a7647ae46dce))
-
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-10
+
 ### Added
 
-- DevOps: **Conventional Commits enforcement and release-please version-bump PRs** ([#68](https://github.com/mgzwarrior/mgz-pkmn/issues/68), [#571](https://github.com/mgzwarrior/mgz-pkmn/issues/571), [#583](https://github.com/mgzwarrior/mgz-pkmn/issues/583)). PR commits are now checked in CI and locally with the project commit-message vocabulary; release-please opens the canonical version-bump PR while the existing tag / PyPI release chain still owns publishing. The release workflow docs now describe commit format, scope conventions, examples, and the required changelog consolidation pass.
+- Web: **Browse and swipe cards reached parity with search result rows, and browse gained a pokédex-number view toggle across every set** ([#605](https://github.com/mgzwarrior/mgz-pkmn/issues/605), [#602](https://github.com/mgzwarrior/mgz-pkmn/issues/602)). Browse and swipe cards now surface the same details and save actions as search result rows, and browse mode can reorder any set by national pokédex number alongside the existing set-number view.
+- Web: **Help modal refreshed to match the current app surfaces, with what's new folded into a top-bar version indicator** ([#600](https://github.com/mgzwarrior/mgz-pkmn/issues/600), [#601](https://github.com/mgzwarrior/mgz-pkmn/issues/601)). The what's-new callout now lives in the help modal's top bar and surfaces the running version.
+- Design: **Generated exports rebranded to the tropical design system, with a refreshed output gallery** ([#599](https://github.com/mgzwarrior/mgz-pkmn/issues/599)). Exported card art and summaries now carry the tropical brand, and the sample gallery was regenerated to match.
 - API: **Collections data model rework foundation** ([#574](https://github.com/mgzwarrior/mgz-pkmn/issues/574), epic [#501](https://github.com/mgzwarrior/mgz-pkmn/issues/501), follow-ups [#504](https://github.com/mgzwarrior/mgz-pkmn/issues/504), [#506](https://github.com/mgzwarrior/mgz-pkmn/issues/506), [#508](https://github.com/mgzwarrior/mgz-pkmn/issues/508), [#575](https://github.com/mgzwarrior/mgz-pkmn/issues/575), [#576](https://github.com/mgzwarrior/mgz-pkmn/issues/576), [#581](https://github.com/mgzwarrior/mgz-pkmn/issues/581), [ADR-0025](docs/adr/0025-collections-data-model-rework.md)). Collections and wishlists now carry promoted card identity, quantities, provenance, lifecycle fields, price snapshots, and collection snapshots so set-based collections, value history, ownership badges, and wishlist promotion have a durable schema.
 - Design: **Styleguide published at `styleguide.mgz-pkmn.com`** ([#547](https://github.com/mgzwarrior/mgz-pkmn/issues/547), [#567](https://github.com/mgzwarrior/mgz-pkmn/issues/567)). GitHub Pages now deploys the design styleguide, tokens, and shared assets from `design/` / `assets/`, with a link-checking test and docs pointing contributors at the hosted reference.
+- Auth: **Magic-link sign-in email picked up the tropical brand** ([#591](https://github.com/mgzwarrior/mgz-pkmn/issues/591), [#595](https://github.com/mgzwarrior/mgz-pkmn/issues/595)). The magic-link email now uses the current brand mark and styling.
+- DevOps: **Conventional Commits enforcement and release-please version-bump PRs** ([#68](https://github.com/mgzwarrior/mgz-pkmn/issues/68), [#571](https://github.com/mgzwarrior/mgz-pkmn/issues/571), [#583](https://github.com/mgzwarrior/mgz-pkmn/issues/583), [#585](https://github.com/mgzwarrior/mgz-pkmn/issues/585), [#588](https://github.com/mgzwarrior/mgz-pkmn/issues/588), [#589](https://github.com/mgzwarrior/mgz-pkmn/issues/589)). PR commits are now checked in CI and locally with the project commit-message vocabulary; release-please opens the canonical version-bump PR while the existing tag / PyPI release chain still owns publishing. The release workflow docs now cover commit format, scope conventions, examples, the `RELEASE_PAT` scopes release-please needs, and the changelog consolidation pass that collapses the historical release notes.
 
 ### Changed
 
@@ -208,7 +190,8 @@ Foundation release. Establishes the full CLI pipeline, a FastAPI / React web UI,
 - Parser ReDoS vulnerabilities were eliminated across multiple regex passes.
 - URL substring sanitization and workflow permissions were hardened in response to CodeQL alerts.
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.2.0...v1.3.0
