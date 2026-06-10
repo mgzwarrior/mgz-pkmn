@@ -42,13 +42,7 @@ import requests
 from .. import cache as disk_cache
 from ..pricing import Pricing
 from ._common import USER_AGENT
-from .ebay import (
-    CLIENT_ID_ENV,
-    CLIENT_SECRET_ENV,
-    STATIC_TOKEN_ENV,
-    EbayAuthClient,
-    EbayAuthError,
-)
+from .ebay import EbayAuthClient, EbayAuthError
 
 _PROD_API_BASE = "https://api.ebay.com"
 _SANDBOX_API_BASE = "https://api.sandbox.ebay.com"
@@ -58,6 +52,15 @@ _INSIGHTS_SEARCH_PATH = "/buy/marketplace_insights/v1/item_sales/search"
 
 #: Capability flag for the gated sold path.
 SOLD_ENABLED_ENV = "MGZ_PKMN_EBAY_SOLD_ENABLED"
+
+#: Operator hint for the unconfigured warning. Spelled out as a literal — these
+#: are env-var *names*, never secret values — so the warning doesn't interpolate
+#: the secret-suffixed `ebay` constants into a logging sink (a false-positive
+#: ``py/clear-text-logging-sensitive-data`` trip).
+_UNCONFIGURED_HINT = (
+    "set MGZ_PKMN_EBAY_TOKEN, or both MGZ_PKMN_EBAY_CLIENT_ID and "
+    "MGZ_PKMN_EBAY_CLIENT_SECRET, to enable"
+)
 
 #: Titles matching these skew raw-single comps (graded slabs inflate, lots /
 #: bundles aren't a single card) — drop them before returning comps.
@@ -122,11 +125,7 @@ class EbayClient:
         if self._warned_unconfigured:
             return
         self._warned_unconfigured = True
-        print(
-            f"  ! eBay comps disabled: set {STATIC_TOKEN_ENV}, or both "
-            f"{CLIENT_ID_ENV} and {CLIENT_SECRET_ENV}, to enable",
-            file=sys.stderr,
-        )
+        print(f"  ! eBay comps disabled: {_UNCONFIGURED_HINT}", file=sys.stderr)
 
     def _fetch_active(self, query: str, *, limit: int) -> list[Pricing]:
         return self._fetch_tier(
