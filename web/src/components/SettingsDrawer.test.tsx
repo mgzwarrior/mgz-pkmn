@@ -23,6 +23,7 @@ vi.mock('../store', () => ({
       dedupe: false,
       sort: 'number',
       showTimer: false,
+      showEbay: false,
     },
     updateSettings: mockUpdateSettings,
     resetSettings: mockResetSettings,
@@ -80,6 +81,13 @@ describe('SettingsDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
     fireEvent.click(screen.getByLabelText(/show lookup timer/i))
     expect(mockUpdateSettings).toHaveBeenCalledWith({ showTimer: true })
+  })
+
+  it('toggling "Show eBay comps" calls updateSettings({ showEbay: true })', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    fireEvent.click(screen.getByLabelText(/show ebay comps/i))
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ showEbay: true })
   })
 
   it('cache-stats panel renders the values returned by /cache/stats', async () => {

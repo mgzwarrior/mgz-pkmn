@@ -94,6 +94,7 @@ const { storeState, storeApi } = vi.hoisted(() => {
       dedupe: false,
       sort: 'number' as const,
       showTimer: false,
+      showEbay: false,
     },
     runs: [] as unknown[],
     currentRunId: null as number | null,
@@ -242,6 +243,50 @@ describe('a11y: ResultsTable (populated + filters expanded)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^filter$/i }))
     const results = await axe(container)
     expect(results).toHaveNoViolations()
+  })
+})
+
+// eBay column coverage — the column + sparkline only mount when the setting
+// is on and a row carries eBay data, so seed both to scan the real markup
+// (the SVG sparkline carries its own role="img" + aria-label).
+describe('a11y: ResultsTable (eBay column enabled)', () => {
+  it('eBay column + sparkline have no violations', async () => {
+    storeState.settings.showEbay = true
+    storeState.rows = [
+      {
+        query: { raw: 'Charizard | Base Set | 4', name: 'Charizard' },
+        card: {
+          id: 'base1-4',
+          name: 'Charizard',
+          number: '4',
+          rarity: 'Rare Holo',
+          set: { id: 'base1', name: 'Base Set', series: 'Base' },
+        },
+        pricing: {
+          market: 250,
+          currency: 'USD',
+          variant: 'holofoil',
+          source: 'TCGPlayer',
+          url: null,
+          ebay_sold_median: 230,
+          ebay_active_floor: 199.99,
+          ebay_sold_comps: [
+            { price: 220, date: '2026-01-01', condition: 'Used', url: null },
+            { price: 240, date: '2026-02-01', condition: 'Near Mint', url: null },
+          ],
+        },
+        tag: 'demo',
+        matched: true,
+        reason: '',
+      } as Row,
+    ]
+    try {
+      const { container } = render(<ResultsTable />)
+      const results = await axe(container)
+      expect(results).toHaveNoViolations()
+    } finally {
+      storeState.settings.showEbay = false
+    }
   })
 })
 

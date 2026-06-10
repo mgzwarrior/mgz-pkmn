@@ -71,6 +71,7 @@ describe('ExportBar', () => {
         dedupe: false,
         sort: 'number',
         showTimer: false,
+        showEbay: false,
       },
     })
     mockExportFile.mockReset()
@@ -143,6 +144,7 @@ describe('ExportBar', () => {
         dedupe: true,
         sort: 'alpha',
         showTimer: false,
+        showEbay: false,
       },
     })
 

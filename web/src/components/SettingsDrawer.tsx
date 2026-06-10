@@ -146,6 +146,13 @@ export function SettingsDrawer() {
                 checked={settings.showTimer}
                 onChange={(v) => updateSettings({ showTimer: v })}
               />
+              <Toggle
+                id="showEbay"
+                label="Show eBay comps"
+                description="Adds an eBay column with the median sold price and a sparkline of recent sales"
+                checked={settings.showEbay}
+                onChange={(v) => updateSettings({ showEbay: v })}
+              />
             </div>
 
             <CacheStatsPanel />

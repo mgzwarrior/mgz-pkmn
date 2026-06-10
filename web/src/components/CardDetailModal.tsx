@@ -18,8 +18,10 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react'
 import { useEffect } from 'react'
-import type { CardData, Row } from '../types'
+import type { CardData, EbaySoldComp, Pricing, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
+import { EbaySparkline } from './EbaySparkline'
+import { hasEbayData, soldPriceSeries } from './ebayComps'
 
 interface Props {
   /** The already filtered + sorted row set the parent table is showing. */
@@ -243,11 +245,97 @@ function CardDetailBody({
               </div>
             </div>
 
+            <EbayCompsBlock pricing={pricing} />
+
             <CardMetadataBlock card={card} />
           </div>
         </div>
       </div>
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// EbayCompsBlock — median sold + active floor, a sparkline, and the raw
+// recent sold comps (date · condition · price). Shown only when the eBay
+// source contributed (epic #416); otherwise the section is omitted so the
+// popup stays clean for cards with no eBay data.
+// ---------------------------------------------------------------------------
+
+function EbayCompsBlock({ pricing }: { pricing: Pricing }) {
+  if (!hasEbayData(pricing)) return null
+  const comps = pricing.ebay_sold_comps ?? []
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300 mb-2">
+        eBay comps
+      </h3>
+      <div className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 p-3 space-y-3">
+        <div className="flex items-end justify-between gap-3">
+          <div className="space-y-1">
+            <PriceLine
+              label="Sold (median)"
+              value={formatMoney(pricing.ebay_sold_median ?? null, pricing.currency)}
+            />
+            <PriceLine
+              label="Active (floor)"
+              value={formatMoney(pricing.ebay_active_floor ?? null, pricing.currency)}
+            />
+          </div>
+          <EbaySparkline
+            values={soldPriceSeries(pricing.ebay_sold_comps)}
+            currency={pricing.currency}
+            className="h-8 w-28 flex-shrink-0"
+          />
+        </div>
+
+        {comps.length > 0 && (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-coconut-400 dark:text-sand-400 text-left">
+                <th className="font-medium py-1">Date</th>
+                <th className="font-medium py-1">Condition</th>
+                <th className="font-medium py-1 text-right">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comps.map((c, i) => (
+                <EbayCompRow key={i} comp={c} currency={pricing.currency} />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EbayCompRow({ comp, currency }: { comp: EbaySoldComp; currency: string }) {
+  const priceCell = (
+    <span className="font-mono tabular-nums text-coconut-600 dark:text-sand-200">
+      {formatMoney(comp.price, currency)}
+    </span>
+  )
+  return (
+    <tr className="border-t border-sand-200 dark:border-husk-100">
+      <td className="py-1 text-coconut-600 dark:text-sand-200">{comp.date ?? '—'}</td>
+      <td className="py-1 text-coconut-600 dark:text-sand-200">{comp.condition ?? '—'}</td>
+      <td className="py-1 text-right">
+        {comp.url ? (
+          <a
+            href={comp.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-palm-500 dark:text-sun-300 hover:text-palm-400 dark:hover:text-sun-200"
+          >
+            {priceCell}
+          </a>
+        ) : (
+          priceCell
+        )}
+      </td>
+    </tr>
   )
 }
 

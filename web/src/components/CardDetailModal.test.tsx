@@ -510,4 +510,31 @@ describe('CardDetailModal', () => {
     // The title and the identity Name row both render the fallback.
     expect(screen.getAllByText('MissingMon').length).toBeGreaterThanOrEqual(1)
   })
+
+  it('shows the eBay comps section with median, floor, and raw comps when present', () => {
+    const row = buildRow({
+      pricing: {
+        ebay_sold_median: 230,
+        ebay_active_floor: 199.99,
+        ebay_sold_comps: [
+          { price: 220, date: '2026-01-01', condition: 'Used', url: null },
+          { price: 240, date: '2026-02-01', condition: 'Near Mint', url: null },
+        ],
+      },
+    })
+    render(<CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />)
+    expect(screen.getByText('eBay comps')).toBeInTheDocument()
+    expect(screen.getByText('$230.00')).toBeInTheDocument() // sold median
+    expect(screen.getByText('$199.99')).toBeInTheDocument() // active floor
+    // Raw comps surface date + condition.
+    expect(screen.getByText('2026-02-01')).toBeInTheDocument()
+    expect(screen.getByText('Near Mint')).toBeInTheDocument()
+    // Sparkline summarises the series.
+    expect(screen.getByRole('img', { name: /recent ebay sold prices/i })).toBeInTheDocument()
+  })
+
+  it('omits the eBay comps section when there is no eBay data', () => {
+    render(<CardDetailModal rows={[buildRow()]} index={0} onChangeIndex={() => {}} />)
+    expect(screen.queryByText('eBay comps')).toBeNull()
+  })
 })

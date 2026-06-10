@@ -13,12 +13,34 @@ export interface CardQuery {
   price_max: number | null
 }
 
+/**
+ * One raw eBay sold comp surfaced in the card detail popup (#425). The
+ * lookup pipeline's eBay source (epic #416) emits these; until that wiring
+ * lands they're absent and the UI degrades to "no eBay data".
+ */
+export interface EbaySoldComp {
+  price: number
+  /** ISO date of the sale, or null when the source didn't report one. */
+  date: string | null
+  condition: string | null
+  url: string | null
+}
+
 export interface Pricing {
   market: number | null
   variant: string | null
   source: string | null
   url: string | null
   currency: string
+  /**
+   * eBay comp signals (#423/#425). Optional: the scalars are absent on runs
+   * persisted before #423, and the raw comps list isn't on the wire until
+   * the eBay source is wired into the lookup pipeline (epic #416).
+   */
+  ebay_sold_median?: number | null
+  ebay_active_floor?: number | null
+  /** Recent raw sold comps, newest-first as the source returns them. */
+  ebay_sold_comps?: EbaySoldComp[] | null
 }
 
 export interface CardSet {
@@ -128,6 +150,8 @@ export interface Settings {
   dedupe: boolean
   sort: SortMode
   showTimer: boolean
+  /** Show the eBay comps column (median sold + sparkline) in the results table. */
+  showEbay: boolean
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */
