@@ -42,7 +42,13 @@ import requests
 from .. import cache as disk_cache
 from ..pricing import Pricing
 from ._common import USER_AGENT
-from .ebay import EbayAuthClient, EbayAuthError
+from .ebay import (
+    CLIENT_ID_ENV,
+    CLIENT_SECRET_ENV,
+    STATIC_TOKEN_ENV,
+    EbayAuthClient,
+    EbayAuthError,
+)
 
 _PROD_API_BASE = "https://api.ebay.com"
 _SANDBOX_API_BASE = "https://api.sandbox.ebay.com"
@@ -78,6 +84,7 @@ class EbayClient:
         if sold_enabled is None:
             sold_enabled = os.environ.get(SOLD_ENABLED_ENV, "").strip() in ("1", "true", "True")
         self._sold_enabled = sold_enabled
+        self._warned_unconfigured = False
 
     @property
     def api_base(self) -> str:
@@ -91,11 +98,35 @@ class EbayClient:
         when the gated sold path is enabled. A network or auth failure on
         either tier yields no comps for that tier rather than raising, so a
         flaky source degrades to "no eBay price" instead of breaking lookup.
+
+        When no eBay credentials are configured the source is disabled
+        outright (one loud warning, then silence) rather than minting on
+        every call — a missing secret stays a no-op, never a crash (#426).
         """
+        if not self.auth.configured:
+            self._warn_unconfigured()
+            return []
         comps = self._fetch_active(query, limit=limit)
         if self._sold_enabled:
             comps += self._fetch_sold(query, limit=limit)
         return comps
+
+    def _warn_unconfigured(self) -> None:
+        """Warn once that eBay comps are off because no credentials are set.
+
+        Loud enough to surface a misconfigured deploy, quiet enough not to
+        spam every lookup — unlike the verbose-gated per-fetch diagnostics,
+        a missing secret is an operator-facing config error worth one
+        unconditional line on stderr.
+        """
+        if self._warned_unconfigured:
+            return
+        self._warned_unconfigured = True
+        print(
+            f"  ! eBay comps disabled: set {STATIC_TOKEN_ENV}, or both "
+            f"{CLIENT_ID_ENV} and {CLIENT_SECRET_ENV}, to enable",
+            file=sys.stderr,
+        )
 
     def _fetch_active(self, query: str, *, limit: int) -> list[Pricing]:
         return self._fetch_tier(

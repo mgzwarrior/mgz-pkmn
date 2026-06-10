@@ -8,6 +8,7 @@ token so the token path never touches the network.
 
 from __future__ import annotations
 
+import io
 import os
 import sys
 import tempfile
@@ -27,8 +28,9 @@ from mgz_pkmn.sources.ebay_client import EbayClient
 class _FakeAuth:
     """Stand-in EbayAuthClient: hands out a static token, records refreshes."""
 
-    def __init__(self, environment: str = "production") -> None:
+    def __init__(self, environment: str = "production", configured: bool = True) -> None:
         self.environment = environment
+        self.configured = configured
         self.refresh_calls = 0
 
     def get_token(self, *, force_refresh: bool = False) -> str:
@@ -158,6 +160,24 @@ class ActiveCompsTests(_NoCacheTestCase):
             comps = client.fetch_comps("Charizard")
         self.assertEqual(client.auth.refresh_calls, 1)
         self.assertEqual(len(comps), 2)
+
+
+class UnconfiguredTests(_NoCacheTestCase):
+    def test_missing_credentials_disables_source_without_network(self) -> None:
+        client = _client(auth=_FakeAuth(configured=False))
+        with patch.object(client.session, "get") as get:
+            comps = client.fetch_comps("Charizard")
+        # No token mint, no network call — the source is simply disabled.
+        self.assertEqual(comps, [])
+        get.assert_not_called()
+
+    def test_unconfigured_warning_emitted_once(self) -> None:
+        client = _client(auth=_FakeAuth(configured=False))
+        with patch("sys.stderr", new_callable=io.StringIO) as err:
+            client.fetch_comps("Charizard")
+            client.fetch_comps("Pikachu")
+        # One loud warning across repeated lookups, not one per call.
+        self.assertEqual(err.getvalue().count("eBay comps disabled"), 1)
 
 
 class SoldCompsTests(_NoCacheTestCase):
