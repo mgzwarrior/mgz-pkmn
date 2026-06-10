@@ -21,6 +21,8 @@ import { formatComp, formatMoney } from '../utils/format'
 import { AddToCollectionButton } from './AddToCollectionButton'
 import { AddToWishlistButton } from './AddToWishlistButton'
 import { CardDetailModal } from './CardDetailModal'
+import { EbaySparkline } from './EbaySparkline'
+import { soldPriceSeries } from './ebayComps'
 import { SaveSearchButton } from './SaveSearchButton'
 import {
   applyFilters,
@@ -204,6 +206,11 @@ export function ResultsTable({ onRerunLine }: Props) {
               <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">85%</th>
               <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">90%</th>
               <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">95%</th>
+              {settings.showEbay && (
+                <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden lg:table-cell">
+                  eBay sold
+                </th>
+              )}
               <SortableHeader
                 label="Source"
                 column="source"
@@ -284,6 +291,11 @@ export function ResultsTable({ onRerunLine }: Props) {
                 <th className="hidden xl:table-cell">
                   <span className="sr-only">95% (no filter)</span>
                 </th>
+                {settings.showEbay && (
+                  <th className="hidden lg:table-cell">
+                    <span className="sr-only">eBay sold (no filter)</span>
+                  </th>
+                )}
                 <FilterCell className="hidden sm:table-cell">
                   <FilterInput
                     aria-label="Filter by source"
@@ -305,13 +317,14 @@ export function ResultsTable({ onRerunLine }: Props) {
                 row={row}
                 showImage={!settings.noImages}
                 showSavedActions={showSavedActions}
+                showEbay={settings.showEbay}
                 onRerunLine={onRerunLine}
                 onOpenDetail={() => setDetailIndex(displayedIdx)}
               />
             ))}
             {isRunning && (
               <tr>
-                <td colSpan={12} className="py-2 px-3">
+                <td colSpan={13} className="py-2 px-3">
                   <div className="h-1 w-24 rounded animate-pulse bg-sand-200 dark:bg-husk-100" />
                 </td>
               </tr>
@@ -414,12 +427,14 @@ function ResultRow({
   row,
   showImage,
   showSavedActions,
+  showEbay,
   onRerunLine,
   onOpenDetail,
 }: {
   row: Row
   showImage: boolean
   showSavedActions: boolean
+  showEbay: boolean
   onRerunLine?: (line: string) => void
   onOpenDetail?: () => void
 }) {
@@ -582,6 +597,27 @@ function ResultRow({
           {formatComp(p.market, 95, p.currency)}
         </td>
 
+        {/* eBay sold — median + sparkline of recent sales. Empty until the
+            eBay source is wired into lookup (epic #416). */}
+        {showEbay && (
+          <td className="px-3 py-2 text-right hidden lg:table-cell">
+            {p.ebay_sold_median != null ? (
+              <div className="flex flex-col items-end gap-0.5">
+                <span className="font-mono tabular-nums text-xs text-coconut-600 dark:text-sand-200">
+                  {formatMoney(p.ebay_sold_median, p.currency)}
+                </span>
+                <EbaySparkline
+                  values={soldPriceSeries(p.ebay_sold_comps)}
+                  currency={p.currency}
+                  className="h-4 w-16"
+                />
+              </div>
+            ) : (
+              <span className="text-xs text-coconut-400 dark:text-sand-300">—</span>
+            )}
+          </td>
+        )}
+
         {/* Price source */}
         <td className="px-3 py-2 text-xs text-coconut-400 dark:text-sand-300 hidden sm:table-cell">
           {p.source ?? '—'}
@@ -606,7 +642,7 @@ function ResultRow({
       {/* Override URL form (inline, expands below row) */}
       {showOverrideForm && (
         <tr className="border-b border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200/60">
-          <td colSpan={12} className="px-3 py-2">
+          <td colSpan={13} className="px-3 py-2">
             <div className="flex items-center gap-2">
               <input
                 type="url"

@@ -569,4 +569,62 @@ describe('ResultsTable: header sort cycle', () => {
 
     useAppStore.setState({ rows: [] })
   })
+
+  it('shows the eBay column with median + sparkline when the setting is on', () => {
+    useAppStore.getState().updateSettings({ showEbay: true })
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'x', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: {
+            market: 250,
+            currency: 'USD',
+            variant: null,
+            source: 'TCGPlayer',
+            url: null,
+            ebay_sold_median: 230,
+            ebay_active_floor: 199.99,
+            ebay_sold_comps: [
+              { price: 220, date: '2026-01-01', condition: 'Used', url: null },
+              { price: 240, date: '2026-02-01', condition: 'Used', url: null },
+            ],
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    expect(screen.getByText('eBay sold')).toBeInTheDocument()
+    expect(screen.getByText('$230.00')).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: /recent ebay sold prices/i }),
+    ).toBeInTheDocument()
+    useAppStore.getState().updateSettings({ showEbay: false })
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('hides the eBay column when the setting is off', () => {
+    useAppStore.getState().updateSettings({ showEbay: false })
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'x', name: 'Charizard', set: { name: 'Base Set' } },
+          pricing: {
+            market: 250,
+            currency: 'USD',
+            variant: null,
+            source: 'TCGPlayer',
+            url: null,
+            ebay_sold_median: 230,
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    expect(screen.queryByText('eBay sold')).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
 })

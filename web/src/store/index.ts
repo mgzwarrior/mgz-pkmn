@@ -35,6 +35,10 @@ const DEFAULT_SETTINGS: Settings = {
   dedupe: false,
   sort: 'number',
   showTimer: false,
+  // Off by default: the eBay source isn't wired into the lookup pipeline
+  // yet (epic #416), so the column would be empty for now. The `merge`
+  // below backfills this for users with persisted pre-#425 settings.
+  showEbay: false,
 }
 
 interface AppState {

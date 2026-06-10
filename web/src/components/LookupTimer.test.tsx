@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS = {
   dedupe: false,
   sort: 'number' as const,
   showTimer: false,
+  showEbay: false,
 }
 
 function row(name: string): Row {
