@@ -570,6 +570,24 @@ class SerializeRoundTripTests(unittest.TestCase):
         self.assertEqual(restored.query.price_min, 10.0)
         self.assertEqual(restored.query.price_max, 50.0)
 
+    def test_ebay_comp_signals_round_trip(self) -> None:
+        """`ebay_sold_median` / `ebay_active_floor` survive the Row → RunRow →
+        Row round-trip via `pricing_json` (#423)."""
+        from api.db.serialize import row_to_run_row, run_row_to_row
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        row = Row(
+            query=CardQuery(raw="charizard", name="charizard"),
+            card={"id": "x"},
+            pricing=Pricing(market=250.0, ebay_sold_median=230.0, ebay_active_floor=199.99),
+            tag="",
+        )
+        restored = run_row_to_row(row_to_run_row(row, position=0))
+        self.assertEqual(restored.pricing.ebay_sold_median, 230.0)
+        self.assertEqual(restored.pricing.ebay_active_floor, 199.99)
+
     def test_currency_is_null_on_unpriced_miss(self) -> None:
         """An unmatched/unpriced row stores `currency = NULL`, not the
         `Pricing.currency` "USD" default."""

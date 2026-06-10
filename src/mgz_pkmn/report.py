@@ -195,6 +195,8 @@ def build_json_report(
             "source": r.pricing.source,
             "url": r.pricing.url,
             "comps": _comps(r.pricing.market),
+            "ebay_sold_median": r.pricing.ebay_sold_median,
+            "ebay_active_floor": r.pricing.ebay_active_floor,
             "over_max_price": _over_cap(r),
         }
         for r in rows

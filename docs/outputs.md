@@ -16,7 +16,9 @@ checklist live in their own pages — see [PDF binder](binder-pdf.md) and
 | Database | `pokemontcg.io`, `tcgdex (zh-tw)`, `pricecharting`, … |
 | Market | Currency-aware (`$` / `€`). |
 | 80% / 85% / 90% / 95% | Comps for negotiating at the table. |
-| Price Source | `tcgplayer`, `cardmarket`, or `pricecharting`. |
+| eBay Sold (median) | Median of recent eBay sold comps, when the eBay source contributed (else `—`). |
+| eBay Active (floor) | Cheapest current eBay active listing, when the eBay source contributed (else `—`). |
+| Price Source | `tcgplayer`, `cardmarket`, `pricecharting`, `ebay_active`, or `ebay_sold`. |
 | Listing URL | Hyperlink to the live listing. |
 
 A totals row at the bottom sums each price column. **Note:** the totals
@@ -54,7 +56,7 @@ alongside the spreadsheet.
 | `tags` | The same aggregate fields as `summary`, but per input file (per "Source" tag), plus the `highest_value_card` in that section. Run-level metadata like `sort_mode` is not repeated per tag. |
 | `highlights.most_valuable` | Top 5 priced cards across the whole run. |
 | `highlights.missing` | Every unmatched line + its tag, so you can iterate the input. |
-| `rows` | The full per-row payload (input, matched card, pricing, comps, image path). |
+| `rows` | The full per-row payload (input, matched card, pricing, comps, `ebay_sold_median` / `ebay_active_floor`, image path). |
 
 Mixed USD + EUR runs keep currencies separate in `totals_by_currency`
 and `stats_by_currency`. The headline `highest_value_card` per tag
