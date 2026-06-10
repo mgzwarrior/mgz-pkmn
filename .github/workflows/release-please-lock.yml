@@ -1,0 +1,65 @@
+name: release-please lockfile sync
+
+# release-please bumps the version in pyproject.toml / package.json across every
+# surface (see release-please-config.json `extra-files`), but it can't run
+# `uv lock` or `npm install`, so the lockfiles still carry the old version. CI
+# runs `npm ci`, which hard-fails when package.json and package-lock.json
+# disagree on version — so the bot PR's `web` / `site` jobs go red until the
+# lockfiles catch up. This workflow watches the release-please branch and
+# re-locks whenever a version-bearing file changes there.
+#
+# The relock commit only touches the lockfiles, which the `paths` filter below
+# excludes, so it never re-triggers this workflow. Pushing with RELEASE_PAT (not
+# GITHUB_TOKEN) re-runs the PR's `pull_request` checks so the synced lockfiles
+# land green. If release-please force-pushes its branch on a later `main` push,
+# this fires again and re-syncs.
+
+on:
+  push:
+    branches:
+      - "release-please--**"
+    paths:
+      - "pyproject.toml"
+      - "api/pyproject.toml"
+      - "web/package.json"
+      - "site/package.json"
+
+permissions:
+  contents: write
+
+jobs:
+  relock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # PAT so the follow-up push re-triggers the PR's CI (GITHUB_TOKEN
+          # pushes don't fire `pull_request` workflows).
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Refresh lockfiles
+        run: |
+          uv lock
+          (cd web && npm install --package-lock-only)
+          (cd site && npm install --package-lock-only)
+
+      - name: Commit if the lockfiles moved
+        run: |
+          if git diff --quiet; then
+            echo "Lockfiles already in sync with the bumped version."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -s -am "chore(release): sync lockfiles to bumped version"
+          git push origin "HEAD:${{ github.ref_name }}"
