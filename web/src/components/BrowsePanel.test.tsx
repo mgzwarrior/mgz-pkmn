@@ -46,6 +46,10 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     // The baked national dex seeds the picker with zero round-trips.
     expect(await screen.findByText('Bulbasaur')).toBeInTheDocument()
     expect(screen.getByText('Generation I')).toBeInTheDocument()
+    // Each species tile shows its standard sprite, derived from the dex #.
+    const bulbasaurTile = screen.getByText('Bulbasaur').closest('button')!
+    const sprite = bulbasaurTile.querySelector('img')
+    expect(sprite?.getAttribute('src')).toContain('/pokemon/1.png')
   })
 
   it('filters the species list by name', async () => {

@@ -262,6 +262,19 @@ export function setLogoUrl(setId: string): string {
   return `${BASE}/sets/${encodeURIComponent(setId)}/logo`
 }
 
+// PokéAPI's sprite CDN keys the standard front sprite off the same national
+// dex number we already bake into the species index, so the URL derives
+// directly — no extra data, no backend round-trip. Lazy-loaded per tile with
+// a soft fallback, mirroring how set logos degrade on a miss.
+const _POKEMON_SPRITE_BASE =
+  'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon'
+
+/** Standard front sprite for a species, by national dex number (Browse's
+ *  pokedex-# view). */
+export function pokemonSpriteUrl(number: number): string {
+  return `${_POKEMON_SPRITE_BASE}/${number}.png`
+}
+
 // ---------------------------------------------------------------------------
 // sets
 // ---------------------------------------------------------------------------

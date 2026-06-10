@@ -9,7 +9,7 @@
 import { ArrowLeft, ImageOff, Library, Loader2, Plus, Search } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { setLogoUrl } from '../api/client'
+import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
 import type { PokedexCard, PokedexEntry, SetCard, SetInfo } from '../types'
 import type {
   BrowseController,
@@ -460,6 +460,7 @@ function SpeciesTile({
   species: PokedexEntry
   onPick: () => void
 }) {
+  const [spriteFailed, setSpriteFailed] = useState(false)
   return (
     <li>
       <button
@@ -467,7 +468,20 @@ function SpeciesTile({
         onClick={onPick}
         className="flex w-full items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 px-3 py-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
       >
-        <span className="w-10 flex-none font-mono text-xs text-coconut-400 dark:text-sand-400">
+        <span className="flex h-9 w-9 flex-none items-center justify-center rounded bg-sand-50 dark:bg-husk-400">
+          {spriteFailed ? (
+            <ImageOff size={14} className="text-coconut-300 dark:text-sand-500" aria-hidden />
+          ) : (
+            <img
+              src={pokemonSpriteUrl(species.number)}
+              alt=""
+              className="h-9 w-9 object-contain"
+              loading="lazy"
+              onError={() => setSpriteFailed(true)}
+            />
+          )}
+        </span>
+        <span className="w-9 flex-none font-mono text-xs text-coconut-400 dark:text-sand-400">
           #{species.number}
         </span>
         <span className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
