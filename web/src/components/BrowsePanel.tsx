@@ -6,11 +6,15 @@
  * Pokémon across every set). State + effects live in
  * [useBrowseController](./useBrowseController.ts).
  */
-import { ArrowLeft, ImageOff, Library, Loader2, Plus, Search } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowLeft, ImageOff, Library, Loader2, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
-import type { PokedexCard, PokedexEntry, SetCard, SetInfo } from '../types'
+import { useAuth } from '../hooks/useAuth'
+import type { PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
+import { browseCardToPayload, browseCardToRow, type BrowseSetContext } from './browseCard'
+import { CardDetailModal } from './CardDetailModal'
+import { SaveCardActions } from './SaveCardActions'
 import type {
   BrowseController,
   BrowseViewMode,
@@ -47,7 +51,6 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     sort,
     setSort,
     addedCount,
-    addCards,
     addAll,
     addHolos,
     addRares,
@@ -59,9 +62,14 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     pokedexCards,
     pokedexCardsLoading,
     pokedexCardsError,
-    addPokedexCards,
     addAllPrintings,
   } = controller
+
+  // Hoist the auth read here (not per tile) so the grid fires one `/me`
+  // request, then pass the boolean down — tiles only care about "should I
+  // render save buttons", matching ResultsTable's row pattern.
+  const { user } = useAuth()
+  const showSavedActions = user !== null
 
   const drilledIn = viewMode === 'set' ? !!activeSet : !!activePokemon
   const onBack = () =>
@@ -72,14 +80,14 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   if (viewMode === 'set') {
     headerTitle = activeSet ? activeSet.name : 'Browse sets'
     description = activeSet
-      ? 'Click a card to add it to your input list, or use the bulk actions below.'
+      ? 'Click a card for its details and comps, or use the bulk actions below to build your list.'
       : 'Pick a set to see every card with its market price, sortable and filterable.'
   } else {
     headerTitle = activePokemon
       ? `#${activePokemon.number} ${activePokemon.name}`
       : 'Browse by Pokédex #'
     description = activePokemon
-      ? 'Every printing we found, newest first. Click a card to add it to your input list.'
+      ? 'Every printing we found, newest first. Click a card for its details and comps.'
       : 'Pick a Pokémon to see every printing across every set, newest first.'
   }
 
@@ -120,6 +128,8 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
       {viewMode === 'set' ? (
         activeSet ? (
           <SetDetailView
+            setInfo={activeSet}
+            showSavedActions={showSavedActions}
             cards={filteredCards}
             total={cards?.length ?? 0}
             loading={cardsLoading}
@@ -131,7 +141,6 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             sort={sort}
             onSort={setSort}
             addedCount={addedCount}
-            onAddCards={addCards}
             onAddAll={addAll}
             onAddHolos={addHolos}
             onAddRares={addRares}
@@ -141,11 +150,11 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
         )
       ) : activePokemon ? (
         <PokedexDetailView
+          showSavedActions={showSavedActions}
           cards={pokedexCards}
           loading={pokedexCardsLoading}
           error={pokedexCardsError}
           addedCount={addedCount}
-          onAddCards={addPokedexCards}
           onAddAll={addAllPrintings}
         />
       ) : (
@@ -266,6 +275,8 @@ function SetTile({ set, onPick }: { set: SetInfo; onPick: () => void }) {
 }
 
 interface SetDetailProps {
+  setInfo: SetInfo
+  showSavedActions: boolean
   cards: SetCard[]
   total: number
   loading: boolean
@@ -277,7 +288,6 @@ interface SetDetailProps {
   sort: CardSort
   onSort: (s: CardSort) => void
   addedCount: number | null
-  onAddCards: (cards: SetCard[]) => void
   onAddAll: () => void
   onAddHolos: () => void
   onAddRares: () => void
@@ -297,6 +307,8 @@ const SORT_OPTIONS: { value: CardSort; label: string }[] = [
 ]
 
 function SetDetailView({
+  setInfo,
+  showSavedActions,
   cards,
   total,
   loading,
@@ -308,11 +320,27 @@ function SetDetailView({
   sort,
   onSort,
   addedCount,
-  onAddCards,
   onAddAll,
   onAddHolos,
   onAddRares,
 }: SetDetailProps) {
+  // Index into the displayed `cards` for the open detail modal; `null`
+  // keeps it closed. Tracking the index (not the card) keeps ←/→ modal
+  // navigation synced with the live filter + sort.
+  const [detailIndex, setDetailIndex] = useState<number | null>(null)
+  const setCtx: BrowseSetContext = {
+    id: setInfo.id,
+    name: setInfo.name,
+    series: setInfo.series,
+    releaseDate: setInfo.releaseDate,
+  }
+  const rows = useMemo<Row[]>(
+    () => cards.map((c) => browseCardToRow(c, setCtx)),
+    // setCtx is derived from setInfo; depend on the stable id, not the
+    // freshly-built object literal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cards, setInfo.id],
+  )
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
@@ -387,12 +415,20 @@ function SetDetailView({
         )}
         {!loading && !error && cards.length > 0 && (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {cards.map((c) => (
-              <CardTile key={c.id} card={c} onAdd={() => onAddCards([c])} />
+            {cards.map((c, i) => (
+              <CardTile
+                key={c.id}
+                card={c}
+                setCtx={setCtx}
+                showSavedActions={showSavedActions}
+                onOpenDetail={() => setDetailIndex(i)}
+              />
             ))}
           </ul>
         )}
       </div>
+
+      <CardDetailModal rows={rows} index={detailIndex} onChangeIndex={setDetailIndex} />
     </>
   )
 }
@@ -493,23 +529,30 @@ function SpeciesTile({
 }
 
 interface PokedexDetailProps {
+  showSavedActions: boolean
   cards: PokedexCard[] | null
   loading: boolean
   error: string | null
   addedCount: number | null
-  onAddCards: (cards: PokedexCard[]) => void
   onAddAll: () => void
 }
 
 function PokedexDetailView({
+  showSavedActions,
   cards,
   loading,
   error,
   addedCount,
-  onAddCards,
   onAddAll,
 }: PokedexDetailProps) {
   const count = cards?.length ?? 0
+  // PokedexCard carries its own set context, so the rows need no external
+  // ctx. Index into the displayed printings for the open detail modal.
+  const [detailIndex, setDetailIndex] = useState<number | null>(null)
+  const rows = useMemo<Row[]>(
+    () => (cards ?? []).map((c) => browseCardToRow(c)),
+    [cards],
+  )
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-2 text-xs text-coconut-400 dark:text-sand-300">
@@ -546,107 +589,140 @@ function PokedexDetailView({
         )}
         {!loading && !error && cards && count > 0 && (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {cards.map((c) => (
-              <PokedexCardTile key={c.id} card={c} onAdd={() => onAddCards([c])} />
+            {cards.map((c, i) => (
+              <PokedexCardTile
+                key={c.id}
+                card={c}
+                showSavedActions={showSavedActions}
+                onOpenDetail={() => setDetailIndex(i)}
+              />
             ))}
           </ul>
         )}
       </div>
+
+      <CardDetailModal rows={rows} index={detailIndex} onChangeIndex={setDetailIndex} />
     </>
   )
 }
 
-function CardTile({ card, onAdd }: { card: SetCard; onAdd: () => void }) {
+function CardTile({
+  card,
+  setCtx,
+  showSavedActions,
+  onOpenDetail,
+}: {
+  card: SetCard
+  setCtx: BrowseSetContext
+  showSavedActions: boolean
+  onOpenDetail: () => void
+}) {
   const [thumbFailed, setThumbFailed] = useState(false)
   return (
     <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
-      <div className="relative aspect-[245/342] w-full overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
-        {card.thumb && !thumbFailed ? (
-          <img
-            src={card.thumb}
-            alt={card.name}
-            className="h-full w-full object-contain"
-            loading="lazy"
-            onError={() => setThumbFailed(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-coconut-700 dark:text-sand-200">
-            <ImageOff size={28} aria-hidden />
-          </div>
-        )}
-      </div>
-      <div className="mt-2 min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={card.name}>
-          {card.name}
-        </div>
-        <div className="flex items-center justify-between text-xs text-coconut-400 dark:text-sand-400">
-          <span>#{card.number}</span>
-          {card.market != null && (
-            <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
+      <button
+        type="button"
+        onClick={onOpenDetail}
+        aria-label={`View details for ${card.name}`}
+        className="flex flex-1 flex-col rounded text-left focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+      >
+        <div className="relative aspect-[245/342] w-full overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
+          {card.thumb && !thumbFailed ? (
+            <img
+              src={card.thumb}
+              alt={card.name}
+              className="h-full w-full object-contain"
+              loading="lazy"
+              onError={() => setThumbFailed(true)}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-coconut-700 dark:text-sand-200">
+              <ImageOff size={28} aria-hidden />
+            </div>
           )}
         </div>
-        {card.rarity && (
-          <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{card.rarity}</div>
-        )}
-      </div>
-      <AddToListButton label={card.name} onClick={onAdd} />
+        <div className="mt-2 min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={card.name}>
+            {card.name}
+          </div>
+          <div className="flex items-center justify-between text-xs text-coconut-400 dark:text-sand-400">
+            <span>#{card.number}</span>
+            {card.market != null && (
+              <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
+            )}
+          </div>
+          {card.rarity && (
+            <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{card.rarity}</div>
+          )}
+        </div>
+      </button>
+      <SaveCardActions
+        show={showSavedActions}
+        card={browseCardToPayload(card, setCtx)}
+        className="mt-2 justify-center"
+      />
     </li>
   )
 }
 
-function PokedexCardTile({ card, onAdd }: { card: PokedexCard; onAdd: () => void }) {
+function PokedexCardTile({
+  card,
+  showSavedActions,
+  onOpenDetail,
+}: {
+  card: PokedexCard
+  showSavedActions: boolean
+  onOpenDetail: () => void
+}) {
   const [thumbFailed, setThumbFailed] = useState(false)
   const year = releaseYear(card.releaseDate)
   return (
     <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
-      <div className="relative aspect-[245/342] w-full overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
-        {card.thumb && !thumbFailed ? (
-          <img
-            src={card.thumb}
-            alt={card.name}
-            className="h-full w-full object-contain"
-            loading="lazy"
-            onError={() => setThumbFailed(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-coconut-700 dark:text-sand-200">
-            <ImageOff size={28} aria-hidden />
-          </div>
-        )}
-      </div>
-      <div className="mt-2 min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={card.setName}>
-          {card.setName}
-        </div>
-        <div className="flex items-center justify-between text-xs text-coconut-400 dark:text-sand-400">
-          <span>
-            #{card.number}
-            {year ? ` · ${year}` : ''}
-          </span>
-          {card.market != null && (
-            <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
+      <button
+        type="button"
+        onClick={onOpenDetail}
+        aria-label={`View details for ${card.name} from ${card.setName}`}
+        className="flex flex-1 flex-col rounded text-left focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+      >
+        <div className="relative aspect-[245/342] w-full overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
+          {card.thumb && !thumbFailed ? (
+            <img
+              src={card.thumb}
+              alt={card.name}
+              className="h-full w-full object-contain"
+              loading="lazy"
+              onError={() => setThumbFailed(true)}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-coconut-700 dark:text-sand-200">
+              <ImageOff size={28} aria-hidden />
+            </div>
           )}
         </div>
-        {card.rarity && (
-          <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{card.rarity}</div>
-        )}
-      </div>
-      <AddToListButton label={`${card.name} from ${card.setName}`} onClick={onAdd} />
+        <div className="mt-2 min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={card.setName}>
+            {card.setName}
+          </div>
+          <div className="flex items-center justify-between text-xs text-coconut-400 dark:text-sand-400">
+            <span>
+              #{card.number}
+              {year ? ` · ${year}` : ''}
+            </span>
+            {card.market != null && (
+              <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
+            )}
+          </div>
+          {card.rarity && (
+            <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{card.rarity}</div>
+          )}
+        </div>
+      </button>
+      <SaveCardActions
+        show={showSavedActions}
+        card={browseCardToPayload(card)}
+        className="mt-2 justify-center"
+      />
     </li>
-  )
-}
-
-function AddToListButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mt-2 flex items-center justify-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:border-palm-400 dark:hover:border-palm-500 hover:bg-palm-100 dark:hover:bg-palm-500/30 hover:text-palm-400 dark:hover:text-palm-100"
-      aria-label={`Add ${label} to list`}
-    >
-      <Plus size={12} />
-      Add to list
-    </button>
   )
 }
 
