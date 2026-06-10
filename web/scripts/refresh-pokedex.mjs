@@ -64,6 +64,13 @@ const NAME_OVERRIDES = {
   flabebe: 'Flabébé',
   sirfetchd: "Sirfetch'd",
   'mr-rime': 'Mr. Rime',
+  // Treasures of Ruin (Gen IX) — official names keep the hyphen, which the
+  // PokéAPI slug also carries; `titleCase` would otherwise space them out
+  // and break a search for the hyphenated name.
+  'wo-chien': 'Wo-Chien',
+  'chien-pao': 'Chien-Pao',
+  'ting-lu': 'Ting-Lu',
+  'chi-yu': 'Chi-Yu',
 }
 
 function log(msg) {
