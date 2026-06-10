@@ -20,6 +20,12 @@ dataclass as additional sources:
   ``MGZ_PKMN_EBAY_SOLD_ENABLED`` (default off) and fails soft on a 403 — it's
   a no-op until access is granted.
 
+Each tier is cached cache-aside in the shared ``api_pricing/`` slice with a
+per-source TTL (#424, [ADR-0020](../../../docs/adr/0020-ebay-pricing-source.md)):
+sold comps for 7 days, active listings for 6 hours, with stale-while-revalidate
+background refresh — the same machinery the pokemontcg.io pricing slice uses
+(ADR-0018).
+
 Wiring these comps into the lookup pipeline + export serializers is #423 /
 the ensemble work; this module is just the adapter.
 """
@@ -33,6 +39,7 @@ from typing import Any
 
 import requests
 
+from .. import cache as disk_cache
 from ..pricing import Pricing
 from ._common import USER_AGENT
 from .ebay import EbayAuthClient, EbayAuthError
@@ -91,20 +98,71 @@ class EbayClient:
         return comps
 
     def _fetch_active(self, query: str, *, limit: int) -> list[Pricing]:
-        url = f"{self.api_base}{_BROWSE_SEARCH_PATH}"
-        payload = self._get_json(url, params={"q": query, "limit": limit})
-        if payload is None:
-            return []
-        return self._parse_listings(payload.get("itemSummaries") or [], source="ebay_active")
+        return self._fetch_tier(
+            query,
+            limit=limit,
+            source="ebay_active",
+            url=f"{self.api_base}{_BROWSE_SEARCH_PATH}",
+            results_key="itemSummaries",
+        )
 
     def _fetch_sold(self, query: str, *, limit: int) -> list[Pricing]:
-        url = f"{self.api_base}{_INSIGHTS_SEARCH_PATH}"
         # Insights access is gated server-side; a 403 here means this app
         # hasn't been granted the API yet — degrade to no sold comps.
-        payload = self._get_json(url, params={"q": query, "limit": limit}, soft_statuses=(403,))
-        if payload is None:
-            return []
-        return self._parse_listings(payload.get("itemSales") or [], source="ebay_sold")
+        return self._fetch_tier(
+            query,
+            limit=limit,
+            source="ebay_sold",
+            url=f"{self.api_base}{_INSIGHTS_SEARCH_PATH}",
+            results_key="itemSales",
+            soft_statuses=(403,),
+        )
+
+    def _fetch_tier(
+        self,
+        query: str,
+        *,
+        limit: int,
+        source: str,
+        url: str,
+        results_key: str,
+        soft_statuses: tuple[int, ...] = (),
+    ) -> list[Pricing]:
+        """Cache-aside fetch + parse for one eBay tier (#424, ADR-0020).
+
+        The raw upstream payload is cached in the `api_pricing/` slice with a
+        per-source TTL (`pricing_ttl_for_source`): a HIT parses straight from
+        disk, a STALE serves the cached payload and kicks off a background
+        refresh, and a MISS fetches the network, writes, then parses. The
+        cache is transparently bypassed under ``MGZ_PKMN_NO_CACHE`` (the read
+        misses and the write is a no-op), so an uncached run behaves exactly
+        as before.
+        """
+        params = {"q": query, "limit": limit}
+        cache_key = self._cache_key(source, query, limit)
+        ttl = disk_cache.pricing_ttl_for_source(source)
+        cached, status = disk_cache.read_pricing_payload(cache_key, ttl_seconds=ttl)
+        if status == "STALE":
+            if self.verbose:
+                print(f"  stale {url} (background refresh kicked off)", file=sys.stderr)
+            disk_cache.spawn_pricing_refresh(
+                cache_key,
+                lambda: self._get_json(url, params=params, soft_statuses=soft_statuses),
+                writer=disk_cache.write_pricing_payload,
+            )
+        elif status == "MISS":
+            cached = self._get_json(url, params=params, soft_statuses=soft_statuses)
+            if cached is None:
+                return []
+            disk_cache.write_pricing_payload(cache_key, cached)
+        elif self.verbose:
+            print(f"  cached {url}", file=sys.stderr)
+        return self._parse_listings((cached or {}).get(results_key) or [], source=source)
+
+    def _cache_key(self, source: str, query: str, limit: int) -> str:
+        """Stable per-tier cache key. Environment + marketplace keep sandbox /
+        production and per-marketplace results from colliding."""
+        return f"ebay:{self.auth.environment}:{source}:{self.marketplace_id}:{query}:{limit}"
 
     def _get_json(
         self,
