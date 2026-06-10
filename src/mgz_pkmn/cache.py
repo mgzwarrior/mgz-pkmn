@@ -51,6 +51,14 @@ DEFAULT_API_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
 # Split API cache (#372): structural fields cached indefinitely, pricing
 # fields cached for 24h with stale-while-revalidate. See ADR-0018.
 DEFAULT_PRICING_TTL_SECONDS = 24 * 60 * 60  # one day
+# Per-source pricing TTLs (#424, ADR-0020). eBay listing comps live in the
+# same `api_pricing/` slice as the pokemontcg.io pricing, but each eBay tier
+# carries its own freshness window: sold comps are stable (a week of recent
+# sales stays useful day-to-day), active listings are volatile (a floor that's
+# six hours old is already suspect at a card show). `pricing_ttl_for_source`
+# resolves a `Pricing.source` string to its window.
+EBAY_SOLD_TTL_SECONDS = 7 * 24 * 60 * 60  # one week
+EBAY_ACTIVE_TTL_SECONDS = 6 * 60 * 60  # six hours
 # Card-dict keys that carry volatile price data. Everything else is
 # structural. Order is irrelevant; existence checks drive the split.
 _PRICING_KEYS: tuple[str, ...] = ("tcgplayer", "cardmarket", "_pc_prices", "_pc_url")
@@ -625,13 +633,73 @@ def write_pricing_only(key: str, cards: list[dict[str, Any]]) -> None:
     _atomic_write_json(_api_pricing_path(key), pricings)
 
 
-def spawn_pricing_refresh(key: str, refetch: Callable[[], list[dict[str, Any]] | None]) -> bool:
+def pricing_ttl_for_source(source: str | None) -> float:
+    """Resolve a `Pricing.source` string to its pricing-cache TTL (#424).
+
+    eBay's two tiers carry distinct windows per ADR-0020 (sold 7d, active
+    6h); everything else falls back to the ADR-0018 default. The eBay adapter
+    passes its tier's source here so a `read_pricing_payload` HIT/STALE split
+    lands on the right clock."""
+    if source == "ebay_sold":
+        return EBAY_SOLD_TTL_SECONDS
+    if source == "ebay_active":
+        return EBAY_ACTIVE_TTL_SECONDS
+    return DEFAULT_PRICING_TTL_SECONDS
+
+
+def read_pricing_payload(key: str, *, ttl_seconds: float) -> tuple[Any | None, str]:
+    """Read an arbitrary pricing payload from the `api_pricing/` slice (#424).
+
+    The non-card pricing sources (eBay) cache their raw upstream payload here
+    rather than through `read_api_split`, which is card-shaped (structural +
+    pricing). Returns `(payload, status)` where status is `HIT` (within TTL),
+    `STALE` (present but past TTL — caller should serve it and spawn a
+    background refresh), or `MISS` (absent / unreadable / cache disabled).
+
+    Intentionally does not touch the `_api_hits` / `_api_fetches` counters:
+    those drive the pokemontcg-centric `pkmn lookup` summary tail, and eBay
+    comps aren't part of that line. Background refreshes are tallied via
+    `pricing_counters()` like the card slice."""
+    if _disabled():
+        return (None, "MISS")
+    p = _api_pricing_path(key)
+    if not p.exists():
+        return (None, "MISS")
+    try:
+        payload = json.loads(p.read_text(encoding="utf-8"))
+        age = time.time() - p.stat().st_mtime
+    except (OSError, json.JSONDecodeError):
+        return (None, "MISS")
+    return (payload, "HIT" if age <= ttl_seconds else "STALE")
+
+
+def write_pricing_payload(key: str, payload: Any) -> None:
+    """Atomically write an arbitrary pricing payload to the `api_pricing/`
+    slice, refreshing its mtime. Counterpart to `read_pricing_payload`;
+    doubles as the `spawn_pricing_refresh` writer for non-card sources."""
+    if _disabled():
+        return
+    _atomic_write_json(_api_pricing_path(key), payload)
+
+
+def spawn_pricing_refresh(
+    key: str,
+    refetch: Callable[[], Any],
+    *,
+    writer: Callable[[str, Any], None] = write_pricing_only,
+) -> bool:
     """Spawn a daemon thread that re-fetches `key` and writes a fresh pricing slice.
 
     Coalesces concurrent stale reads on the same key: if a refresh is
     already in flight, returns False and does nothing. Otherwise registers
     the key, starts the thread, and returns True. The thread always
     discards the key from the in-flight set on exit (success or failure).
+
+    `writer` lands the refetched payload. It defaults to `write_pricing_only`
+    (the card-slice writer); non-card sources (eBay, #424) pass
+    `write_pricing_payload` so the raw payload round-trips unchanged. A
+    `None` refetch result writes nothing — a soft upstream failure (e.g. a
+    gated eBay 403) leaves the stale entry in place rather than clobbering it.
     """
     with _inflight_lock:
         if key in _inflight_pricing:
@@ -644,7 +712,7 @@ def spawn_pricing_refresh(key: str, refetch: Callable[[], list[dict[str, Any]] |
         try:
             fresh = refetch()
             if fresh is not None:
-                write_pricing_only(key, fresh)
+                writer(key, fresh)
                 _pricing_refresh_writes += 1
         except Exception:
             logger.exception("background pricing refresh failed for key=%s", key)

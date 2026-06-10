@@ -27,7 +27,7 @@ governs when to *re-warm*, not when entries go stale.
 | Path | What it holds | Entry TTL |
 |---|---|---|
 | `api_structural/<sha1>.json` | Structural fields per cached request URL — name, set, number, rarity, attacks, images, etc. Anything that doesn't change once a card is printed. | None — indefinite. |
-| `api_pricing/<sha1>.json` | Volatile pricing fields per cached request URL — `tcgplayer.prices`, `cardmarket.prices`, `_pc_prices`, `_pc_url`. | 24 h (mtime-based). Stale reads return the cached value while a background refresh runs. |
+| `api_pricing/<sha1>.json` | Volatile pricing fields per cached request URL — `tcgplayer.prices`, `cardmarket.prices`, `_pc_prices`, `_pc_url` — **and** raw eBay listing-comp payloads (sold / active), keyed per source. | **Per-source** (mtime-based). pokemontcg.io pricing: 24 h. eBay sold comps: 7 d. eBay active listings: 6 h. Stale reads return the cached value while a background refresh runs. |
 | `api/<sha1>.json` | **Legacy** — pre-#372 combined payload. New writes never land here; existing entries are migrated to the split form lazily on first read. | No standalone TTL. On read the legacy file is split, the pricing slice's mtime is preserved, and the legacy file is unlinked — so a pre-existing 9-day-old legacy entry comes out STALE on the pricing side immediately after migration. |
 | `url_overrides.json` | `(name, set_hint)` → PriceCharting URL, recorded whenever you paste a PC URL on a line. | None — sticky until you overwrite or delete. |
 
@@ -48,6 +48,14 @@ semantics** ([#372](https://github.com/mgzwarrior/mgz-pkmn/issues/372),
   is returned **immediately** and a background thread re-fetches
   the upstream URL and writes a fresh pricing slice for the next
   request. This is the **stale-while-revalidate** pattern.
+
+eBay listing comps share the `api_pricing/` slice but carry their own
+freshness windows ([#424](https://github.com/mgzwarrior/mgz-pkmn/issues/424),
+[ADR-0020](adr/0020-ebay-pricing-source.md)): **sold** comps for **7 days**
+(recent sales stay useful day-to-day) and **active** listings for **6 hours**
+(a stale floor misleads at the table). Each tier is fetched and cached
+independently, with the same stale-while-revalidate refresh. `pricing_ttl_for_source`
+in `cache.py` resolves a `Pricing.source` to its window.
 
 `/api/v1/lookup` advertises which path served the request through
 an **`X-Cache`** response header:

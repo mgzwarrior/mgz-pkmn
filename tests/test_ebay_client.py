@@ -8,7 +8,10 @@ token so the token path never touches the network.
 
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -17,6 +20,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from mgz_pkmn import cache
 from mgz_pkmn.sources.ebay_client import EbayClient
 
 
@@ -101,7 +105,22 @@ def _client(**kwargs) -> EbayClient:
     return EbayClient(**kwargs)
 
 
-class ActiveCompsTests(unittest.TestCase):
+class _NoCacheTestCase(unittest.TestCase):
+    """Bypass the disk cache so these tests exercise the network + parse path
+    directly. The per-source caching layer is covered in EbayCacheTests."""
+
+    def setUp(self) -> None:
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ[cache._NO_CACHE_ENV] = "1"
+
+    def tearDown(self) -> None:
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+
+
+class ActiveCompsTests(_NoCacheTestCase):
     def test_active_listings_become_ebay_active_pricing(self) -> None:
         client = _client()
         with patch.object(client.session, "get", return_value=_FakeResponse(_BROWSE_FIXTURE)):
@@ -141,7 +160,7 @@ class ActiveCompsTests(unittest.TestCase):
         self.assertEqual(len(comps), 2)
 
 
-class SoldCompsTests(unittest.TestCase):
+class SoldCompsTests(_NoCacheTestCase):
     def test_sold_disabled_by_default_skips_insights(self) -> None:
         client = _client()
         with patch.object(
@@ -181,6 +200,75 @@ class SoldCompsTests(unittest.TestCase):
         # Active still returned; no sold comps, no raise.
         self.assertTrue(comps)
         self.assertTrue(all(c.source == "ebay_active" for c in comps))
+
+
+class EbayCacheTests(unittest.TestCase):
+    """Per-source TTL caching of eBay comps (#424, ADR-0020). Each test runs
+    against a fresh tempdir cache so the first fetch always MISSes."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_xdg = os.environ.get("XDG_CACHE_HOME")
+        self._old_no_cache = os.environ.get(cache._NO_CACHE_ENV)
+        os.environ["XDG_CACHE_HOME"] = self._tmp.name
+        os.environ.pop(cache._NO_CACHE_ENV, None)
+
+    def tearDown(self) -> None:
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self._old_xdg
+        if self._old_no_cache is None:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+        else:
+            os.environ[cache._NO_CACHE_ENV] = self._old_no_cache
+        with cache._inflight_lock:
+            cache._inflight_pricing.clear()
+        self._tmp.cleanup()
+
+    def _age(self, key: str, seconds: float) -> None:
+        """Backdate a cached entry's mtime by `seconds` to force a TTL gate."""
+        t = time.time() - seconds
+        os.utime(cache._api_pricing_path(key), (t, t))
+
+    def test_miss_fetches_network_then_second_call_hits_cache(self) -> None:
+        client = _client()
+        with patch.object(
+            client.session, "get", return_value=_FakeResponse(_BROWSE_FIXTURE)
+        ) as get:
+            first = client.fetch_comps("Charizard")
+            second = client.fetch_comps("Charizard")
+        # Second call served from disk — the network was hit exactly once.
+        self.assertEqual(get.call_count, 1)
+        self.assertEqual([c.market for c in first], [c.market for c in second])
+
+    def test_active_stale_past_six_hours_spawns_refresh(self) -> None:
+        # An entry 7h old is past the active window → STALE → background
+        # refresh fires, and the stale comps are still served immediately.
+        client = _client()
+        key = client._cache_key("ebay_active", "Charizard", 50)
+        cache.write_pricing_payload(key, _BROWSE_FIXTURE)
+        self._age(key, 7 * 3600)
+        with patch.object(cache, "spawn_pricing_refresh", return_value=True) as spawn:
+            comps = client.fetch_comps("Charizard")
+        self.assertTrue(comps)
+        self.assertEqual(spawn.call_count, 1)
+        # The refresh writes through the raw-payload writer, not the card split.
+        self.assertIs(spawn.call_args.kwargs["writer"], cache.write_pricing_payload)
+
+    def test_sold_still_hits_at_seven_hours_no_network(self) -> None:
+        # The same 7h age is a HIT for the sold tier (7d window). With the
+        # active entry fresh too, the whole fetch serves from cache.
+        client = _client(sold_enabled=True)
+        active_key = client._cache_key("ebay_active", "Charizard", 50)
+        sold_key = client._cache_key("ebay_sold", "Charizard", 50)
+        cache.write_pricing_payload(active_key, _BROWSE_FIXTURE)  # fresh → HIT
+        cache.write_pricing_payload(sold_key, _INSIGHTS_FIXTURE)
+        self._age(sold_key, 7 * 3600)  # 7h < 7d → still HIT
+        with patch.object(client.session, "get") as get:
+            comps = client.fetch_comps("Charizard")
+        self.assertEqual({c.source for c in comps}, {"ebay_active", "ebay_sold"})
+        get.assert_not_called()  # both tiers served from cache
 
 
 if __name__ == "__main__":

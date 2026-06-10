@@ -806,6 +806,84 @@ class SwrCoordinatorTests(_IsolatedCacheDirMixin):
         attempts, writes = cache.pricing_counters()
         self.assertEqual((attempts, writes), (1, 0))
 
+    def test_spawn_pricing_refresh_honours_custom_writer(self) -> None:
+        # Non-card sources (eBay, #424) pass write_pricing_payload so the raw
+        # payload round-trips unchanged instead of going through the card split.
+        self._patch_thread_sync()
+        cache.write_pricing_payload("k", {"old": True})
+        cache.spawn_pricing_refresh(
+            "k",
+            lambda: {"itemSales": [{"price": {"value": "5"}}]},
+            writer=cache.write_pricing_payload,
+        )
+        payload, _ = cache.read_pricing_payload("k", ttl_seconds=3600)
+        self.assertEqual(payload, {"itemSales": [{"price": {"value": "5"}}]})
+        self.assertNotIn("k", cache._inflight_pricing)
+
+
+class PricingTtlPolicyTests(unittest.TestCase):
+    """Per-source TTL policy (#424, ADR-0020)."""
+
+    def test_ebay_sold_is_seven_days(self) -> None:
+        self.assertEqual(cache.pricing_ttl_for_source("ebay_sold"), 7 * 24 * 3600)
+
+    def test_ebay_active_is_six_hours(self) -> None:
+        self.assertEqual(cache.pricing_ttl_for_source("ebay_active"), 6 * 3600)
+
+    def test_unknown_and_none_sources_fall_back_to_default(self) -> None:
+        self.assertEqual(
+            cache.pricing_ttl_for_source("tcgplayer"), cache.DEFAULT_PRICING_TTL_SECONDS
+        )
+        self.assertEqual(cache.pricing_ttl_for_source(None), cache.DEFAULT_PRICING_TTL_SECONDS)
+
+
+class PricingPayloadCacheTests(_IsolatedCacheDirMixin):
+    """read_pricing_payload / write_pricing_payload — the non-card pricing
+    slice eBay comps use (#424)."""
+
+    def test_round_trip_hit_within_ttl(self) -> None:
+        cache.write_pricing_payload("k", {"itemSummaries": [1, 2]})
+        payload, status = cache.read_pricing_payload("k", ttl_seconds=3600)
+        self.assertEqual(status, "HIT")
+        self.assertEqual(payload, {"itemSummaries": [1, 2]})
+
+    def test_miss_when_absent(self) -> None:
+        payload, status = cache.read_pricing_payload("k", ttl_seconds=3600)
+        self.assertEqual(status, "MISS")
+        self.assertIsNone(payload)
+
+    def test_stale_past_ttl_still_serves_value(self) -> None:
+        cache.write_pricing_payload("k", {"x": 1})
+        _backdate(cache._api_pricing_path("k"), 7200)
+        payload, status = cache.read_pricing_payload("k", ttl_seconds=3600)
+        self.assertEqual(status, "STALE")
+        self.assertEqual(payload, {"x": 1})
+
+    def test_same_age_entry_is_stale_for_active_but_hit_for_sold(self) -> None:
+        # A 7-hour-old entry is past the 6h active window but inside the 7d
+        # sold window — the TTL really is resolved per source, not globally.
+        cache.write_pricing_payload("k", {"x": 1})
+        _backdate(cache._api_pricing_path("k"), 7 * 3600)
+        _, active = cache.read_pricing_payload(
+            "k", ttl_seconds=cache.pricing_ttl_for_source("ebay_active")
+        )
+        _, sold = cache.read_pricing_payload(
+            "k", ttl_seconds=cache.pricing_ttl_for_source("ebay_sold")
+        )
+        self.assertEqual(active, "STALE")
+        self.assertEqual(sold, "HIT")
+
+    def test_no_cache_env_suppresses_reads_and_writes(self) -> None:
+        os.environ[cache._NO_CACHE_ENV] = "1"
+        try:
+            cache.write_pricing_payload("k", {"x": 1})
+            self.assertFalse(cache._api_pricing_path("k").exists())
+            payload, status = cache.read_pricing_payload("k", ttl_seconds=3600)
+            self.assertEqual(status, "MISS")
+            self.assertIsNone(payload)
+        finally:
+            os.environ.pop(cache._NO_CACHE_ENV, None)
+
 
 if __name__ == "__main__":
     unittest.main()
