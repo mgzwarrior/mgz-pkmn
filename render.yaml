@@ -195,3 +195,31 @@ services:
         sync: false
       - key: MGZ_PKMN_APPLE_PRIVATE_KEY
         sync: false
+      # eBay integration (#421, epic #416). The application-level
+      # OAuth client-credentials pair from the eBay Developer portal;
+      # `EbayAuthClient` (src/mgz_pkmn/sources/ebay.py) mints + refreshes
+      # the application access token used to read public listing comps.
+      # `MGZ_PKMN_EBAY_TOKEN` is an optional pre-minted token that
+      # short-circuits the client-credentials flow when set. The auth
+      # client + deletion endpoint default to production eBay hosts;
+      # `MGZ_PKMN_EBAY_ENV=sandbox` flips both to api.sandbox.ebay.com.
+      - key: MGZ_PKMN_EBAY_CLIENT_ID
+        sync: false
+      - key: MGZ_PKMN_EBAY_CLIENT_SECRET
+        sync: false
+      - key: MGZ_PKMN_EBAY_TOKEN
+        sync: false
+      - key: MGZ_PKMN_EBAY_ENV
+        value: production
+      # Marketplace account-deletion webhook (api/routes/ebay.py). eBay
+      # requires this endpoint live + verified before granting production
+      # keys. Register the endpoint URL and a matching 32–80 char
+      # verification token in the eBay Developer **Alerts & Notifications**
+      # portal (human runbook step — outside the blueprint). The hash uses
+      # the byte-exact registered URL, so `MGZ_PKMN_EBAY_DELETION_ENDPOINT`
+      # must equal what's entered in the portal. Missing either var returns
+      # 503 from the challenge handler (api/routes/ebay.py:_read_config).
+      - key: MGZ_PKMN_EBAY_VERIFICATION_TOKEN
+        sync: false
+      - key: MGZ_PKMN_EBAY_DELETION_ENDPOINT
+        value: https://mgz-pkmn.onrender.com/api/v1/ebay/account-deletion

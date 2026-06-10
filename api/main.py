@@ -49,6 +49,7 @@ from .routes import (
     cards,
     changelog,
     collections,
+    ebay,
     export,
     lookup,
     overrides,
@@ -540,6 +541,7 @@ app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
 app.include_router(collections.router, prefix="/api/v1", tags=["collections"])
 app.include_router(wishlists.router, prefix="/api/v1", tags=["wishlists"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
+app.include_router(ebay.router, prefix="/api/v1", tags=["ebay"])
 app.include_router(auth_routes.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_github.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_google.router, prefix="/api/v1", tags=["auth"])

@@ -36,6 +36,41 @@ Why opt-in (URL) rather than auto-search? PriceCharting's search is
 ambiguous for similarly-named cards across regional variants; the URL
 guarantees you've picked the right product page.
 
+## eBay (pricing comps — application token)
+
+eBay contributes sold- and active-listing comps to the pricing ensemble (see [ADR-0020](adr/0020-ebay-pricing-source.md)). It is **not** used for card-object resolution — listing titles are too unreliable for structural data. Authentication uses the eBay Developer **OAuth client-credentials** grant: an application-level access token that reads public listing data, with no per-user eBay account involved.
+
+Configure one of two ways:
+
+- **Client credentials** — set `MGZ_PKMN_EBAY_CLIENT_ID` and `MGZ_PKMN_EBAY_CLIENT_SECRET` (from the eBay Developer portal). The auth client mints an application token and refreshes it automatically as it nears expiry.
+- **Pre-supplied token** — set `MGZ_PKMN_EBAY_TOKEN` to an already-minted application token. It's used verbatim with no refresh — handy for a quick test, but you'll have to rotate it yourself.
+
+`MGZ_PKMN_EBAY_ENV` selects the host: unset (or anything other than `sandbox`) targets production (`api.ebay.com`); set it to `sandbox` to target `api.sandbox.ebay.com`.
+
+### Sandbox credentials
+
+Develop against the sandbox first. In the eBay Developer portal your keyset exposes both a **Production** and a **Sandbox** set of App ID (client id) / Cert ID (client secret). For local sandbox work:
+
+```bash
+export MGZ_PKMN_EBAY_ENV=sandbox
+export MGZ_PKMN_EBAY_CLIENT_ID=<sandbox App ID>
+export MGZ_PKMN_EBAY_CLIENT_SECRET=<sandbox Cert ID>
+```
+
+The token endpoint, scope, and request shape are identical between environments — only the host differs — so the same `EbayAuthClient` covers both.
+
+### Account-deletion notification endpoint
+
+eBay requires every production app to host a [marketplace account-deletion webhook](https://developer.ebay.com/develop/guides-v2/marketplace-user-account-deletion) before it will grant production keys. mgz-pkmn exposes it at `/api/v1/ebay/account-deletion`:
+
+- **`GET ?challenge_code=...`** — eBay's one-time verification handshake. Returns the hex SHA-256 of `challengeCode + verificationToken + endpoint` (that exact order) as `{"challengeResponse": "<hash>"}`.
+- **`POST`** — an account-closure notification. mgz-pkmn stores no eBay user data (it only reads public listings via the application token), so there's nothing to erase — the handler logs receipt and acknowledges with `200`.
+
+Two env vars drive it, both matched to the eBay Developer **Alerts & Notifications** portal:
+
+- `MGZ_PKMN_EBAY_VERIFICATION_TOKEN` — a 32–80 character `[A-Za-z0-9_-]` token you choose.
+- `MGZ_PKMN_EBAY_DELETION_ENDPOINT` — the exact public URL eBay has registered (e.g. `https://mgz-pkmn.onrender.com/api/v1/ebay/account-deletion`). It's read from env rather than derived from the request because the hosted demo terminates TLS upstream and the hash must use the byte-exact registered URL.
+
 ## Failure messages
 
 When pokemontcg.io and TCGdex both have hits for the name but none in
