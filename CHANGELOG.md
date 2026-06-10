@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.5.0](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.4.0...v1.5.0) (2026-06-10)
+
+
+### Added
+
+* **auth:** brand magic-link email ([#591](https://github.com/mgzwarrior/mgz-pkmn/issues/591)) ([e0d58be](https://github.com/mgzwarrior/mgz-pkmn/commit/e0d58bede3582310431d3c4c1728aa89a2355bab))
+* rebrand generated exports to the tropical design system + refresh gallery ([#599](https://github.com/mgzwarrior/mgz-pkmn/issues/599)) ([7075f7c](https://github.com/mgzwarrior/mgz-pkmn/commit/7075f7c7a64b43f80f833dde14179d89a798f4c2))
+* **web:** browse + swipe cards reach parity with search result rows ([#605](https://github.com/mgzwarrior/mgz-pkmn/issues/605)) ([a649e2c](https://github.com/mgzwarrior/mgz-pkmn/commit/a649e2c63c25fb9b1ffb8367800978ae10545e41))
+* **web:** browse pokedex-# view toggle across all sets ([#602](https://github.com/mgzwarrior/mgz-pkmn/issues/602)) ([c925c73](https://github.com/mgzwarrior/mgz-pkmn/commit/c925c73594080effae3dfbd1f359128bec80cbff))
+* **web:** collapse what's new into a help-modal top bar with version indicator ([#600](https://github.com/mgzwarrior/mgz-pkmn/issues/600)) ([1b97f94](https://github.com/mgzwarrior/mgz-pkmn/commit/1b97f94b685c289763f5acfdde007347809581d5))
+* **web:** refresh help modal to match current app surfaces ([#601](https://github.com/mgzwarrior/mgz-pkmn/issues/601)) ([c6f20a2](https://github.com/mgzwarrior/mgz-pkmn/commit/c6f20a2de8468f3d46a9c300a3e326da8b82dc74))
+
+
+### Fixed
+
+* **auth:** refresh magic-link email logo to current brand ([#595](https://github.com/mgzwarrior/mgz-pkmn/issues/595)) ([0700c72](https://github.com/mgzwarrior/mgz-pkmn/commit/0700c7269e5d710d5f610a70e8b1ac9eba489bbd))
+* **ci:** document RELEASE_PAT scopes required by release-please ([#588](https://github.com/mgzwarrior/mgz-pkmn/issues/588)) ([7a6b958](https://github.com/mgzwarrior/mgz-pkmn/commit/7a6b95854c533198198e803aed60aea68239d0d9))
+
+
+### Changed
+
+* **changelog:** consolidate historical release notes ([#589](https://github.com/mgzwarrior/mgz-pkmn/issues/589)) ([b0f2fb8](https://github.com/mgzwarrior/mgz-pkmn/commit/b0f2fb816eec82257f91897a25c93bac642cd238))
+* **release:** add CHANGELOG consolidation step to cut-release skill ([#585](https://github.com/mgzwarrior/mgz-pkmn/issues/585)) ([41c37b7](https://github.com/mgzwarrior/mgz-pkmn/commit/41c37b7b22bdb572845bc25032b5a7647ae46dce))
+
 ## [Unreleased]
 
 ### Added
