@@ -646,3 +646,59 @@ export async function addCardToWishlist(
   if (!res.ok) throw new Error(`add to wishlist failed: ${res.status}`)
   return (await res.json()) as WishlistItem
 }
+
+// ---------------------------------------------------------------------------
+// swipe (library-aware deck memory + exclusion, #581)
+// ---------------------------------------------------------------------------
+
+/** The promoted `(set_id, number)` identity the swipe deck excludes on. */
+export interface SwipeCardIdentity {
+  set_id: string
+  number: string
+}
+
+/**
+ * Identities the swipe deck should skip for the current user. Always
+ * includes the persisted "already seen" set; `owned` / `chasing` fold in
+ * the user's collection / wishlist cards respectively. The SPA keys its
+ * candidate filter on `${set_id}-${number}` so this composes directly with
+ * the client-side sampler.
+ */
+export async function fetchSwipeExcluded(opts?: {
+  owned?: boolean
+  chasing?: boolean
+}): Promise<SwipeCardIdentity[]> {
+  const params = new URLSearchParams()
+  if (opts?.owned) params.set('owned', 'true')
+  if (opts?.chasing) params.set('chasing', 'true')
+  const qs = params.toString()
+  const res = await fetch(`${BASE}/swipe/excluded${qs ? `?${qs}` : ''}`)
+  if (!res.ok) throw new Error(`swipe excluded failed: ${res.status}`)
+  const data = await res.json()
+  return data.cards as SwipeCardIdentity[]
+}
+
+/** Record one shown card so it never resurfaces across sessions. Idempotent. */
+export async function recordSwipeSeen(
+  setId: string,
+  number: string,
+  dir?: string,
+): Promise<void> {
+  const res = await fetch(`${BASE}/swipe/seen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ set_id: setId, number, dir: dir ?? null }),
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`record swipe seen failed: ${res.status}`)
+  }
+}
+
+/** Reset the deck — clear the user's seen memory, or just one set's. */
+export async function resetSwipeSeen(setId?: string): Promise<void> {
+  const qs = setId ? `?set_id=${encodeURIComponent(setId)}` : ''
+  const res = await fetch(`${BASE}/swipe/seen${qs}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`reset swipe seen failed: ${res.status}`)
+  }
+}

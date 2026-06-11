@@ -43,6 +43,12 @@ const DEFAULT_SETTINGS: Settings = {
   // session feels like flipping chase cards, not walking bulk (#580). The
   // `merge` below backfills this for users with older persisted settings.
   swipeRarityFloor: 'chase',
+  // Library-aware exclusion is opt-in (#581): a fresh deck shows everything
+  // (minus already-seen), and the user turns these on to hide cards they
+  // already own / are already chasing. The `merge` below backfills both for
+  // users with older persisted settings.
+  swipeExcludeOwned: false,
+  swipeExcludeChasing: false,
 }
 
 interface AppState {

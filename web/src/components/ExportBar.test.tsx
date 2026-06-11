@@ -73,6 +73,8 @@ describe('ExportBar', () => {
         showTimer: false,
         showEbay: false,
         swipeRarityFloor: 'chase',
+        swipeExcludeOwned: false,
+        swipeExcludeChasing: false,
       },
     })
     mockExportFile.mockReset()
@@ -147,6 +149,8 @@ describe('ExportBar', () => {
         showTimer: false,
         showEbay: false,
         swipeRarityFloor: 'chase',
+        swipeExcludeOwned: false,
+        swipeExcludeChasing: false,
       },
     })
 

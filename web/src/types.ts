@@ -162,6 +162,15 @@ export interface Settings {
   showEbay: boolean
   /** Swipe-mode rarity floor (swipe-header control; not in the settings drawer). */
   swipeRarityFloor: RarityFloor
+  /**
+   * Swipe-mode library-aware exclusion (#581). Opt-in: when on, the deck
+   * stops serving cards already in any of your collections (`Owned`) or on
+   * any of your wishlists (`Chasing`). Both default off; the no-repeat
+   * memory that excludes already-*seen* cards is always on and isn't a
+   * setting.
+   */
+  swipeExcludeOwned: boolean
+  swipeExcludeChasing: boolean
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */

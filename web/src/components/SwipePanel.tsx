@@ -39,6 +39,7 @@ import {
   type SwipeAction,
 } from './useSwipeProfile'
 import { STACK_SIZE, useSwipeCandidates } from './useSwipeCandidates'
+import { useSwipeExclusions } from './useSwipeExclusions'
 import { useWishlists } from './useWishlists'
 
 /** Horizontal-drag threshold (px) that commits a pass/save decision. */
@@ -65,14 +66,26 @@ interface SwipePanelProps {
 export function SwipePanel({ active }: SwipePanelProps) {
   const { profile, seenSet, act, clearSaved, reset } = useSwipeProfile()
   const { settings, updateSettings } = useAppStore()
+  const { excludedKeys, recordSeen, resetDeck } = useSwipeExclusions({
+    excludeOwned: settings.swipeExcludeOwned,
+    excludeChasing: settings.swipeExcludeChasing,
+  })
   const { current, upcoming, loading, exhausted, error, advance } =
     useSwipeCandidates({
       active,
       seenSet,
+      excludedKeys,
       rarityFloor: settings.swipeRarityFloor,
     })
   const { user } = useAuth()
   const showSavedActions = user !== null
+
+  // Reset both the local taste profile (session-local seen + saved) and the
+  // server-persisted deck memory, so "reset" surfaces a genuinely fresh deck.
+  const handleReset = useCallback(() => {
+    reset()
+    resetDeck()
+  }, [reset, resetDeck])
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [outgoing, setOutgoing] = useState<SwipeAction | null>(null)
@@ -100,12 +113,16 @@ export function SwipePanel({ active }: SwipePanelProps) {
       // Let the exit animation play before swapping the card.
       window.setTimeout(() => {
         act(current.card, current.setId, action)
+        // Persist the card as seen so it never resurfaces in a future
+        // session (#581). Local `seenSet` handles the in-session no-repeat;
+        // this is the durable layer.
+        recordSeen(current.setId, current.card.number, action)
         setOutgoing(null)
         setDrag(null)
         advance()
       }, 180)
     },
-    [current, act, advance],
+    [current, act, recordSeen, advance],
   )
 
   // Keyboard shortcuts — global while the panel is mounted + active.
@@ -195,10 +212,19 @@ export function SwipePanel({ active }: SwipePanelProps) {
     >
       <SwipeHeader
         savedCount={profile.saved.length}
-        onReset={reset}
+        onReset={handleReset}
         rarityFloor={settings.swipeRarityFloor}
         onRarityFloorChange={(swipeRarityFloor) =>
           updateSettings({ swipeRarityFloor })
+        }
+        showLibraryToggles={showSavedActions}
+        excludeOwned={settings.swipeExcludeOwned}
+        excludeChasing={settings.swipeExcludeChasing}
+        onExcludeOwnedChange={(swipeExcludeOwned) =>
+          updateSettings({ swipeExcludeOwned })
+        }
+        onExcludeChasingChange={(swipeExcludeChasing) =>
+          updateSettings({ swipeExcludeChasing })
         }
       />
 
@@ -213,7 +239,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
         )}
 
         {exhausted && !current && (
-          <ExhaustedState onReset={reset} />
+          <ExhaustedState onReset={handleReset} />
         )}
 
         {!current && !exhausted && (
@@ -314,47 +340,103 @@ function SwipeHeader({
   onReset,
   rarityFloor,
   onRarityFloorChange,
+  showLibraryToggles,
+  excludeOwned,
+  excludeChasing,
+  onExcludeOwnedChange,
+  onExcludeChasingChange,
 }: {
   savedCount: number
   onReset: () => void
   rarityFloor: RarityFloor
   onRarityFloorChange: (floor: RarityFloor) => void
+  /** Library-aware toggles only make sense with a library — hidden when
+   *  signed out (the endpoints would 401). */
+  showLibraryToggles: boolean
+  excludeOwned: boolean
+  excludeChasing: boolean
+  onExcludeOwnedChange: (next: boolean) => void
+  onExcludeChasingChange: (next: boolean) => void
 }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
-          Swipe
-        </h2>
-        <p className="text-xs text-coconut-400 dark:text-sand-300">
-          One card at a time — right to save, left to pass, up for more like this.
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        <label className="flex items-center gap-1.5 text-xs text-coconut-400 dark:text-sand-300">
-          <span className="sr-only sm:not-sr-only">Show</span>
-          <select
-            aria-label="Rarity floor"
-            value={rarityFloor}
-            onChange={(e) => onRarityFloorChange(e.target.value as RarityFloor)}
-            className="rounded-md border border-sand-300 bg-sand-50 px-2 py-1 text-xs text-coconut-700 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:focus:ring-sun-300"
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
+            Swipe
+          </h2>
+          <p className="text-xs text-coconut-400 dark:text-sand-300">
+            One card at a time — right to save, left to pass, up for more like this.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-coconut-400 dark:text-sand-300">
+            <span className="sr-only sm:not-sr-only">Show</span>
+            <select
+              aria-label="Rarity floor"
+              value={rarityFloor}
+              onChange={(e) => onRarityFloorChange(e.target.value as RarityFloor)}
+              className="rounded-md border border-sand-300 bg-sand-50 px-2 py-1 text-xs text-coconut-700 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:focus:ring-sun-300"
+            >
+              {RARITY_FLOOR_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs text-coconut-400 underline-offset-2 hover:underline dark:text-sand-300"
           >
-            {RARITY_FLOOR_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={onReset}
-          className="text-xs text-coconut-400 underline-offset-2 hover:underline dark:text-sand-300"
-        >
-          {savedCount > 0 ? `${savedCount} saved · reset` : 'Reset profile'}
-        </button>
+            {savedCount > 0 ? `${savedCount} saved · reset` : 'Reset profile'}
+          </button>
+        </div>
       </div>
+      {showLibraryToggles && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-coconut-400 dark:text-sand-300">
+          <span className="text-coconut-300 dark:text-sand-400">Hide</span>
+          <LibraryToggle
+            label="owned"
+            title="Don't show cards already in your collections"
+            checked={excludeOwned}
+            onChange={onExcludeOwnedChange}
+          />
+          <LibraryToggle
+            label="chasing"
+            title="Don't show cards already on your want-lists"
+            checked={excludeChasing}
+            onChange={onExcludeChasingChange}
+          />
+        </div>
+      )}
     </div>
+  )
+}
+
+/** One library-aware exclusion checkbox in the swipe header (#581). */
+function LibraryToggle({
+  label,
+  title,
+  checked,
+  onChange,
+}: {
+  label: string
+  title: string
+  checked: boolean
+  onChange: (next: boolean) => void
+}) {
+  return (
+    <label className="flex items-center gap-1.5" title={title}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-100 dark:text-sun-300 dark:focus:ring-sun-300"
+      />
+      <span>{label}</span>
+    </label>
   )
 }
 

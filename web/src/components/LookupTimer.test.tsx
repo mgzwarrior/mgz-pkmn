@@ -15,6 +15,8 @@ const DEFAULT_SETTINGS = {
   showTimer: false,
   showEbay: false,
   swipeRarityFloor: 'chase' as const,
+  swipeExcludeOwned: false,
+  swipeExcludeChasing: false,
 }
 
 function row(name: string): Row {
