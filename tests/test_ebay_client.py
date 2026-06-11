@@ -22,7 +22,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from mgz_pkmn import cache
-from mgz_pkmn.sources.ebay_client import EbayClient
+from mgz_pkmn.sources.ebay_client import EbayClient, ebay_query_for_card
 
 
 class _FakeAuth:
@@ -289,6 +289,89 @@ class EbayCacheTests(unittest.TestCase):
             comps = client.fetch_comps("Charizard")
         self.assertEqual({c.source for c in comps}, {"ebay_active", "ebay_sold"})
         get.assert_not_called()  # both tiers served from cache
+
+
+class EbayQueryForCardTests(unittest.TestCase):
+    def test_builds_name_set_number_query(self) -> None:
+        card = {"name": "Charizard", "set": {"name": "Base Set"}, "number": "4"}
+        self.assertEqual(ebay_query_for_card(card), "Charizard Base Set 4")
+
+    def test_omits_missing_parts(self) -> None:
+        self.assertEqual(ebay_query_for_card({"name": "Pikachu"}), "Pikachu")
+
+    def test_no_name_yields_empty_query(self) -> None:
+        self.assertEqual(ebay_query_for_card({"set": {"name": "Base Set"}, "number": "4"}), "")
+
+
+class CompsForCardTests(_NoCacheTestCase):
+    def test_reduces_active_listings_to_floor(self) -> None:
+        client = _client()
+        card = {"name": "Charizard", "set": {"name": "Base Set"}, "number": "4"}
+        with patch.object(client.session, "get", return_value=_FakeResponse(_BROWSE_FIXTURE)):
+            sold, active = client.comps_for_card(card)
+        # Sold tier off by default → no median; active floor is the cheapest
+        # raw single after graded/lot drops (199.99 < 250.00).
+        self.assertIsNone(sold)
+        self.assertEqual(active, 199.99)
+
+    def test_sold_enabled_yields_sold_median(self) -> None:
+        client = _client(sold_enabled=True)
+        card = {"name": "Charizard", "set": {"name": "Base Set"}, "number": "4"}
+
+        def _route(url, **_kwargs):
+            if "item_sales/search" in url:
+                return _FakeResponse(_INSIGHTS_FIXTURE)
+            return _FakeResponse(_BROWSE_FIXTURE)
+
+        with patch.object(client.session, "get", side_effect=_route):
+            sold, active = client.comps_for_card(card)
+        self.assertEqual(sold, 230.00)
+        self.assertEqual(active, 199.99)
+
+    def test_nameless_card_skips_fetch(self) -> None:
+        client = _client()
+        with patch.object(client.session, "get") as get:
+            self.assertEqual(client.comps_for_card({"number": "4"}), (None, None))
+        get.assert_not_called()
+
+
+class BuildRowWiringTests(_NoCacheTestCase):
+    """The CLI finalize-pricing site folds eBay comps into the row's Pricing."""
+
+    def test_build_row_attaches_ebay_comps(self) -> None:
+        from mgz_pkmn.cli.lookup import _build_row
+        from mgz_pkmn.parser import CardQuery
+
+        client = _client()
+        card = {"name": "Charizard", "set": {"name": "Base Set"}, "number": "4"}
+        with patch.object(client.session, "get", return_value=_FakeResponse(_BROWSE_FIXTURE)):
+            row = _build_row(
+                card,
+                CardQuery(raw="Charizard", name="Charizard"),
+                "t1",
+                pkmn_client=None,
+                images_dir=Path("."),
+                no_images=True,
+                ebay=client,
+            )
+        self.assertEqual(row.pricing.ebay_active_floor, 199.99)
+        self.assertIsNone(row.pricing.ebay_sold_median)
+
+    def test_build_row_without_ebay_leaves_fields_none(self) -> None:
+        from mgz_pkmn.cli.lookup import _build_row
+        from mgz_pkmn.parser import CardQuery
+
+        card = {"name": "Charizard", "set": {"name": "Base Set"}, "number": "4"}
+        row = _build_row(
+            card,
+            CardQuery(raw="Charizard", name="Charizard"),
+            "t1",
+            pkmn_client=None,
+            images_dir=Path("."),
+            no_images=True,
+        )
+        self.assertIsNone(row.pricing.ebay_active_floor)
+        self.assertIsNone(row.pricing.ebay_sold_median)
 
 
 if __name__ == "__main__":

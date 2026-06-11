@@ -266,7 +266,7 @@ class BulkStageStreamTests(unittest.TestCase):
         from mgz_pkmn.pricing import Pricing
         from mgz_pkmn.spreadsheet import Row
 
-        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False):
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False, ebay=None):
             if on_stage is not None:
                 on_stage("looking_up")
                 on_stage("fallback")
@@ -296,7 +296,7 @@ class BulkStageStreamTests(unittest.TestCase):
         from mgz_pkmn.pricing import Pricing
         from mgz_pkmn.spreadsheet import Row
 
-        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False):
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False, ebay=None):
             if on_stage is not None:
                 on_stage("looking_up")
             return [(Row(query=q, card=None, pricing=Pricing(), tag=""), "no_candidates")], "MISS"

@@ -26,8 +26,10 @@ sold comps for 7 days, active listings for 6 hours, with stale-while-revalidate
 background refresh — the same machinery the pokemontcg.io pricing slice uses
 (ADR-0018).
 
-Wiring these comps into the lookup pipeline + export serializers is #423 /
-the ensemble work; this module is just the adapter.
+:meth:`EbayClient.comps_for_card` is the lookup pipeline's entry point (#617):
+it turns a resolved card into the (sold median, active floor) pair the
+``Pricing`` dataclass carries; the CLI and API finalize-pricing sites call it
+per resolved card.
 """
 
 from __future__ import annotations
@@ -40,7 +42,7 @@ from typing import Any
 import requests
 
 from .. import cache as disk_cache
-from ..pricing import Pricing
+from ..pricing import Pricing, summarize_ebay_comps
 from ._common import USER_AGENT
 from .ebay import EbayAuthClient, EbayAuthError
 
@@ -65,6 +67,22 @@ _UNCONFIGURED_HINT = (
 #: Titles matching these skew raw-single comps (graded slabs inflate, lots /
 #: bundles aren't a single card) — drop them before returning comps.
 _EXCLUDE_TITLE_RE = re.compile(r"\b(psa|bgs|cgc|sgc|lot|bundle|playset|x\s?\d)\b", re.IGNORECASE)
+
+
+def ebay_query_for_card(card: dict[str, Any]) -> str:
+    """Build an eBay keyword query for a resolved card.
+
+    Name + set name + collector number — specific enough to pull raw singles
+    of the exact printing without over-constraining the search. Returns an
+    empty string when the card has no usable name, which the pipeline treats
+    as "no comps to fetch".
+    """
+    name = (card.get("name") or "").strip()
+    if not name:
+        return ""
+    set_name = ((card.get("set") or {}).get("name") or "").strip()
+    number = str(card.get("number") or "").strip()
+    return " ".join(part for part in (name, set_name, number) if part)
 
 
 class EbayClient:
@@ -113,6 +131,23 @@ class EbayClient:
         if self._sold_enabled:
             comps += self._fetch_sold(query, limit=limit)
         return comps
+
+    def comps_for_card(
+        self, card: dict[str, Any], *, limit: int = 50
+    ) -> tuple[float | None, float | None]:
+        """Fetch comps for a resolved card, reduced to (sold median, active floor).
+
+        The lookup pipeline's entry point: turns a resolved card into the two
+        scalar signals the :class:`~mgz_pkmn.pricing.Pricing` dataclass carries.
+        A card with no name, or a fetch that yields no comps (unconfigured
+        source, network hiccup, nothing relevant listed), returns
+        ``(None, None)`` — leaving the row's eBay fields blank rather than
+        raising.
+        """
+        query = ebay_query_for_card(card)
+        if not query:
+            return None, None
+        return summarize_ebay_comps(self.fetch_comps(query, limit=limit))
 
     def _warn_unconfigured(self) -> None:
         """Warn once that eBay comps are off because no credentials are set.
@@ -268,4 +303,4 @@ class EbayClient:
         return comps
 
 
-__all__ = ["SOLD_ENABLED_ENV", "EbayClient"]
+__all__ = ["SOLD_ENABLED_ENV", "EbayClient", "ebay_query_for_card"]
