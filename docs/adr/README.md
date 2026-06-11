@@ -30,7 +30,7 @@ not just the shape.
 | [0017](0017-tropical-design-system.md) | Tropical design system — sun + palm + coconut, paired light/dark tokens | Accepted | 2026-05-31 |
 | [0018](0018-structural-vs-volatile-cache-with-swr.md) | Structural / volatile cache split with stale-while-revalidate on pricing | Accepted | 2026-06-01 |
 | [0019](0019-hosted-demo-identity-and-auth.md) | Hosted-demo identity and auth — cache-only anon, sign-in gates persistence, GitHub + magic-link + Google | Accepted | 2026-06-02 |
-| [0020](0020-ebay-pricing-source.md) | eBay as a first-class pricing source (sold + active listings, per-source TTL) | Proposed | 2026-06-03 |
+| [0020](0020-ebay-pricing-source.md) | eBay as a first-class pricing source (sold + active listings, per-source TTL) | Accepted | 2026-06-03 |
 | [0021](0021-tcgplayer-first-class-pricing.md) | First-class TCGPlayer pricing via the TCGPlayer API, with per-user OAuth tokens | Proposed | 2026-06-03 |
 | [0022](0022-query-dsl.md) | Structured query DSL with dual-mode + smart auto-detect (closes #39) | Proposed | 2026-06-03 |
 | [0023](0023-source-ensemble-pricing.md) | Source ensemble for pricing display, with user-selectable preferences (partially supersedes ADR-0002) | Proposed | 2026-06-03 |
