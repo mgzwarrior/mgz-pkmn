@@ -21,7 +21,7 @@ from ..parser import CardQuery, read_input
 from ..pricing import Pricing, extract_pricing
 from ..report import build_json_report
 from ..sorting import DEFAULT_SORT, SORT_MODES, sort_rows
-from ..sources import PriceChartingClient, TCGClient, TCGDexClient
+from ..sources import EbayClient, PriceChartingClient, TCGClient, TCGDexClient
 from ..sources.base import MatchResult
 from ..spreadsheet import Row, write_spreadsheet
 from ._cache_warn import _warn_if_cache_large
@@ -68,10 +68,13 @@ def _build_row(
     pkmn_client: TCGClient,
     images_dir: Path,
     no_images: bool,
+    ebay: EbayClient | None = None,
 ) -> Row:
     """Build a spreadsheet row for a single matched card, optionally
     downloading its image into `images_dir`."""
     pricing = extract_pricing(card, query.variant_hint)
+    if ebay is not None:
+        pricing.ebay_sold_median, pricing.ebay_active_floor = ebay.comps_for_card(card)
     image_path: Path | None = None
     if not no_images:
         images = card.get("images") or {}
@@ -135,6 +138,7 @@ def _lookup_one_bulk(
     no_images: bool,
     counters: dict[str, int],
     t0: float,
+    ebay: EbayClient | None = None,
 ) -> list[Row]:
     """Handle a bulk top-N / all-set query. Returns the rows it produced."""
     try:
@@ -176,7 +180,13 @@ def _lookup_one_bulk(
         )
         rows.append(
             _build_row(
-                card, q, tag, pkmn_client=pkmn_client, images_dir=images_dir, no_images=no_images
+                card,
+                q,
+                tag,
+                pkmn_client=pkmn_client,
+                images_dir=images_dir,
+                no_images=no_images,
+                ebay=ebay,
             )
         )
     return rows
@@ -194,6 +204,7 @@ def _lookup_one_single(
     no_images: bool,
     counters: dict[str, int],
     t0: float,
+    ebay: EbayClient | None = None,
 ) -> Row:
     """Handle a single-card query. Returns the single row produced."""
     try:
@@ -212,7 +223,13 @@ def _lookup_one_single(
     pricing = extract_pricing(card, q.variant_hint)
     _print_matched_line(card, pricing, time.monotonic() - t0)
     return _build_row(
-        card, q, tag, pkmn_client=pkmn_client, images_dir=images_dir, no_images=no_images
+        card,
+        q,
+        tag,
+        pkmn_client=pkmn_client,
+        images_dir=images_dir,
+        no_images=no_images,
+        ebay=ebay,
     )
 
 
@@ -548,6 +565,17 @@ def register(cli: click.Group) -> None:
             "formatting without regenerating outputs on every run."
         ),
     )
+    @click.option(
+        "--ebay/--no-ebay",
+        "ebay_opt",
+        default=None,
+        help=(
+            "Fetch eBay sold/active listing comps for each matched card. "
+            "Defaults to on when eBay credentials (MGZ_PKMN_EBAY_TOKEN, or the "
+            "MGZ_PKMN_EBAY_CLIENT_ID / MGZ_PKMN_EBAY_CLIENT_SECRET pair) are "
+            "configured, off otherwise."
+        ),
+    )
     @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
     def lookup(
         input_paths: tuple[Path, ...],
@@ -566,6 +594,7 @@ def register(cli: click.Group) -> None:
         default_lang: str | None,
         sort_mode: str,
         print_summary_only: bool,
+        ebay_opt: bool | None,
         verbose: bool,
     ) -> None:
         """Look up Pokemon cards, fetch images and prices, and emit an .xlsx for card-show prep.
@@ -604,9 +633,19 @@ def register(cli: click.Group) -> None:
         tcgdex_client = TCGDexClient(verbose=verbose)
         pc_client = PriceChartingClient(verbose=verbose)
 
+        # eBay comps default to on when credentials are configured; --ebay /
+        # --no-ebay forces it either way. Unconfigured + auto stays a no-op:
+        # we pass no client, so a row's eBay fields stay blank and no warning
+        # fires for the common case of a CLI user without eBay keys.
+        ebay_client = EbayClient(verbose=verbose)
+        use_ebay = ebay_client.auth.configured if ebay_opt is None else ebay_opt
+        ebay = ebay_client if use_ebay else None
+
+        sources_line = "pokemontcg.io · TCGdex · PriceCharting"
+        if use_ebay:
+            sources_line += " · eBay comps"
         _print_section(
-            f"Looking up {len(tagged)} card{'s' if len(tagged) != 1 else ''} "
-            "across pokemontcg.io · TCGdex · PriceCharting"
+            f"Looking up {len(tagged)} card{'s' if len(tagged) != 1 else ''} across {sources_line}"
         )
 
         rows: list[Row] = []
@@ -630,6 +669,7 @@ def register(cli: click.Group) -> None:
                         no_images=no_images,
                         counters=counters,
                         t0=t0,
+                        ebay=ebay,
                     )
                 )
             else:
@@ -645,6 +685,7 @@ def register(cli: click.Group) -> None:
                         no_images=no_images,
                         counters=counters,
                         t0=t0,
+                        ebay=ebay,
                     )
                 )
 

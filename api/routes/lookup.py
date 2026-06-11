@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from mgz_pkmn.lookup import find_card, find_top_cards
 from mgz_pkmn.parser import CardQuery, parse_line
 from mgz_pkmn.pricing import Pricing, extract_pricing
-from mgz_pkmn.sources import PriceChartingClient, TCGClient, TCGDexClient
+from mgz_pkmn.sources import EbayClient, PriceChartingClient, TCGClient, TCGDexClient
 from mgz_pkmn.sources.base import worse_cache_status
 from mgz_pkmn.spreadsheet import Row
 
@@ -65,11 +65,14 @@ class BulkRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _make_clients(settings: Settings) -> tuple[TCGClient, TCGDexClient, PriceChartingClient]:
+def _make_clients(
+    settings: Settings,
+) -> tuple[TCGClient, TCGDexClient, PriceChartingClient, EbayClient]:
     return (
         TCGClient(api_key=settings.api_key),
         TCGDexClient(),
         PriceChartingClient(),
+        EbayClient(),
     )
 
 
@@ -140,6 +143,7 @@ def _do_lookup(
     on_stage: Callable[[str], None] | None = None,
     *,
     cache_only: bool = False,
+    ebay: EbayClient | None = None,
 ) -> tuple[list[tuple[Row, str]], str]:
     """Run a blocking card lookup and return `(pairs, cache_status)`.
 
@@ -172,6 +176,17 @@ def _do_lookup(
     def _bump_status(s: str) -> None:
         status_acc[0] = worse_cache_status(status_acc[0], s)
 
+    def _with_ebay(pricing: Pricing, card: dict[str, Any]) -> Pricing:
+        """Fold eBay comps into `pricing` when the source is configured.
+
+        Auto-on when credentials are present; a no-op (eBay fields stay None)
+        otherwise, so an unconfigured deploy behaves exactly as before with no
+        extra network call.
+        """
+        if ebay is not None and ebay.auth.configured:
+            pricing.ebay_sold_median, pricing.ebay_active_floor = ebay.comps_for_card(card)
+        return pricing
+
     if q.bulk_top or q.bulk_all:
         try:
             effective_limit = None if q.bulk_all else q.bulk_top
@@ -189,7 +204,7 @@ def _do_lookup(
             top = []
             err = True
         for card in top:
-            pricing = extract_pricing(card, q.variant_hint)
+            pricing = _with_ebay(extract_pricing(card, q.variant_hint), card)
             out.append((Row(query=q, card=card, pricing=pricing, tag=settings.tag), "matched"))
         if not top:
             reason = "error" if err else "no_results"
@@ -213,7 +228,7 @@ def _do_lookup(
         if result.card:
             if on_stage is not None:
                 on_stage("pricing")
-            pricing = extract_pricing(result.card, q.variant_hint)
+            pricing = _with_ebay(extract_pricing(result.card, q.variant_hint), result.card)
             out.append(
                 (
                     Row(query=q, card=result.card, pricing=pricing, tag=settings.tag),
@@ -278,7 +293,7 @@ async def lookup(req: LookupRequest, current_user: CurrentUserOptional) -> JSONR
             headers={"X-Cache": "MISS"},
         )
 
-    pkmn, tcgdex, pc = _make_clients(req.settings)
+    pkmn, tcgdex, pc, ebay = _make_clients(req.settings)
     pairs, cache_status = await run_in_threadpool(
         _do_lookup,
         pkmn,
@@ -287,6 +302,7 @@ async def lookup(req: LookupRequest, current_user: CurrentUserOptional) -> JSONR
         q,
         req.settings,
         cache_only=_cache_only_for_user(current_user),
+        ebay=ebay,
     )
     return JSONResponse(
         content={"rows": [_row_to_dict(r, reason) for r, reason in pairs]},
@@ -335,7 +351,7 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
     ]
     total = len(indexed)
 
-    pkmn, tcgdex, pc = _make_clients(req.settings)
+    pkmn, tcgdex, pc, ebay = _make_clients(req.settings)
     cache_only = _cache_only_for_user(current_user)
 
     async def event_stream():
@@ -382,6 +398,7 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
                     req.settings,
                     on_stage,
                     cache_only=cache_only,
+                    ebay=ebay,
                 )
             )
             task.add_done_callback(lambda _t, _q=stage_queue: _q.put_nowait(_STAGE_DONE))
