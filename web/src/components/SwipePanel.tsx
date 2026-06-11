@@ -28,7 +28,8 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import type { Row, SetCard } from '../types'
+import { useAppStore } from '../store'
+import type { RarityFloor, Row, SetCard } from '../types'
 import { browseCardToPayload, browseCardToRow } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
 import { SaveCardActions } from './SaveCardActions'
@@ -63,10 +64,12 @@ interface SwipePanelProps {
 
 export function SwipePanel({ active }: SwipePanelProps) {
   const { profile, seenSet, act, clearSaved, reset } = useSwipeProfile()
+  const { settings, updateSettings } = useAppStore()
   const { current, upcoming, loading, exhausted, error, advance } =
     useSwipeCandidates({
       active,
       seenSet,
+      rarityFloor: settings.swipeRarityFloor,
     })
   const { user } = useAuth()
   const showSavedActions = user !== null
@@ -190,7 +193,14 @@ export function SwipePanel({ active }: SwipePanelProps) {
       aria-label="Swipe mode"
       className="flex flex-col gap-4 rounded-lg border border-sand-300 bg-sand-50 px-5 py-5 dark:border-husk-50 dark:bg-husk-200"
     >
-      <SwipeHeader savedCount={profile.saved.length} onReset={reset} />
+      <SwipeHeader
+        savedCount={profile.saved.length}
+        onReset={reset}
+        rarityFloor={settings.swipeRarityFloor}
+        onRarityFloorChange={(swipeRarityFloor) =>
+          updateSettings({ swipeRarityFloor })
+        }
+      />
 
       <div className="flex flex-col items-center gap-3">
         {error && (
@@ -292,15 +302,26 @@ export function SwipePanel({ active }: SwipePanelProps) {
   )
 }
 
+/** Floor options for the swipe-header control, most → least selective. */
+const RARITY_FLOOR_OPTIONS: { value: RarityFloor; label: string }[] = [
+  { value: 'chase', label: 'Chase cards' },
+  { value: 'rare', label: 'Rare and up' },
+  { value: 'all', label: 'Everything' },
+]
+
 function SwipeHeader({
   savedCount,
   onReset,
+  rarityFloor,
+  onRarityFloorChange,
 }: {
   savedCount: number
   onReset: () => void
+  rarityFloor: RarityFloor
+  onRarityFloorChange: (floor: RarityFloor) => void
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-start justify-between gap-3">
       <div>
         <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
           Swipe
@@ -309,13 +330,30 @@ function SwipeHeader({
           One card at a time — right to save, left to pass, up for more like this.
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onReset}
-        className="text-xs text-coconut-400 underline-offset-2 hover:underline dark:text-sand-300"
-      >
-        {savedCount > 0 ? `${savedCount} saved · reset` : 'Reset profile'}
-      </button>
+      <div className="flex shrink-0 items-center gap-3">
+        <label className="flex items-center gap-1.5 text-xs text-coconut-400 dark:text-sand-300">
+          <span className="sr-only sm:not-sr-only">Show</span>
+          <select
+            aria-label="Rarity floor"
+            value={rarityFloor}
+            onChange={(e) => onRarityFloorChange(e.target.value as RarityFloor)}
+            className="rounded-md border border-sand-300 bg-sand-50 px-2 py-1 text-xs text-coconut-700 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:focus:ring-sun-300"
+          >
+            {RARITY_FLOOR_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={onReset}
+          className="text-xs text-coconut-400 underline-offset-2 hover:underline dark:text-sand-300"
+        >
+          {savedCount > 0 ? `${savedCount} saved · reset` : 'Reset profile'}
+        </button>
+      </div>
     </div>
   )
 }

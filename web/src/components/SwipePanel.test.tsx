@@ -14,6 +14,7 @@ import { _resetSwipeProfileForTests } from './useSwipeProfile'
 import { _resetWishlistsCacheForTests } from './useWishlists'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
+import { useAppStore } from '../store'
 import type { SetCard } from '../types'
 
 vi.mock('../api/client', () => ({
@@ -104,6 +105,26 @@ describe('SwipePanel', () => {
     // With Math.random pinned to 0, the weighted sampler picks the
     // first unseen card in the array (Pikachu).
     expect(screen.getByText('Pikachu')).toBeInTheDocument()
+  })
+
+  it('rarity-floor control defaults to Chase cards and persists changes', async () => {
+    // A prior test may have left the persisted floor changed; pin it.
+    useAppStore.setState((s) => ({
+      settings: { ...s.settings, swipeRarityFloor: 'chase' },
+    }))
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const select = screen.getByLabelText('Rarity floor') as HTMLSelectElement
+    expect(select.value).toBe('chase')
+
+    fireEvent.change(select, { target: { value: 'all' } })
+    expect(useAppStore.getState().settings.swipeRarityFloor).toBe('all')
+
+    // Restore the default so the change doesn't leak into later tests.
+    useAppStore.setState((s) => ({
+      settings: { ...s.settings, swipeRarityFloor: 'chase' },
+    }))
   })
 
   it('renders the next card as an inert peek beneath the top card', async () => {

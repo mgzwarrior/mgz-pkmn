@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS = {
   sort: 'number' as const,
   showTimer: false,
   showEbay: false,
+  swipeRarityFloor: 'chase' as const,
 }
 
 function row(name: string): Row {

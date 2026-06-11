@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchSetCards, fetchSets } from '../api/client'
 import { BAKED_SETS } from '../data/sets'
-import type { SetCard, SetInfo } from '../types'
+import type { RarityFloor, SetCard, SetInfo } from '../types'
 
 interface Candidate {
   card: SetCard
@@ -66,6 +66,11 @@ interface UseSwipeCandidatesOpts {
   /** Card IDs the user has already seen — filtered out of the pool. */
   seenSet: Set<string>
   /**
+   * Rarity floor — trims the candidate pool toward chase cards. Defaults
+   * to `chase` (each set's top tier). See {@link isEligible}.
+   */
+  rarityFloor?: RarityFloor
+  /**
    * Optional `Math.random` replacement. Production passes nothing
    * (defaults to `Math.random`); tests inject a deterministic source.
    */
@@ -73,55 +78,147 @@ interface UseSwipeCandidatesOpts {
 }
 
 /**
- * Per-rarity sampling weight. Higher = more likely to surface. The
- * spread between Common (1) and Special Illustration Rare (50) is
- * intentional — a typical set is overwhelmingly Common / Uncommon,
- * so a uniform sample would surface bulk first.
+ * Per-rarity sampling weight. Higher = more likely to surface. Swipe mode
+ * is a chase-card reel, not an inventory walk (#580): Ultra-tier and above
+ * carry weights ~100+ while Commons are fractional, so even when bulk is in
+ * the pool a draw lands on a chase card the overwhelming majority of the
+ * time.
  *
  * Keys are matched case-insensitively against the trimmed card's
  * `rarity` field, which mirrors pokemontcg.io's strings. Unknown
  * rarities fall back to {@link DEFAULT_WEIGHT}.
  */
 const RARITY_WEIGHTS: Record<string, number> = {
-  common: 1,
-  uncommon: 2,
-  rare: 5,
-  promo: 5,
-  'rare holo': 8,
-  'rare holo lv.x': 12,
-  'rare holo ex': 12,
-  'rare holo gx': 12,
-  'rare holo v': 12,
-  'rare holo vmax': 14,
-  'rare holo vstar': 14,
-  'double rare': 12,
-  'rare break': 20,
-  'radiant rare': 20,
-  'rare ace': 25,
-  'rare prime': 25,
-  'rare prism star': 25,
-  'rare shining': 30,
-  'rare star': 25,
-  'rare shiny': 25,
-  'shiny rare': 25,
-  'amazing rare': 25,
-  'shiny ultra rare': 35,
-  'ultra rare': 30,
-  'rare ultra': 30,
-  'illustration rare': 30,
-  'special illustration rare': 50,
-  'hyper rare': 40,
-  'rare secret': 40,
-  'rare rainbow': 40,
-  'trainer gallery rare holo': 18,
-  'ace spec rare': 25,
+  common: 0.25,
+  uncommon: 0.5,
+  rare: 4,
+  promo: 4,
+  'rare holo': 10,
+  'trainer gallery rare holo': 12,
+  'rare holo lv.x': 30,
+  'rare holo ex': 30,
+  'rare holo gx': 30,
+  'rare holo v': 30,
+  'rare holo vmax': 40,
+  'rare holo vstar': 40,
+  'double rare': 35,
+  'rare break': 45,
+  'radiant rare': 45,
+  'amazing rare': 45,
+  'rare ace': 45,
+  'ace spec rare': 45,
+  'rare prime': 45,
+  'rare prism star': 45,
+  'rare star': 45,
+  'rare shining': 45,
+  'rare shiny': 45,
+  'shiny rare': 45,
+  'ultra rare': 110,
+  'rare ultra': 110,
+  'illustration rare': 110,
+  'shiny ultra rare': 130,
+  'hyper rare': 150,
+  'rare secret': 150,
+  'rare rainbow': 150,
+  'special illustration rare': 160,
 }
 
-const DEFAULT_WEIGHT = 5
+/** Unknown rarity ≈ a low rare — keep it in the running without dominating. */
+const DEFAULT_WEIGHT = 8
 
 function rarityWeight(rarity: string | null): number {
   if (!rarity) return DEFAULT_WEIGHT
   return RARITY_WEIGHTS[rarity.toLowerCase()] ?? DEFAULT_WEIGHT
+}
+
+/** Tier 3 — rarer than a base rare: the ex/gx/v family, double rare, ultra
+ *  rare, and the assorted special-set rarities. */
+const ULTRA_TIER = new Set([
+  'rare holo lv.x',
+  'rare holo ex',
+  'rare holo gx',
+  'rare holo v',
+  'rare holo vmax',
+  'rare holo vstar',
+  'double rare',
+  'rare break',
+  'radiant rare',
+  'amazing rare',
+  'rare ace',
+  'ace spec rare',
+  'rare prime',
+  'rare prism star',
+  'rare star',
+  'rare shining',
+  'rare shiny',
+  'shiny rare',
+  'ultra rare',
+  'rare ultra',
+])
+
+/** Tier 4 — the chase ceiling: illustration / secret rarities. */
+const SECRET_TIER = new Set([
+  'illustration rare',
+  'special illustration rare',
+  'hyper rare',
+  'rare secret',
+  'rare rainbow',
+  'shiny ultra rare',
+])
+
+/**
+ * Absolute rarity tier — collapses the many rarity strings into ordered
+ * bands so the floor can compare across them: `0` common · `1` uncommon ·
+ * `2` rare (incl. base holos / trainer gallery) · `3` ultra ({@link
+ * ULTRA_TIER}) · `4` secret / illustration ({@link SECRET_TIER}). Null /
+ * unrecognised rarities fall back to `2`, matching {@link DEFAULT_WEIGHT}'s
+ * "treat as a low rare" stance.
+ */
+function rarityTier(rarity: string | null): number {
+  if (!rarity) return 2
+  const r = rarity.toLowerCase()
+  if (r === 'common') return 0
+  if (r === 'uncommon') return 1
+  if (SECRET_TIER.has(r)) return 4
+  if (ULTRA_TIER.has(r)) return 3
+  // Base rares + trainer gallery + anything unrecognised → low rare.
+  return 2
+}
+
+/** The highest rarity tier present in a set — its "chase" tier. */
+function chaseTierForSet(cards: SetCard[]): number {
+  let max = 0
+  for (const c of cards) {
+    const t = rarityTier(c.rarity)
+    if (t > max) max = t
+  }
+  return max
+}
+
+/**
+ * Whether a card clears the rarity floor. `all` keeps everything, `rare`
+ * drops Common + Uncommon (absolute tier ≥ 2), and `chase` keeps only the
+ * set's top tier — passed in as `setMaxTier` so the band scales with each
+ * set's era (Base Set → Rare Holo, modern → Special Illustration Rare).
+ */
+function isEligible(
+  rarity: string | null,
+  floor: RarityFloor,
+  setMaxTier: number,
+): boolean {
+  if (floor === 'all') return true
+  if (floor === 'rare') return rarityTier(rarity) >= 2
+  return rarityTier(rarity) >= setMaxTier
+}
+
+/** In-place-free Fisher–Yates shuffle driven by the injected rng. */
+function shuffled<T>(items: T[], rng: () => number): T[] {
+  const out = items.slice()
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
 }
 
 /**
@@ -140,7 +237,7 @@ function weightedSample(weights: number[], rng: () => number): number {
 }
 
 export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
-  const { active, seenSet, rng = Math.random } = opts
+  const { active, seenSet, rarityFloor = 'chase', rng = Math.random } = opts
   // Keep the rng behind a ref so an inline `rng` prop (a fresh function each
   // render) doesn't churn the `sampleOne`/`fill` callback identities and
   // re-fire the top-up effect on every render. Refreshed in an effect rather
@@ -177,6 +274,8 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
   const fillingRef = useRef(false)
   // Tracks the seen-set size so we can detect a profile reset (shrink).
   const prevSeenSizeRef = useRef(seenSet.size)
+  // Tracks the active floor so we can rebuild the stack when it changes.
+  const prevFloorRef = useRef(rarityFloor)
 
   // Revalidate the baked catalog against the live `/api/v1/sets`
   // endpoint — silently fall back to the baked snapshot on failure.
@@ -197,22 +296,22 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     }
   }, [active])
 
-  // Sample one candidate, excluding any card id in `exclude` (already
-  // seen or already in the stack). Samples a random set, fetching its
-  // card list if not yet cached, then rarity-weighted-samples the pool
-  // of remaining cards. Recurses (bounded) past exhausted sets / fetch
-  // errors without blowing the stack.
+  // Sample one candidate, excluding any card id in `exclude` (already seen
+  // or already in the stack) and any card below `floor`. Walks the
+  // un-retired sets in a random order, fetching each on demand, and returns
+  // the first floor-eligible card it finds. Iterating each set at most once
+  // (rather than random-with-replacement) avoids coupon-collector
+  // false-exhaustion when chase-tier cards are sparse at the tail.
   const sampleOne = useCallback(
-    async (exclude: Set<string>): Promise<SampleResult> => {
+    async (exclude: Set<string>, floor: RarityFloor): Promise<SampleResult> => {
       if (allSets.length === 0) return { kind: 'exhausted' }
 
-      for (let attempt = 0; attempt < allSets.length + 4; attempt++) {
-        const available = allSets.filter(
-          (s) => !exhaustedSetsRef.current.has(s.id),
-        )
-        if (available.length === 0) return { kind: 'exhausted' }
+      const available = shuffled(
+        allSets.filter((s) => !exhaustedSetsRef.current.has(s.id)),
+        rngRef.current,
+      )
 
-        const set = available[Math.floor(rngRef.current() * available.length)]
+      for (const set of available) {
         let cards = cardsBySetRef.current[set.id]
 
         if (!cards) {
@@ -229,23 +328,31 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
 
         const remaining = cards.filter((c) => !exclude.has(c.id))
         if (remaining.length === 0) {
-          // Every card in this set is seen-or-dealt — retire it. A reset
-          // clears both `exhaustedSetsRef` and `dealtRef` together, so
-          // this stays consistent.
+          // Every card in this set is seen-or-dealt — retire it (floor-
+          // independent, so a floor change never permanently strands a
+          // set). A reset clears both `exhaustedSetsRef` and `dealtRef`.
           exhaustedSetsRef.current.add(set.id)
           continue
         }
 
-        const weights = remaining.map((c) => rarityWeight(c.rarity))
+        const setMaxTier = chaseTierForSet(cards)
+        const eligible = remaining.filter((c) =>
+          isEligible(c.rarity, floor, setMaxTier),
+        )
+        // Eligible pool empty but cards remain → the floor filtered this
+        // set out for now. Skip it without retiring; a lower floor (or
+        // seeing its chase cards) brings it back.
+        if (eligible.length === 0) continue
+
+        const weights = eligible.map((c) => rarityWeight(c.rarity))
         const idx = weightedSample(weights, rngRef.current)
         return {
           kind: 'card',
-          card: { card: remaining[idx], setId: set.id, setName: set.name },
+          card: { card: eligible[idx], setId: set.id, setName: set.name },
         }
       }
 
-      // Defensive fallback — shouldn't happen unless the catalog is
-      // wedged in a tight loop of always-empty sets.
+      // No floor-eligible card anywhere in the catalog.
       return { kind: 'exhausted' }
     },
     [allSets],
@@ -265,7 +372,7 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
         const exclude = new Set(seenSet)
         for (const id of dealtRef.current) exclude.add(id)
 
-        const res = await sampleOne(exclude)
+        const res = await sampleOne(exclude, rarityFloor)
 
         if (res.kind === 'error') {
           setState({
@@ -302,7 +409,7 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     } finally {
       fillingRef.current = false
     }
-  }, [allSets, seenSet, sampleOne])
+  }, [allSets, seenSet, rarityFloor, sampleOne])
 
   // Initial load + top-up: whenever the catalog changes or the queue has
   // drained to empty, fetch a fresh stack. `fill`'s own guards make the
@@ -327,6 +434,18 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     prevSeenSizeRef.current = seenSet.size
   }, [seenSet])
 
+  // Floor change → drop the prefetched stack (built under the old floor)
+  // so the top-up effect refills under the new one. Keep `dealtRef` /
+  // `exhaustedSetsRef` intact: already-shown cards still shouldn't repeat,
+  // and retired sets were walked floor-independently.
+  useEffect(() => {
+    if (rarityFloor !== prevFloorRef.current) {
+      prevFloorRef.current = rarityFloor
+      queueRef.current = []
+      setState({ queue: [], loading: true, exhausted: false, error: null })
+    }
+  }, [rarityFloor])
+
   const advance = useCallback(() => {
     queueRef.current = queueRef.current.slice(1)
     setState((s) => ({ ...s, queue: queueRef.current }))
@@ -343,6 +462,16 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
   }
 }
 
-// Test-only: surface the rarity table + weighted sampler so unit
-// tests can pin the heuristic without going through the React tree.
-export { RARITY_WEIGHTS, DEFAULT_WEIGHT, rarityWeight, weightedSample, STACK_SIZE }
+// Test-only: surface the rarity table + weighted sampler + tier/floor
+// helpers so unit tests can pin the heuristics without going through the
+// React tree.
+export {
+  RARITY_WEIGHTS,
+  DEFAULT_WEIGHT,
+  rarityWeight,
+  weightedSample,
+  rarityTier,
+  chaseTierForSet,
+  isEligible,
+  STACK_SIZE,
+}

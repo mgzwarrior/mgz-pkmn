@@ -263,6 +263,24 @@ describe('store: settings.showTimer', () => {
   })
 })
 
+describe('store: settings.swipeRarityFloor', () => {
+  afterEach(() => {
+    useAppStore.getState().resetSettings()
+  })
+
+  it("defaults to 'chase' and round-trips through updateSettings", () => {
+    expect(useAppStore.getState().settings.swipeRarityFloor).toBe('chase')
+    useAppStore.getState().updateSettings({ swipeRarityFloor: 'all' })
+    expect(useAppStore.getState().settings.swipeRarityFloor).toBe('all')
+  })
+
+  it('resetSettings restores it to chase', () => {
+    useAppStore.getState().updateSettings({ swipeRarityFloor: 'rare' })
+    useAppStore.getState().resetSettings()
+    expect(useAppStore.getState().settings.swipeRarityFloor).toBe('chase')
+  })
+})
+
 describe('store: lastSeenChangelogVersion', () => {
   beforeEach(() => useAppStore.setState({ lastSeenChangelogVersion: null }))
 

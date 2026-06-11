@@ -5,6 +5,9 @@ import {
   DEFAULT_WEIGHT,
   rarityWeight,
   weightedSample,
+  rarityTier,
+  chaseTierForSet,
+  isEligible,
   STACK_SIZE,
   useSwipeCandidates,
 } from './useSwipeCandidates'
@@ -193,5 +196,147 @@ describe('useSwipeCandidates — prefetched stack', () => {
     act(() => result.current.advance())
     await waitFor(() => expect(result.current.exhausted).toBe(true))
     expect(result.current.current).toBeNull()
+  })
+})
+
+describe('rarityTier', () => {
+  it('collapses rarities into ordered bands', () => {
+    expect(rarityTier('Common')).toBe(0)
+    expect(rarityTier('Uncommon')).toBe(1)
+    expect(rarityTier('Rare')).toBe(2)
+    expect(rarityTier('Rare Holo')).toBe(2)
+    expect(rarityTier('Trainer Gallery Rare Holo')).toBe(2)
+    expect(rarityTier('Rare Holo EX')).toBe(3)
+    expect(rarityTier('Rare Holo VMAX')).toBe(3)
+    expect(rarityTier('Double Rare')).toBe(3)
+    expect(rarityTier('Ultra Rare')).toBe(3)
+    expect(rarityTier('Illustration Rare')).toBe(4)
+    expect(rarityTier('Special Illustration Rare')).toBe(4)
+    expect(rarityTier('Hyper Rare')).toBe(4)
+  })
+
+  it('treats null / unknown rarity as a low rare (tier 2)', () => {
+    expect(rarityTier(null)).toBe(2)
+    expect(rarityTier('Brand New Rarity')).toBe(2)
+  })
+})
+
+describe('chaseTierForSet', () => {
+  it('returns the highest tier present in the set', () => {
+    // Modern set — ceiling is Special Illustration Rare.
+    expect(
+      chaseTierForSet([
+        card('a', 'Common'),
+        card('b', 'Rare'),
+        card('c', 'Special Illustration Rare'),
+      ]),
+    ).toBe(4)
+    // Base-era set — ceiling is only Rare Holo.
+    expect(
+      chaseTierForSet([card('a', 'Common'), card('b', 'Rare Holo')]),
+    ).toBe(2)
+  })
+})
+
+describe('isEligible', () => {
+  it('all keeps every rarity', () => {
+    expect(isEligible('Common', 'all', 4)).toBe(true)
+  })
+
+  it('rare drops Common + Uncommon (absolute tier ≥ 2)', () => {
+    expect(isEligible('Common', 'rare', 4)).toBe(false)
+    expect(isEligible('Uncommon', 'rare', 4)).toBe(false)
+    expect(isEligible('Rare', 'rare', 4)).toBe(true)
+    expect(isEligible('Rare Holo', 'rare', 4)).toBe(true)
+  })
+
+  it('chase keeps only the set top tier — age-scaled', () => {
+    // Modern set (max tier 4) keeps only secret/illustration cards.
+    expect(isEligible('Rare Holo', 'chase', 4)).toBe(false)
+    expect(isEligible('Special Illustration Rare', 'chase', 4)).toBe(true)
+    // Base-era set (max tier 2) keeps its Rare Holos.
+    expect(isEligible('Rare Holo', 'chase', 2)).toBe(true)
+    expect(isEligible('Common', 'chase', 2)).toBe(false)
+  })
+})
+
+describe('useSwipeCandidates — rarity floor', () => {
+  beforeEach(() => {
+    mockFetchSets.mockReset()
+    mockFetchSetCards.mockReset()
+    mockFetchSets.mockResolvedValue(ONE_SET)
+  })
+
+  it('chase floor surfaces only the set top tier', async () => {
+    mockFetchSetCards.mockResolvedValue([
+      card('c1', 'Common'),
+      card('c2', 'Common'),
+      card('chase', 'Special Illustration Rare'),
+    ])
+    const { result } = renderHook(() =>
+      useSwipeCandidates({
+        active: true,
+        seenSet: new Set(),
+        rarityFloor: 'chase',
+        rng: () => 0,
+      }),
+    )
+
+    await waitFor(() => expect(result.current.current).not.toBeNull())
+    const ids = [
+      result.current.current!.card.id,
+      ...result.current.upcoming.map((c) => c.card.id),
+    ]
+    // Only the SIR clears the chase floor; the Commons are excluded.
+    expect(ids).toEqual(['chase'])
+  })
+
+  it('rare floor drops Common + Uncommon', async () => {
+    mockFetchSetCards.mockResolvedValue([
+      card('c', 'Common'),
+      card('u', 'Uncommon'),
+      card('r', 'Rare'),
+      card('h', 'Rare Holo'),
+    ])
+    const { result } = renderHook(() =>
+      useSwipeCandidates({
+        active: true,
+        seenSet: new Set(),
+        rarityFloor: 'rare',
+        rng: () => 0,
+      }),
+    )
+
+    await waitFor(() =>
+      expect([
+        result.current.current?.card.id,
+        ...result.current.upcoming.map((c) => c.card.id),
+      ]).toEqual(['r', 'h']),
+    )
+  })
+
+  it('all floor keeps Commons in the pool', async () => {
+    mockFetchSetCards.mockResolvedValue([
+      card('c1', 'Common'),
+      card('c2', 'Common'),
+      card('r', 'Rare'),
+    ])
+    const { result } = renderHook(() =>
+      useSwipeCandidates({
+        active: true,
+        seenSet: new Set(),
+        rarityFloor: 'all',
+        rng: () => 0,
+      }),
+    )
+
+    await waitFor(() =>
+      expect(result.current.upcoming.length).toBe(STACK_SIZE - 1),
+    )
+    const ids = [
+      result.current.current!.card.id,
+      ...result.current.upcoming.map((c) => c.card.id),
+    ]
+    expect(ids).toContain('c1')
   })
 })
