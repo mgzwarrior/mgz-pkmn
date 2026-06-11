@@ -12,6 +12,7 @@ import {
   fetchWishlists,
   type WishlistSummary,
 } from '../api/client'
+import { invalidateOwnership } from './useCardOwnership'
 
 interface State {
   wishlists: WishlistSummary[]
@@ -84,6 +85,9 @@ export function useWishlists() {
       opts?: { notes?: string; maxPrice?: number | null },
     ) => {
       await addCardToWishlist(wishlistId, card, opts)
+      // Refresh the cross-surface ownership badge (#576) — this card is now
+      // chased.
+      invalidateOwnership()
       set({
         wishlists: state.wishlists.map((w) =>
           w.id === wishlistId

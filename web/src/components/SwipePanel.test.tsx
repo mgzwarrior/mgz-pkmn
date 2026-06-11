@@ -38,6 +38,8 @@ vi.mock('../api/client', () => ({
   fetchSwipeExcluded: vi.fn(),
   recordSwipeSeen: vi.fn(),
   resetSwipeSeen: vi.fn(),
+  // Cross-collection ownership badge (#576): default to "nothing owned".
+  fetchCardOwnership: vi.fn(async () => ({})),
 }))
 
 const mockFetchSets = vi.mocked(fetchSets)

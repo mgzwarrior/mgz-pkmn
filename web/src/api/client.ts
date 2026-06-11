@@ -702,3 +702,42 @@ export async function resetSwipeSeen(setId?: string): Promise<void> {
     throw new Error(`reset swipe seen failed: ${res.status}`)
   }
 }
+
+// ---------------------------------------------------------------------------
+// card ownership (cross-collection badges, #576)
+// ---------------------------------------------------------------------------
+
+export interface CollectionOccupancy {
+  id: number
+  name: string
+  quantity: number
+}
+
+export interface WishlistOccupancy {
+  id: number
+  name: string
+}
+
+export interface CardOwnership {
+  collections: CollectionOccupancy[]
+  wishlists: WishlistOccupancy[]
+}
+
+/**
+ * Per-card occupancy across the user's collections + wishlists, for a batch
+ * of `(set_id, number)` identities. The response is a sparse map keyed by
+ * `${set_id}::${number}` — only cards the user owns or is chasing appear, so
+ * the SPA renders a badge exactly when the key is present.
+ */
+export async function fetchCardOwnership(
+  cards: { set_id: string; number: string }[],
+): Promise<Record<string, CardOwnership>> {
+  const res = await fetch(`${BASE}/cards/ownership`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cards }),
+  })
+  if (!res.ok) throw new Error(`card ownership failed: ${res.status}`)
+  const data = await res.json()
+  return data.ownership as Record<string, CardOwnership>
+}

@@ -14,7 +14,10 @@ import { useAuth } from '../hooks/useAuth'
 import type { PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
 import { browseCardToPayload, browseCardToRow, type BrowseSetContext } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
+import { useCardOwnership } from './useCardOwnership'
+import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
+import type { CardOwnership } from '../api/client'
 import type {
   BrowseController,
   BrowseViewMode,
@@ -341,6 +344,15 @@ function SetDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cards, setInfo.id],
   )
+  // Cross-collection ownership badges (#576), signed-in only.
+  const ownershipIds = useMemo(
+    () =>
+      showSavedActions
+        ? cards.map((c) => ({ setId: setInfo.id, number: c.number }))
+        : [],
+    [showSavedActions, cards, setInfo.id],
+  )
+  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
@@ -421,6 +433,7 @@ function SetDetailView({
                 card={c}
                 setCtx={setCtx}
                 showSavedActions={showSavedActions}
+                ownership={lookupOwnership(setInfo.id, c.number)}
                 onOpenDetail={() => setDetailIndex(i)}
               />
             ))}
@@ -553,6 +566,16 @@ function PokedexDetailView({
     () => (cards ?? []).map((c) => browseCardToRow(c)),
     [cards],
   )
+  // Cross-collection ownership badges (#576), signed-in only. PokedexCard
+  // carries its own set id per printing.
+  const ownershipIds = useMemo(
+    () =>
+      showSavedActions
+        ? (cards ?? []).map((c) => ({ setId: c.setId, number: c.number }))
+        : [],
+    [showSavedActions, cards],
+  )
+  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-2 text-xs text-coconut-400 dark:text-sand-300">
@@ -594,6 +617,7 @@ function PokedexDetailView({
                 key={c.id}
                 card={c}
                 showSavedActions={showSavedActions}
+                ownership={lookupOwnership(c.setId, c.number)}
                 onOpenDetail={() => setDetailIndex(i)}
               />
             ))}
@@ -610,11 +634,13 @@ function CardTile({
   card,
   setCtx,
   showSavedActions,
+  ownership,
   onOpenDetail,
 }: {
   card: SetCard
   setCtx: BrowseSetContext
   showSavedActions: boolean
+  ownership: CardOwnership | null | undefined
   onOpenDetail: () => void
 }) {
   const [thumbFailed, setThumbFailed] = useState(false)
@@ -656,6 +682,7 @@ function CardTile({
           )}
         </div>
       </button>
+      <OwnershipBadge ownership={ownership} className="mt-1.5 justify-center" />
       <SaveCardActions
         show={showSavedActions}
         card={browseCardToPayload(card, setCtx)}
@@ -668,10 +695,12 @@ function CardTile({
 function PokedexCardTile({
   card,
   showSavedActions,
+  ownership,
   onOpenDetail,
 }: {
   card: PokedexCard
   showSavedActions: boolean
+  ownership: CardOwnership | null | undefined
   onOpenDetail: () => void
 }) {
   const [thumbFailed, setThumbFailed] = useState(false)
@@ -717,6 +746,7 @@ function PokedexCardTile({
           )}
         </div>
       </button>
+      <OwnershipBadge ownership={ownership} className="mt-1.5 justify-center" />
       <SaveCardActions
         show={showSavedActions}
         card={browseCardToPayload(card)}

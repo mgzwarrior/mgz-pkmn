@@ -53,6 +53,7 @@ from .routes import (
     export,
     lookup,
     overrides,
+    ownership,
     parse,
     pokedex,
     runs,
@@ -542,6 +543,7 @@ app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
 app.include_router(collections.router, prefix="/api/v1", tags=["collections"])
 app.include_router(wishlists.router, prefix="/api/v1", tags=["wishlists"])
 app.include_router(swipe.router, prefix="/api/v1", tags=["swipe"])
+app.include_router(ownership.router, prefix="/api/v1", tags=["ownership"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
 app.include_router(ebay.router, prefix="/api/v1", tags=["ebay"])
 app.include_router(auth_routes.router, prefix="/api/v1", tags=["auth"])

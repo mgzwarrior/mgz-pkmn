@@ -32,6 +32,8 @@ import { useAppStore } from '../store'
 import type { RarityFloor, Row, SetCard } from '../types'
 import { browseCardToPayload, browseCardToRow } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
+import { useCardOwnership } from './useCardOwnership'
+import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
 import {
   useSwipeProfile,
@@ -79,6 +81,20 @@ export function SwipePanel({ active }: SwipePanelProps) {
     })
   const { user } = useAuth()
   const showSavedActions = user !== null
+
+  // Cross-collection ownership badge (#576). Prefetch the current card plus
+  // the peeks beneath it so the badge is ready as each rises to the top.
+  // Only signed-in users have a library to check, matching the save buttons.
+  const ownershipIds = useMemo(
+    () =>
+      showSavedActions
+        ? [current, ...upcoming]
+            .filter((c): c is NonNullable<typeof c> => c != null)
+            .map((c) => ({ setId: c.setId, number: c.card.number }))
+        : [],
+    [showSavedActions, current, upcoming],
+  )
+  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
 
   // Reset both the local taste profile (session-local seen + saved) and the
   // server-persisted deck memory, so "reset" surfaces a genuinely fresh deck.
@@ -298,6 +314,13 @@ export function SwipePanel({ active }: SwipePanelProps) {
             onSave={() => commit('save')}
             onLove={() => commit('love')}
             disabled={!!outgoing}
+          />
+        )}
+
+        {current && showSavedActions && (
+          <OwnershipBadge
+            ownership={lookupOwnership(current.setId, current.card.number)}
+            className="justify-center"
           />
         )}
 

@@ -12,6 +12,7 @@ import {
   fetchCollections,
   type CollectionSummary,
 } from '../api/client'
+import { invalidateOwnership } from './useCardOwnership'
 
 interface State {
   collections: CollectionSummary[]
@@ -85,6 +86,9 @@ export function useCollections() {
       notes?: string,
     ) => {
       await addCardToCollection(collectionId, card, notes)
+      // The card's ownership badge (#576) is now stale across every
+      // surface — drop the shared cache so it re-fetches.
+      invalidateOwnership()
       set({
         collections: state.collections.map((c) =>
           c.id === collectionId
