@@ -1,6 +1,6 @@
 # ADR 0020: eBay as a first-class pricing source
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-03
 - **Tags:** sources, pricing, auth, epic-ebay
 
@@ -16,10 +16,12 @@ pokemontcg.io path, but none of these surfaces give us **sold-listings
 distribution**, which is the single most useful signal for setting a
 realistic asking price at a card show.
 
-eBay's Developer API exposes both `findCompletedItems` (sold) and
-`findItemsAdvanced` (active) endpoints, with OAuth client credentials
-and rate limits that are workable for our scale (one listing-set
-fetched per resolved card, cached aggressively).
+eBay's Developer API exposes active listings via the **Browse API** and
+sold listings via the **Marketplace Insights API** (the legacy
+`findCompletedItems` / `findItemsAdvanced` Finding API endpoints were
+retired in early 2025), both reachable with OAuth client credentials and
+rate limits that are workable for our scale (one listing-set fetched per
+resolved card, cached aggressively).
 
 The `epic:ebay` umbrella tracks the implementation; this ADR records
 the source-layering decision and the contract.
