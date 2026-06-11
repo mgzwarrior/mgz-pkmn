@@ -39,6 +39,10 @@ const DEFAULT_SETTINGS: Settings = {
   // yet (epic #416), so the column would be empty for now. The `merge`
   // below backfills this for users with persisted pre-#425 settings.
   showEbay: false,
+  // Swipe mode opens on the chase tier — only each set's top rarity — so a
+  // session feels like flipping chase cards, not walking bulk (#580). The
+  // `merge` below backfills this for users with older persisted settings.
+  swipeRarityFloor: 'chase',
 }
 
 interface AppState {

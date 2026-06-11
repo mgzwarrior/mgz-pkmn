@@ -141,6 +141,14 @@ export type SortMode =
 /** Export formats accepted by POST /api/v1/export. */
 export type ExportFormat = 'xlsx' | 'pdf' | 'condensed-pdf' | 'checklist'
 
+/**
+ * Swipe-mode rarity floor — how aggressively the candidate pool is trimmed
+ * toward chase cards. `all` keeps every rarity, `rare` drops Common +
+ * Uncommon, and `chase` keeps only each set's top rarity tier (age-scaled:
+ * Base Set → Rare Holo, modern sets → Special Illustration Rare / Hyper).
+ */
+export type RarityFloor = 'all' | 'rare' | 'chase'
+
 /** Application-level settings stored in Zustand and sent with each request. */
 export interface Settings {
   apiKey: string
@@ -152,6 +160,8 @@ export interface Settings {
   showTimer: boolean
   /** Show the eBay comps column (median sold + sparkline) in the results table. */
   showEbay: boolean
+  /** Swipe-mode rarity floor (swipe-header control; not in the settings drawer). */
+  swipeRarityFloor: RarityFloor
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */
