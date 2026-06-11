@@ -4,6 +4,8 @@ import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
+import { fetchCardOwnership } from '../api/client'
+import { _resetCardOwnershipForTests } from './useCardOwnership'
 import type { Row } from '../types'
 
 const { fetchMeMock } = vi.hoisted(() => ({ fetchMeMock: vi.fn() }))
@@ -16,6 +18,9 @@ vi.mock('../api/client', () => ({
   // signed-out test below overrides via mockResolvedValueOnce.
   fetchMe: fetchMeMock,
   logout: vi.fn(),
+  // The matched rows trigger a cross-collection ownership lookup (#576);
+  // default to "nothing owned" so no badge renders in existing tests.
+  fetchCardOwnership: vi.fn(async () => ({})),
 }))
 
 beforeEach(() => {
@@ -36,6 +41,9 @@ beforeEach(() => {
     viewState: { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters } },
     currentRunId: null,
   })
+  _resetCardOwnershipForTests()
+  vi.mocked(fetchCardOwnership).mockReset()
+  vi.mocked(fetchCardOwnership).mockResolvedValue({})
 })
 
 function makeRow(over: Partial<Row> = {}): Row {
@@ -82,6 +90,37 @@ describe('ResultsTable', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     // The 1/N counter confirms we landed on the right row.
     expect(screen.getByText('1 / 1')).toBeInTheDocument()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('renders the cross-collection ownership badge on a matched row (#576)', async () => {
+    vi.mocked(fetchCardOwnership).mockResolvedValue({
+      'base1::4': {
+        collections: [{ id: 1, name: 'Show Binder', quantity: 2 }],
+        wishlists: [],
+      },
+    })
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { id: 'base1', name: 'Base Set' },
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    // The lookup is keyed on (set_id, number); the badge appears once it resolves.
+    expect(await screen.findByText('owned ×2')).toBeInTheDocument()
+    expect(vi.mocked(fetchCardOwnership)).toHaveBeenCalledWith([
+      { set_id: 'base1', number: '4' },
+    ])
     useAppStore.setState({ rows: [] })
   })
 

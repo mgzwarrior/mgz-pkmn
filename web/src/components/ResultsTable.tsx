@@ -21,6 +21,9 @@ import { formatComp, formatMoney } from '../utils/format'
 import { AddToCollectionButton } from './AddToCollectionButton'
 import { AddToWishlistButton } from './AddToWishlistButton'
 import { CardDetailModal } from './CardDetailModal'
+import { useCardOwnership } from './useCardOwnership'
+import { OwnershipBadge } from './OwnershipBadge'
+import type { CardOwnership } from '../api/client'
 import { EbaySparkline } from './EbaySparkline'
 import { soldPriceSeries } from './ebayComps'
 import { SaveSearchButton } from './SaveSearchButton'
@@ -31,6 +34,28 @@ import {
   type SortColumn,
   type SortDir,
 } from './resultsTableFilter'
+
+/**
+ * Pull the promoted `(set_id, number)` identity off a matched row for the
+ * ownership lookup (#576). Returns null for unmatched rows or rows missing
+ * either half of the identity.
+ */
+function rowIdentity(row: Row): { setId: string; number: string } | null {
+  if (!row.matched || !row.card) return null
+  const setId = (row.card.set as { id?: string } | undefined)?.id
+  const number = row.card.number as string | undefined
+  if (!setId || !number) return null
+  return { setId, number }
+}
+
+/** Resolve a row's ownership through the shared lookup, or undefined. */
+function ownershipForRow(
+  row: Row,
+  lookup: (setId: string, number: string) => CardOwnership | null | undefined,
+): CardOwnership | null | undefined {
+  const id = rowIdentity(row)
+  return id ? lookup(id.setId, id.number) : undefined
+}
 
 interface Props {
   onRerunLine?: (line: string) => void
@@ -91,6 +116,19 @@ export function ResultsTable({ onRerunLine }: Props) {
     rows.forEach((r, i) => map.set(r, i))
     return map
   }, [rows])
+
+  // Cross-collection ownership badges (#576). Batch the matched rows'
+  // identities into one lookup; signed-out users get no library, so skip it.
+  const ownershipIds = useMemo(
+    () =>
+      showSavedActions
+        ? displayedRows
+            .map(rowIdentity)
+            .filter((id): id is { setId: string; number: string } => id !== null)
+        : [],
+    [showSavedActions, displayedRows],
+  )
+  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
 
   if (rows.length === 0 && !isRunning) {
     return (
@@ -318,6 +356,7 @@ export function ResultsTable({ onRerunLine }: Props) {
                 showImage={!settings.noImages}
                 showSavedActions={showSavedActions}
                 showEbay={settings.showEbay}
+                ownership={ownershipForRow(row, lookupOwnership)}
                 onRerunLine={onRerunLine}
                 onOpenDetail={() => setDetailIndex(displayedIdx)}
               />
@@ -428,6 +467,7 @@ function ResultRow({
   showImage,
   showSavedActions,
   showEbay,
+  ownership,
   onRerunLine,
   onOpenDetail,
 }: {
@@ -435,6 +475,7 @@ function ResultRow({
   showImage: boolean
   showSavedActions: boolean
   showEbay: boolean
+  ownership: CardOwnership | null | undefined
   onRerunLine?: (line: string) => void
   onOpenDetail?: () => void
 }) {
@@ -544,6 +585,7 @@ function ResultRow({
             <div>
               <div className="font-medium text-coconut-700 dark:text-sand-50 truncate">{card?.name as string}</div>
               <div className="text-xs text-coconut-400 dark:text-sand-300 truncate">{row.query.raw}</div>
+              <OwnershipBadge ownership={ownership} className="mt-0.5" />
             </div>
           ) : (
             <div>
