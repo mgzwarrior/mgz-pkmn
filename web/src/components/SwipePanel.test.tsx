@@ -9,6 +9,9 @@ import {
   fetchWishlists,
   fetchMe,
   fetchCollections,
+  fetchSwipeExcluded,
+  recordSwipeSeen,
+  resetSwipeSeen,
 } from '../api/client'
 import { _resetSwipeProfileForTests } from './useSwipeProfile'
 import { _resetWishlistsCacheForTests } from './useWishlists'
@@ -30,6 +33,11 @@ vi.mock('../api/client', () => ({
   fetchCollections: vi.fn(),
   createCollection: vi.fn(),
   addCardToCollection: vi.fn(),
+  // Library-aware swipe exclusion (#581): the panel loads the persisted
+  // exclusion set on mount and records each swiped card.
+  fetchSwipeExcluded: vi.fn(),
+  recordSwipeSeen: vi.fn(),
+  resetSwipeSeen: vi.fn(),
 }))
 
 const mockFetchSets = vi.mocked(fetchSets)
@@ -39,6 +47,9 @@ const mockAddCardToWishlist = vi.mocked(addCardToWishlist)
 const mockFetchWishlists = vi.mocked(fetchWishlists)
 const mockFetchMe = vi.mocked(fetchMe)
 const mockFetchCollections = vi.mocked(fetchCollections)
+const mockFetchSwipeExcluded = vi.mocked(fetchSwipeExcluded)
+const mockRecordSwipeSeen = vi.mocked(recordSwipeSeen)
+const mockResetSwipeSeen = vi.mocked(resetSwipeSeen)
 
 function card(overrides: Partial<SetCard> = {}): SetCard {
   return {
@@ -82,11 +93,20 @@ describe('SwipePanel', () => {
     mockFetchSets.mockResolvedValue([
       { id: 'sv1', name: 'Scarlet & Violet', series: 'SV', total: 2, releaseDate: '2023/03/31' },
     ])
+    // Distinct collector numbers per card: the library-aware exclusion
+    // (#581) keys on (set_id, number), so two cards sharing a number would
+    // be treated as the same identity. Real set data is unique here.
     mockFetchSetCards.mockResolvedValue([
-      card({ id: 'sv1-1', name: 'Pikachu', market: 5 }),
-      card({ id: 'sv1-2', name: 'Charizard', market: 50 }),
+      card({ id: 'sv1-1', name: 'Pikachu', number: '1', market: 5 }),
+      card({ id: 'sv1-2', name: 'Charizard', number: '2', market: 50 }),
     ])
     mockFetchWishlists.mockResolvedValue([])
+    mockFetchSwipeExcluded.mockReset()
+    mockFetchSwipeExcluded.mockResolvedValue([])
+    mockRecordSwipeSeen.mockReset()
+    mockRecordSwipeSeen.mockResolvedValue(undefined)
+    mockResetSwipeSeen.mockReset()
+    mockResetSwipeSeen.mockResolvedValue(undefined)
     // Pin the rarity-weighted sampler so candidate order is deterministic.
     // `Math.random() === 0` picks the first available set and the first
     // unseen card; after a swipe, the same source picks the remaining card.
@@ -95,6 +115,15 @@ describe('SwipePanel', () => {
 
   afterEach(() => {
     randomSpy.mockRestore()
+    // The store persists across tests; reset the opt-in library toggles so
+    // a test that flips them doesn't leak into the next (#581).
+    useAppStore.setState((s) => ({
+      settings: {
+        ...s.settings,
+        swipeExcludeOwned: false,
+        swipeExcludeChasing: false,
+      },
+    }))
   })
 
   it('renders the current candidate card', async () => {
@@ -402,6 +431,54 @@ describe('SwipePanel', () => {
     expect(
       screen.queryByRole('button', { name: /save to wishlist/i }),
     ).not.toBeInTheDocument()
+  })
+
+  it('records each swiped card as seen (#581)', async () => {
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    // The set id derives from the (unmocked) baked catalog the candidate was
+    // sampled from; the card number + decision are the deterministic parts.
+    await waitFor(() =>
+      expect(mockRecordSwipeSeen).toHaveBeenCalledWith(
+        expect.any(String),
+        '1',
+        'save',
+      ),
+    )
+  })
+
+  it('shows the library-aware exclusion toggles only when signed in (#581)', async () => {
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+    // Signed out (the beforeEach default) → no library toggles.
+    expect(
+      screen.queryByRole('checkbox', { name: 'owned' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('toggling "hide owned" updates settings and refetches exclusions (#581)', async () => {
+    mockFetchMe.mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const owned = await screen.findByRole('checkbox', { name: 'owned' })
+    fireEvent.click(owned)
+
+    await waitFor(() =>
+      expect(useAppStore.getState().settings.swipeExcludeOwned).toBe(true),
+    )
+    await waitFor(() =>
+      expect(mockFetchSwipeExcluded).toHaveBeenCalledWith({
+        owned: true,
+        chasing: false,
+      }),
+    )
   })
 
   it('pressing Enter on the focused card opens the detail modal', async () => {

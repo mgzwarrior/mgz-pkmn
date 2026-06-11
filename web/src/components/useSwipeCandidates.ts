@@ -35,6 +35,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchSetCards, fetchSets } from '../api/client'
 import { BAKED_SETS } from '../data/sets'
 import type { RarityFloor, SetCard, SetInfo } from '../types'
+import { exclusionKey } from './useSwipeExclusions'
 
 interface Candidate {
   card: SetCard
@@ -65,6 +66,15 @@ interface UseSwipeCandidatesOpts {
   active: boolean
   /** Card IDs the user has already seen — filtered out of the pool. */
   seenSet: Set<string>
+  /**
+   * Library-aware exclusion keys (#581), keyed by `${set_id}::${number}`
+   * (see {@link exclusionKey}). The persisted no-repeat set plus the
+   * opt-in owned / chasing cards. Unlike `seenSet` (card-id keyed, the
+   * SPA's session-local memory), these come from the server and survive
+   * across sessions. Excluded identities are dropped from new samples and
+   * pruned from the prefetched stack. Defaults to empty.
+   */
+  excludedKeys?: Set<string>
   /**
    * Rarity floor — trims the candidate pool toward chase cards. Defaults
    * to `chase` (each set's top tier). See {@link isEligible}.
@@ -236,8 +246,24 @@ function weightedSample(weights: number[], rng: () => number): number {
   return weights.length - 1
 }
 
+const EMPTY_KEYS: Set<string> = new Set()
+
 export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
-  const { active, seenSet, rarityFloor = 'chase', rng = Math.random } = opts
+  const {
+    active,
+    seenSet,
+    excludedKeys = EMPTY_KEYS,
+    rarityFloor = 'chase',
+    rng = Math.random,
+  } = opts
+  // Read the live exclusion set at sample time (like `rngRef`) so an
+  // incremental `recordSeen` is honored on the next pick without churning
+  // the `sampleOne` / `fill` callback identities. Refreshed in an effect so
+  // we never write the ref mid-render.
+  const excludedKeysRef = useRef(excludedKeys)
+  useEffect(() => {
+    excludedKeysRef.current = excludedKeys
+  })
   // Keep the rng behind a ref so an inline `rng` prop (a fresh function each
   // render) doesn't churn the `sampleOne`/`fill` callback identities and
   // re-fire the top-up effect on every render. Refreshed in an effect rather
@@ -336,12 +362,16 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
         }
 
         const setMaxTier = chaseTierForSet(cards)
-        const eligible = remaining.filter((c) =>
-          isEligible(c.rarity, floor, setMaxTier),
+        const excluded = excludedKeysRef.current
+        const eligible = remaining.filter(
+          (c) =>
+            isEligible(c.rarity, floor, setMaxTier) &&
+            !excluded.has(exclusionKey(set.id, c.number)),
         )
-        // Eligible pool empty but cards remain → the floor filtered this
-        // set out for now. Skip it without retiring; a lower floor (or
-        // seeing its chase cards) brings it back.
+        // Eligible pool empty but cards remain → the floor or the library
+        // filter dropped this set out for now. Skip it without retiring
+        // (retirement keys off `seen`/`dealt` only, so toggling a library
+        // exclusion off — or a lower floor — brings the set back).
         if (eligible.length === 0) continue
 
         const weights = eligible.map((c) => rarityWeight(c.rarity))
@@ -445,6 +475,22 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
       setState({ queue: [], loading: true, exhausted: false, error: null })
     }
   }, [rarityFloor])
+
+  // Exclusion set changed (a library toggle flipped, or the persisted seen
+  // set loaded in) → prune any prefetched card that's now excluded and top
+  // the stack back up. Gentler than a full rebuild: no loader flash, and an
+  // incremental `recordSeen` (the common case) prunes nothing because the
+  // just-seen card has already advanced off the queue.
+  useEffect(() => {
+    const pruned = queueRef.current.filter(
+      (c) => !excludedKeys.has(exclusionKey(c.setId, c.card.number)),
+    )
+    if (pruned.length !== queueRef.current.length) {
+      queueRef.current = pruned
+      setState((s) => ({ ...s, queue: pruned }))
+      void fill()
+    }
+  }, [excludedKeys, fill])
 
   const advance = useCallback(() => {
     queueRef.current = queueRef.current.slice(1)

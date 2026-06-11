@@ -358,6 +358,56 @@ class WishlistItem(Base):
     wishlist: Mapped[Wishlist] = relationship(back_populates="items")
 
 
+#: Allowed values for ``SwipeSeen.swipe_dir`` — the decision that retired
+#: the card from the deck. Mirror the SPA's swipe vocabulary (left / right /
+#: up); nullable so a backfill or a future "mark seen without a decision"
+#: path can omit it.
+SWIPE_DIR_PASS = "pass"
+SWIPE_DIR_SAVE = "save"
+SWIPE_DIR_LOVE = "love"
+
+
+class SwipeSeen(Base):
+    """One row per card a user has been shown in swipe mode (#581).
+
+    Promotes the swipe deck's "already seen" memory from the SPA's
+    session-local ``localStorage`` set to durable per-user state, so the
+    same chase card never resurfaces across sessions until the user resets
+    the deck. Keyed on the promoted ``(card_set_id, card_number)`` identity
+    — the same pair indexed on ``collection_items`` / ``wishlist_items`` —
+    so the library-aware exclusion query unions cleanly across all three
+    tables.
+
+    Append-only and idempotent: the unique constraint on
+    ``(user_id, card_set_id, card_number)`` makes re-seeing a card a no-op
+    rather than a duplicate row. Reset clears the user's rows."""
+
+    __tablename__ = "swipe_seen"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "card_set_id",
+            "card_number",
+            name="uq_swipe_seen_user_card",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        default=DEFAULT_USER_ID,
+        nullable=False,
+        index=True,
+    )
+    card_set_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    card_number: Mapped[str] = mapped_column(String(16), nullable=False)
+    seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    #: One of the ``SWIPE_DIR_*`` constants, or null when unknown.
+    swipe_dir: Mapped[str | None] = mapped_column(String(8), nullable=True)
+
+
 class RunRow(Base):
     __tablename__ = "run_rows"
 

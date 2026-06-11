@@ -181,6 +181,51 @@ describe('useSwipeCandidates — prefetched stack', () => {
     expect(ids).toEqual(['b', 'c', 'd'])
   })
 
+  it('drops cards matching an exclusion key (set_id, number) from the pool', async () => {
+    // `card(id)` sets number === id, so the key for card 'a' in set sv1 is
+    // 'sv1::a' — the shape the library-aware exclusion (#581) produces.
+    const seenSet = new Set<string>()
+    const excludedKeys = new Set<string>(['sv1::a', 'sv1::c'])
+    const { result } = renderHook(() =>
+      useSwipeCandidates({ active: true, seenSet, excludedKeys, rng: () => 0 }),
+    )
+
+    await waitFor(() => expect(result.current.current).not.toBeNull())
+    const ids = [
+      result.current.current!.card.id,
+      ...result.current.upcoming.map((c) => c.card.id),
+    ]
+    expect(ids).not.toContain('a')
+    expect(ids).not.toContain('c')
+    expect(ids).toEqual(['b', 'd'])
+  })
+
+  it('prunes a now-excluded card from the prefetched stack and tops up', async () => {
+    const seenSet = new Set<string>()
+    const { result, rerender } = renderHook(
+      ({ excludedKeys }) =>
+        useSwipeCandidates({ active: true, seenSet, excludedKeys, rng: () => 0 }),
+      { initialProps: { excludedKeys: new Set<string>() } },
+    )
+
+    await waitFor(() =>
+      expect(result.current.upcoming.length).toBe(STACK_SIZE - 1),
+    )
+    expect(result.current.current!.card.id).toBe('a')
+
+    // The top card becomes excluded (e.g. the user just turned on "hide
+    // owned"); it's pruned and 'b' rises to the top, backfilled by 'd'.
+    // Wait for the async top-up to settle before asserting the full stack.
+    rerender({ excludedKeys: new Set<string>(['sv1::a']) })
+    await waitFor(() => {
+      const ids = [
+        result.current.current?.card.id,
+        ...result.current.upcoming.map((c) => c.card.id),
+      ]
+      expect(ids).toEqual(['b', 'c', 'd'])
+    })
+  })
+
   it('surfaces the exhausted state once the catalog is walked', async () => {
     mockFetchSetCards.mockReset()
     mockFetchSetCards.mockResolvedValue([card('a'), card('b')])
