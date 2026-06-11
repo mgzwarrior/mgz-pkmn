@@ -37,7 +37,7 @@ import {
   type SavedCard,
   type SwipeAction,
 } from './useSwipeProfile'
-import { useSwipeCandidates } from './useSwipeCandidates'
+import { STACK_SIZE, useSwipeCandidates } from './useSwipeCandidates'
 import { useWishlists } from './useWishlists'
 
 /** Horizontal-drag threshold (px) that commits a pass/save decision. */
@@ -63,10 +63,11 @@ interface SwipePanelProps {
 
 export function SwipePanel({ active }: SwipePanelProps) {
   const { profile, seenSet, act, clearSaved, reset } = useSwipeProfile()
-  const { current, loading, exhausted, error, advance } = useSwipeCandidates({
-    active,
-    seenSet,
-  })
+  const { current, upcoming, loading, exhausted, error, advance } =
+    useSwipeCandidates({
+      active,
+      seenSet,
+    })
   const { user } = useAuth()
   const showSavedActions = user !== null
 
@@ -76,7 +77,6 @@ export function SwipePanel({ active }: SwipePanelProps) {
   // `Row[]`, so a one-element array of the current card is enough — there's
   // no queue to step through here.
   const [detailOpen, setDetailOpen] = useState(false)
-  const cardRef = useRef<HTMLDivElement | null>(null)
   // Distinguishes a tap (opens the detail modal) from a drag (a swipe
   // decision). Set true once a pointer moves past the click slop so the
   // trailing click event after a drag doesn't pop the modal open.
@@ -211,32 +211,48 @@ export function SwipePanel({ active }: SwipePanelProps) {
         )}
 
         {current && (
-          <div
-            ref={cardRef}
-            data-testid="swipe-card"
-            role="button"
-            tabIndex={0}
-            aria-label={`View details for ${current.card.name}`}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerEnd}
-            onPointerCancel={onPointerEnd}
-            onClick={onCardClick}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                setDetailOpen(true)
-              }
-            }}
-            style={cardTransformStyle(drag, outgoing)}
-            className="relative w-full max-w-xs cursor-pointer touch-none select-none rounded-xl border border-sand-300 bg-sand-50 p-3 shadow-lg shadow-coconut-700/10 dark:border-husk-50 dark:bg-husk-400 dark:shadow-coconut-900/40"
-          >
-            <CardArtwork card={current.card} />
-            <CardMeta
-              card={current.card}
-              setName={current.setName}
-            />
-            <DragHint drag={drag} outgoing={outgoing} />
+          // The whole stack renders as one keyed list so the next card
+          // keeps its DOM node as it's promoted from peek to top — it
+          // *rises* into place rather than the old node being reused and
+          // sliding back in from off-screen. `pb-4` reserves room for the
+          // deepest peek, which is translated below the top card.
+          <div className="w-full max-w-xs pb-4">
+            <div className="relative">
+              {[current, ...upcoming].slice(0, STACK_SIZE).map((cand, depth) =>
+                depth === 0 ? (
+                  <SwipeCard
+                    key={cand.card.id}
+                    card={cand.card}
+                    setName={cand.setName}
+                    depth={0}
+                    drag={drag}
+                    outgoing={outgoing}
+                    interactive
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerEnd}
+                    onPointerCancel={onPointerEnd}
+                    onClick={onCardClick}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        setDetailOpen(true)
+                      }
+                    }}
+                  />
+                ) : (
+                  <SwipeCard
+                    key={cand.card.id}
+                    card={cand.card}
+                    setName={cand.setName}
+                    depth={depth}
+                    drag={null}
+                    outgoing={null}
+                    interactive={false}
+                  />
+                ),
+              )}
+            </div>
           </div>
         )}
 
@@ -300,6 +316,92 @@ function SwipeHeader({
       >
         {savedCount > 0 ? `${savedCount} saved · reset` : 'Reset profile'}
       </button>
+    </div>
+  )
+}
+
+/**
+ * Per-depth positioning for the cards peeking beneath the top card.
+ * Index = stack depth (0 is the top card, styled separately). Each peek
+ * sits slightly lower and smaller, edges showing like a physical deck;
+ * `transition-transform` (on the card) animates the rise as it's promoted.
+ */
+const PEEK_CLASSES = [
+  '',
+  'absolute inset-0 z-10 scale-95 translate-y-2',
+  'absolute inset-0 z-0 scale-90 translate-y-4',
+]
+
+/** Shared card chrome for both the interactive top card and the peeks. */
+const CARD_BASE =
+  'w-full rounded-xl border border-sand-300 bg-sand-50 p-3 shadow-lg shadow-coconut-700/10 dark:border-husk-50 dark:bg-husk-400 dark:shadow-coconut-900/40'
+
+/**
+ * SwipeCard — one card in the stack. The top card (`interactive`) carries
+ * the drag/exit transform and all the gesture handlers; peeks are inert
+ * (`pointer-events-none`, `aria-hidden`) and positioned by their depth.
+ * Both branches return a `<div>` so React keeps the DOM node when a peek
+ * is promoted to the top — that node persistence is what makes the rise
+ * animate instead of snapping.
+ */
+function SwipeCard({
+  card,
+  setName,
+  depth,
+  drag,
+  outgoing,
+  interactive,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+  onClick,
+  onKeyDown,
+}: {
+  card: SetCard
+  setName: string
+  depth: number
+  drag: Drag | null
+  outgoing: SwipeAction | null
+  interactive: boolean
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerUp?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerCancel?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onClick?: () => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void
+}) {
+  if (interactive) {
+    return (
+      <div
+        data-testid="swipe-card"
+        role="button"
+        tabIndex={0}
+        aria-label={`View details for ${card.name}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onClick={onClick}
+        onKeyDown={onKeyDown}
+        style={cardTransformStyle(drag, outgoing)}
+        className={`relative z-20 cursor-pointer touch-none select-none ${CARD_BASE}`}
+      >
+        <CardArtwork card={card} />
+        <CardMeta card={card} setName={setName} />
+        <DragHint drag={drag} outgoing={outgoing} />
+      </div>
+    )
+  }
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none select-none transition-transform duration-200 ease-out ${
+        PEEK_CLASSES[depth] ?? PEEK_CLASSES[PEEK_CLASSES.length - 1]
+      } ${CARD_BASE}`}
+    >
+      <CardArtwork card={card} />
+      <CardMeta card={card} setName={setName} />
     </div>
   )
 }

@@ -1,16 +1,25 @@
 /**
- * useSwipeCandidates — feeds the next card to the Swipe surface.
+ * useSwipeCandidates — feeds the Swipe surface a small prefetched *stack*
+ * of cards.
  *
  * V1 heuristic per [#483](https://github.com/mgzwarrior/mgz-pkmn/issues/483):
  *
  *   1. Pull the full set catalog (BAKED_SETS + live `/api/v1/sets`
  *      revalidation). No recency bias — every set is in the pool.
- *   2. On each `pick()`, choose a random set the user hasn't already
+ *   2. On each `sampleOne()`, choose a random set the user hasn't already
  *      exhausted, fetch its trimmed card list on demand, then sample
- *      one unseen card with **rarity-weighted random selection**
+ *      one un-dealt card with **rarity-weighted random selection**
  *      (heavily biased toward higher-rarity cards via `RARITY_WEIGHTS`).
- *      If the chosen set is fully seen, mark it exhausted and recurse.
+ *      If the chosen set is fully dealt, mark it exhausted and recurse.
  *   3. When every set is exhausted, surface the exhausted state.
+ *
+ * Rather than tracking a single `current` card, the hook keeps a queue of
+ * up to {@link STACK_SIZE} candidates so the consumer can render the next
+ * few cards as a real stack and reveal — not refetch — the next card when
+ * the top one is swiped away ([#624](https://github.com/mgzwarrior/mgz-pkmn/issues/624)).
+ * `advance()` drops the top card and tops the queue back up in the
+ * background; because the next card is already fetched there's no loader
+ * flash between swipes.
  *
  * The taste profile (rarity / set / supertype counters) tracked by
  * `useSwipeProfile` is intentionally *not* fed back into selection
@@ -18,9 +27,9 @@
  * rarity-weighted random across the whole catalog, not a recency-
  * or profile-shaped walk.
  *
- * The hook returns `{ current, advance, loading, exhausted, error }`.
- * The consumer calls `advance()` after each swipe; profile updates
- * happen separately in `useSwipeProfile.act`.
+ * The hook returns `{ current, upcoming, advance, loading, exhausted,
+ * error }`. The consumer calls `advance()` after each swipe; profile
+ * updates happen separately in `useSwipeProfile.act`.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchSetCards, fetchSets } from '../api/client'
@@ -33,14 +42,23 @@ interface Candidate {
   setName: string
 }
 
+/** Top card + the cards peeking beneath it. */
+const STACK_SIZE = 3
+
 interface State {
-  /** Current candidate, or null while we're loading the next batch. */
-  current: Candidate | null
+  /** Prefetched stack; `queue[0]` is the current (top) card. */
+  queue: Candidate[]
   loading: boolean
   /** True only when every set in the catalog has been walked end-to-end. */
   exhausted: boolean
   error: string | null
 }
+
+/** Result of a single sampling attempt. */
+type SampleResult =
+  | { kind: 'card'; card: Candidate }
+  | { kind: 'exhausted' }
+  | { kind: 'error'; message: string }
 
 interface UseSwipeCandidatesOpts {
   /** Whether the consumer is currently visible. Pauses fetching when false. */
@@ -123,9 +141,17 @@ function weightedSample(weights: number[], rng: () => number): number {
 
 export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
   const { active, seenSet, rng = Math.random } = opts
+  // Keep the rng behind a ref so an inline `rng` prop (a fresh function each
+  // render) doesn't churn the `sampleOne`/`fill` callback identities and
+  // re-fire the top-up effect on every render. Refreshed in an effect rather
+  // than during render so we never write a ref mid-render.
+  const rngRef = useRef(rng)
+  useEffect(() => {
+    rngRef.current = rng
+  })
 
   const [state, setState] = useState<State>({
-    current: null,
+    queue: [],
     loading: false,
     exhausted: false,
     error: null,
@@ -136,9 +162,21 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
   // to be sampled on each pick.
   const [allSets, setAllSets] = useState<SetInfo[]>(() => [...BAKED_SETS])
   const cardsBySetRef = useRef<Record<string, SetCard[]>>({})
-  // Sets the user has fully seen — skipped on subsequent picks so
+  // Sets the user has fully walked — skipped on subsequent picks so
   // we don't fetch them again.
   const exhaustedSetsRef = useRef<Set<string>>(new Set())
+  // Authoritative copy of the queue so the async fill loop and `advance`
+  // read fresh values across `await`s without waiting for a re-render.
+  const queueRef = useRef<Candidate[]>([])
+  // Every card id ever placed in the stack this session. Excluded from
+  // sampling so a just-swiped card can never resurface deeper in the
+  // queue, even before the profile's `seen` set has caught up. Cleared
+  // on profile reset (see below) so cards come back.
+  const dealtRef = useRef<Set<string>>(new Set())
+  // Guards against two `fill()` runs fetching into the queue at once.
+  const fillingRef = useRef(false)
+  // Tracks the seen-set size so we can detect a profile reset (shrink).
+  const prevSeenSizeRef = useRef(seenSet.size)
 
   // Revalidate the baked catalog against the live `/api/v1/sets`
   // endpoint — silently fall back to the baked snapshot on failure.
@@ -159,97 +197,145 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     }
   }, [active])
 
-  // Pick the next candidate by sampling a random set, fetching its
-  // card list if not yet cached, then rarity-weighted-sampling the
-  // unseen card pool.
-  const pick = useCallback(async () => {
-    if (allSets.length === 0) return
+  // Sample one candidate, excluding any card id in `exclude` (already
+  // seen or already in the stack). Samples a random set, fetching its
+  // card list if not yet cached, then rarity-weighted-samples the pool
+  // of remaining cards. Recurses (bounded) past exhausted sets / fetch
+  // errors without blowing the stack.
+  const sampleOne = useCallback(
+    async (exclude: Set<string>): Promise<SampleResult> => {
+      if (allSets.length === 0) return { kind: 'exhausted' }
 
-    setState((s) => ({ ...s, loading: true, error: null }))
+      for (let attempt = 0; attempt < allSets.length + 4; attempt++) {
+        const available = allSets.filter(
+          (s) => !exhaustedSetsRef.current.has(s.id),
+        )
+        if (available.length === 0) return { kind: 'exhausted' }
 
-    // Recurse up to N times to skip exhausted sets / loop on fetch
-    // errors without blowing the stack. N is bounded by the catalog
-    // size + a small slack — the exhausted-set ref means we never
-    // re-roll the same set in a single pick.
-    for (let attempt = 0; attempt < allSets.length + 4; attempt++) {
-      const available = allSets.filter(
-        (s) => !exhaustedSetsRef.current.has(s.id),
-      )
-      if (available.length === 0) {
-        setState({
-          current: null,
-          loading: false,
-          exhausted: true,
-          error: null,
-        })
-        return
-      }
+        const set = available[Math.floor(rngRef.current() * available.length)]
+        let cards = cardsBySetRef.current[set.id]
 
-      const set = available[Math.floor(rng() * available.length)]
-      let cards = cardsBySetRef.current[set.id]
+        if (!cards) {
+          try {
+            cards = await fetchSetCards(set.id)
+            cardsBySetRef.current[set.id] = cards
+          } catch (e) {
+            return {
+              kind: 'error',
+              message: e instanceof Error ? e.message : String(e),
+            }
+          }
+        }
 
-      if (!cards) {
-        try {
-          cards = await fetchSetCards(set.id)
-          cardsBySetRef.current[set.id] = cards
-        } catch (e) {
-          setState({
-            current: null,
-            loading: false,
-            exhausted: false,
-            error: e instanceof Error ? e.message : String(e),
-          })
-          return
+        const remaining = cards.filter((c) => !exclude.has(c.id))
+        if (remaining.length === 0) {
+          // Every card in this set is seen-or-dealt — retire it. A reset
+          // clears both `exhaustedSetsRef` and `dealtRef` together, so
+          // this stays consistent.
+          exhaustedSetsRef.current.add(set.id)
+          continue
+        }
+
+        const weights = remaining.map((c) => rarityWeight(c.rarity))
+        const idx = weightedSample(weights, rngRef.current)
+        return {
+          kind: 'card',
+          card: { card: remaining[idx], setId: set.id, setName: set.name },
         }
       }
 
-      const unseen = cards.filter((c) => !seenSet.has(c.id))
-      if (unseen.length === 0) {
-        exhaustedSetsRef.current.add(set.id)
-        continue
+      // Defensive fallback — shouldn't happen unless the catalog is
+      // wedged in a tight loop of always-empty sets.
+      return { kind: 'exhausted' }
+    },
+    [allSets],
+  )
+
+  // Top the queue back up to STACK_SIZE, fetching the next candidates in
+  // the background. Only flips `loading` when the queue is empty so
+  // refilling the tail never flashes the loader between swipes.
+  const fill = useCallback(async () => {
+    if (fillingRef.current || allSets.length === 0) return
+    fillingRef.current = true
+    try {
+      while (queueRef.current.length < STACK_SIZE) {
+        if (queueRef.current.length === 0) {
+          setState((s) => ({ ...s, loading: true, error: null }))
+        }
+        const exclude = new Set(seenSet)
+        for (const id of dealtRef.current) exclude.add(id)
+
+        const res = await sampleOne(exclude)
+
+        if (res.kind === 'error') {
+          setState({
+            queue: queueRef.current,
+            loading: false,
+            exhausted: false,
+            error: res.message,
+          })
+          return
+        }
+        if (res.kind === 'exhausted') {
+          // Stop topping up. Only the *whole* catalog being walked
+          // surfaces the exhausted state — a short tail (e.g. the last
+          // few cards excluded by the in-flight stack) just leaves a
+          // smaller stack that self-heals as the user swipes.
+          setState({
+            queue: queueRef.current,
+            loading: false,
+            exhausted: queueRef.current.length === 0,
+            error: null,
+          })
+          return
+        }
+
+        dealtRef.current.add(res.card.card.id)
+        queueRef.current = [...queueRef.current, res.card]
+        setState({
+          queue: queueRef.current,
+          loading: false,
+          exhausted: false,
+          error: null,
+        })
       }
-
-      const weights = unseen.map((c) => rarityWeight(c.rarity))
-      const idx = weightedSample(weights, rng)
-      const chosen = unseen[idx]
-      setState({
-        current: { card: chosen, setId: set.id, setName: set.name },
-        loading: false,
-        exhausted: false,
-        error: null,
-      })
-      return
+    } finally {
+      fillingRef.current = false
     }
+  }, [allSets, seenSet, sampleOne])
 
-    // Defensive fallback — shouldn't happen unless the catalog is
-    // wedged in a tight loop of always-empty sets.
-    setState({
-      current: null,
-      loading: false,
-      exhausted: true,
-      error: null,
-    })
-  }, [allSets, seenSet, rng])
-
-  // Whenever the set list changes (initial load + revalidation) or
-  // the seen set updates (consumer swiped), advance to a fresh
-  // candidate. See `useBrowseController` for the same eslint-disable
-  // pattern — the cascading-render risk is mitigated by the
-  // early-return guards inside `pick`.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // Initial load + top-up: whenever the catalog changes or the queue has
+  // drained to empty, fetch a fresh stack. `fill`'s own guards make the
+  // non-empty / in-flight cases cheap no-ops.
   useEffect(() => {
     if (!active) return
     if (allSets.length === 0) return
-    void pick()
-  }, [active, allSets, pick])
-  /* eslint-enable react-hooks/set-state-in-effect */
+    if (queueRef.current.length > 0) return
+    void fill()
+  }, [active, allSets, fill])
+
+  // Detect a profile reset (the seen set shrinking) and start the walk
+  // over: clear the dealt/exhausted bookkeeping and the stack so the
+  // top-up effect above re-fills from scratch.
+  useEffect(() => {
+    if (seenSet.size < prevSeenSizeRef.current) {
+      dealtRef.current = new Set()
+      exhaustedSetsRef.current = new Set()
+      queueRef.current = []
+      setState({ queue: [], loading: true, exhausted: false, error: null })
+    }
+    prevSeenSizeRef.current = seenSet.size
+  }, [seenSet])
 
   const advance = useCallback(() => {
-    void pick()
-  }, [pick])
+    queueRef.current = queueRef.current.slice(1)
+    setState((s) => ({ ...s, queue: queueRef.current }))
+    void fill()
+  }, [fill])
 
   return {
-    current: state.current,
+    current: state.queue[0] ?? null,
+    upcoming: state.queue.slice(1),
     loading: state.loading,
     exhausted: state.exhausted,
     error: state.error,
@@ -259,4 +345,4 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
 
 // Test-only: surface the rarity table + weighted sampler so unit
 // tests can pin the heuristic without going through the React tree.
-export { RARITY_WEIGHTS, DEFAULT_WEIGHT, rarityWeight, weightedSample }
+export { RARITY_WEIGHTS, DEFAULT_WEIGHT, rarityWeight, weightedSample, STACK_SIZE }
