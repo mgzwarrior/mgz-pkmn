@@ -1,10 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import {
   RARITY_WEIGHTS,
   DEFAULT_WEIGHT,
   rarityWeight,
   weightedSample,
+  STACK_SIZE,
+  useSwipeCandidates,
 } from './useSwipeCandidates'
+import { fetchSets, fetchSetCards } from '../api/client'
+import type { SetCard } from '../types'
 
 describe('rarityWeight', () => {
   it('returns the default for null / unknown rarities', () => {
@@ -69,5 +74,124 @@ describe('weightedSample', () => {
     // picks index 0, rng→1 picks the last index.
     expect(weightedSample([0, 0, 0], () => 0)).toBe(0)
     expect(weightedSample([0, 0, 0], () => 0.99)).toBe(2)
+  })
+})
+
+vi.mock('../api/client', () => ({
+  fetchSets: vi.fn(),
+  fetchSetCards: vi.fn(),
+}))
+// Empty baked catalog so the live `fetchSets` mock is the sole source of
+// truth — keeps the queue deterministic under the injected rng.
+vi.mock('../data/sets', () => ({ BAKED_SETS: [] }))
+
+const mockFetchSets = vi.mocked(fetchSets)
+const mockFetchSetCards = vi.mocked(fetchSetCards)
+
+function card(id: string, rarity: string | null = 'Common'): SetCard {
+  return {
+    id,
+    name: id.toUpperCase(),
+    number: id,
+    rarity,
+    supertype: 'Pokémon',
+    subtypes: ['Basic'],
+    thumb: null,
+    market: 1,
+  }
+}
+
+const ONE_SET = [
+  { id: 'sv1', name: 'Scarlet & Violet', series: 'SV', total: 4, releaseDate: '2023/03/31' },
+]
+
+describe('useSwipeCandidates — prefetched stack', () => {
+  beforeEach(() => {
+    mockFetchSets.mockReset()
+    mockFetchSetCards.mockReset()
+    mockFetchSets.mockResolvedValue(ONE_SET)
+    // rng pinned to 0 means the weighted sampler always takes the first
+    // *eligible* card, so the queue fills in array order minus exclusions.
+    mockFetchSetCards.mockResolvedValue([
+      card('a'),
+      card('b'),
+      card('c'),
+      card('d'),
+    ])
+  })
+
+  it('prefetches a full, de-duplicated stack', async () => {
+    const seenSet = new Set<string>()
+    const { result } = renderHook(() =>
+      useSwipeCandidates({ active: true, seenSet, rng: () => 0 }),
+    )
+
+    await waitFor(() =>
+      expect(result.current.upcoming.length).toBe(STACK_SIZE - 1),
+    )
+    const ids = [
+      result.current.current!.card.id,
+      ...result.current.upcoming.map((c) => c.card.id),
+    ]
+    // Top + peeks are all distinct — no card appears twice in the stack.
+    expect(new Set(ids).size).toBe(STACK_SIZE)
+    expect(ids).toEqual(['a', 'b', 'c'])
+  })
+
+  it('advance() promotes the next card with no extra fetch', async () => {
+    const seenSet = new Set<string>()
+    const { result } = renderHook(() =>
+      useSwipeCandidates({ active: true, seenSet, rng: () => 0 }),
+    )
+
+    await waitFor(() =>
+      expect(result.current.upcoming.length).toBe(STACK_SIZE - 1),
+    )
+    // The whole stack came from a single set fetch.
+    expect(mockFetchSetCards).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.advance()
+    })
+
+    // The former peek is the new top immediately — no loader, and the
+    // background top-up reuses the cached card list (still one fetch).
+    await waitFor(() => expect(result.current.current!.card.id).toBe('b'))
+    expect(result.current.upcoming.map((c) => c.card.id)).toEqual(['c', 'd'])
+    expect(mockFetchSetCards).toHaveBeenCalledTimes(1)
+  })
+
+  it('never stacks a card the user has already seen', async () => {
+    const seenSet = new Set<string>(['a'])
+    const { result } = renderHook(() =>
+      useSwipeCandidates({ active: true, seenSet, rng: () => 0 }),
+    )
+
+    await waitFor(() =>
+      expect(result.current.upcoming.length).toBe(STACK_SIZE - 1),
+    )
+    const ids = [
+      result.current.current!.card.id,
+      ...result.current.upcoming.map((c) => c.card.id),
+    ]
+    expect(ids).not.toContain('a')
+    expect(ids).toEqual(['b', 'c', 'd'])
+  })
+
+  it('surfaces the exhausted state once the catalog is walked', async () => {
+    mockFetchSetCards.mockReset()
+    mockFetchSetCards.mockResolvedValue([card('a'), card('b')])
+
+    const seenSet = new Set<string>()
+    const { result } = renderHook(() =>
+      useSwipeCandidates({ active: true, seenSet, rng: () => 0 }),
+    )
+
+    // Two cards, stack of three → the stack holds both, then exhausts.
+    await waitFor(() => expect(result.current.upcoming.length).toBe(1))
+    act(() => result.current.advance())
+    act(() => result.current.advance())
+    await waitFor(() => expect(result.current.exhausted).toBe(true))
+    expect(result.current.current).toBeNull()
   })
 })

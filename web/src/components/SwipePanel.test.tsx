@@ -106,20 +106,35 @@ describe('SwipePanel', () => {
     expect(screen.getByText('Pikachu')).toBeInTheDocument()
   })
 
+  it('renders the next card as an inert peek beneath the top card', async () => {
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    // Only the top card is the interactive (testid) target; the prefetched
+    // next card sits beneath it as an aria-hidden peek so the swap reveals
+    // a card that's already mounted — no slide-in, no loader flash.
+    expect(screen.getAllByTestId('swipe-card')).toHaveLength(1)
+    await waitFor(() =>
+      expect(screen.getByText('Charizard')).toBeInTheDocument(),
+    )
+  })
+
   it('saves the card and advances when → is pressed', async () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
 
     fireEvent.keyDown(window, { key: 'ArrowRight' })
 
+    // The save commits after the exit-animation timeout. Wait on the header
+    // chip directly — the next card now peeks in from the start, so its
+    // text appearing is no longer a reliable "advance happened" signal.
     await waitFor(
-      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      () =>
+        expect(
+          screen.getByRole('button', { name: /1 saved · reset/i }),
+        ).toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
-    // The save count chip in the header should show "1 saved · reset".
-    expect(
-      screen.getByRole('button', { name: /1 saved · reset/i }),
-    ).toBeInTheDocument()
   })
 
   it('passes (no save) when ← is pressed', async () => {
@@ -143,12 +158,12 @@ describe('SwipePanel', () => {
     fireEvent.keyDown(window, { key: 'ArrowUp' })
 
     await waitFor(
-      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      () =>
+        expect(
+          screen.getByRole('button', { name: /1 saved · reset/i }),
+        ).toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
-    expect(
-      screen.getByRole('button', { name: /1 saved · reset/i }),
-    ).toBeInTheDocument()
   })
 
   it('action-row buttons mirror the keyboard shortcuts', async () => {
@@ -158,12 +173,12 @@ describe('SwipePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(
-      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      () =>
+        expect(
+          screen.getByRole('button', { name: /1 saved · reset/i }),
+        ).toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
-    expect(
-      screen.getByRole('button', { name: /1 saved · reset/i }),
-    ).toBeInTheDocument()
   })
 
   it('a drag past the rightward threshold commits a save', async () => {
@@ -182,12 +197,12 @@ describe('SwipePanel', () => {
     fireEvent.pointerUp(card, { pointerId: 1, clientX: 200, clientY: 0 })
 
     await waitFor(
-      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      () =>
+        expect(
+          screen.getByRole('button', { name: /1 saved · reset/i }),
+        ).toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
-    expect(
-      screen.getByRole('button', { name: /1 saved · reset/i }),
-    ).toBeInTheDocument()
   })
 
   it('shows the exhausted state once every set has been walked', async () => {
@@ -195,15 +210,20 @@ describe('SwipePanel', () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    // Wait for the first pass to fully commit (Pikachu leaves the stack)
+    // before the next keystroke — while the exit animation is in flight the
+    // handler ignores input, so an instant peek must not race it.
     await waitFor(
-      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      () => expect(screen.queryByText('Pikachu')).not.toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    await waitFor(() =>
-      expect(
-        screen.getByText(/You.ve seen every card in the recent sets|every card/i),
-      ).toBeInTheDocument(),
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText(/You.ve seen every card in the recent sets|every card/i),
+        ).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
     )
   })
 
@@ -416,12 +436,12 @@ describe('SwipePanel', () => {
     fireEvent.pointerUp(card, { pointerId: 1, clientX: 0, clientY: -200 })
 
     await waitFor(
-      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      () =>
+        expect(
+          screen.getByRole('button', { name: /1 saved · reset/i }),
+        ).toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
-    expect(
-      screen.getByRole('button', { name: /1 saved · reset/i }),
-    ).toBeInTheDocument()
   })
 
   it('the Pass and More-like-this action buttons commit decisions', async () => {
@@ -429,8 +449,10 @@ describe('SwipePanel', () => {
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'Pass' }))
+    // The action buttons are disabled mid-exit; wait for the pass to finish
+    // (Pikachu gone, Charizard promoted) before the second decision.
     await waitFor(
-      () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
+      () => expect(screen.queryByText('Pikachu')).not.toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
 
