@@ -1,6 +1,6 @@
 /**
- * WishlistDetail — the detail view for a wishlist (#504). Opens from a row
- * in [LibraryWishlistsTab](./LibraryWishlistsTab.tsx).
+ * WishlistDetail — the detail view for a wishlist (#504). Opens from a
+ * chasing row in [LibraryBindersTab](./LibraryBindersTab.tsx).
  *
  * A wishlist is the chase board: cards you're hunting. This modal lists each
  * item with a "got it" affordance that promotes it into a collection
