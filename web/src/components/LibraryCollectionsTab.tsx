@@ -11,7 +11,12 @@
  */
 import { Loader2, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import type { CollectionKind, CollectionRule } from '../api/client'
+import type {
+  CollectionRule,
+  CollectionSummary,
+  DynamicScope,
+} from '../api/client'
+import { SmartCollectionTarget } from './SmartCollectionTarget'
 import { useCollections } from './useCollections'
 
 /** The single-predicate fields the inline rule builder offers. The API
@@ -26,16 +31,30 @@ const RULE_FIELDS = [
 
 type RuleField = (typeof RULE_FIELDS)[number]['key']
 
+/** The two dynamic scopes, framed for the toggle. `owned` is an inventory
+ * view over your own cards; `catalog` is a target view over the whole
+ * catalog with progress (#631). */
+const SCOPE_OPTIONS: { key: DynamicScope; label: string }[] = [
+  { key: 'owned', label: 'My cards' },
+  { key: 'catalog', label: 'Whole catalog' },
+]
+
 function buildRule(field: RuleField, value: string): CollectionRule {
   const v = value.trim()
   // `types` is a list on the wire; every other predicate is a scalar.
   return field === 'types' ? { types: [v] } : { [field]: v }
 }
 
-function kindPill(kind: CollectionKind | undefined): string | null {
-  if (kind === 'dynamic') return 'smart'
-  if (kind === 'set') return 'set'
+/** A catalog-scope smart collection is a target with progress, so it reads
+ * as "target"; an owned-scope one is an inventory view ("smart"). */
+function kindPill(c: CollectionSummary): string | null {
+  if (c.kind === 'dynamic') return c.dynamic_scope === 'catalog' ? 'target' : 'smart'
+  if (c.kind === 'set') return 'set'
   return null
+}
+
+function isCatalogTarget(c: CollectionSummary): boolean {
+  return c.kind === 'dynamic' && c.dynamic_scope === 'catalog'
 }
 
 export function LibraryCollectionsTab() {
@@ -45,8 +64,11 @@ export function LibraryCollectionsTab() {
   const [name, setName] = useState('')
   const [field, setField] = useState<RuleField>('name')
   const [value, setValue] = useState('')
+  const [scope, setScope] = useState<DynamicScope>('owned')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // The catalog-scope target collection whose detail modal is open.
+  const [targetCollection, setTargetCollection] = useState<CollectionSummary | null>(null)
 
   useEffect(() => {
     void refresh()
@@ -58,7 +80,11 @@ export function LibraryCollectionsTab() {
     setSubmitting(true)
     setFormError(null)
     try {
-      await create(name.trim(), { kind: 'dynamic', rule: buildRule(field, value) })
+      await create(name.trim(), {
+        kind: 'dynamic',
+        rule: buildRule(field, value),
+        dynamic_scope: scope,
+      })
       setName('')
       setValue('')
       setFormOpen(false)
@@ -117,6 +143,35 @@ export function LibraryCollectionsTab() {
               className="min-w-0 flex-1 rounded border border-sand-300 bg-coconut-50 px-2 py-1 text-xs text-coconut-700 placeholder:text-coconut-400 dark:border-husk-100 dark:bg-husk-100 dark:text-sand-50"
             />
           </div>
+          <div>
+            <div
+              role="radiogroup"
+              aria-label="Membership scope"
+              className="inline-flex rounded border border-sand-300 p-0.5 dark:border-husk-100"
+            >
+              {SCOPE_OPTIONS.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={scope === s.key}
+                  onClick={() => setScope(s.key)}
+                  className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                    scope === s.key
+                      ? 'bg-palm-500 text-coconut-50 dark:text-husk-300'
+                      : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[10px] text-coconut-400 dark:text-sand-300">
+              {scope === 'owned'
+                ? 'Filters the cards you already own.'
+                : 'Pulls every match from the catalog and tracks your progress.'}
+            </p>
+          </div>
           {formError && (
             <div role="alert" className="text-[11px] text-sun-600 dark:text-sun-300">
               {formError}
@@ -151,9 +206,12 @@ export function LibraryCollectionsTab() {
       ) : (
         <ul className="divide-y divide-sand-200 dark:divide-husk-100">
           {collections.map((c) => {
-            const pill = kindPill(c.kind)
-            return (
-              <li key={c.id} className="flex items-center justify-between py-2">
+            const pill = kindPill(c)
+            // A catalog-scope target opens its progress detail; everything
+            // else is a static row.
+            const openable = isCatalogTarget(c)
+            const body = (
+              <>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
@@ -174,11 +232,34 @@ export function LibraryCollectionsTab() {
                 <span className="ml-3 shrink-0 rounded bg-sand-200 px-2 py-0.5 text-[11px] text-coconut-600 dark:bg-husk-100 dark:text-sand-200">
                   {c.item_count} {c.item_count === 1 ? 'card' : 'cards'}
                 </span>
+              </>
+            )
+            return (
+              <li key={c.id}>
+                {openable ? (
+                  <button
+                    type="button"
+                    onClick={() => setTargetCollection(c)}
+                    className="flex w-full items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+                  >
+                    {body}
+                  </button>
+                ) : (
+                  <div className="flex items-center justify-between py-2">{body}</div>
+                )}
               </li>
             )
           })}
         </ul>
       )}
+
+      <SmartCollectionTarget
+        collection={targetCollection}
+        open={targetCollection !== null}
+        onOpenChange={(o) => {
+          if (!o) setTargetCollection(null)
+        }}
+      />
     </div>
   )
 }
