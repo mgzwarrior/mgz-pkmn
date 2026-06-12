@@ -2,7 +2,7 @@
  * useWishlists — shared fetcher + lightweight cache for the
  * `/api/v1/wishlists` summary list. Mirrors `useCollections` from the
  * third ADR-0013 slice; both the `AddToWishlistButton` picker and the
- * `LibraryWishlistsTab` listing read from here, so creating a wishlist
+ * `LibraryBindersTab` listing read from here, so creating a want-list
  * in one surface lights up the other without a second round-trip.
  */
 import { useCallback, useEffect, useState } from 'react'
