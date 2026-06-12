@@ -353,7 +353,7 @@ def add_collection_item(
     db.add(item)
     db.commit()
     db.refresh(item)
-    return _serialize_item(item)
+    return serialize_collection_item(item)
 
 
 @router.delete("/collections/{collection_id}/items/{item_id}", status_code=204)
@@ -631,7 +631,9 @@ def _serialize_collection(db: Session, collection: Collection, user_id: int) -> 
     ).model_dump()
 
 
-def _serialize_item(item: CollectionItem) -> dict:
+def serialize_collection_item(item: CollectionItem) -> dict:
+    """Public so the wishlist promote endpoint (#504) can return the created
+    collection item in the same shape ``POST /collections/{id}/items`` does."""
     return _item_out(item).model_dump()
 
 

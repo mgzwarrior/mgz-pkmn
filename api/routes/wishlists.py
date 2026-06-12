@@ -16,6 +16,7 @@ Endpoints:
 - `DELETE /wishlists/{id}`                  cascade-delete items
 - `POST   /wishlists/{id}/items`            add a card (optional max_price)
 - `DELETE /wishlists/{id}/items/{item_id}`  remove a card
+- `POST   /wishlists/{id}/items/{item_id}/promote`  acquire → collection (#504)
 """
 
 from __future__ import annotations
@@ -30,8 +31,17 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..auth.session import current_user_or_default
 from ..db.card_payload import extract_card_identity, extract_price_snapshot
-from ..db.models import User, Wishlist, WishlistItem
+from ..db.models import (
+    ADDED_VIA_WISHLIST_PROMOTE,
+    COLLECTION_KIND_DYNAMIC,
+    Collection,
+    CollectionItem,
+    User,
+    Wishlist,
+    WishlistItem,
+)
 from ..db.session import get_db
+from .collections import serialize_collection_item
 
 router = APIRouter()
 
@@ -100,6 +110,25 @@ class WishlistItemCreate(BaseModel):
     notes: str | None = None
     # Optional alert threshold — persisted but not yet wired to alerting.
     max_price: float | None = Field(default=None, ge=0)
+
+
+class PromoteRequest(BaseModel):
+    """Mark a chased card acquired and land it in a collection (#504)."""
+
+    collection_id: int
+    #: Vendor multiples on the resulting collection row. Default 1.
+    quantity: int = Field(default=1, ge=1)
+    #: Optional note stamped on the new collection item — a fresh
+    #: annotation, not inherited from the wishlist row.
+    notes: str | None = None
+
+
+class PromoteResult(BaseModel):
+    """Both sides of the transition: the now-acquired wishlist row and the
+    collection row it produced."""
+
+    wishlist_item: WishlistItemOut
+    collection_item: dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +263,85 @@ def delete_wishlist_item(
         )
     db.delete(item)
     db.commit()
+
+
+@router.post("/wishlists/{wishlist_id}/items/{item_id}/promote", status_code=201)
+def promote_wishlist_item(
+    wishlist_id: int,
+    item_id: int,
+    req: PromoteRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Close the chase: mark a wishlist item acquired and mint the owned
+    collection row it becomes (#504).
+
+    The wishlist row is *not* deleted — it's stamped with ``acquired_at`` and
+    a back-pointer to the new ``collection_items`` row, so the want-list keeps
+    doubling as a show retrospective ("here's what I was hunting, and here's
+    what I landed"). Re-promoting an already-acquired item is a 409 rather than
+    a second collection row."""
+    # Scope the item lookup through the parent wishlist so a guess-the-id
+    # attack on another user's items 404s instead of leaking existence.
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
+    item = db.scalar(
+        select(WishlistItem).where(
+            WishlistItem.id == item_id,
+            WishlistItem.wishlist_id == wishlist.id,
+        )
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"item {item_id} not found in wishlist {wishlist_id}",
+        )
+    if item.acquired_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"item {item_id} is already acquired",
+        )
+
+    collection = db.scalar(
+        select(Collection).where(
+            Collection.id == req.collection_id,
+            Collection.user_id == current_user.id,
+        )
+    )
+    if collection is None:
+        raise HTTPException(status_code=404, detail=f"collection {req.collection_id} not found")
+    if collection.kind == COLLECTION_KIND_DYNAMIC:
+        raise HTTPException(
+            status_code=409,
+            detail="dynamic collections are rule-defined; promote into a manual or set collection",
+        )
+
+    # Re-extract identity/price from the verbatim payload so the collection
+    # row goes through the same single extractor as a manual add.
+    promoted = extract_card_identity(item.card_json)
+    price = extract_price_snapshot(item.card_json)
+    collection_item = CollectionItem(
+        collection_id=collection.id,
+        card_json=item.card_json,
+        notes=req.notes,
+        quantity=req.quantity,
+        added_via=ADDED_VIA_WISHLIST_PROMOTE,
+        price_snapshot=price,
+        priced_at=datetime.now(UTC) if price is not None else None,
+        **promoted,
+    )
+    db.add(collection_item)
+    db.flush()  # assign the id without ending the transaction
+
+    item.acquired_at = datetime.now(UTC)
+    item.acquired_collection_item_id = collection_item.id
+
+    db.commit()
+    db.refresh(item)
+    db.refresh(collection_item)
+    return PromoteResult(
+        wishlist_item=_item_out(item),
+        collection_item=serialize_collection_item(collection_item),
+    ).model_dump()
 
 
 # ---------------------------------------------------------------------------

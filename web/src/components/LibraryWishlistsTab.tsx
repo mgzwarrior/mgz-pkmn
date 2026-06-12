@@ -5,11 +5,14 @@
  * creates entries here, optionally with a price cap.
  */
 import { Loader2 } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import type { WishlistSummary } from '../api/client'
 import { useWishlists } from './useWishlists'
+import { WishlistDetail } from './WishlistDetail'
 
 export function LibraryWishlistsTab() {
   const { wishlists, loading, error, refresh } = useWishlists()
+  const [openWishlist, setOpenWishlist] = useState<WishlistSummary | null>(null)
 
   useEffect(() => {
     void refresh()
@@ -38,24 +41,40 @@ export function LibraryWishlistsTab() {
   }
 
   return (
-    <ul className="divide-y divide-sand-200 dark:divide-husk-100">
-      {wishlists.map((w) => (
-        <li key={w.id} className="flex items-center justify-between py-2">
-          <div className="min-w-0">
-            <div className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
-              {w.name}
-            </div>
-            {w.description && (
-              <div className="truncate text-[11px] text-coconut-400 dark:text-sand-300">
-                {w.description}
+    <>
+      <ul className="divide-y divide-sand-200 dark:divide-husk-100">
+        {wishlists.map((w) => (
+          <li key={w.id}>
+            <button
+              type="button"
+              onClick={() => setOpenWishlist(w)}
+              className="flex w-full items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
+                  {w.name}
+                </div>
+                {w.description && (
+                  <div className="truncate text-[11px] text-coconut-400 dark:text-sand-300">
+                    {w.description}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          <span className="ml-3 shrink-0 rounded bg-sand-200 px-2 py-0.5 text-[11px] text-coconut-600 dark:bg-husk-100 dark:text-sand-200">
-            {w.item_count} {w.item_count === 1 ? 'card' : 'cards'}
-          </span>
-        </li>
-      ))}
-    </ul>
+              <span className="ml-3 shrink-0 rounded bg-sand-200 px-2 py-0.5 text-[11px] text-coconut-600 dark:bg-husk-100 dark:text-sand-200">
+                {w.item_count} {w.item_count === 1 ? 'card' : 'cards'}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <WishlistDetail
+        wishlist={openWishlist}
+        open={openWishlist !== null}
+        onOpenChange={(o) => {
+          if (!o) setOpenWishlist(null)
+        }}
+      />
+    </>
   )
 }

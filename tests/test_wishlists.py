@@ -257,6 +257,135 @@ class WishlistsEndpointTests(_IsolatedDbMixin):
 
 
 # ---------------------------------------------------------------------------
+# Promote: wishlist item → collection (#504)
+# ---------------------------------------------------------------------------
+
+
+class WishlistPromoteTests(_IsolatedDbMixin):
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def _seed_item_and_collection(self, c: TestClient) -> tuple[int, int, int]:
+        """Return ``(wishlist_id, item_id, collection_id)`` ready to promote."""
+        wid = c.post("/api/v1/wishlists", json={"name": "hunt"}).json()["id"]
+        item_id = c.post(f"/api/v1/wishlists/{wid}/items", json={"card": SAMPLE_CARD}).json()["id"]
+        cid = c.post("/api/v1/collections", json={"name": "binder"}).json()["id"]
+        return wid, item_id, cid
+
+    def test_promote_marks_acquired_and_creates_collection_item(self) -> None:
+        with self._client() as c:
+            wid, item_id, cid = self._seed_item_and_collection(c)
+            resp = c.post(
+                f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                json={"collection_id": cid, "quantity": 2, "notes": "near-mint"},
+            )
+            self.assertEqual(resp.status_code, 201)
+            body = resp.json()
+
+            wl_item = body["wishlist_item"]
+            self.assertEqual(wl_item["id"], item_id)
+            self.assertIsNotNone(wl_item["acquired_at"])
+            self.assertIsNotNone(wl_item["acquired_collection_item_id"])
+
+            coll_item = body["collection_item"]
+            self.assertEqual(coll_item["card"]["id"], "base1-4")
+            self.assertEqual(coll_item["quantity"], 2)
+            self.assertEqual(coll_item["notes"], "near-mint")
+            self.assertEqual(coll_item["added_via"], "wishlist_promote")
+            self.assertEqual(coll_item["card_set_id"], "base1")
+            self.assertEqual(wl_item["acquired_collection_item_id"], coll_item["id"])
+
+    def test_promote_lands_in_collection_listing(self) -> None:
+        with self._client() as c:
+            wid, item_id, cid = self._seed_item_and_collection(c)
+            c.post(
+                f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                json={"collection_id": cid},
+            )
+            detail = c.get(f"/api/v1/collections/{cid}").json()
+            self.assertEqual(len(detail["items"]), 1)
+            self.assertEqual(detail["items"][0]["added_via"], "wishlist_promote")
+            # The wishlist row survives — the want-list still doubles as a
+            # retrospective.
+            wl = c.get(f"/api/v1/wishlists/{wid}").json()
+            self.assertEqual(len(wl["items"]), 1)
+            self.assertIsNotNone(wl["items"][0]["acquired_at"])
+
+    def test_promote_defaults_quantity_to_one(self) -> None:
+        with self._client() as c:
+            wid, item_id, cid = self._seed_item_and_collection(c)
+            resp = c.post(
+                f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                json={"collection_id": cid},
+            )
+            self.assertEqual(resp.json()["collection_item"]["quantity"], 1)
+
+    def test_promote_twice_is_409(self) -> None:
+        with self._client() as c:
+            wid, item_id, cid = self._seed_item_and_collection(c)
+            first = c.post(
+                f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                json={"collection_id": cid},
+            )
+            self.assertEqual(first.status_code, 201)
+            second = c.post(
+                f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                json={"collection_id": cid},
+            )
+            self.assertEqual(second.status_code, 409)
+            # No duplicate collection row.
+            self.assertEqual(len(c.get(f"/api/v1/collections/{cid}").json()["items"]), 1)
+
+    def test_promote_404_for_missing_item(self) -> None:
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "hunt"}).json()["id"]
+            cid = c.post("/api/v1/collections", json={"name": "binder"}).json()["id"]
+            resp = c.post(
+                f"/api/v1/wishlists/{wid}/items/9999/promote",
+                json={"collection_id": cid},
+            )
+            self.assertEqual(resp.status_code, 404)
+
+    def test_promote_404_for_missing_collection(self) -> None:
+        with self._client() as c:
+            wid, item_id, _ = self._seed_item_and_collection(c)
+            resp = c.post(
+                f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                json={"collection_id": 9999},
+            )
+            self.assertEqual(resp.status_code, 404)
+
+    def test_promote_409_into_dynamic_collection(self) -> None:
+        with self._client() as c:
+            wid, item_id, _ = self._seed_item_and_collection(c)
+            cid = c.post(
+                "/api/v1/collections",
+                json={"name": "all fire", "kind": "dynamic", "rule": {"types": ["Fire"]}},
+            ).json()["id"]
+            resp = c.post(
+                f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                json={"collection_id": cid},
+            )
+            self.assertEqual(resp.status_code, 409)
+
+    def test_promote_404_when_item_in_other_wishlist(self) -> None:
+        with self._client() as c:
+            wid_a = c.post("/api/v1/wishlists", json={"name": "a"}).json()["id"]
+            wid_b = c.post("/api/v1/wishlists", json={"name": "b"}).json()["id"]
+            item_id = c.post(f"/api/v1/wishlists/{wid_a}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            cid = c.post("/api/v1/collections", json={"name": "binder"}).json()["id"]
+            resp = c.post(
+                f"/api/v1/wishlists/{wid_b}/items/{item_id}/promote",
+                json={"collection_id": cid},
+            )
+            self.assertEqual(resp.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
 # Auth gating
 # ---------------------------------------------------------------------------
 
@@ -347,6 +476,14 @@ class WishlistsAuthGateTests(_IsolatedDbMixin):
                 )
                 self.assertEqual(
                     c.delete(f"/api/v1/wishlists/{wid}/items/{item_id}").status_code,
+                    404,
+                )
+                cid = c.post("/api/v1/collections", json={"name": "bob-binder"}).json()["id"]
+                self.assertEqual(
+                    c.post(
+                        f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                        json={"collection_id": cid},
+                    ).status_code,
                     404,
                 )
 
