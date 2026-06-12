@@ -524,12 +524,33 @@ export async function unlinkIdentity(identityId: number): Promise<void> {
 // collections
 // ---------------------------------------------------------------------------
 
+/**
+ * A dynamic collection's membership rule (#506). AND of predicates; every
+ * field optional but a rule must carry at least one. Maps onto the promoted
+ * card-identity columns the API resolves against.
+ */
+export interface CollectionRule {
+  name?: string
+  types?: string[]
+  set_id?: string
+  number?: string
+  rarity?: string
+}
+
+/** One of `manual` (default), `set`, or `dynamic`. */
+export type CollectionKind = 'manual' | 'set' | 'dynamic'
+
 export interface CollectionSummary {
   id: number
   name: string
   description: string | null
   created_at: string
   item_count: number
+  // #506 — present on every response; optional here so older cached
+  // payloads (and test fixtures) without them still type-check.
+  kind?: CollectionKind
+  source_set_id?: string | null
+  rule?: CollectionRule | null
 }
 
 export interface CollectionItem {
@@ -545,6 +566,9 @@ export interface Collection {
   description: string | null
   created_at: string
   items: CollectionItem[]
+  kind?: CollectionKind
+  source_set_id?: string | null
+  rule?: CollectionRule | null
 }
 
 export async function fetchCollections(): Promise<CollectionSummary[]> {
@@ -554,14 +578,27 @@ export async function fetchCollections(): Promise<CollectionSummary[]> {
   return data.items as CollectionSummary[]
 }
 
+export interface CreateCollectionOptions {
+  description?: string | null
+  kind?: CollectionKind
+  source_set_id?: string | null
+  rule?: CollectionRule | null
+}
+
 export async function createCollection(
   name: string,
-  description?: string | null,
+  options?: CreateCollectionOptions,
 ): Promise<Collection> {
   const res = await fetch(`${BASE}/collections`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description: description ?? null }),
+    body: JSON.stringify({
+      name,
+      description: options?.description ?? null,
+      kind: options?.kind ?? 'manual',
+      source_set_id: options?.source_set_id ?? null,
+      rule: options?.rule ?? null,
+    }),
   })
   if (!res.ok) throw new Error(`create collection failed: ${res.status}`)
   return (await res.json()) as Collection
