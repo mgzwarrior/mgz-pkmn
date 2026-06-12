@@ -540,6 +540,13 @@ export interface CollectionRule {
 /** One of `manual` (default), `set`, or `dynamic`. */
 export type CollectionKind = 'manual' | 'set' | 'dynamic'
 
+/**
+ * For a `dynamic` collection (#631): `owned` resolves the rule against your
+ * own cards (an inventory view); `catalog` resolves the full matching set
+ * from the catalog and overlays ownership (a target view with progress).
+ */
+export type DynamicScope = 'owned' | 'catalog'
+
 export interface CollectionSummary {
   id: number
   name: string
@@ -551,6 +558,7 @@ export interface CollectionSummary {
   kind?: CollectionKind
   source_set_id?: string | null
   rule?: CollectionRule | null
+  dynamic_scope?: DynamicScope | null
 }
 
 export interface CollectionItem {
@@ -569,6 +577,7 @@ export interface Collection {
   kind?: CollectionKind
   source_set_id?: string | null
   rule?: CollectionRule | null
+  dynamic_scope?: DynamicScope | null
 }
 
 export async function fetchCollections(): Promise<CollectionSummary[]> {
@@ -583,6 +592,7 @@ export interface CreateCollectionOptions {
   kind?: CollectionKind
   source_set_id?: string | null
   rule?: CollectionRule | null
+  dynamic_scope?: DynamicScope | null
 }
 
 export async function createCollection(
@@ -598,10 +608,74 @@ export async function createCollection(
       kind: options?.kind ?? 'manual',
       source_set_id: options?.source_set_id ?? null,
       rule: options?.rule ?? null,
+      dynamic_scope: options?.dynamic_scope ?? null,
     }),
   })
   if (!res.ok) throw new Error(`create collection failed: ${res.status}`)
   return (await res.json()) as Collection
+}
+
+// ---------------------------------------------------------------------------
+// #631 — catalog-backed target view + chase
+// ---------------------------------------------------------------------------
+
+/** One catalog match, annotated with the user's ownership of it. */
+export interface TargetCard {
+  card: Record<string, unknown>
+  card_set_id: string | null
+  card_number: string | null
+  owned: boolean
+  owned_quantity: number
+}
+
+/** Resolved catalog membership for a `catalog`-scope dynamic collection. */
+export interface CollectionTarget {
+  id: number
+  name: string
+  rule: CollectionRule | null
+  total: number
+  owned_count: number
+  cards: TargetCard[]
+}
+
+export async function fetchCollectionTarget(
+  collectionId: number,
+  apiKey?: string,
+): Promise<CollectionTarget> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/collections/${collectionId}/target${params}`)
+  if (!res.ok) throw new Error(`collection target failed: ${res.status}`)
+  return (await res.json()) as CollectionTarget
+}
+
+export interface ChaseResult {
+  wishlist_id: number
+  added: number
+  skipped: number
+  total_missing: number
+}
+
+/**
+ * Push the un-owned matches onto a want-list. Pass exactly one of
+ * `wishlistName` (creates a fresh list) or `wishlistId` (an existing one).
+ */
+export async function chaseCollection(
+  collectionId: number,
+  target: { wishlistName?: string; wishlistId?: number; maxPrice?: number },
+  apiKey?: string,
+): Promise<ChaseResult> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/collections/${collectionId}/chase${params}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      wishlist_name: target.wishlistName ?? null,
+      wishlist_id: target.wishlistId ?? null,
+      max_price: target.maxPrice ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`chase failed: ${res.status}`)
+  return (await res.json()) as ChaseResult
 }
 
 export async function addCardToCollection(

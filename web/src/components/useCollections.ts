@@ -79,6 +79,7 @@ export function useCollections() {
             kind: created.kind,
             source_set_id: created.source_set_id,
             rule: created.rule,
+            dynamic_scope: created.dynamic_scope,
           },
           ...state.collections,
         ],
