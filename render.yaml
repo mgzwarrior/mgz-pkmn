@@ -20,6 +20,30 @@ services:
     # https://render.com/docs/blueprint-spec#previews.
     previews:
       generation: automatic
+    # Only rebuild + redeploy when a file that actually ships in the image
+    # changes. The Dockerfile's build inputs are the SPA (`web/`, with shared
+    # brand assets from `assets/`), the Python package (`src/`) and its deps
+    # (`pyproject.toml`, `uv.lock`), the API (`api/`), the runtime-read
+    # `CHANGELOG.md` (backs GET /api/v1/changelog) and `README.md` (hatchling
+    # package readme), and the `Dockerfile` itself. Docs-, site-, and
+    # design-only churn (`docs/`, `site/`, `design/`, `tests/`) no longer
+    # spins up a production deploy or a PR preview. `includedPaths` (rather
+    # than the inverse `ignoredPaths`) is deliberate: an allowlist of the real
+    # build inputs can't silently skip a deploy when a *new* top-level input
+    # dir appears — it just won't match until added here, which is the safe
+    # failure mode. Glob syntax, relative to the repo root. See
+    # https://render.com/docs/blueprint-spec#buildfilter.
+    buildFilter:
+      includedPaths:
+        - "api/**"
+        - "web/**"
+        - "src/**"
+        - "assets/**"
+        - "pyproject.toml"
+        - "uv.lock"
+        - "Dockerfile"
+        - "CHANGELOG.md"
+        - "README.md"
     # Persistent disk so the cache survives redeploys (see #369). The mount
     # path matches the `XDG_CACHE_HOME` env var below; the cache module
     # (`src/mgz_pkmn/cache.py::_cache_root_path`) reads `XDG_CACHE_HOME` as
@@ -43,6 +67,20 @@ services:
       # ephemeral writable layer) and nothing survives a redeploy.
       - key: XDG_CACHE_HOME
         value: /var/cache
+      # Auth/collections persistence. Left unset, `api/db/url.py` defaults to a
+      # SQLite file at `<cache_root>/mgz-pkmn.db` — i.e. on the persistent disk
+      # above, which is exactly what we want for the single-instance hosted
+      # demo (survives redeploys, no external DB to run). This `sync: false`
+      # entry documents the override knob: set a `postgresql://...` URL in the
+      # dashboard to migrate onto a managed Postgres without a code change.
+      - key: MGZ_PKMN_DATABASE_URL
+        sync: false
+      # Run Alembic migrations on startup so a deploy that ships a new
+      # migration self-applies it (`api/main.py` startup hook). Default is on;
+      # pinning `value: "1"` makes the production posture explicit and applies
+      # to previews too, so a preview boots with an up-to-date schema.
+      - key: MGZ_PKMN_AUTOMIGRATE
+        value: "1"
       # Warm the concept + set-cards + set-image caches on startup so the
       # first user after a deploy gets cache hits instead of paying the
       # full upstream round trip. The warmers run on
@@ -52,8 +90,14 @@ services:
       # from re-walking. With the persistent disk above, a single warm
       # pass after the first deploy now serves every subsequent deploy
       # until the manifest TTL expires.
+      # `previewValue: "0"` short-circuits the warm pass on PR previews (#405):
+      # Render injects this override only on preview environments, so a preview
+      # deploy never walks the set/card/image catalog against pokemontcg.io —
+      # the upstream-call volume and disk burn stay on production, where the
+      # persistent disk actually amortizes them. Production keeps `value: "1"`.
       - key: MGZ_PKMN_WARM_ON_STARTUP
         value: "1"
+        previewValue: "0"
       # Phase 1 of the pre-Scrydex catalog-warm epic (#368, #370). The
       # per-card structural warm is heavier than the other three — a
       # fresh pass writes ~18,000 cache entries while walking ~170 sets
@@ -66,6 +110,7 @@ services:
       # serve-forever shape we want.
       - key: MGZ_PKMN_WARM_CARDS_ON_STARTUP
         value: "1"
+        previewValue: "0"
       # Phase 2 of the pre-Scrydex catalog-warm epic (#368, #371). The
       # per-card *image* warm is the heaviest of all the warmers — a
       # fresh pass downloads ~36K image files (large + small for the
@@ -81,6 +126,7 @@ services:
       # instead of round-tripping to pokemontcg.io's CDN.
       - key: MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP
         value: "1"
+        previewValue: "0"
       # Hosted-demo auth scaffold (#61 epic, foundation in #407, GitHub
       # provider in #408). Toggle is in-blueprint because it's a
       # reviewable deploy policy decision; the secrets below ride the
@@ -90,8 +136,14 @@ services:
       # without it (api/auth/session.py:resolve_session_secret). Set the
       # three secrets in the Render dashboard *before* this block lands
       # so the post-merge redeploy boots clean instead of crash-looping.
+      # `previewValue: "0"` turns the whole auth scaffold off on PR previews
+      # (#405): reviewers hit the demo without a sign-in wall, which cuts the
+      # per-PR verification loop, and a preview never needs the real OAuth /
+      # SMTP / Apple secrets below to boot (with auth off, the providers are
+      # never wired up). Production stays `value: "1"`.
       - key: MGZ_PKMN_AUTH_ENABLED
         value: "1"
+        previewValue: "0"
       # Marks the deploy as production for the auth scaffold. This is
       # what `api/auth/session.py::_is_production` keys on to (a) require
       # `MGZ_PKMN_SESSION_SECRET` (refuses to boot if missing instead of
@@ -99,8 +151,16 @@ services:
       # the session cookie to `Secure` so it only rides https. Without
       # this, the API would happily boot on a missing secret and issue
       # non-Secure cookies — the failure mode is silent and dangerous.
+      # `previewValue: preview` keeps PR previews out of the production-only
+      # branches `api/auth/session.py::_is_production` gates on — it stops
+      # `resolve_session_secret` from *requiring* `MGZ_PKMN_SESSION_SECRET`
+      # (unset on previews) and stops the session cookie from being forced
+      # `Secure`. Moot while auth is off on previews via the override above,
+      # but correct in its own right and a safety net if anything else ever
+      # keys on the production flag.
       - key: MGZ_PKMN_ENV
         value: production
+        previewValue: preview
       # itsdangerous signing key for the session cookie. Generate once
       # with `openssl rand -hex 32` and keep stable; rotating it
       # invalidates every active sign-in. Mark as secret in the
@@ -211,6 +271,12 @@ services:
         sync: false
       - key: MGZ_PKMN_EBAY_ENV
         value: production
+      # Sold/completed-listing comps via eBay's Marketplace Insights API
+      # (src/mgz_pkmn/sources/ebay_client.py). Default off and fails soft on a
+      # 403 — the API grant is gated by eBay, so this stays `value: "0"` until
+      # we're approved. Documented here so the eBay surface is fully declared.
+      - key: MGZ_PKMN_EBAY_SOLD_ENABLED
+        value: "0"
       # Marketplace account-deletion webhook (api/routes/ebay.py). eBay
       # requires this endpoint live + verified before granting production
       # keys. Register the endpoint URL and a matching 32–80 char
