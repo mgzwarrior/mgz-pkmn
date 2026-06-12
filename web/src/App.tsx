@@ -443,6 +443,15 @@ function App() {
       <footer className="border-t border-sand-300 dark:border-husk-200 py-4 text-center text-xs text-coconut-400 dark:text-sand-400">
         mgz-pkmn · a personal card-show prep tool ·{' '}
         <a
+          href="https://mgz-pkmn.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+        >
+          mgz-pkmn.com
+        </a>{' '}
+        ·{' '}
+        <a
           href="https://github.com/mgzwarrior/mgz-pkmn"
           target="_blank"
           rel="noopener noreferrer"
