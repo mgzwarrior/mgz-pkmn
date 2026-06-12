@@ -667,3 +667,74 @@ describe('ResultsTable: header sort cycle', () => {
     useAppStore.setState({ rows: [] })
   })
 })
+
+describe('ResultsTable: hide owned (#339)', () => {
+  function ownedRow(name: string, number: string): Row {
+    return makeRow({
+      card: { id: `base1-${number}`, name, number, set: { id: 'base1', name: 'Base Set' } },
+      pricing: { market: 100, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+    })
+  }
+
+  it('drops owned rows and surfaces an "owned hidden" count when the setting is on', async () => {
+    vi.mocked(fetchCardOwnership).mockResolvedValue({
+      'base1::4': { collections: [{ id: 1, name: 'Show Binder', quantity: 2 }], wishlists: [] },
+    })
+    useAppStore.getState().updateSettings({ hideOwned: true })
+    useAppStore.setState({
+      rows: [ownedRow('Charizard', '4'), ownedRow('Pikachu', '58')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    // Pikachu (unowned) stays; Charizard drops once its occupancy resolves.
+    expect(await screen.findByText('Pikachu')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Charizard')).toBeNull())
+    expect(screen.getByText(/1 owned hidden/)).toBeInTheDocument()
+    expect(screen.getByText(/1 matched · 0 unmatched · 1 shown/)).toBeInTheDocument()
+
+    useAppStore.getState().updateSettings({ hideOwned: false })
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('keeps wishlist-only ("chasing") rows — those are what you still want', async () => {
+    vi.mocked(fetchCardOwnership).mockResolvedValue({
+      'base1::4': { collections: [], wishlists: [{ id: 9, name: 'Grails' }] },
+    })
+    useAppStore.getState().updateSettings({ hideOwned: true })
+    useAppStore.setState({
+      rows: [ownedRow('Charizard', '4')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    expect(await screen.findByText('chasing')).toBeInTheDocument()
+    expect(screen.getByText('Charizard')).toBeInTheDocument()
+    expect(screen.queryByText(/owned hidden/)).toBeNull()
+
+    useAppStore.getState().updateSettings({ hideOwned: false })
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('keeps owned rows when the setting is off', async () => {
+    vi.mocked(fetchCardOwnership).mockResolvedValue({
+      'base1::4': { collections: [{ id: 1, name: 'Show Binder', quantity: 2 }], wishlists: [] },
+    })
+    useAppStore.getState().updateSettings({ hideOwned: false })
+    useAppStore.setState({
+      rows: [ownedRow('Charizard', '4')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    // The owned badge still resolves, but the row stays put.
+    expect(await screen.findByText('owned ×2')).toBeInTheDocument()
+    expect(screen.getByText('Charizard')).toBeInTheDocument()
+    expect(screen.queryByText(/owned hidden/)).toBeNull()
+
+    useAppStore.setState({ rows: [] })
+  })
+})

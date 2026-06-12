@@ -160,6 +160,14 @@ export interface Settings {
   showTimer: boolean
   /** Show the eBay comps column (median sold + sparkline) in the results table. */
   showEbay: boolean
+  /**
+   * Hide owned cards from the search-results table (#339). Opt-in: when on, a
+   * matched row whose `(set_id, number)` identity appears in any of your
+   * collections is dropped from the view, turning a lookup into a want-list
+   * resolver. Signed-out users have no library, so the toggle is a no-op for
+   * them. Defaults off so the feature is additive.
+   */
+  hideOwned: boolean
   /** Swipe-mode rarity floor (swipe-header control; not in the settings drawer). */
   swipeRarityFloor: RarityFloor
   /**

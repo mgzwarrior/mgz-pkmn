@@ -57,6 +57,17 @@ function ownershipForRow(
   return id ? lookup(id.setId, id.number) : undefined
 }
 
+/**
+ * Whether a resolved ownership means the card sits in at least one collection
+ * (#339). Wishlist-only occupancy ("chasing") doesn't count as owned — those
+ * are exactly the cards the want-list view should keep. `undefined` (not yet
+ * known) and `null` (no occupancy) are both not-owned, so a row stays visible
+ * until its ownership resolves rather than flickering out mid-stream.
+ */
+function isOwned(ownership: CardOwnership | null | undefined): boolean {
+  return ownership != null && ownership.collections.length > 0
+}
+
 interface Props {
   onRerunLine?: (line: string) => void
 }
@@ -130,6 +141,20 @@ export function ResultsTable({ onRerunLine }: Props) {
   )
   const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
 
+  // #339: when "hide owned" is on, drop matched rows already in one of the
+  // user's collections, leaving just what's still missing. Owned-ness reuses
+  // the badge's lookup, so no extra request. Signed-out users have no library,
+  // so the toggle is inert for them.
+  const hideOwned = settings.hideOwned && showSavedActions
+  const visibleRows = useMemo(
+    () =>
+      hideOwned
+        ? displayedRows.filter((row) => !isOwned(ownershipForRow(row, lookupOwnership)))
+        : displayedRows,
+    [hideOwned, displayedRows, lookupOwnership],
+  )
+  const hiddenOwnedCount = displayedRows.length - visibleRows.length
+
   if (rows.length === 0 && !isRunning) {
     return (
       <div className="flex items-center justify-center rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 py-16 text-coconut-400 dark:text-sand-300 text-sm">
@@ -186,11 +211,14 @@ export function ResultsTable({ onRerunLine }: Props) {
             </button>
           )}
           <p className="text-xs text-coconut-400 dark:text-sand-300 text-right">
-            {displayedRows.filter((r) => r.matched).length} matched ·{' '}
-            {displayedRows.filter((r) => !r.matched).length} unmatched ·{' '}
-            {displayedRows.length} shown
-            {displayedRows.length !== rows.length && (
+            {visibleRows.filter((r) => r.matched).length} matched ·{' '}
+            {visibleRows.filter((r) => !r.matched).length} unmatched ·{' '}
+            {visibleRows.length} shown
+            {visibleRows.length !== rows.length && (
               <span className="text-coconut-400 dark:text-sand-300"> (of {rows.length})</span>
+            )}
+            {hiddenOwnedCount > 0 && (
+              <span className="text-palm-500 dark:text-palm-200"> · {hiddenOwnedCount} owned hidden</span>
             )}
           </p>
         </div>
@@ -349,7 +377,7 @@ export function ResultsTable({ onRerunLine }: Props) {
             )}
           </thead>
           <tbody>
-            {displayedRows.map((row, displayedIdx) => (
+            {visibleRows.map((row, displayedIdx) => (
               <ResultRow
                 key={rowKeys.get(row) ?? -1}
                 row={row}
@@ -373,7 +401,7 @@ export function ResultsTable({ onRerunLine }: Props) {
       </div>
 
       <CardDetailModal
-        rows={displayedRows}
+        rows={visibleRows}
         index={detailIndex}
         onChangeIndex={setDetailIndex}
       />
