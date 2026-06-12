@@ -710,6 +710,19 @@ export interface WishlistItem {
   notes: string | null
   max_price: number | null
   added_at: string
+  // Promoted identity + lifecycle fields (#574/#504). Optional so partial
+  // fixtures stay valid — the wire always carries them (null when absent).
+  card_set_id?: string | null
+  card_number?: string | null
+  card_name?: string | null
+  card_rarity?: string | null
+  card_types?: string[] | null
+  card_image_url?: string | null
+  price_snapshot?: number | null
+  priced_at?: string | null
+  // Non-null once the chase is closed and the card is owned (#504).
+  acquired_at?: string | null
+  acquired_collection_item_id?: number | null
 }
 
 export interface Wishlist {
@@ -725,6 +738,44 @@ export async function fetchWishlists(): Promise<WishlistSummary[]> {
   if (!res.ok) throw new Error(`wishlists failed: ${res.status}`)
   const data = await res.json()
   return data.items as WishlistSummary[]
+}
+
+export async function fetchWishlist(wishlistId: number): Promise<Wishlist> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}`)
+  if (!res.ok) throw new Error(`wishlist failed: ${res.status}`)
+  return (await res.json()) as Wishlist
+}
+
+/** The wishlist row (now acquired) plus the collection row it produced. */
+export interface PromoteResult {
+  wishlist_item: WishlistItem
+  collection_item: CollectionItem
+}
+
+/**
+ * Close a chase: mark a wishlist item acquired and land it in a collection
+ * (#504). The wishlist row survives — stamped `acquired_at` — so the list
+ * doubles as a show retrospective.
+ */
+export async function promoteWishlistItem(
+  wishlistId: number,
+  itemId: number,
+  opts: { collectionId: number; quantity?: number; notes?: string | null },
+): Promise<PromoteResult> {
+  const res = await fetch(
+    `${BASE}/wishlists/${wishlistId}/items/${itemId}/promote`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        collection_id: opts.collectionId,
+        quantity: opts.quantity ?? 1,
+        notes: opts.notes ?? null,
+      }),
+    },
+  )
+  if (!res.ok) throw new Error(`promote failed: ${res.status}`)
+  return (await res.json()) as PromoteResult
 }
 
 export async function createWishlist(
