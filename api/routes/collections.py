@@ -21,6 +21,7 @@ Endpoints:
 - `PATCH  /collections/{id}`                  rename / edit description / rule
 - `DELETE /collections/{id}`                  cascade-delete items
 - `POST   /collections/{id}/items`            add a card (manual/set only)
+- `POST   /collections/{id}/items/bulk`       add many cards at once (#268/#509)
 - `DELETE /collections/{id}/items/{item_id}`  remove a card (manual/set only)
 - `GET    /collections/{id}/target`           catalog-backed membership + ownership overlay (#631)
 - `POST   /collections/{id}/chase`            push the un-owned matches onto a want-list (#631)
@@ -215,6 +216,27 @@ class CollectionItemCreate(BaseModel):
     added_via: str | None = None
 
 
+class BulkItemsCreate(BaseModel):
+    """Add a set of matched cards to a manual/set collection in one call.
+
+    Backs the results-table "add selected to binder (owned)" bulk action
+    (#268) and the haul mode (#509). Each card lands as its own quantity-1
+    row, mirroring the single-card :class:`CollectionItemCreate` insert; the
+    optional ``notes`` / ``added_via`` apply to every row in the batch."""
+
+    cards: list[dict[str, Any]] = Field(min_length=1, max_length=500)
+    notes: str | None = None
+    added_via: str | None = None
+
+
+class BulkAddResult(BaseModel):
+    """Count plus the created rows, so the SPA can bump item counts and
+    invalidate the cross-surface ownership cache (#576) in one round-trip."""
+
+    added: int
+    items: list[CollectionItemOut]
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -354,6 +376,47 @@ def add_collection_item(
     db.commit()
     db.refresh(item)
     return serialize_collection_item(item)
+
+
+@router.post("/collections/{collection_id}/items/bulk", status_code=201)
+def add_collection_items_bulk(
+    collection_id: int,
+    req: BulkItemsCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Add every card in ``req.cards`` to the collection in one transaction.
+
+    Same per-card handling as the single :func:`add_collection_item` (identity
+    + price-snapshot extraction, ``manual`` provenance by default); dynamic
+    collections are rejected for the same reason."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    _reject_if_dynamic(collection)
+    now = datetime.now(UTC)
+    items: list[CollectionItem] = []
+    for card in req.cards:
+        promoted = extract_card_identity(card)
+        price = extract_price_snapshot(card)
+        items.append(
+            CollectionItem(
+                collection_id=collection.id,
+                card_json=card,
+                notes=req.notes,
+                quantity=1,
+                added_via=req.added_via or ADDED_VIA_MANUAL,
+                price_snapshot=price,
+                priced_at=now if price is not None else None,
+                **promoted,
+            )
+        )
+    db.add_all(items)
+    db.commit()
+    for item in items:
+        db.refresh(item)
+    return BulkAddResult(
+        added=len(items),
+        items=[CollectionItemOut(**serialize_collection_item(i)) for i in items],
+    ).model_dump()
 
 
 @router.delete("/collections/{collection_id}/items/{item_id}", status_code=204)

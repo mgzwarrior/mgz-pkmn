@@ -437,6 +437,49 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             resp = c.delete(f"/api/v1/collections/{cid_b}/items/{item_id}")
             self.assertEqual(resp.status_code, 404)
 
+    def test_bulk_add_items_round_trip(self) -> None:
+        # #268 — drop a multi-select of matched rows into a collection in one
+        # call. Each card lands as its own row and the response carries them.
+        second = {**SAMPLE_CARD, "id": "base1-2", "name": "Blastoise", "number": "2"}
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show haul"}).json()["id"]
+
+            resp = c.post(
+                f"/api/v1/collections/{cid}/items/bulk",
+                json={"cards": [SAMPLE_CARD, second], "added_via": "bulk"},
+            )
+            self.assertEqual(resp.status_code, 201)
+            body = resp.json()
+            self.assertEqual(body["added"], 2)
+            self.assertEqual({i["card"]["name"] for i in body["items"]}, {"Charizard", "Blastoise"})
+            self.assertTrue(all(i["added_via"] == "bulk" for i in body["items"]))
+
+            detail = c.get(f"/api/v1/collections/{cid}").json()
+            self.assertEqual(len(detail["items"]), 2)
+            self.assertEqual(c.get("/api/v1/collections").json()["items"][0]["item_count"], 2)
+
+    def test_bulk_add_rejects_empty_list(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            resp = c.post(f"/api/v1/collections/{cid}/items/bulk", json={"cards": []})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_bulk_add_404_for_missing_collection(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/collections/9999/items/bulk", json={"cards": [SAMPLE_CARD]})
+            self.assertEqual(resp.status_code, 404)
+
+    def test_bulk_add_rejects_dynamic_collection(self) -> None:
+        # A dynamic collection's membership is its rule — direct adds are 409,
+        # same as the single-item endpoint.
+        with self._client() as c:
+            cid = c.post(
+                "/api/v1/collections",
+                json={"name": "All Eevees", "kind": "dynamic", "rule": {"name": "eevee"}},
+            ).json()["id"]
+            resp = c.post(f"/api/v1/collections/{cid}/items/bulk", json={"cards": [SAMPLE_CARD]})
+            self.assertEqual(resp.status_code, 409)
+
 
 # ---------------------------------------------------------------------------
 # Dynamic (rule-based) collections (#506)
