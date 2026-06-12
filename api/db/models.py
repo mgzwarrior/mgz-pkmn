@@ -165,6 +165,14 @@ COLLECTION_KIND_MANUAL = "manual"
 COLLECTION_KIND_SET = "set"
 COLLECTION_KIND_DYNAMIC = "dynamic"
 
+#: Allowed values for ``Collection.dynamic_scope`` (#631). ``owned`` matches
+#: the rule against the user's own cards — an inventory view (the #630
+#: default). ``catalog`` resolves the full matching set from pokemontcg.io
+#: and overlays ownership — a goal-with-progress target view. A null column
+#: reads as ``owned``.
+DYNAMIC_SCOPE_OWNED = "owned"
+DYNAMIC_SCOPE_CATALOG = "catalog"
+
 #: Allowed values for ``CollectionItem.added_via`` — provenance tag,
 #: used by the insights dashboard to answer "how do users actually get
 #: cards into their collections."
@@ -199,6 +207,10 @@ class Collection(Base):
     #: (the query DSL from ADR-0022); the membership query is recomputed
     #: lazily and never materialised as ``collection_items`` rows.
     rule_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    #: Only meaningful when ``kind == 'dynamic'`` (#631). One of ``owned`` /
+    #: ``catalog``; null reads as ``owned``. ``catalog`` flips the rule from
+    #: an inventory view into a catalog-backed target view with progress.
+    dynamic_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     items: Mapped[list[CollectionItem]] = relationship(
         back_populates="collection",

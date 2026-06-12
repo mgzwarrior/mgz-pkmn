@@ -236,6 +236,36 @@ class CollectionsModelReworkMigrationTests(_IsolatedDbMixin):
         self.assertIsNone(row.added_via)
 
 
+class DynamicScopeMigrationTests(_IsolatedDbMixin):
+    """The #631 ``collections.dynamic_scope`` column lands additively and
+    round-trips down/up without disturbing the rest of the schema."""
+
+    def test_dynamic_scope_column_present(self) -> None:
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertIn("dynamic_scope", cols)
+
+    def test_round_trip_downgrade_then_reupgrade(self) -> None:
+        from alembic import command
+
+        from api.db import migrate as migrate_mod
+
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cfg = migrate_mod._alembic_config()
+        cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+        # Step back past the dynamic_scope revision to its parent.
+        command.downgrade(cfg, "b3f1a9c2d7e4")
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertNotIn("dynamic_scope", cols)
+
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertIn("dynamic_scope", cols)
+
+
 # ---------------------------------------------------------------------------
 # Endpoint behavior
 # ---------------------------------------------------------------------------
@@ -579,6 +609,211 @@ class DynamicCollectionTests(_IsolatedDbMixin):
             self.assertEqual(created["kind"], "manual")
             self.assertIsNone(created["rule"])
             self.assertIsNone(created["source_set_id"])
+
+
+# ---------------------------------------------------------------------------
+# Catalog-scope dynamic collections — target view + chase (#631)
+# ---------------------------------------------------------------------------
+
+
+# Three Eevee printings the fake catalog returns for a `name: eevee` rule.
+CATALOG_EEVEES = [
+    EEVEE_CARD,  # sv1-130
+    {
+        "id": "sv4-167",
+        "name": "Eevee ex",
+        "set": {"id": "sv4", "name": "Paradox Rift"},
+        "number": "167",
+        "rarity": "Double Rare",
+        "images": {"small": "https://example.com/eevee-ex.png"},
+        "types": ["Colorless"],
+    },
+    {
+        "id": "swsh7-186",
+        "name": "Eevee VMAX",
+        "set": {"id": "swsh7", "name": "Evolving Skies"},
+        "number": "186",
+        "rarity": "Rare Rainbow",
+        "images": {"small": "https://example.com/eevee-vmax.png"},
+        "types": ["Colorless"],
+    },
+]
+
+
+class _FakeTCGClient:
+    """Stand-in for the pokemontcg.io client — returns a fixed card list so
+    the catalog-scope tests never touch the network."""
+
+    def __init__(self, cards: list[dict], *, api_key: str | None = None) -> None:
+        self._cards = cards
+
+    def search_all(self, query: str, *args, **kwargs):
+        return list(self._cards), "HIT"
+
+
+class CatalogScopeDynamicTests(_IsolatedDbMixin):
+    """A catalog-scope dynamic collection resolves its membership from the
+    catalog and overlays ownership — a goal-with-progress target view."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def _patch_catalog(self, cards: list[dict]):
+        from unittest.mock import patch
+
+        return patch(
+            "api.routes.collections.TCGClient",
+            lambda api_key=None: _FakeTCGClient(cards, api_key=api_key),
+        )
+
+    def _seed_owned(self, c: TestClient, *cards: dict) -> int:
+        cid = c.post("/api/v1/collections", json={"name": "binder"}).json()["id"]
+        for card in cards:
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": card})
+        return cid
+
+    def _make_catalog_dynamic(self, c: TestClient, rule: dict) -> dict:
+        return c.post(
+            "/api/v1/collections",
+            json={
+                "name": "all Eevees",
+                "kind": "dynamic",
+                "rule": rule,
+                "dynamic_scope": "catalog",
+            },
+        ).json()
+
+    def test_create_catalog_scope_echoes_scope(self) -> None:
+        with self._client() as c:
+            dyn = self._make_catalog_dynamic(c, {"name": "eevee"})
+            self.assertEqual(dyn["kind"], "dynamic")
+            self.assertEqual(dyn["dynamic_scope"], "catalog")
+
+    def test_dynamic_defaults_to_owned_scope(self) -> None:
+        with self._client() as c:
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "x", "kind": "dynamic", "rule": {"name": "eevee"}},
+            ).json()
+            self.assertEqual(dyn["dynamic_scope"], "owned")
+
+    def test_create_rejects_unknown_scope(self) -> None:
+        with self._client() as c:
+            resp = c.post(
+                "/api/v1/collections",
+                json={
+                    "name": "x",
+                    "kind": "dynamic",
+                    "rule": {"name": "eevee"},
+                    "dynamic_scope": "bogus",
+                },
+            )
+            self.assertEqual(resp.status_code, 422)
+
+    def test_target_overlays_ownership_and_progress(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, EEVEE_CARD)  # owns sv1-130 only
+            dyn = self._make_catalog_dynamic(c, {"name": "eevee"})
+            with self._patch_catalog(CATALOG_EEVEES):
+                target = c.get(f"/api/v1/collections/{dyn['id']}/target").json()
+            self.assertEqual(target["total"], 3)
+            self.assertEqual(target["owned_count"], 1)
+            by_id = {tc["card"]["id"]: tc for tc in target["cards"]}
+            self.assertTrue(by_id["sv1-130"]["owned"])
+            self.assertEqual(by_id["sv1-130"]["owned_quantity"], 1)
+            self.assertFalse(by_id["sv4-167"]["owned"])
+
+    def test_target_409_on_owned_scope(self) -> None:
+        with self._client() as c:
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "x", "kind": "dynamic", "rule": {"name": "eevee"}},
+            ).json()
+            resp = c.get(f"/api/v1/collections/{dyn['id']}/target")
+            self.assertEqual(resp.status_code, 409)
+
+    def test_target_409_on_manual(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "m"}).json()["id"]
+            self.assertEqual(c.get(f"/api/v1/collections/{cid}/target").status_code, 409)
+
+    def test_chase_adds_only_unowned_to_new_wishlist(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, EEVEE_CARD)  # owns sv1-130
+            dyn = self._make_catalog_dynamic(c, {"name": "eevee"})
+            with self._patch_catalog(CATALOG_EEVEES):
+                res = c.post(
+                    f"/api/v1/collections/{dyn['id']}/chase",
+                    json={"wishlist_name": "Eevee chase"},
+                ).json()
+            self.assertEqual(res["total_missing"], 2)
+            self.assertEqual(res["added"], 2)
+            self.assertEqual(res["skipped"], 0)
+
+            detail = c.get(f"/api/v1/wishlists/{res['wishlist_id']}").json()
+            names = {i["card_name"] for i in detail["items"]}
+            self.assertEqual(names, {"Eevee ex", "Eevee VMAX"})
+
+    def test_chase_is_idempotent_on_rerun(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, EEVEE_CARD)
+            dyn = self._make_catalog_dynamic(c, {"name": "eevee"})
+            with self._patch_catalog(CATALOG_EEVEES):
+                first = c.post(
+                    f"/api/v1/collections/{dyn['id']}/chase",
+                    json={"wishlist_name": "Eevee chase"},
+                ).json()
+                again = c.post(
+                    f"/api/v1/collections/{dyn['id']}/chase",
+                    json={"wishlist_id": first["wishlist_id"]},
+                ).json()
+            self.assertEqual(again["added"], 0)
+            self.assertEqual(again["skipped"], 2)
+
+    def test_chase_requires_exactly_one_target(self) -> None:
+        with self._client() as c:
+            dyn = self._make_catalog_dynamic(c, {"name": "eevee"})
+            both = c.post(
+                f"/api/v1/collections/{dyn['id']}/chase",
+                json={"wishlist_id": 1, "wishlist_name": "x"},
+            )
+            self.assertEqual(both.status_code, 422)
+            neither = c.post(f"/api/v1/collections/{dyn['id']}/chase", json={})
+            self.assertEqual(neither.status_code, 422)
+
+    def test_chase_404_for_missing_wishlist_id(self) -> None:
+        with self._client() as c:
+            dyn = self._make_catalog_dynamic(c, {"name": "eevee"})
+            with self._patch_catalog(CATALOG_EEVEES):
+                resp = c.post(
+                    f"/api/v1/collections/{dyn['id']}/chase",
+                    json={"wishlist_id": 9999},
+                )
+            self.assertEqual(resp.status_code, 404)
+
+
+class RuleToLuceneTests(unittest.TestCase):
+    """The rule → pokemontcg.io Lucene translation (#631)."""
+
+    def test_name_becomes_prefix_wildcard(self) -> None:
+        from api.db.collection_rules import rule_to_lucene
+
+        self.assertEqual(rule_to_lucene({"name": "Eevee"}), "name:Eevee*")
+
+    def test_multiword_name_is_quoted(self) -> None:
+        from api.db.collection_rules import rule_to_lucene
+
+        self.assertEqual(rule_to_lucene({"name": "Mr Mime"}), 'name:"Mr Mime*"')
+
+    def test_predicates_and_together(self) -> None:
+        from api.db.collection_rules import rule_to_lucene
+
+        q = rule_to_lucene({"types": ["Fire"], "set_id": "base1", "rarity": "Rare Holo"})
+        self.assertIn("types:Fire", q)
+        self.assertIn('set.id:"base1"', q)
+        self.assertIn('rarity:"Rare Holo"', q)
 
 
 # ---------------------------------------------------------------------------
