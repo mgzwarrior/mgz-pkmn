@@ -153,6 +153,13 @@ export function SettingsDrawer() {
                 checked={settings.showEbay}
                 onChange={(v) => updateSettings({ showEbay: v })}
               />
+              <Toggle
+                id="hideOwned"
+                label="Hide owned cards"
+                description="Drops results you already have in a collection, so the table shows just what's still missing"
+                checked={settings.hideOwned}
+                onChange={(v) => updateSettings({ hideOwned: v })}
+              />
             </div>
 
             <CacheStatsPanel />

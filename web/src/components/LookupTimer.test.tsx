@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS = {
   sort: 'number' as const,
   showTimer: false,
   showEbay: false,
+  hideOwned: false,
   swipeRarityFloor: 'chase' as const,
   swipeExcludeOwned: false,
   swipeExcludeChasing: false,

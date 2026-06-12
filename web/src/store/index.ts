@@ -39,6 +39,11 @@ const DEFAULT_SETTINGS: Settings = {
   // yet (epic #416), so the column would be empty for now. The `merge`
   // below backfills this for users with persisted pre-#425 settings.
   showEbay: false,
+  // Owned-card filtering is opt-in (#339): a fresh result set shows everything,
+  // and the user turns this on to drop cards already in one of their
+  // collections, leaving just what's still missing. The `merge` below backfills
+  // it for users with older persisted settings.
+  hideOwned: false,
   // Swipe mode opens on the chase tier — only each set's top rarity — so a
   // session feels like flipping chase cards, not walking bulk (#580). The
   // `merge` below backfills this for users with older persisted settings.
