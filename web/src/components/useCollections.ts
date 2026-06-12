@@ -11,6 +11,7 @@ import {
   createCollection,
   fetchCollections,
   type CollectionSummary,
+  type CreateCollectionOptions,
 } from '../api/client'
 import { invalidateOwnership } from './useCardOwnership'
 
@@ -61,23 +62,31 @@ export function useCollections() {
     }
   }, [])
 
-  const create = useCallback(async (name: string, description?: string) => {
-    const created = await createCollection(name, description)
-    // Append to the cache and bump item_count when items arrive later.
-    set({
-      collections: [
-        {
-          id: created.id,
-          name: created.name,
-          description: created.description,
-          created_at: created.created_at,
-          item_count: created.items.length,
-        },
-        ...state.collections,
-      ],
-    })
-    return created
-  }, [])
+  const create = useCallback(
+    async (name: string, options?: CreateCollectionOptions) => {
+      const created = await createCollection(name, options)
+      // Append to the cache and bump item_count when items arrive later.
+      // A dynamic collection lands with its already-resolved membership, so
+      // seed item_count from the returned items rather than zero.
+      set({
+        collections: [
+          {
+            id: created.id,
+            name: created.name,
+            description: created.description,
+            created_at: created.created_at,
+            item_count: created.items.length,
+            kind: created.kind,
+            source_set_id: created.source_set_id,
+            rule: created.rule,
+          },
+          ...state.collections,
+        ],
+      })
+      return created
+    },
+    [],
+  )
 
   const addCard = useCallback(
     async (

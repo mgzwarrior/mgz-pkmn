@@ -58,6 +58,27 @@ SAMPLE_CARD = {
     "number": "4",
     "rarity": "Rare Holo",
     "images": {"small": "https://example.com/charizard.png"},
+    "types": ["Fire"],
+}
+
+EEVEE_CARD = {
+    "id": "sv1-130",
+    "name": "Eevee",
+    "set": {"id": "sv1", "name": "Scarlet & Violet"},
+    "number": "130",
+    "rarity": "Common",
+    "images": {"small": "https://example.com/eevee.png"},
+    "types": ["Colorless"],
+}
+
+VAPOREON_CARD = {
+    "id": "sv1-131",
+    "name": "Vaporeon",
+    "set": {"id": "sv1", "name": "Scarlet & Violet"},
+    "number": "131",
+    "rarity": "Rare",
+    "images": {"small": "https://example.com/vaporeon.png"},
+    "types": ["Water"],
 }
 
 
@@ -385,6 +406,179 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             # Item exists, but not in collection B.
             resp = c.delete(f"/api/v1/collections/{cid_b}/items/{item_id}")
             self.assertEqual(resp.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# Dynamic (rule-based) collections (#506)
+# ---------------------------------------------------------------------------
+
+
+class DynamicCollectionTests(_IsolatedDbMixin):
+    """A dynamic collection stores a rule and resolves its membership from
+    the user's owned cards on read — never materialised as item rows."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def _seed_owned(self, c: TestClient, *cards: dict) -> int:
+        """Drop the given cards into a plain manual collection so the
+        dynamic resolver has owned inventory to match against."""
+        cid = c.post("/api/v1/collections", json={"name": "binder"}).json()["id"]
+        for card in cards:
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": card})
+        return cid
+
+    def test_create_dynamic_requires_a_rule(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/collections", json={"name": "x", "kind": "dynamic"})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_create_dynamic_rejects_empty_rule(self) -> None:
+        with self._client() as c:
+            resp = c.post(
+                "/api/v1/collections",
+                json={"name": "x", "kind": "dynamic", "rule": {}},
+            )
+            self.assertEqual(resp.status_code, 422)
+
+    def test_create_dynamic_rejects_unknown_rule_key(self) -> None:
+        with self._client() as c:
+            resp = c.post(
+                "/api/v1/collections",
+                json={"name": "x", "kind": "dynamic", "rule": {"colour": "Fire"}},
+            )
+            self.assertEqual(resp.status_code, 422)
+
+    def test_create_rejects_unknown_kind(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/collections", json={"name": "x", "kind": "bogus"})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_create_set_requires_source_set_id(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/collections", json={"name": "x", "kind": "set"})
+            self.assertEqual(resp.status_code, 422)
+            ok = c.post(
+                "/api/v1/collections",
+                json={"name": "base", "kind": "set", "source_set_id": "base1"},
+            )
+            self.assertEqual(ok.status_code, 201)
+            self.assertEqual(ok.json()["kind"], "set")
+            self.assertEqual(ok.json()["source_set_id"], "base1")
+
+    def test_dynamic_resolves_by_name(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, SAMPLE_CARD, EEVEE_CARD, VAPOREON_CARD)
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "all Eevees", "kind": "dynamic", "rule": {"name": "eevee"}},
+            ).json()
+            self.assertEqual(dyn["kind"], "dynamic")
+            self.assertEqual(dyn["rule"], {"name": "eevee"})
+
+            detail = c.get(f"/api/v1/collections/{dyn['id']}").json()
+            names = [i["card_name"] for i in detail["items"]]
+            self.assertEqual(names, ["Eevee"])
+
+    def test_dynamic_resolves_by_type(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, SAMPLE_CARD, EEVEE_CARD, VAPOREON_CARD)
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "fire", "kind": "dynamic", "rule": {"types": ["Fire"]}},
+            ).json()
+            detail = c.get(f"/api/v1/collections/{dyn['id']}").json()
+            names = {i["card_name"] for i in detail["items"]}
+            self.assertEqual(names, {"Charizard"})
+
+    def test_dynamic_resolves_by_set(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, SAMPLE_CARD, EEVEE_CARD, VAPOREON_CARD)
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "sv1", "kind": "dynamic", "rule": {"set_id": "sv1"}},
+            ).json()
+            detail = c.get(f"/api/v1/collections/{dyn['id']}").json()
+            names = {i["card_name"] for i in detail["items"]}
+            self.assertEqual(names, {"Eevee", "Vaporeon"})
+
+    def test_dynamic_count_in_list_view_reflects_membership(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, SAMPLE_CARD, EEVEE_CARD, VAPOREON_CARD)
+            c.post(
+                "/api/v1/collections",
+                json={"name": "sv1", "kind": "dynamic", "rule": {"set_id": "sv1"}},
+            )
+            listing = c.get("/api/v1/collections").json()
+            dyn = next(i for i in listing["items"] if i["kind"] == "dynamic")
+            self.assertEqual(dyn["item_count"], 2)
+
+    def test_dynamic_membership_grows_as_inventory_grows(self) -> None:
+        with self._client() as c:
+            owned = self._seed_owned(c, EEVEE_CARD)
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "sv1", "kind": "dynamic", "rule": {"set_id": "sv1"}},
+            ).json()
+            before = c.get(f"/api/v1/collections/{dyn['id']}").json()
+            self.assertEqual(len(before["items"]), 1)
+
+            c.post(f"/api/v1/collections/{owned}/items", json={"card": VAPOREON_CARD})
+            after = c.get(f"/api/v1/collections/{dyn['id']}").json()
+            self.assertEqual(len(after["items"]), 2)
+
+    def test_dynamic_does_not_materialise_item_rows(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, EEVEE_CARD)
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "sv1", "kind": "dynamic", "rule": {"set_id": "sv1"}},
+            ).json()
+            with session_mod.get_session_factory()() as s:
+                rows = s.scalars(
+                    select(CollectionItem).where(CollectionItem.collection_id == dyn["id"])
+                ).all()
+            self.assertEqual(list(rows), [])
+
+    def test_cannot_add_items_to_dynamic(self) -> None:
+        with self._client() as c:
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "fire", "kind": "dynamic", "rule": {"types": ["Fire"]}},
+            ).json()
+            resp = c.post(f"/api/v1/collections/{dyn['id']}/items", json={"card": SAMPLE_CARD})
+            self.assertEqual(resp.status_code, 409)
+
+    def test_patch_rule_repoints_membership(self) -> None:
+        with self._client() as c:
+            self._seed_owned(c, SAMPLE_CARD, EEVEE_CARD, VAPOREON_CARD)
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "swap", "kind": "dynamic", "rule": {"name": "eevee"}},
+            ).json()
+            patched = c.patch(
+                f"/api/v1/collections/{dyn['id']}",
+                json={"rule": {"types": ["Water"]}},
+            )
+            self.assertEqual(patched.status_code, 200)
+            detail = c.get(f"/api/v1/collections/{dyn['id']}").json()
+            names = {i["card_name"] for i in detail["items"]}
+            self.assertEqual(names, {"Vaporeon"})
+
+    def test_patch_rule_on_manual_collection_is_409(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "manual"}).json()["id"]
+            resp = c.patch(f"/api/v1/collections/{cid}", json={"rule": {"name": "x"}})
+            self.assertEqual(resp.status_code, 409)
+
+    def test_manual_collection_defaults_to_kind_manual(self) -> None:
+        with self._client() as c:
+            created = c.post("/api/v1/collections", json={"name": "plain"}).json()
+            self.assertEqual(created["kind"], "manual")
+            self.assertIsNone(created["rule"])
+            self.assertIsNone(created["source_set_id"])
 
 
 # ---------------------------------------------------------------------------
