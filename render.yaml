@@ -1,3 +1,20 @@
+# Generate a Render Preview Environment for every PR against main. This
+# block MUST live at the blueprint *root* (sibling to `services:`), not
+# nested under the service: the root-level `previews` key is what enables
+# Preview Environments, and Preview Environments are the only Render
+# preview feature that honors the per-var `previewValue` overrides below
+# (auth off, warmers skipped on previews). The service-level `previews:`
+# block we used before (#389) still generated a preview but silently
+# ignored every `previewValue`, so previews booted with the production
+# values — auth on, full catalog warm against pokemontcg.io (#640).
+# `previewValue` is applied at preview-environment *creation*, so an
+# already-running preview won't pick up a newly-added override — it has to
+# be regenerated (reopen the PR). Requires a paid workspace tier — Hobby
+# workspaces reject the field at sync time. See
+# https://render.com/docs/preview-environments and
+# https://render.com/docs/blueprint-spec#previews.
+previews:
+  generation: automatic
 services:
   - type: web
     name: mgz-pkmn
@@ -12,14 +29,6 @@ services:
     branch: main
     autoDeploy: true
     healthCheckPath: /health
-    # Opt this service into a PR preview deploy on every pull request against
-    # main. Per-service `previews.generation` is what controls individual PR
-    # previews; omitting it defaults to off and Render disables previews on
-    # each blueprint sync (#389). Requires a paid workspace tier — Hobby
-    # workspaces reject the field at sync time. See
-    # https://render.com/docs/blueprint-spec#previews.
-    previews:
-      generation: automatic
     # Only rebuild + redeploy when a file that actually ships in the image
     # changes. The Dockerfile's build inputs are the SPA (`web/`, with shared
     # brand assets from `assets/`), the Python package (`src/`) and its deps
