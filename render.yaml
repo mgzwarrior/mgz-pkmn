@@ -27,14 +27,14 @@ services:
     # `CHANGELOG.md` (backs GET /api/v1/changelog) and `README.md` (hatchling
     # package readme), and the `Dockerfile` itself. Docs-, site-, and
     # design-only churn (`docs/`, `site/`, `design/`, `tests/`) no longer
-    # spins up a production deploy or a PR preview. `includedPaths` (rather
+    # spins up a production deploy or a PR preview. `paths` (rather
     # than the inverse `ignoredPaths`) is deliberate: an allowlist of the real
     # build inputs can't silently skip a deploy when a *new* top-level input
     # dir appears — it just won't match until added here, which is the safe
     # failure mode. Glob syntax, relative to the repo root. See
     # https://render.com/docs/blueprint-spec#buildfilter.
     buildFilter:
-      includedPaths:
+      paths:
         - "api/**"
         - "web/**"
         - "src/**"
