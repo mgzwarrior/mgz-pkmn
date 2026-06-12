@@ -1,7 +1,7 @@
 /**
  * useCollections — shared fetcher + lightweight cache for the
  * `/api/v1/collections` summary list. Both the `AddToCollectionButton`
- * picker (per result row) and the `LibraryCollectionsTab` listing read
+ * picker (per result row) and the `LibraryBindersTab` listing read
  * from here, so creating a collection in one surface lights up the
  * other without a second round-trip.
  */

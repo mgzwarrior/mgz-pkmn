@@ -1,6 +1,6 @@
 /**
  * SmartCollectionTarget — the detail view for a catalog-scope smart
- * collection (#631). Opens from a row in [LibraryCollectionsTab](./LibraryCollectionsTab.tsx).
+ * collection (#631). Opens from an owned row in [LibraryBindersTab](./LibraryBindersTab.tsx).
  *
  * A catalog-scope smart collection is a goal, not a bucket: its membership
  * is the full set of cards matching the rule (resolved from the catalog via
