@@ -150,6 +150,62 @@ def resolve_dynamic_items(db: Session, user_id: int, rule: dict[str, Any]) -> li
     return items
 
 
+def rule_to_lucene(rule: dict[str, Any]) -> str:
+    """Translate a rule into a pokemontcg.io Lucene query (#631, catalog scope).
+
+    Maps each predicate onto the catalog's field syntax and ANDs them with
+    spaces (Lucene's implicit AND). ``name`` becomes a prefix wildcard so
+    "Eevee" catches "Eevee ex" / "Eevee VMAX"; the rest are exact-field
+    matches. Multiple ``types`` AND together — a dual-type match, which is
+    the same semantics the owned-scope resolver uses.
+
+    Forward-compatible with ADR-0022: when the DSL planner lands it can own
+    this translation, but for now the rule maps cleanly enough that a direct
+    builder is simpler than standing up the planner."""
+    parts: list[str] = []
+    name = rule.get("name")
+    if name:
+        token = name.replace('"', "")
+        # Prefix wildcard. Quote multi-word names so the wildcard binds to
+        # the whole value rather than just the last token.
+        parts.append(f'name:"{token}*"' if " " in token else f"name:{token}*")
+    for t in rule.get("types", []) or []:
+        parts.append(f'types:"{t}"' if " " in t else f"types:{t}")
+    if rule.get("set_id"):
+        parts.append(f'set.id:"{rule["set_id"]}"')
+    if rule.get("number"):
+        parts.append(f'number:"{rule["number"]}"')
+    if rule.get("rarity"):
+        parts.append(f'rarity:"{rule["rarity"]}"')
+    return " ".join(parts)
+
+
+def owned_quantity_map(db: Session, user_id: int) -> dict[tuple[str, str], int]:
+    """Map ``(card_set_id, card_number) -> total owned quantity`` for the user.
+
+    The overlay key for catalog-scope resolution: a catalog card is "owned"
+    iff its identity is in this map. Sums ``quantity`` across every binder so
+    two copies in two collections read as quantity 2. Only rows with a full
+    promoted identity participate — a card we couldn't promote can't be
+    matched against the catalog anyway."""
+    rows = db.execute(
+        select(
+            CollectionItem.card_set_id,
+            CollectionItem.card_number,
+            func.coalesce(func.sum(CollectionItem.quantity), 0),
+        )
+        .join(Collection, CollectionItem.collection_id == Collection.id)
+        .where(
+            Collection.user_id == user_id,
+            Collection.kind != COLLECTION_KIND_DYNAMIC,
+            CollectionItem.card_set_id.is_not(None),
+            CollectionItem.card_number.is_not(None),
+        )
+        .group_by(CollectionItem.card_set_id, CollectionItem.card_number)
+    ).all()
+    return {(set_id, number): int(qty) for set_id, number, qty in rows}
+
+
 def count_dynamic_items(db: Session, user_id: int, rule: dict[str, Any]) -> int:
     """Count of resolved members — the badge number for the list view.
 
