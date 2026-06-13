@@ -718,6 +718,14 @@ export async function bulkAddToCollection(
   return (await res.json()) as BulkAddResult<CollectionItem>
 }
 
+/** Delete a collection and cascade-remove its items. */
+export async function deleteCollection(collectionId: number): Promise<void> {
+  const res = await fetch(`${BASE}/collections/${collectionId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete collection failed: ${res.status}`)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // wishlists
 // ---------------------------------------------------------------------------
@@ -853,6 +861,27 @@ export async function bulkAddToWishlist(
   })
   if (!res.ok) throw new Error(`bulk add to want-list failed: ${res.status}`)
   return (await res.json()) as BulkAddResult<WishlistItem>
+}
+
+/** Delete a want-list and cascade-remove its items. */
+export async function deleteWishlist(wishlistId: number): Promise<void> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete want-list failed: ${res.status}`)
+  }
+}
+
+/** Remove a single card from a want-list. */
+export async function deleteWishlistItem(
+  wishlistId: number,
+  itemId: number,
+): Promise<void> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items/${itemId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`remove want-list card failed: ${res.status}`)
+  }
 }
 
 // ---------------------------------------------------------------------------

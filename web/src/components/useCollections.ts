@@ -10,6 +10,7 @@ import {
   addCardToCollection,
   bulkAddToCollection,
   createCollection,
+  deleteCollection,
   fetchCollections,
   type CollectionSummary,
   type CreateCollectionOptions,
@@ -131,12 +132,21 @@ export function useCollections() {
     [],
   )
 
+  const remove = useCallback(async (collectionId: number) => {
+    await deleteCollection(collectionId)
+    // Cascade-removed items drop the cards' ownership badges (#576) — bust
+    // the shared cache so they re-fetch.
+    invalidateOwnership()
+    set({ collections: state.collections.filter((c) => c.id !== collectionId) })
+  }, [])
+
   return {
     ...snapshot,
     refresh,
     create,
     addCard,
     bulkAdd,
+    remove,
   }
 }
 

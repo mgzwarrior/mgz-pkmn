@@ -10,9 +10,10 @@
  */
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Check, Heart, ImageOff, Loader2, Plus, X } from 'lucide-react'
+import { Check, Heart, ImageOff, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
+  deleteWishlistItem,
   fetchWishlist,
   promoteWishlistItem,
   type WishlistItem,
@@ -20,6 +21,7 @@ import {
 } from '../api/client'
 import { invalidateOwnership } from './useCardOwnership'
 import { useCollections } from './useCollections'
+import { useWishlists } from './useWishlists'
 
 interface Props {
   wishlist: WishlistSummary | null
@@ -171,17 +173,20 @@ function GotItPicker({
 function ItemRow({
   item,
   onPromote,
+  onRemove,
 }: {
   item: WishlistItem
   onPromote: (itemId: number, collectionId: number) => Promise<void>
+  onRemove: (itemId: number) => Promise<void>
 }) {
   const [broken, setBroken] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const acquired = item.acquired_at != null
   const img = cardImage(item)
 
   return (
-    <li className="flex items-center gap-3 py-2">
+    <li className="group flex items-center gap-3 py-2">
       <div className="flex h-12 w-9 shrink-0 items-center justify-center overflow-hidden rounded bg-sand-200 dark:bg-husk-100">
         {img && !broken ? (
           <img
@@ -227,12 +232,30 @@ function ItemRow({
           }}
         />
       )}
+      <button
+        type="button"
+        disabled={removing}
+        aria-label={`Remove ${cardLabel(item)} from this want-list`}
+        onClick={async () => {
+          setRemoving(true)
+          try {
+            await onRemove(item.id)
+          } finally {
+            // On success the row unmounts; this only matters if the call failed.
+            setRemoving(false)
+          }
+        }}
+        className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-ember-500 disabled:opacity-50 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-ember-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+      >
+        {removing ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+      </button>
     </li>
   )
 }
 
 export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
   const collections = useCollections()
+  const wishlists = useWishlists()
   const [items, setItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -267,6 +290,16 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
     // The card is now owned: refresh the collection counts and drop the
     // cross-surface ownership badge cache (#576).
     void collections.refresh()
+    invalidateOwnership()
+  }
+
+  async function handleRemove(itemId: number) {
+    if (!wishlist) return
+    await deleteWishlistItem(wishlist.id, itemId)
+    setItems((prev) => prev.filter((i) => i.id !== itemId))
+    // Keep the binder row's card count in sync and drop the stale ownership
+    // badge — the card is no longer on this want-list (#576).
+    void wishlists.refresh()
     invalidateOwnership()
   }
 
@@ -326,7 +359,12 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
                 </div>
                 <ul className="divide-y divide-sand-200 dark:divide-husk-100">
                   {sorted.map((item) => (
-                    <ItemRow key={item.id} item={item} onPromote={handlePromote} />
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      onPromote={handlePromote}
+                      onRemove={handleRemove}
+                    />
                   ))}
                 </ul>
               </>
