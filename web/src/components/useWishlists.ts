@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   addCardToWishlist,
+  bulkAddToWishlist,
   createWishlist,
   fetchWishlists,
   type WishlistSummary,
@@ -99,11 +100,30 @@ export function useWishlists() {
     [],
   )
 
+  const bulkAdd = useCallback(
+    async (
+      wishlistId: number,
+      cards: Record<string, unknown>[],
+      opts?: { notes?: string | null; maxPrice?: number | null },
+    ) => {
+      const result = await bulkAddToWishlist(wishlistId, cards, opts)
+      invalidateOwnership()
+      set({
+        wishlists: state.wishlists.map((w) =>
+          w.id === wishlistId ? { ...w, item_count: w.item_count + result.added } : w,
+        ),
+      })
+      return result
+    },
+    [],
+  )
+
   return {
     ...snapshot,
     refresh,
     create,
     addCard,
+    bulkAdd,
   }
 }
 

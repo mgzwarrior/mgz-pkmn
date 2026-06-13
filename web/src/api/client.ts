@@ -692,6 +692,32 @@ export async function addCardToCollection(
   return (await res.json()) as CollectionItem
 }
 
+/** Result of a bulk add: the created rows plus their count (#268). */
+export interface BulkAddResult<T> {
+  added: number
+  items: T[]
+}
+
+/** Add many cards to a collection in one call — the results-table
+ * "add selected to binder (owned)" action (#268). */
+export async function bulkAddToCollection(
+  collectionId: number,
+  cards: Record<string, unknown>[],
+  opts?: { notes?: string | null; addedVia?: string },
+): Promise<BulkAddResult<CollectionItem>> {
+  const res = await fetch(`${BASE}/collections/${collectionId}/items/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cards,
+      notes: opts?.notes ?? null,
+      added_via: opts?.addedVia ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`bulk add to collection failed: ${res.status}`)
+  return (await res.json()) as BulkAddResult<CollectionItem>
+}
+
 // ---------------------------------------------------------------------------
 // wishlists
 // ---------------------------------------------------------------------------
@@ -807,6 +833,26 @@ export async function addCardToWishlist(
   })
   if (!res.ok) throw new Error(`add to wishlist failed: ${res.status}`)
   return (await res.json()) as WishlistItem
+}
+
+/** Add many cards to a want-list in one call — the results-table
+ * "add selected to binder (chasing)" action (#268). */
+export async function bulkAddToWishlist(
+  wishlistId: number,
+  cards: Record<string, unknown>[],
+  opts?: { notes?: string | null; maxPrice?: number | null },
+): Promise<BulkAddResult<WishlistItem>> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cards,
+      notes: opts?.notes ?? null,
+      max_price: opts?.maxPrice ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`bulk add to want-list failed: ${res.status}`)
+  return (await res.json()) as BulkAddResult<WishlistItem>
 }
 
 // ---------------------------------------------------------------------------
