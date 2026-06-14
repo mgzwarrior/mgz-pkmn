@@ -403,6 +403,83 @@ class BulkStageStreamTests(unittest.TestCase):
         self.assertEqual(rows[0]["stage"], "no_match")
 
 
+class BulkConcurrencyTests(unittest.TestCase):
+    """The /bulk stream fans lines out with bounded concurrency (#303) rather
+    than walking the list strictly serially, while still tagging every frame
+    with `index` / `total` so the SPA can map results back to input lines."""
+
+    def test_lines_run_concurrently_and_frames_carry_index(self) -> None:
+        import threading
+        import time
+
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        active = 0
+        max_active = 0
+        lock = threading.Lock()
+
+        def fake(pkmn, tcgdex, pc, q, settings, on_stage=None, *, cache_only=False, ebay=None):
+            nonlocal active, max_active
+            with lock:
+                active += 1
+                max_active = max(max_active, active)
+            time.sleep(0.05)
+            with lock:
+                active -= 1
+            card = {"id": "base1-4", "name": q.name}
+            return [
+                (Row(query=q, card=card, pricing=Pricing(market=1.0), tag=""), "matched")
+            ], "HIT"
+
+        lines = [f"Card {i}" for i in range(6)]
+        with (
+            patch("api.routes.lookup._do_lookup", side_effect=fake),
+            patch("api.routes.lookup._bulk_concurrency", return_value=4),
+        ):
+            resp = client.post("/api/v1/bulk", json={"lines": lines})
+
+        self.assertEqual(resp.status_code, 200)
+        frames = _parse_sse(resp.text)
+        rows = [f for f in frames if "matched" in f]
+        self.assertEqual(len(rows), 6)
+        self.assertEqual({f["index"] for f in rows}, set(range(6)))
+        self.assertTrue(all(f["total"] == 6 for f in rows))
+        self.assertTrue(frames[-1].get("done"))
+        # Proves the lookups overlapped rather than running one-at-a-time, but
+        # stayed within the configured semaphore bound.
+        self.assertGreater(max_active, 1)
+        self.assertLessEqual(max_active, 4)
+
+    def test_done_terminates_even_with_no_parseable_lines(self) -> None:
+        resp = client.post("/api/v1/bulk", json={"lines": ["", "# comment"]})
+        self.assertEqual(resp.status_code, 200)
+        frames = _parse_sse(resp.text)
+        self.assertEqual(len(frames), 1)
+        self.assertTrue(frames[0].get("done"))
+        self.assertEqual(frames[0]["total"], 0)
+
+
+class BulkConcurrencyEnvTests(unittest.TestCase):
+    """`_bulk_concurrency` reads `MGZ_PKMN_BULK_CONCURRENCY`, defaulting and
+    clamping to a sane value when the var is unset or invalid."""
+
+    def test_env_parsing(self) -> None:
+        from api.routes.lookup import _DEFAULT_BULK_CONCURRENCY, _bulk_concurrency
+
+        cases = {
+            "2": 2,
+            "16": 16,
+            "": _DEFAULT_BULK_CONCURRENCY,
+            "0": _DEFAULT_BULK_CONCURRENCY,
+            "-3": _DEFAULT_BULK_CONCURRENCY,
+            "nonsense": _DEFAULT_BULK_CONCURRENCY,
+        }
+        for raw, expected in cases.items():
+            with patch.dict(os.environ, {"MGZ_PKMN_BULK_CONCURRENCY": raw}):
+                self.assertEqual(_bulk_concurrency(), expected)
+
+
 # ---------------------------------------------------------------------------
 # /sets
 # ---------------------------------------------------------------------------
