@@ -403,6 +403,205 @@ def _name_token_match(card_name: str, query_names: list[str]) -> bool:
     return False
 
 
+# Type alias for the per-query search callback the stage helpers below share.
+# `find_top_cards` builds one closure over `pkmn` + `cache_only` + the optional
+# `on_cache_status` sink, then hands it to each stage so the cache status keeps
+# flowing out no matter which search path resolves the line.
+SearchFn = Callable[[str], list[dict[str, Any]]]
+
+
+def _set_clauses(q: CardQuery) -> tuple[str, str]:
+    """Set-name + set-series Lucene clause fragments for a set hint.
+
+    Returns a pair of leading-space clauses (`' set.name:"…"'`,
+    `' set.series:"…"'`) to append onto a search query, or two empty strings
+    when the query carries no set hint."""
+    if not q.set_hint:
+        return "", ""
+    return f' set.name:"{q.set_hint}"', f' set.series:"{q.set_hint}"'
+
+
+def _ingest_card(card: dict[str, Any], seen_ids: set[str], pool: list[dict[str, Any]]) -> None:
+    """Dedupe `card` by id into `pool`, stamping the default database + language.
+
+    Shared by every search stage so the id-dedupe, `_database` default, and
+    `language` detection stay identical across the subtype / name / set-fallback
+    / flavor paths. Cards without an id, or whose id is already pooled, are
+    dropped."""
+    cid = card.get("id")
+    if not cid or cid in seen_ids:
+        return
+    seen_ids.add(cid)
+    card.setdefault("_database", "pokemontcg.io")
+    card.setdefault(
+        "language",
+        detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
+    )
+    pool.append(card)
+
+
+def _search_subtypes(
+    search: SearchFn,
+    subtype_clause: str,
+    q: CardQuery,
+    seen_ids: set[str],
+    pool: list[dict[str, Any]],
+) -> None:
+    """Subtype shortcut — e.g. `top 4 tag team` → subtypes:"TAG TEAM".
+
+    When the subject IS a subtype, the name-search path is skipped entirely (the
+    token-boundary post-filter would otherwise drop everything). A set hint adds
+    name + series variants and short-circuits once one of them fills the pool."""
+    set_clause, series_clause = _set_clauses(q)
+    subtype_queries = (
+        [subtype_clause + set_clause, subtype_clause + series_clause]
+        if q.set_hint
+        else [subtype_clause]
+    )
+    for query in dict.fromkeys(subtype_queries):
+        for card in search(query):
+            _ingest_card(card, seen_ids, pool)
+        if q.set_hint and pool:
+            break
+
+
+def _search_names(
+    search: SearchFn,
+    names: list[str],
+    q: CardQuery,
+    seen_ids: set[str],
+    pool: list[dict[str, Any]],
+) -> None:
+    """Name + wildcard search for each evolution-line / multi-name subject.
+
+    Each name is searched independently and unioned. The wildcard fallback
+    (`name:Mew*` → catches "Mew V", "Mew VMAX") only adds value for single-name
+    queries; for multi-name lookups the explicit list is comprehensive enough,
+    so wildcards just multiply API calls and dilute the pool. Wildcards are
+    further gated to plain alphanumeric head tokens — anything with special
+    chars (&, :, parens) breaks Lucene parsing. A set hint short-circuits once a
+    matching query fills the pool so unfiltered shapes don't dilute it.
+
+    A closing word-boundary post-filter keeps only cards whose name contains one
+    of the query names as a complete word, so `Mew` doesn't pull in `Mewtwo`
+    from the wildcard fallback. The pool is filtered in place (`pool[:]`) so the
+    caller's reference still sees the result."""
+    set_clause, series_clause = _set_clauses(q)
+    queries: list[str] = []
+    emit_wildcard = len(names) == 1
+    for name in names:
+        head_token = name.split(" ", 1)[0] if name else ""
+        head_safe = head_token if (emit_wildcard and head_token.isalnum()) else ""
+        if q.set_hint:
+            queries.append(name_clause(name) + set_clause)
+            queries.append(name_clause(name) + series_clause)
+            if head_safe:
+                queries.append(f"name:{head_safe}*" + set_clause)
+        queries.append(name_clause(name))
+        if head_safe:
+            queries.append(f"name:{head_safe}*")
+
+    for query in dict.fromkeys(queries):
+        for card in search(query):
+            _ingest_card(card, seen_ids, pool)
+        if q.set_hint and pool:
+            break
+
+    pool[:] = [c for c in pool if _name_token_match(c.get("name", ""), names)]
+
+
+def _search_set_fallback(
+    search: SearchFn,
+    cleaned: str,
+    seen_ids: set[str],
+    pool: list[dict[str, Any]],
+) -> None:
+    """Treat the subject as a set name when the name search came up empty.
+
+    `top 10 Surging Sparks cards` / `top 10 S&V 151 cards` name nothing but a
+    set, so try a few set-name shapes (see `_set_fallback_queries`) and stop at
+    the first that returns cards."""
+    for set_query in _set_fallback_queries(cleaned):
+        for card in search(set_query):
+            _ingest_card(card, seen_ids, pool)
+        if pool:
+            break
+
+
+def _search_flavor(
+    search: SearchFn,
+    names: list[str],
+    q: CardQuery,
+    seen_ids: set[str],
+    pool: list[dict[str, Any]],
+) -> None:
+    """Flavor-text fallback for subjective / non-name queries.
+
+    `top:10 cute cards` yields no hits against `name:` or `set:`, so search
+    `flavorText:` across the database for any card whose flavor text mentions
+    the term. Tokens are pulled per evolution-line name so
+    `Charmander/.../Charizard` isn't fed in as one broken `flavorText:"..."`
+    clause; short tokens (< 3 chars) are dropped as noise."""
+    set_clause, _ = _set_clauses(q)
+    flavor_terms = [t for n in names for t in n.split() if len(t) >= 3]
+    for term in dict.fromkeys(flavor_terms):
+        flavor_query = f'flavorText:"{term}"'
+        if q.set_hint:
+            flavor_query += set_clause
+        for card in search(flavor_query):
+            _ingest_card(card, seen_ids, pool)
+
+
+def _rank_and_cap(
+    pool: list[dict[str, Any]],
+    q: CardQuery,
+    max_price: float | None,
+    limit: int | None,
+) -> list[dict[str, Any]]:
+    """Price-filter, rank by market, and cut the pool to `limit`.
+
+    Combines the global `max_price` cap with the per-query inline bounds
+    (`q.price_min` / `q.price_max`): both upper bounds are intersected (most
+    restrictive wins) while the lower bound only comes from the query. The
+    global cap is inclusive, but a strict `<` query bound sharing the winning
+    value keeps its strict flag. Cards without a usable market price are dropped
+    (they can't be ranked); survivors sort descending and `limit=None` returns
+    the full ranked pool."""
+    effective_max = max_price
+    effective_max_exclusive = False
+    if q.price_max is not None:
+        if effective_max is None or q.price_max < effective_max:
+            effective_max = q.price_max
+            effective_max_exclusive = q.price_max_exclusive
+        elif q.price_max == effective_max and q.price_max_exclusive:
+            effective_max_exclusive = True
+    effective_min = q.price_min
+    effective_min_exclusive = q.price_min_exclusive
+
+    enriched: list[tuple[float, dict[str, Any]]] = []
+    for card in pool:
+        pricing = extract_pricing(card, q.variant_hint)
+        if pricing.market is None:
+            continue
+        if effective_max is not None:
+            if effective_max_exclusive:
+                if pricing.market >= effective_max:
+                    continue
+            elif pricing.market > effective_max:
+                continue
+        if effective_min is not None:
+            if effective_min_exclusive:
+                if pricing.market <= effective_min:
+                    continue
+            elif pricing.market < effective_min:
+                continue
+        enriched.append((pricing.market, card))
+
+    enriched.sort(key=lambda pair: pair[0], reverse=True)
+    ranked = enriched if limit is None else enriched[:limit]
+    return [card for _, card in ranked]
+
+
 def find_top_cards(
     pkmn: TCGClient,
     q: CardQuery,
@@ -449,16 +648,13 @@ def find_top_cards(
     seen_ids: set[str] = set()
     pool: list[dict[str, Any]] = []
 
-    def _search_all_with_status(query: str) -> list[dict[str, Any]]:
+    def search(query: str) -> list[dict[str, Any]]:
         """Wrap `pkmn.search_all` so the per-query cache status flows out
         through `on_cache_status` even when the result is iterated inline."""
         cards, status = pkmn.search_all(query, cache_only=cache_only)
         if on_cache_status is not None:
             on_cache_status(status)
         return cards
-
-    set_clause = f' set.name:"{q.set_hint}"' if q.set_hint else ""
-    series_clause = f' set.series:"{q.set_hint}"' if q.set_hint else ""
 
     # Concept expansion — `top 9 puppy` becomes a multi-name search across a
     # curated dog-Pokemon list. We replace `cleaned` with the expanded
@@ -473,129 +669,30 @@ def find_top_cards(
         cleaned = expanded
         is_concept = True
 
-    # Subtype shortcut — e.g. `top 4 tag team` → subtypes:"TAG TEAM". When
-    # the subject IS a subtype, skip the name-search path entirely (the
-    # token-boundary post-filter would otherwise drop everything).
     subtype_clause = _subtype_filter(cleaned)
     name_search_skipped = subtype_clause is not None
-
     if subtype_clause:
-        subtype_queries = (
-            [subtype_clause + set_clause, subtype_clause + series_clause]
-            if q.set_hint
-            else [subtype_clause]
-        )
-        for query in dict.fromkeys(subtype_queries):
-            for card in _search_all_with_status(query):
-                cid = card.get("id")
-                if not cid or cid in seen_ids:
-                    continue
-                seen_ids.add(cid)
-                card.setdefault("_database", "pokemontcg.io")
-                card.setdefault(
-                    "language",
-                    detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
-                )
-                pool.append(card)
-            if q.set_hint and pool:
-                break
+        _search_subtypes(search, subtype_clause, q, seen_ids, pool)
 
     # Evolution-line / multi-name support. Each name is searched independently
     # and unioned. For a single name this is a list of one — same flow.
     names = _split_evolution_line(cleaned)
-
     if not name_search_skipped:
-        queries: list[str] = []
-        # Wildcard fallback (`name:Mew*` → catches "Mew V", "Mew VMAX") only
-        # adds value for single-name queries. For multi-name lookups (concept
-        # expansions, evolution lines) the explicit list is comprehensive
-        # enough — wildcards just multiply API calls and dilute the pool.
-        emit_wildcard = len(names) == 1
-        for name in names:
-            head_token = name.split(" ", 1)[0] if name else ""
-            # Wildcards are only safe on plain alphanumeric tokens — anything
-            # with special chars (&, :, parens) breaks Lucene parsing.
-            head_safe = head_token if (emit_wildcard and head_token.isalnum()) else ""
-            if q.set_hint:
-                queries.append(name_clause(name) + set_clause)
-                queries.append(name_clause(name) + series_clause)
-                if head_safe:
-                    queries.append(f"name:{head_safe}*" + set_clause)
-            queries.append(name_clause(name))
-            if head_safe:
-                queries.append(f"name:{head_safe}*")
+        _search_names(search, names, q, seen_ids, pool)
 
-        for query in dict.fromkeys(queries):
-            for card in _search_all_with_status(query):
-                cid = card.get("id")
-                if not cid or cid in seen_ids:
-                    continue
-                seen_ids.add(cid)
-                card.setdefault("_database", "pokemontcg.io")
-                card.setdefault(
-                    "language",
-                    detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
-                )
-                pool.append(card)
-            # If the user gave a set hint, a single matching query is enough —
-            # we don't want unfiltered shapes to dilute the pool.
-            if q.set_hint and pool:
-                break
-
-        # Word-boundary post-filter so `Mew` doesn't pull in `Mewtwo` from
-        # the wildcard `name:Mew*` fallback. Skipped for set/flavor fallbacks
-        # below because their results aren't keyed by name.
-        pool = [c for c in pool if _name_token_match(c.get("name", ""), names)]
-
-    # If a name search didn't find anything and the user didn't already give
-    # a set hint, the subject might BE a set name (e.g. "top 10 Surging
-    # Sparks cards" / "top 10 S&V 151 cards"). Try a few set-name shapes.
-    # Skipped for concept queries — the curated name list is the source of
-    # truth, and falling through previously caused `top 9 starter evolution`
-    # to land on the unrelated "Mega Evolution" set.
+    # The subject might BE a set name when the name search found nothing and the
+    # user gave no set hint. Skipped for concept queries — the curated name list
+    # is the source of truth, and falling through once landed `top 9 starter
+    # evolution` on the unrelated "Mega Evolution" set.
     if not pool and not q.set_hint and not name_search_skipped and not is_concept:
-        for set_query in _set_fallback_queries(cleaned):
-            for card in _search_all_with_status(set_query):
-                cid = card.get("id")
-                if not cid or cid in seen_ids:
-                    continue
-                seen_ids.add(cid)
-                card.setdefault("_database", "pokemontcg.io")
-                card.setdefault(
-                    "language",
-                    detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
-                )
-                pool.append(card)
-            if pool:
-                break
+        _search_set_fallback(search, cleaned, seen_ids, pool)
 
-    # Subjective / non-name queries (e.g. "top:10 cute cards") yield no hits
-    # against `name:` or `set:`, so fall back to flavorText search across
-    # the database. This catches any card whose flavor text mentions the term.
-    # Skipped for subtype subjects — an empty `subtypes:V` pool genuinely
-    # means no V cards matched the constraints, and a flavor fallback on "v"
-    # would just be noise. Also skipped for concept queries: a flavor search
-    # on "Bulbasaur" / "Ivysaur" / etc. (the expanded names) would only add
-    # noise on top of what the explicit name search already returned.
+    # Flavor-text fallback for subjective subjects. Skipped for subtype subjects
+    # (an empty `subtypes:V` pool genuinely means no matches, and a flavor
+    # search on "v" is noise) and for concept queries (a flavor search on the
+    # expanded names only adds noise to the explicit name search).
     if not pool and not name_search_skipped and not is_concept:
-        # Pull tokens from each evolution-line name so `Charmander/.../Charizard`
-        # doesn't get fed in as a single broken `flavorText:"..."` clause.
-        flavor_terms = [t for n in names for t in n.split() if len(t) >= 3]
-        for term in dict.fromkeys(flavor_terms):
-            flavor_query = f'flavorText:"{term}"'
-            if q.set_hint:
-                flavor_query += set_clause
-            for card in _search_all_with_status(flavor_query):
-                cid = card.get("id")
-                if not cid or cid in seen_ids:
-                    continue
-                seen_ids.add(cid)
-                card.setdefault("_database", "pokemontcg.io")
-                card.setdefault(
-                    "language",
-                    detect_card_language(card.get("name"), (card.get("set") or {}).get("name")),
-                )
-                pool.append(card)
+        _search_flavor(search, names, q, seen_ids, pool)
 
     # Set filter post-hoc for safety (the API filter is mostly precise but
     # we may have done a fallback wildcard that ignored set).
@@ -604,47 +701,10 @@ def find_top_cards(
 
         pool = [c for c in pool if set_overlap(c, q.set_hint)]
 
-    # Combine global cap with the per-query inline bounds. Both upper bounds
-    # are intersected (most restrictive wins). The lower bound only comes
-    # from the query — there's no global "minimum price" knob. The global
-    # `--max-price` cap is always inclusive; if a strict `<` bound shares
-    # the winning value with the cap, we keep the strict flag.
-    effective_max = max_price
-    effective_max_exclusive = False
-    if q.price_max is not None:
-        if effective_max is None or q.price_max < effective_max:
-            effective_max = q.price_max
-            effective_max_exclusive = q.price_max_exclusive
-        elif q.price_max == effective_max and q.price_max_exclusive:
-            effective_max_exclusive = True
-    effective_min = q.price_min
-    effective_min_exclusive = q.price_min_exclusive
-
     if on_stage is not None:
         on_stage("pricing")
 
-    enriched: list[tuple[float, dict[str, Any]]] = []
-    for card in pool:
-        pricing = extract_pricing(card, q.variant_hint)
-        if pricing.market is None:
-            continue
-        if effective_max is not None:
-            if effective_max_exclusive:
-                if pricing.market >= effective_max:
-                    continue
-            elif pricing.market > effective_max:
-                continue
-        if effective_min is not None:
-            if effective_min_exclusive:
-                if pricing.market <= effective_min:
-                    continue
-            elif pricing.market < effective_min:
-                continue
-        enriched.append((pricing.market, card))
-
-    enriched.sort(key=lambda pair: pair[0], reverse=True)
-    ranked = enriched if limit is None else enriched[:limit]
-    return [card for _, card in ranked]
+    return _rank_and_cap(pool, q, max_price, limit)
 
 
 # ---------------------------------------------------------------------------
