@@ -254,7 +254,7 @@ class ClientMemoizationTests(unittest.TestCase):
         )
         return [(row, "no_candidates")], "MISS"
 
-    def test_one_api_key_reuses_sessions_but_rebuilds_clients(self) -> None:
+    def test_clients_are_rebuilt_but_share_the_pooled_session(self) -> None:
         from api.routes.lookup import Settings, _make_clients
 
         first = _make_clients(Settings(api_key="k1"))
@@ -266,16 +266,35 @@ class ClientMemoizationTests(unittest.TestCase):
         for a, b in zip(first, second, strict=True):
             self.assertIs(a.session, b.session)
 
-    def test_a_different_api_key_gets_fresh_sessions(self) -> None:
+    def test_sessions_are_shared_across_api_keys_and_hold_no_key(self) -> None:
+        # The pooled session is api-key-agnostic: a BYO key is applied per
+        # request, never stored on the session or used as a cache key, so it
+        # doesn't linger in process-global state.
         from api.routes.lookup import Settings, _make_clients
 
         a = _make_clients(Settings(api_key="k1"))
         b = _make_clients(Settings(api_key="k2"))
-        self.assertIsNot(a[0].session, b[0].session)
+        self.assertIs(a[0].session, b[0].session)
+        self.assertNotIn("X-Api-Key", a[0].session.headers)
+        self.assertEqual(a[0]._api_key, "k1")
+
+    def test_api_key_is_sent_per_request_not_on_the_session(self) -> None:
+        # The key still authenticates — it rides on each upstream GET.
+        from unittest.mock import MagicMock
+
+        from mgz_pkmn.sources import TCGClient
+
+        session = MagicMock()
+        session.headers = {}
+        session.get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
+        TCGClient(api_key="secret", session=session)._network_fetch(
+            "https://api.pokemontcg.io/v2/cards?q=x"
+        )
+        self.assertEqual(session.get.call_args.kwargs["headers"], {"X-Api-Key": "secret"})
+        self.assertNotIn("X-Api-Key", session.headers)
 
     def test_distinct_session_per_upstream(self) -> None:
-        # The pokemontcg.io api-key header must never ride along to the other
-        # hosts, so each upstream gets its own session.
+        # Each upstream gets its own session so connections don't cross hosts.
         from api.routes.lookup import Settings, _make_clients
 
         pkmn, tcgdex, pc, ebay = _make_clients(Settings(api_key="k1"))

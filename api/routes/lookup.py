@@ -66,23 +66,25 @@ class BulkRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@lru_cache(maxsize=8)
-def _sessions_for(
-    api_key: str | None,
-) -> tuple[req_lib.Session, req_lib.Session, req_lib.Session, req_lib.Session]:
-    """One warm ``requests.Session`` per upstream, memoized per api_key (#302).
+@lru_cache(maxsize=1)
+def _sessions_for() -> tuple[req_lib.Session, req_lib.Session, req_lib.Session, req_lib.Session]:
+    """One warm, header-light ``requests.Session`` per upstream (#302).
 
-    Reusing the session across requests keeps its connection pool warm, so
+    Sharing the session across requests keeps its connection pool warm, so
     every upstream hit reuses a kept-alive connection instead of paying a
-    fresh TLS handshake. Each upstream gets its *own* session so headers
-    don't cross-contaminate (the pokemontcg.io key must never ride along to
-    TCGdex / PriceCharting). Only the api_key matters — ``lang`` is a
-    per-search argument, not a connection input.
+    fresh TLS handshake. Each upstream gets its *own* session so connections
+    (and any default headers) don't cross hosts.
 
-    We deliberately memoize the *session*, not the client: the clients carry
-    an instance-local ``_cache`` (L1) with no TTL, written on STALE/MISS reads
-    and keyed without ``cache_only``. Reusing a client across requests would
-    pin those entries process-wide — serving stale or empty results and
+    Crucially the sessions carry **no per-request secret**: a caller-supplied
+    pokemontcg.io api_key is applied per request as an ``X-Api-Key`` header by
+    ``TCGClient`` itself, never stored on the pooled session or used as a
+    cache key — so BYO credentials stay request-scoped rather than lingering
+    in process-global state.
+
+    We also memoize the session, not the client: the clients carry an
+    instance-local L1 ``_cache`` with no TTL, written on STALE/MISS reads and
+    keyed without ``cache_only``. Reusing a client across requests would pin
+    those entries process-wide — serving stale or empty results and
     suppressing the disk SWR refresh until restart. Fresh clients per request
     keep that L1 cache request-scoped (its original contract) while the shared
     session still delivers the connection-reuse win. ``lru_cache`` and
@@ -100,7 +102,7 @@ def _sessions_for(
 def _make_clients(
     settings: Settings,
 ) -> tuple[TCGClient, TCGDexClient, PriceChartingClient, EbayClient]:
-    pkmn_s, tcgdex_s, pc_s, ebay_s = _sessions_for(settings.api_key)
+    pkmn_s, tcgdex_s, pc_s, ebay_s = _sessions_for()
     return (
         TCGClient(api_key=settings.api_key, session=pkmn_s),
         TCGDexClient(session=tcgdex_s),
