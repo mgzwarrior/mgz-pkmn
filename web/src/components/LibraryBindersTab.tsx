@@ -17,14 +17,16 @@
  * [OwnershipBadge](./OwnershipBadge.tsx) chip (#576): palm for owned,
  * sun for chasing.
  */
-import { BarChart3, Loader2, Sparkles, Trash2 } from 'lucide-react'
+import { BarChart3, Loader2, Printer, Sparkles, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { downloadCollectionIdCardPdf } from '../api/client'
 import type {
   CollectionRule,
   CollectionSummary,
   DynamicScope,
   WishlistSummary,
 } from '../api/client'
+import { useAppStore } from '../store'
 import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
 import { WishlistDetail } from './WishlistDetail'
@@ -414,8 +416,50 @@ function CollectionRow({
       ) : (
         <div className="flex flex-1 items-center justify-between py-2">{body}</div>
       )}
+      <PrintIdCardControl collectionId={c.id} label={`collection "${c.name}"`} />
       <DeleteBinderControl label={`collection "${c.name}"`} onDelete={() => onDelete(c.id)} />
     </li>
+  )
+}
+
+/**
+ * Per-row "print ID card" affordance — downloads the binder-cover PDF (#507)
+ * for the collection. The printer icon reveals on hover like the delete
+ * control; a failed download surfaces a quiet inline note.
+ */
+function PrintIdCardControl({ collectionId, label }: { collectionId: number; label: string }) {
+  const apiKey = useAppStore((s) => s.settings.apiKey)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {failed && (
+        <span role="alert" className="text-[10px] text-ember-500 dark:text-ember-300">
+          Couldn&apos;t print
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={busy}
+        aria-label={`Print ID card for ${label}`}
+        title="Print ID card"
+        onClick={async () => {
+          setBusy(true)
+          setFailed(false)
+          try {
+            await downloadCollectionIdCardPdf(collectionId, apiKey || undefined)
+          } catch {
+            setFailed(true)
+          } finally {
+            setBusy(false)
+          }
+        }}
+        className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-palm-600 disabled:opacity-50 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-palm-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+      >
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+      </button>
+    </span>
   )
 }
 
