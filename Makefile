@@ -127,13 +127,13 @@ fix:  ## Auto-fix safe ruff issues + reformat.
 	uv run ruff check --fix $(PY_PATHS)
 	uv run ruff format $(PY_PATHS)
 
-# Files that radon's complexity gate currently allowlists. Tracked in one
-# place so each new refactor can shrink the list (the goal is empty). Every
-# file listed here has a D-rank-or-worse function or a B-rank-or-worse
-# maintainability index that pre-dates the gate; the gate stays green on
-# green-field, then tightens as each is brought to A. See issue #387.
-RADON_CC_EXCLUDE := src/mgz_pkmn/cache.py
-RADON_MI_EXCLUDE := src/mgz_pkmn/cache.py
+# Files that radon's complexity gate allowlists. Tracked in one place so each
+# refactor can shrink the list — and as of #557 both are empty: every file in
+# `src/` and `api/` now clears the D-rank cyclomatic and A-rank maintainability
+# bars with no exceptions. Keep these empty; if a new hotspot lands, refactor it
+# rather than re-growing the allowlist. See issue #387 / epic #551.
+RADON_CC_EXCLUDE :=
+RADON_MI_EXCLUDE :=
 
 .PHONY: complexity
 complexity:  ## Maintainability gate: fail on D+ cyclomatic complexity or B+ maintainability index.
