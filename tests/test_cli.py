@@ -562,6 +562,41 @@ class WarnIfCacheLargeTests(unittest.TestCase):
         self.assertEqual(result.stderr, "")
 
 
+class FallbackGroupTests(unittest.TestCase):
+    """The no-subcommand `pkmn …` form routes to `lookup`, whether the user
+    leads with a positional (`pkmn cards.txt`) or an option
+    (`pkmn --no-images cards.txt`). The option case used to error at the root
+    group's parser before the fallback could kick in (#550)."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._input = Path(self._tmp.name) / "cards.txt"
+        self._input.write_text("Mew\n", encoding="utf-8")
+
+    @staticmethod
+    def _stub(pkmn, tcgdex, pc, q, default_lang=None) -> MatchResult:
+        card = {"id": q.name, "name": q.name, "number": "1", "set": {"name": "S"}}
+        return MatchResult(card, "matched")
+
+    def _invoke(self, args: list[str]):
+        with patch("mgz_pkmn.cli.lookup.find_card", side_effect=self._stub):
+            return CliRunner().invoke(cli, args)
+
+    def test_option_before_positional_routes_to_lookup(self) -> None:
+        result = self._invoke(["--no-images", "--print-summary-only", str(self._input)])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_positional_only_still_routes_to_lookup(self) -> None:
+        result = self._invoke(["--print-summary-only", str(self._input)])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_unknown_option_surfaces_lookup_error(self) -> None:
+        result = self._invoke(["--definitely-not-a-flag", str(self._input)])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("No such option", result.output)
+
+
 class LookupSummaryCacheTests(unittest.TestCase):
     """End-to-end check that `· N cached / M fetched` appears in the summary
     when the run produced cache hits — and is suppressed when it didn't.
