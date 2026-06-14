@@ -227,6 +227,63 @@ class LookupRouteTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Client memoization (#302)
+# ---------------------------------------------------------------------------
+
+
+class ClientMemoizationTests(unittest.TestCase):
+    """The upstream client quartet is memoized per api_key so each client's
+    `requests.Session` pool + in-memory cache survive across requests."""
+
+    def setUp(self) -> None:
+        from api.routes.lookup import _clients_for
+
+        # Other tests share the process-wide cache; clear it so these assert
+        # against a known-empty starting point.
+        _clients_for.cache_clear()
+
+    def _row(self):
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        row = Row(
+            query=CardQuery(raw="Pikachu", name="Pikachu"), card=None, pricing=Pricing(), tag=""
+        )
+        return [(row, "no_candidates")], "MISS"
+
+    def test_make_clients_returns_the_same_instances_for_one_api_key(self) -> None:
+        from api.routes.lookup import Settings, _make_clients
+
+        first = _make_clients(Settings(api_key="k1"))
+        second = _make_clients(Settings(api_key="k1"))
+        # Every member of the quartet is reused, not rebuilt.
+        for a, b in zip(first, second, strict=True):
+            self.assertIs(a, b)
+
+    def test_a_different_api_key_gets_a_fresh_quartet(self) -> None:
+        from api.routes.lookup import Settings, _make_clients
+
+        a = _make_clients(Settings(api_key="k1"))
+        b = _make_clients(Settings(api_key="k2"))
+        self.assertIsNot(a[0], b[0])
+
+    def test_consecutive_lookups_reuse_the_same_tcgclient(self) -> None:
+        seen: list[object] = []
+
+        def _record(pkmn, *args, **kwargs):
+            seen.append(pkmn)
+            return self._row()
+
+        with patch("api.routes.lookup._do_lookup", side_effect=_record):
+            client.post("/api/v1/lookup", json={"line": "Pikachu"})
+            client.post("/api/v1/lookup", json={"line": "Pikachu"})
+
+        self.assertEqual(len(seen), 2)
+        self.assertIs(seen[0], seen[1])
+
+
+# ---------------------------------------------------------------------------
 # /bulk (SSE) — stage streaming
 # ---------------------------------------------------------------------------
 

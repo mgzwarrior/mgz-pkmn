@@ -12,6 +12,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from functools import lru_cache
 from typing import Any
 
 import requests as req_lib
@@ -65,15 +66,38 @@ class BulkRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _make_clients(
-    settings: Settings,
+@lru_cache(maxsize=8)
+def _clients_for(
+    api_key: str | None,
 ) -> tuple[TCGClient, TCGDexClient, PriceChartingClient, EbayClient]:
+    """Build the upstream client quartet, memoized per api_key (#302).
+
+    Reusing one instance across requests keeps each client's
+    ``requests.Session`` connection pool warm — saving a TLS handshake per
+    upstream hit — and lets ``TCGClient._cache`` serve repeat queries from
+    memory instead of re-reading + re-decoding the disk cache. Only the
+    api_key affects construction: the other three take no auth-bearing input,
+    and ``lang`` is a per-search argument (``find_card(..., default_lang=…)``),
+    not a constructor input, so it doesn't fragment the cache.
+
+    Thread-safety: ``lru_cache`` itself is thread-safe, and ``Session`` is
+    documented safe for concurrent ``get``/``post``. ``TCGClient._cache`` is a
+    bare dict shared across the FastAPI threadpool, but a racy read is benign
+    — worst case a duplicated upstream fetch and cache overwrite — so it stays
+    lock-free until a benchmark says otherwise.
+    """
     return (
-        TCGClient(api_key=settings.api_key),
+        TCGClient(api_key=api_key),
         TCGDexClient(),
         PriceChartingClient(),
         EbayClient(),
     )
+
+
+def _make_clients(
+    settings: Settings,
+) -> tuple[TCGClient, TCGDexClient, PriceChartingClient, EbayClient]:
+    return _clients_for(settings.api_key)
 
 
 def _query_to_dict(q: CardQuery) -> dict[str, Any]:
