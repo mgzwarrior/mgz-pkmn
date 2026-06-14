@@ -735,12 +735,16 @@ class ChangelogRouteTests(unittest.TestCase):
         versions = [r["version"] for r in client.get("/api/v1/changelog").json()["releases"]]
         self.assertNotIn("Unreleased", versions)
 
-    def test_include_unreleased_flag(self) -> None:
-        versions = [
+    def test_include_unreleased_flag_surfaces_no_placeholder(self) -> None:
+        # The real changelog no longer carries an [Unreleased] placeholder, so the
+        # flag is a no-op: it surfaces the same shipped releases as the default.
+        default = [r["version"] for r in client.get("/api/v1/changelog").json()["releases"]]
+        with_flag = [
             r["version"]
             for r in client.get("/api/v1/changelog?include_unreleased=true").json()["releases"]
         ]
-        self.assertIn("Unreleased", versions)
+        self.assertEqual(default, with_flag)
+        self.assertNotIn("Unreleased", with_flag)
 
     def test_limit_caps_release_count(self) -> None:
         resp = client.get("/api/v1/changelog?limit=1")
