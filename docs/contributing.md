@@ -322,7 +322,7 @@ make coverage           # python tests under coverage; emits htmlcov/ + coverage
 make lint               # ruff + eslint
 make format             # ruff format in-place
 make fix                # ruff --fix + ruff format
-make complexity         # radon CC + MI gate — fails on D+ functions or B+ files (see Makefile RADON_*_EXCLUDE for the shrink-as-we-refactor allowlist; pair with the [`repo-analysis`](../.claude/skills/repo-analysis/SKILL.md) skill to find the next refactor target)
+make complexity         # radon CC + MI gate — fails on D+ functions or B+ files (no allowlist: a new offender must be refactored, not excluded; pair with the [`repo-analysis`](../.claude/skills/repo-analysis/SKILL.md) skill to find the next refactor target)
 make check              # CI-equivalent: lint + format-check + complexity gate + tests + web lint
 make precommit          # run all pre-commit hooks against every file
 ```
