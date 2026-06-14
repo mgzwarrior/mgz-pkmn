@@ -97,23 +97,12 @@ def _comps(market: float | None) -> dict[str, float] | None:
     return {f"{p}%": round(market * p / 100, 2) for p in COMP_PERCENTS}
 
 
-def build_json_report(
-    rows: list[Row],
-    counters: dict[str, int],
-    input_lines: int,
-    elapsed: float,
-    max_price: float | None = None,
-    deduped_rows: int = 0,
-    sort_mode: str | None = None,
-) -> dict[str, Any]:
-    """Assemble the full report payload.
+def _is_over_cap(r: Row, max_price: float | None) -> bool:
+    return max_price is not None and r.pricing.market is not None and r.pricing.market > max_price
 
-    Shape: see the "JSON report" section in the project README.
-    """
-    matched_rows = [r for r in rows if r.card is not None]
-    priced_rows = [r for r in matched_rows if r.pricing.market is not None]
 
-    # Per-tag aggregates, preserving first-appearance order.
+def _tags_section(rows: list[Row]) -> list[dict[str, Any]]:
+    """Per-tag aggregates, preserving first-appearance order."""
     tag_order: list[str] = []
     tag_buckets: dict[str, list[Row]] = {}
     for r in rows:
@@ -139,8 +128,20 @@ def build_json_report(
                 "highest_value_card": _highest_value(bucket),
             }
         )
+    return tags_payload
 
-    summary = {
+
+def _summary_section(
+    rows: list[Row],
+    matched_rows: list[Row],
+    priced_rows: list[Row],
+    counters: dict[str, int],
+    input_lines: int,
+    deduped_rows: int,
+    sort_mode: str | None,
+    above_cap_count: int,
+) -> dict[str, Any]:
+    return {
         "sort_mode": sort_mode,
         "input_lines": input_lines,
         "rows_total": len(rows),
@@ -156,16 +157,12 @@ def build_json_report(
         "by_price_source": _count_by(matched_rows, lambda r: r.pricing.source),
         "by_rarity": _count_by(matched_rows, lambda r: (r.card or {}).get("rarity")),
         "by_language": _count_by(matched_rows, lambda r: (r.card or {}).get("language")),
+        "rows_above_max_price": above_cap_count,
     }
 
-    def _over_cap(r: Row) -> bool:
-        return (
-            max_price is not None and r.pricing.market is not None and r.pricing.market > max_price
-        )
 
-    top5 = sorted(priced_rows, key=lambda r: r.pricing.market or 0.0, reverse=True)[:5]
-    missing = [{"tag": r.tag, "input": r.query.raw} for r in rows if r.card is None]
-    above_cap = [
+def _above_cap(rows: list[Row], max_price: float | None) -> list[dict[str, Any]]:
+    return [
         {
             "tag": r.tag,
             "input": r.query.raw,
@@ -174,10 +171,23 @@ def build_json_report(
             "currency": r.pricing.currency,
         }
         for r in rows
-        if _over_cap(r)
+        if _is_over_cap(r, max_price)
     ]
 
-    rows_payload = [
+
+def _highlights_section(
+    rows: list[Row], priced_rows: list[Row], above_cap: list[dict[str, Any]]
+) -> dict[str, Any]:
+    top5 = sorted(priced_rows, key=lambda r: r.pricing.market or 0.0, reverse=True)[:5]
+    return {
+        "most_valuable": [_card_summary(r) for r in top5],
+        "missing": [{"tag": r.tag, "input": r.query.raw} for r in rows if r.card is None],
+        "above_max_price": above_cap,
+    }
+
+
+def _rows_section(rows: list[Row], max_price: float | None) -> list[dict[str, Any]]:
+    return [
         {
             "tag": r.tag,
             "input": r.query.raw,
@@ -197,24 +207,45 @@ def build_json_report(
             "comps": _comps(r.pricing.market),
             "ebay_sold_median": r.pricing.ebay_sold_median,
             "ebay_active_floor": r.pricing.ebay_active_floor,
-            "over_max_price": _over_cap(r),
+            "over_max_price": _is_over_cap(r, max_price),
         }
         for r in rows
     ]
 
-    summary["rows_above_max_price"] = len(above_cap)
+
+def build_json_report(
+    rows: list[Row],
+    counters: dict[str, int],
+    input_lines: int,
+    elapsed: float,
+    max_price: float | None = None,
+    deduped_rows: int = 0,
+    sort_mode: str | None = None,
+) -> dict[str, Any]:
+    """Assemble the full report payload.
+
+    Shape: see the "JSON report" section in the project README.
+    """
+    matched_rows = [r for r in rows if r.card is not None]
+    priced_rows = [r for r in matched_rows if r.pricing.market is not None]
+    above_cap = _above_cap(rows, max_price)
 
     return {
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": __version__,
         "elapsed_seconds": round(elapsed, 2),
         "max_price": max_price,
-        "summary": summary,
-        "tags": tags_payload,
-        "highlights": {
-            "most_valuable": [_card_summary(r) for r in top5],
-            "missing": missing,
-            "above_max_price": above_cap,
-        },
-        "rows": rows_payload,
+        "summary": _summary_section(
+            rows,
+            matched_rows,
+            priced_rows,
+            counters,
+            input_lines,
+            deduped_rows,
+            sort_mode,
+            len(above_cap),
+        ),
+        "tags": _tags_section(rows),
+        "highlights": _highlights_section(rows, priced_rows, above_cap),
+        "rows": _rows_section(rows, max_price),
     }
