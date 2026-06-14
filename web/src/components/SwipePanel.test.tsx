@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { SwipePanel } from './SwipePanel'
 import {
   fetchSets,
@@ -68,10 +68,30 @@ function card(overrides: Partial<SetCard> = {}): SetCard {
 }
 
 // Each keystroke / drag commit kicks off a 180ms exit-animation timeout in
-// SwipePanel before `advance()` runs and renders the next card. The default
-// 1s waitFor budget gets tight when CI runs the whole suite under contention
-// (#387); give the post-swipe assertions 3s of headroom from one place.
-const POST_SWIPE_WAIT = { timeout: 3000 } as const
+// SwipePanel before `advance()` runs and renders the next card. That's a real
+// timer, so under full-suite CI contention (#387, #653) the saturated event
+// loop fires it well past the old 3s budget — and 3s was *under* the 5s test
+// timeout, so the assertion lost the race first. Give post-swipe assertions a
+// wide budget from one place; on success the wait still resolves in ~200ms.
+const POST_SWIPE_WAIT = { timeout: 10000 } as const
+
+// Commit a keyboard swipe and deterministically flush the 180ms exit-animation
+// timer. SwipePanel schedules the save/advance behind a real `setTimeout`, so a
+// widened waitFor budget still loses to a CI event loop starved past it (#387,
+// #653) — worst on tests that chain two swipes. Faking just that timer lands
+// the swipe on a controlled clock instead of the loaded loop. Real timers are
+// restored immediately so surrounding waitFor calls poll normally.
+async function swipeKey(key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp') {
+  vi.useFakeTimers()
+  try {
+    fireEvent.keyDown(window, { key })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+  } finally {
+    vi.useRealTimers()
+  }
+}
 
 describe('SwipePanel', () => {
   let randomSpy: ReturnType<typeof vi.spyOn>
@@ -261,15 +281,17 @@ describe('SwipePanel', () => {
     // A single set with two cards — after two swipes the catalog is empty.
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
-    fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    // Wait for the first pass to fully commit (Pikachu leaves the stack)
-    // before the next keystroke — while the exit animation is in flight the
-    // handler ignores input, so an instant peek must not race it.
+    // Chaining two swipes compounds the exit-animation timer race, so drive
+    // each commit on a faked clock. The first pass must fully commit (Pikachu
+    // leaves the stack) before the next keystroke — while the exit animation
+    // is in flight the handler ignores input, so an instant peek must not race
+    // it.
+    await swipeKey('ArrowLeft')
     await waitFor(
       () => expect(screen.queryByText('Pikachu')).not.toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
-    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    await swipeKey('ArrowLeft')
     await waitFor(
       () =>
         expect(
@@ -292,10 +314,12 @@ describe('SwipePanel', () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
     fireEvent.keyDown(window, { key: 'ArrowRight' })
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /1 saved · reset/i }),
-      ).toBeInTheDocument(),
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole('button', { name: /1 saved · reset/i }),
+        ).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
     )
     fireEvent.click(screen.getByRole('button', { name: /1 saved · reset/i }))
     await waitFor(() =>
@@ -312,8 +336,10 @@ describe('SwipePanel', () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
     fireEvent.keyDown(window, { key: 'ArrowRight' })
-    await waitFor(() =>
-      expect(screen.getByLabelText('Prep list name')).toBeInTheDocument(),
+    await waitFor(
+      () =>
+        expect(screen.getByLabelText('Prep list name')).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
     )
 
     fireEvent.click(screen.getByRole('button', { name: /build prep list/i }))
@@ -344,10 +370,12 @@ describe('SwipePanel', () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
     fireEvent.keyDown(window, { key: 'ArrowRight' })
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /1 saved · reset/i }),
-      ).toBeInTheDocument(),
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole('button', { name: /1 saved · reset/i }),
+        ).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
     )
 
     const input = screen.getByLabelText('Prep list name') as HTMLInputElement

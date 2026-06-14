@@ -158,9 +158,14 @@ describe('useSwipeCandidates — prefetched stack', () => {
     })
 
     // The former peek is the new top immediately — no loader, and the
-    // background top-up reuses the cached card list (still one fetch).
+    // background top-up reuses the cached card list (still one fetch). The
+    // top-up is async, so wait for the stack to refill rather than reading it
+    // synchronously — under full-suite contention the fill hasn't always
+    // landed by the time `current` flips to 'b' (#387, #653).
     await waitFor(() => expect(result.current.current!.card.id).toBe('b'))
-    expect(result.current.upcoming.map((c) => c.card.id)).toEqual(['c', 'd'])
+    await waitFor(() =>
+      expect(result.current.upcoming.map((c) => c.card.id)).toEqual(['c', 'd']),
+    )
     expect(mockFetchSetCards).toHaveBeenCalledTimes(1)
   })
 
