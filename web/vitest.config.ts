@@ -6,6 +6,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // The full suite runs across parallel workers in CI; under that
+    // contention the event loop is saturated, so real timers fire late and
+    // heavy renders (e.g. the baked national dex) overrun the stock 5s
+    // budget. Give every test generous headroom — this only costs wall-clock
+    // time when a test genuinely fails, which should be ~never (#387, #653).
+    testTimeout: 15000,
     reporters: [
       'default',
       ['junit', { outputFile: 'junit.xml' }],
