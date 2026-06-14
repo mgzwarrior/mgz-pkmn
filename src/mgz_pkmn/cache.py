@@ -65,40 +65,10 @@ _PRICING_KEYS: tuple[str, ...] = ("tcgplayer", "cardmarket", "_pc_prices", "_pc_
 _API_STRUCTURAL_SUBDIR = "api_structural"
 _API_PRICING_SUBDIR = "api_pricing"
 DEFAULT_CACHE_WARN_BYTES = 50 * 1024 * 1024  # 50 MB
-CONCEPT_WARM_STALE_SECONDS = 24 * 60 * 60  # one day — once-per-day startup gate
-# Set-cards warm pass is much heavier (~500 HTTP requests for the whole
-# catalog) and the underlying data turns over much more slowly than the
-# concept dictionary — cards within a released set effectively don't
-# change, only market prices drift. A weekly cadence matches the API
-# response cache's own TTL: once a set-cards warm pass lands, every
-# entry it primed survives until the API cache itself expires.
-SET_CARDS_WARM_STALE_SECONDS = 7 * 24 * 60 * 60  # one week
-# Set-image warm pass (set logos + symbols, ~200 sets x 2 images = ~400
-# HTTP requests). Same weekly cadence as set-cards: indefinite TTL on the
-# image bytes themselves, but the manifest's freshness gate keeps the
-# runtime lifespan bootstrap from re-walking every container restart.
-SETS_WARM_STALE_SECONDS = 7 * 24 * 60 * 60  # one week
-# Per-card structural warm. The full card object (name, set, number,
-# rarity, attacks, weaknesses, resistances, retreatCost, legalities,
-# ancientTrait, images, ...) doesn't change once a card is printed, so
-# the stale window is generous. Phase 1 of the pre-Scrydex catalog-warm
-# epic (#368) populates this slice across the entire English catalog
-# while pokemontcg.io is still free.
-CARD_WARM_STALE_SECONDS = 7 * 24 * 60 * 60  # one week
 _NO_CACHE_ENV = "MGZ_PKMN_NO_CACHE"
 _WARN_BYTES_ENV = "MGZ_PKMN_CACHE_WARN_BYTES"
 _OVERRIDES_FILE = "url_overrides.json"
-_CONCEPT_WARM_FILE = "concept_warm.json"
-_SET_CARDS_WARM_FILE = "set_cards_warm.json"
-_SETS_WARM_FILE = "sets_warm.json"
-_CARD_WARM_FILE = "card_warm.json"
-_CARD_IMAGES_WARM_FILE = "card_images_warm.json"
 OVERRIDES_SCHEMA_VERSION = 1
-CONCEPT_WARM_SCHEMA_VERSION = 1
-SET_CARDS_WARM_SCHEMA_VERSION = 1
-SETS_WARM_SCHEMA_VERSION = 1
-CARD_WARM_SCHEMA_VERSION = 1
-CARD_IMAGES_WARM_SCHEMA_VERSION = 1
 _IMAGES_SUBDIR = "images"
 # Allowed image extensions for read-side discovery; write-side derives the
 # extension from the source URL but normalises it through this list so an
@@ -1033,438 +1003,123 @@ def image_cache_size() -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
-# Concept-warm manifest — small JSON file that records when `warm-concepts`
-# last ran and how many names it warmed. Powers both the once-per-day
-# startup gate (`MGZ_PKMN_WARM_ON_STARTUP=1`) and the concept-warm slice in
-# `pkmn cache stats`. Honoured even when `MGZ_PKMN_NO_CACHE=1` is set:
-# operators reading stats want real on-disk state, not a silent zero.
-# ---------------------------------------------------------------------------
-
-
-def _concept_warm_path() -> Path:
-    return _cache_root_path() / _CONCEPT_WARM_FILE
-
-
-def read_concept_warm() -> dict[str, Any] | None:
-    """Return the parsed concept-warm manifest, or None when absent/malformed.
-
-    Schema (v1):
-        {
-            "version": 1,
-            "timestamp": <unix float>,
-            "names_warmed": <int>,
-            "names_failed": [<str>, ...],
-            "source": "pokemontcg" | "tcgdex" | "all"
-        }
-
-    Treats a malformed/legacy file as "no manifest" so a corrupted write
-    doesn't poison the freshness gate."""
-    path = _concept_warm_path()
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict) or data.get("version") != CONCEPT_WARM_SCHEMA_VERSION:
-        return None
-    return data
-
-
-def write_concept_warm(
-    *,
-    names_warmed: int,
-    names_failed: list[str],
-    source: str,
-) -> None:
-    """Persist the concept-warm manifest. Best-effort — failures are silent
-    so a read-only filesystem doesn't crash a successful warm pass."""
-    payload = {
-        "version": CONCEPT_WARM_SCHEMA_VERSION,
-        "timestamp": time.time(),
-        "names_warmed": names_warmed,
-        "names_failed": names_failed,
-        "source": source,
-    }
-    root = cache_root()
-    with contextlib.suppress(OSError):
-        (root / _CONCEPT_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def concept_warm_is_fresh(*, now: float | None = None) -> bool:
-    """True when a manifest exists, its timestamp is within the staleness
-    window (default 24 h, configurable via `CONCEPT_WARM_STALE_SECONDS`),
-    AND it recorded at least one successful name warm.
-
-    The `names_warmed > 0` guard exists because `write_concept_warm` is
-    called unconditionally after every warm pass — including ones that
-    failed every name (a transient upstream outage, for example). Without
-    this guard a single failed run would suppress the startup retry for a
-    full 24 h while the cache stays cold.
-
-    Used by the FastAPI startup hook to decide whether to re-warm. `now`
-    parameter is for tests — production callers omit it and use wall time."""
-    manifest = read_concept_warm()
-    if manifest is None:
-        return False
-    ts = manifest.get("timestamp")
-    if not isinstance(ts, int | float):
-        return False
-    names_warmed = manifest.get("names_warmed")
-    if not isinstance(names_warmed, int) or names_warmed <= 0:
-        return False
-    current = now if now is not None else time.time()
-    return (current - ts) < CONCEPT_WARM_STALE_SECONDS
-
-
-# ---------------------------------------------------------------------------
-# Set-cards-warm manifest — records the most recent `warm-set-cards` run.
-# Same shape as the concept manifest (timestamp, count, failed list) so the
-# stats projection and freshness gate can share their mental model. Lives
-# alongside `concept_warm.json` in the cache root.
-# ---------------------------------------------------------------------------
-
-
-def _set_cards_warm_path() -> Path:
-    return _cache_root_path() / _SET_CARDS_WARM_FILE
-
-
-def read_set_cards_warm() -> dict[str, Any] | None:
-    """Return the parsed set-cards-warm manifest, or None when absent/malformed.
-
-    Schema (v1):
-        {
-            "version": 1,
-            "timestamp": <unix float>,
-            "sets_warmed": <int>,
-            "sets_failed": [<set_id>, ...]
-        }
-
-    Same defence-in-depth as `read_concept_warm`: corrupt files / wrong
-    schema versions are treated as "no manifest" so a bad write doesn't
-    poison the freshness gate."""
-    path = _set_cards_warm_path()
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict) or data.get("version") != SET_CARDS_WARM_SCHEMA_VERSION:
-        return None
-    return data
-
-
-def write_set_cards_warm(
-    *,
-    sets_warmed: int,
-    sets_failed: list[str],
-) -> None:
-    """Persist the set-cards-warm manifest. Best-effort write — failures
-    are silent so a read-only filesystem doesn't crash a successful
-    warm pass that's about to return its result to the caller."""
-    payload = {
-        "version": SET_CARDS_WARM_SCHEMA_VERSION,
-        "timestamp": time.time(),
-        "sets_warmed": sets_warmed,
-        "sets_failed": sets_failed,
-    }
-    root = cache_root()
-    with contextlib.suppress(OSError):
-        (root / _SET_CARDS_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def set_cards_warm_is_fresh(*, now: float | None = None) -> bool:
-    """True when a manifest exists, its timestamp is within the staleness
-    window (1 week, see `SET_CARDS_WARM_STALE_SECONDS`), and it recorded
-    at least one successful set warm.
-
-    Same `sets_warmed > 0` guard as the concept gate — a manifest written
-    after a fully-failed pass (e.g. transient upstream outage) must not
-    suppress the next retry for a full week with the cache still cold."""
-    manifest = read_set_cards_warm()
-    if manifest is None:
-        return False
-    ts = manifest.get("timestamp")
-    if not isinstance(ts, int | float):
-        return False
-    sets_warmed = manifest.get("sets_warmed")
-    if not isinstance(sets_warmed, int) or sets_warmed <= 0:
-        return False
-    current = now if now is not None else time.time()
-    return (current - ts) < SET_CARDS_WARM_STALE_SECONDS
-
-
-# ---------------------------------------------------------------------------
-# Sets-warm manifest — records the most recent `warm-sets` (logos+symbols)
-# run. Mirrors the set-cards manifest shape so the stats projection and the
-# freshness gate stay uniform across the three warm slices.
-#
-# This manifest exists because we moved set-image warming from a one-shot
-# build-time step in the Dockerfile to a runtime lifespan bootstrap (see
-# `api.main._warm_sets_in_background` and #369). Without a freshness gate,
-# every container start would re-walk ~200 sets x 2 images — wasted work
-# when the previous pass landed an hour ago. The week-long stale window
-# matches the set-cards slice; both are stable upstream data that only
-# moves when new sets ship.
-# ---------------------------------------------------------------------------
-
-
-def _sets_warm_path() -> Path:
-    return _cache_root_path() / _SETS_WARM_FILE
-
-
-def read_sets_warm() -> dict[str, Any] | None:
-    """Return the parsed sets-warm manifest, or None when absent/malformed.
-
-    Schema (v1):
-        {
-            "version": 1,
-            "timestamp": <unix float>,
-            "sets_warmed": <int>,
-            "logos_cached": <int>,
-            "symbols_cached": <int>,
-            "failures": <int>
-        }
-
-    Same defence-in-depth as the other warm manifests: corrupt files or
-    wrong schema versions are treated as "no manifest" so a bad write
-    doesn't poison the freshness gate."""
-    path = _sets_warm_path()
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict) or data.get("version") != SETS_WARM_SCHEMA_VERSION:
-        return None
-    return data
-
-
-def write_sets_warm(
-    *,
-    sets_warmed: int,
-    logos_cached: int,
-    symbols_cached: int,
-    failures: int,
-) -> None:
-    """Persist the sets-warm manifest. Best-effort write — failures are
-    silent so a read-only filesystem doesn't crash a successful warm pass
-    that's about to return its result to the caller."""
-    payload = {
-        "version": SETS_WARM_SCHEMA_VERSION,
-        "timestamp": time.time(),
-        "sets_warmed": sets_warmed,
-        "logos_cached": logos_cached,
-        "symbols_cached": symbols_cached,
-        "failures": failures,
-    }
-    root = cache_root()
-    with contextlib.suppress(OSError):
-        (root / _SETS_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def sets_warm_is_fresh(*, now: float | None = None) -> bool:
-    """True when a manifest exists, its timestamp is within the staleness
-    window (1 week, see `SETS_WARM_STALE_SECONDS`), and it recorded at
-    least one successful set walk.
-
-    Same `sets_warmed > 0` guard as the other warm gates — a manifest
-    written after a fully-failed pass (e.g. transient upstream outage)
-    must not suppress the next retry for a full week with no logos on
-    disk."""
-    manifest = read_sets_warm()
-    if manifest is None:
-        return False
-    ts = manifest.get("timestamp")
-    if not isinstance(ts, int | float):
-        return False
-    sets_warmed = manifest.get("sets_warmed")
-    if not isinstance(sets_warmed, int) or sets_warmed <= 0:
-        return False
-    current = now if now is not None else time.time()
-    return (current - ts) < SETS_WARM_STALE_SECONDS
-
-
-# ---------------------------------------------------------------------------
-# Card-warm manifest — records the most recent `warm-cards` run (the
-# Phase 1 #370 catalog-warm pass that fan-out-writes per-card cache entries
-# from each set's payload). Mirrors the other warm manifests' shape so
-# the stats projection, freshness gate, and CLI rendering stay uniform.
-# Phase 1 of the pre-Scrydex catalog-warm epic (#368).
-# ---------------------------------------------------------------------------
-
-
-def _card_warm_path() -> Path:
-    return _cache_root_path() / _CARD_WARM_FILE
-
-
-def read_card_warm() -> dict[str, Any] | None:
-    """Return the parsed card-warm manifest, or None when absent/malformed.
-
-    Schema (v1):
-        {
-            "version": 1,
-            "timestamp": <unix float>,
-            "cards_warmed": <int>,
-            "cards_failed": <int>,
-            "sets_attempted": <int>,
-            "sets_failed": [<set_id>, ...]
-        }
-
-    Same defence-in-depth as the other warm manifests: corrupt files or
-    wrong schema versions are treated as "no manifest" so a bad write
-    doesn't poison the freshness gate."""
-    path = _card_warm_path()
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict) or data.get("version") != CARD_WARM_SCHEMA_VERSION:
-        return None
-    return data
-
-
-def write_card_warm(
-    *,
-    cards_warmed: int,
-    cards_failed: int,
-    sets_attempted: int,
-    sets_failed: list[str],
-) -> None:
-    """Persist the card-warm manifest. Best-effort write — failures are
-    silent so a read-only filesystem doesn't crash a successful warm pass
-    that's about to return its result to the caller."""
-    payload = {
-        "version": CARD_WARM_SCHEMA_VERSION,
-        "timestamp": time.time(),
-        "cards_warmed": cards_warmed,
-        "cards_failed": cards_failed,
-        "sets_attempted": sets_attempted,
-        "sets_failed": sets_failed,
-    }
-    root = cache_root()
-    with contextlib.suppress(OSError):
-        (root / _CARD_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def card_warm_is_fresh(*, now: float | None = None) -> bool:
-    """True when a manifest exists, its timestamp is within the staleness
-    window (1 week, see `CARD_WARM_STALE_SECONDS`), and it recorded at
-    least one successful card warm.
-
-    Same `cards_warmed > 0` guard as the other warm gates — a manifest
-    written after a fully-failed pass (e.g. transient upstream outage)
-    must not suppress the next retry for a full week with the cache
-    cold."""
-    manifest = read_card_warm()
-    if manifest is None:
-        return False
-    ts = manifest.get("timestamp")
-    if not isinstance(ts, int | float):
-        return False
-    cards_warmed = manifest.get("cards_warmed")
-    if not isinstance(cards_warmed, int) or cards_warmed <= 0:
-        return False
-    current = now if now is not None else time.time()
-    return (current - ts) < CARD_WARM_STALE_SECONDS
-
-
-# ---------------------------------------------------------------------------
-# Card-images warm manifest — Phase 2 of the pre-Scrydex catalog-warm
-# epic (#368). Tracks how many per-card image bytes the most recent
-# `pkmn cache warm-card-images` pass landed on disk under
-# `cache/images/cards/{large,small}/`. Mirrors the other warm manifests'
-# shape so the stats projection / freshness gate / CLI rendering stay
-# uniform. Shares `CARD_WARM_STALE_SECONDS` as the staleness window —
-# card-image bytes are at least as immutable as card structural data.
-# ---------------------------------------------------------------------------
-
-
-def _card_images_warm_path() -> Path:
-    return _cache_root_path() / _CARD_IMAGES_WARM_FILE
-
-
-def read_card_images_warm() -> dict[str, Any] | None:
-    """Return the parsed card-images-warm manifest, or None if absent/malformed.
-
-    Schema (v1):
-        {
-            "version": 1,
-            "timestamp": <unix float>,
-            "images_warmed": <int>,
-            "images_failed": <int>,
-            "bytes_written": <int>,
-            "budget_reached": <bool>,
-            "sets_attempted": <int>,
-            "sets_failed": [<set_id>, ...]
-        }
-
-    Same defence-in-depth as the other warm manifests."""
-    path = _card_images_warm_path()
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict) or data.get("version") != CARD_IMAGES_WARM_SCHEMA_VERSION:
-        return None
-    return data
-
-
-def write_card_images_warm(
-    *,
-    images_warmed: int,
-    images_failed: int,
-    bytes_written: int,
-    budget_reached: bool,
-    sets_attempted: int,
-    sets_failed: list[str],
-) -> None:
-    """Persist the card-images-warm manifest. Best-effort write."""
-    payload = {
-        "version": CARD_IMAGES_WARM_SCHEMA_VERSION,
-        "timestamp": time.time(),
-        "images_warmed": images_warmed,
-        "images_failed": images_failed,
-        "bytes_written": bytes_written,
-        "budget_reached": budget_reached,
-        "sets_attempted": sets_attempted,
-        "sets_failed": sets_failed,
-    }
-    root = cache_root()
-    with contextlib.suppress(OSError):
-        (root / _CARD_IMAGES_WARM_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def card_images_warm_is_fresh(*, now: float | None = None) -> bool:
-    """True when a manifest exists, its timestamp is within the staleness
-    window (`CARD_WARM_STALE_SECONDS` — one week), and the manifest
-    recorded at least one warmed image.
-
-    A `budget_reached=True` manifest is still considered fresh: the
-    gate's job is to suppress the next *full* re-walk, not to chase the
-    budget tail on every boot."""
-    manifest = read_card_images_warm()
-    if manifest is None:
-        return False
-    ts = manifest.get("timestamp")
-    if not isinstance(ts, int | float):
-        return False
-    images_warmed = manifest.get("images_warmed")
-    if not isinstance(images_warmed, int) or images_warmed <= 0:
-        return False
-    current = now if now is not None else time.time()
-    return (current - ts) < CARD_WARM_STALE_SECONDS
-
-
-# ---------------------------------------------------------------------------
 # Stats — health snapshot for `pkmn cache stats`.
 # ---------------------------------------------------------------------------
+
+
+def _scan_json_dir(dirpath: Path) -> tuple[int, int, float | None]:
+    """Return (count, bytes, oldest_mtime) for `.json` files in a dir.
+
+    An unreadable directory (permission denied, transient FS error) is treated
+    as empty so the stats endpoint doesn't crash on a misconfigured deploy —
+    mirrors `cache_size_bytes()`."""
+    if not dirpath.exists():
+        return 0, 0, None
+    try:
+        entries = list(dirpath.iterdir())
+    except OSError:
+        return 0, 0, None
+    count = 0
+    total = 0
+    oldest: float | None = None
+    for entry in entries:
+        if not entry.is_file() or entry.suffix != ".json":
+            continue
+        try:
+            st = entry.stat()
+        except OSError:
+            continue
+        count += 1
+        total += st.st_size
+        if oldest is None or st.st_mtime < oldest:
+            oldest = st.st_mtime
+    return count, total, oldest
+
+
+def _override_stats() -> tuple[int, int]:
+    """Return (entry_count, bytes) for the URL-overrides file.
+
+    Parses the single JSON document once to count keys. A malformed file still
+    reports its byte size (if `stat()` succeeded) but zero entries, so a
+    corrupt overrides file doesn't crash the stats endpoint."""
+    overrides_path = _overrides_path()
+    if not overrides_path.exists():
+        return 0, 0
+    override_bytes = 0
+    try:
+        override_bytes = overrides_path.stat().st_size
+        data = json.loads(overrides_path.read_text(encoding="utf-8"))
+        return len(_extract_overrides(data)), override_bytes
+    except (OSError, json.JSONDecodeError):
+        return 0, override_bytes
+
+
+def _warm_timestamp(manifest: dict[str, Any]) -> float | None:
+    """Coerce a manifest's `timestamp` field to float, or None when absent."""
+    ts = manifest.get("timestamp")
+    return float(ts) if isinstance(ts, int | float) else None
+
+
+def _warm_int(manifest: dict[str, Any], key: str) -> int:
+    """Read an int field off a warm manifest, defaulting to 0 when missing."""
+    value = manifest.get(key)
+    return value if isinstance(value, int) else 0
+
+
+def _warm_bool(manifest: dict[str, Any], key: str) -> bool:
+    """Read a bool field off a warm manifest, defaulting to False when missing."""
+    value = manifest.get(key)
+    return value if isinstance(value, bool) else False
+
+
+def _concept_warm_stats() -> tuple[float | None, int]:
+    """Return (timestamp, names_warmed) for the concept-warm manifest."""
+    manifest = read_concept_warm()
+    if manifest is None:
+        return None, 0
+    return _warm_timestamp(manifest), _warm_int(manifest, "names_warmed")
+
+
+def _set_cards_warm_stats() -> tuple[float | None, int]:
+    """Return (timestamp, sets_warmed) for the set-cards warm manifest."""
+    manifest = read_set_cards_warm()
+    if manifest is None:
+        return None, 0
+    return _warm_timestamp(manifest), _warm_int(manifest, "sets_warmed")
+
+
+def _sets_warm_stats() -> tuple[float | None, int]:
+    """Return (timestamp, sets_warmed) for the sets (logos/symbols) manifest."""
+    manifest = read_sets_warm()
+    if manifest is None:
+        return None, 0
+    return _warm_timestamp(manifest), _warm_int(manifest, "sets_warmed")
+
+
+def _card_warm_stats() -> tuple[float | None, int, int]:
+    """Return (timestamp, cards_warmed, cards_failed) for the card-warm manifest."""
+    manifest = read_card_warm()
+    if manifest is None:
+        return None, 0, 0
+    return (
+        _warm_timestamp(manifest),
+        _warm_int(manifest, "cards_warmed"),
+        _warm_int(manifest, "cards_failed"),
+    )
+
+
+def _card_images_warm_stats() -> tuple[float | None, int, int, bool]:
+    """Return (timestamp, images_warmed, bytes_written, budget_reached) for the
+    card-images warm manifest."""
+    manifest = read_card_images_warm()
+    if manifest is None:
+        return None, 0, 0, False
+    return (
+        _warm_timestamp(manifest),
+        _warm_int(manifest, "images_warmed"),
+        _warm_int(manifest, "bytes_written"),
+        _warm_bool(manifest, "budget_reached"),
+    )
 
 
 def stats() -> CacheStats:
@@ -1475,121 +1130,27 @@ def stats() -> CacheStats:
     the purpose. For API entries we only call `stat()` — no payload reads
     — so cost scales with the number of files, not their aggregate bytes.
     The overrides file is parsed once (a single JSON document) to count
-    keys."""
+    keys. Each slice is summarised by its own helper above; this coordinator
+    just stitches the pieces into a `CacheStats`."""
     root = cache_root()
-
-    def _scan_json_dir(dirpath: Path) -> tuple[int, int, float | None]:
-        """Return (count, bytes, oldest_mtime) for `.json` files in a dir.
-
-        An unreadable directory (permission denied, transient FS error)
-        is treated as empty so the stats endpoint doesn't crash on a
-        misconfigured deploy — mirrors `cache_size_bytes()`."""
-        if not dirpath.exists():
-            return 0, 0, None
-        try:
-            entries = list(dirpath.iterdir())
-        except OSError:
-            return 0, 0, None
-        count = 0
-        total = 0
-        oldest: float | None = None
-        for entry in entries:
-            if not entry.is_file() or entry.suffix != ".json":
-                continue
-            try:
-                st = entry.stat()
-            except OSError:
-                continue
-            count += 1
-            total += st.st_size
-            if oldest is None or st.st_mtime < oldest:
-                oldest = st.st_mtime
-        return count, total, oldest
 
     api_count, api_bytes, api_oldest = _scan_json_dir(root / "api")
     structural_count, structural_bytes, _ = _scan_json_dir(root / _API_STRUCTURAL_SUBDIR)
     pricing_count, pricing_bytes, pricing_oldest = _scan_json_dir(root / _API_PRICING_SUBDIR)
 
-    overrides_path = _overrides_path()
-    override_count = 0
-    override_bytes = 0
-    if overrides_path.exists():
-        try:
-            override_bytes = overrides_path.stat().st_size
-            data = json.loads(overrides_path.read_text(encoding="utf-8"))
-            override_count = len(_extract_overrides(data))
-        except (OSError, json.JSONDecodeError):
-            # Malformed file — report bytes (if we got them) but no entries.
-            pass
-
+    override_count, override_bytes = _override_stats()
     image_count, image_bytes = image_cache_size()
 
-    concept_warm_timestamp: float | None = None
-    concept_warm_names = 0
-    manifest = read_concept_warm()
-    if manifest is not None:
-        ts = manifest.get("timestamp")
-        if isinstance(ts, int | float):
-            concept_warm_timestamp = float(ts)
-        n = manifest.get("names_warmed")
-        if isinstance(n, int):
-            concept_warm_names = n
-
-    set_cards_warm_timestamp: float | None = None
-    set_cards_warm_count = 0
-    sc_manifest = read_set_cards_warm()
-    if sc_manifest is not None:
-        ts = sc_manifest.get("timestamp")
-        if isinstance(ts, int | float):
-            set_cards_warm_timestamp = float(ts)
-        n = sc_manifest.get("sets_warmed")
-        if isinstance(n, int):
-            set_cards_warm_count = n
-
-    sets_warm_timestamp: float | None = None
-    sets_warm_count = 0
-    sw_manifest = read_sets_warm()
-    if sw_manifest is not None:
-        ts = sw_manifest.get("timestamp")
-        if isinstance(ts, int | float):
-            sets_warm_timestamp = float(ts)
-        n = sw_manifest.get("sets_warmed")
-        if isinstance(n, int):
-            sets_warm_count = n
-
-    card_warm_timestamp: float | None = None
-    card_warm_count = 0
-    card_warm_failed_count = 0
-    cw_manifest = read_card_warm()
-    if cw_manifest is not None:
-        ts = cw_manifest.get("timestamp")
-        if isinstance(ts, int | float):
-            card_warm_timestamp = float(ts)
-        n = cw_manifest.get("cards_warmed")
-        if isinstance(n, int):
-            card_warm_count = n
-        f = cw_manifest.get("cards_failed")
-        if isinstance(f, int):
-            card_warm_failed_count = f
-
-    card_images_warm_timestamp: float | None = None
-    card_images_warm_count = 0
-    card_images_warm_bytes = 0
-    card_images_warm_budget_reached = False
-    ciw_manifest = read_card_images_warm()
-    if ciw_manifest is not None:
-        ts = ciw_manifest.get("timestamp")
-        if isinstance(ts, int | float):
-            card_images_warm_timestamp = float(ts)
-        n = ciw_manifest.get("images_warmed")
-        if isinstance(n, int):
-            card_images_warm_count = n
-        b = ciw_manifest.get("bytes_written")
-        if isinstance(b, int):
-            card_images_warm_bytes = b
-        br = ciw_manifest.get("budget_reached")
-        if isinstance(br, bool):
-            card_images_warm_budget_reached = br
+    concept_warm_timestamp, concept_warm_names = _concept_warm_stats()
+    set_cards_warm_timestamp, set_cards_warm_count = _set_cards_warm_stats()
+    sets_warm_timestamp, sets_warm_count = _sets_warm_stats()
+    card_warm_timestamp, card_warm_count, card_warm_failed_count = _card_warm_stats()
+    (
+        card_images_warm_timestamp,
+        card_images_warm_count,
+        card_images_warm_bytes,
+        card_images_warm_budget_reached,
+    ) = _card_images_warm_stats()
 
     return CacheStats(
         root=root,
@@ -1619,3 +1180,44 @@ def stats() -> CacheStats:
         card_images_warm_bytes=card_images_warm_bytes,
         card_images_warm_budget_reached=card_images_warm_budget_reached,
     )
+
+
+# ---------------------------------------------------------------------------
+# Warm-manifest slices live in `_cache_warm` to keep this module's
+# maintainability index in the green; they're re-exported here so the public
+# surface stays `cache.read_concept_warm`, `cache.SETS_WARM_SCHEMA_VERSION`,
+# etc. The import sits at the bottom so the core path helpers
+# (`cache_root` / `_cache_root_path`) the slices depend on are already bound
+# when `_cache_warm` imports this module back.
+# ---------------------------------------------------------------------------
+from ._cache_warm import (  # noqa: E402, F401  (intentional re-export surface)
+    CARD_IMAGES_WARM_SCHEMA_VERSION,
+    CARD_WARM_SCHEMA_VERSION,
+    CARD_WARM_STALE_SECONDS,
+    CONCEPT_WARM_SCHEMA_VERSION,
+    CONCEPT_WARM_STALE_SECONDS,
+    SET_CARDS_WARM_SCHEMA_VERSION,
+    SET_CARDS_WARM_STALE_SECONDS,
+    SETS_WARM_SCHEMA_VERSION,
+    SETS_WARM_STALE_SECONDS,
+    _card_images_warm_path,
+    _card_warm_path,
+    _concept_warm_path,
+    _set_cards_warm_path,
+    _sets_warm_path,
+    card_images_warm_is_fresh,
+    card_warm_is_fresh,
+    concept_warm_is_fresh,
+    read_card_images_warm,
+    read_card_warm,
+    read_concept_warm,
+    read_set_cards_warm,
+    read_sets_warm,
+    set_cards_warm_is_fresh,
+    sets_warm_is_fresh,
+    write_card_images_warm,
+    write_card_warm,
+    write_concept_warm,
+    write_set_cards_warm,
+    write_sets_warm,
+)
