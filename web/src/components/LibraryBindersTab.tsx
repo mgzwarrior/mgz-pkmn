@@ -17,7 +17,7 @@
  * [OwnershipBadge](./OwnershipBadge.tsx) chip (#576): palm for owned,
  * sun for chasing.
  */
-import { Loader2, Sparkles } from 'lucide-react'
+import { BarChart3, Loader2, Sparkles, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type {
   CollectionRule,
@@ -25,6 +25,7 @@ import type {
   DynamicScope,
   WishlistSummary,
 } from '../api/client'
+import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
 import { WishlistDetail } from './WishlistDetail'
 import { useCollections } from './useCollections'
@@ -100,12 +101,14 @@ export function LibraryBindersTab() {
     error: cError,
     refresh: refreshCollections,
     create,
+    remove: removeCollection,
   } = useCollections()
   const {
     wishlists,
     loading: wLoading,
     error: wError,
     refresh: refreshWishlists,
+    remove: removeWishlist,
   } = useWishlists()
 
   const [filter, setFilter] = useState<BinderFilter>('all')
@@ -120,6 +123,8 @@ export function LibraryBindersTab() {
   const [targetCollection, setTargetCollection] = useState<CollectionSummary | null>(null)
   // The want-list whose detail modal is open.
   const [openWishlist, setOpenWishlist] = useState<WishlistSummary | null>(null)
+  // The aggregate insights dashboard.
+  const [insightsOpen, setInsightsOpen] = useState(false)
 
   useEffect(() => {
     void refreshCollections()
@@ -167,14 +172,24 @@ export function LibraryBindersTab() {
         <span className="text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
           Binders
         </span>
-        <button
-          type="button"
-          onClick={() => setFormOpen((o) => !o)}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-palm-600 hover:bg-palm-50 dark:text-palm-300 dark:hover:bg-husk-100"
-        >
-          <Sparkles size={12} />
-          New smart collection
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => setInsightsOpen(true)}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-palm-600 hover:bg-palm-50 dark:text-palm-300 dark:hover:bg-husk-100"
+          >
+            <BarChart3 size={12} />
+            Insights
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormOpen((o) => !o)}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-palm-600 hover:bg-palm-50 dark:text-palm-300 dark:hover:bg-husk-100"
+          >
+            <Sparkles size={12} />
+            New smart collection
+          </button>
+        </div>
       </div>
 
       <div
@@ -296,9 +311,15 @@ export function LibraryBindersTab() {
                 key={row.key}
                 collection={row.collection}
                 onOpenTarget={setTargetCollection}
+                onDelete={removeCollection}
               />
             ) : (
-              <WishlistRow key={row.key} wishlist={row.wishlist} onOpen={setOpenWishlist} />
+              <WishlistRow
+                key={row.key}
+                wishlist={row.wishlist}
+                onOpen={setOpenWishlist}
+                onDelete={removeWishlist}
+              />
             ),
           )}
         </ul>
@@ -318,6 +339,7 @@ export function LibraryBindersTab() {
           if (!o) setOpenWishlist(null)
         }}
       />
+      <CollectionInsights open={insightsOpen} onOpenChange={setInsightsOpen} />
     </div>
   )
 }
@@ -346,9 +368,11 @@ function CardCount({ count }: { count: number }) {
 function CollectionRow({
   collection: c,
   onOpenTarget,
+  onDelete,
 }: {
   collection: CollectionSummary
   onOpenTarget: (c: CollectionSummary) => void
+  onDelete: (id: number) => Promise<void>
 }) {
   const pill = kindPill(c)
   // A catalog-scope target opens its progress detail; everything else is
@@ -378,18 +402,19 @@ function CollectionRow({
     </>
   )
   return (
-    <li>
+    <li className="group flex items-center gap-1">
       {openable ? (
         <button
           type="button"
           onClick={() => onOpenTarget(c)}
-          className="flex w-full items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+          className="flex flex-1 items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
         >
           {body}
         </button>
       ) : (
-        <div className="flex items-center justify-between py-2">{body}</div>
+        <div className="flex flex-1 items-center justify-between py-2">{body}</div>
       )}
+      <DeleteBinderControl label={`collection "${c.name}"`} onDelete={() => onDelete(c.id)} />
     </li>
   )
 }
@@ -397,16 +422,18 @@ function CollectionRow({
 function WishlistRow({
   wishlist: w,
   onOpen,
+  onDelete,
 }: {
   wishlist: WishlistSummary
   onOpen: (w: WishlistSummary) => void
+  onDelete: (id: number) => Promise<void>
 }) {
   return (
-    <li>
+    <li className="group flex items-center gap-1">
       <button
         type="button"
         onClick={() => onOpen(w)}
-        className="flex w-full items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+        className="flex flex-1 items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
@@ -423,6 +450,80 @@ function WishlistRow({
         </div>
         <CardCount count={w.item_count} />
       </button>
+      <DeleteBinderControl label={`want-list "${w.name}"`} onDelete={() => onDelete(w.id)} />
     </li>
+  )
+}
+
+/**
+ * Two-step delete affordance for a binder row. The trash icon reveals on
+ * hover/focus (mirrors the Recent tab); clicking it swaps in an inline
+ * "Delete / Cancel" confirm, since removing a binder cascade-deletes its
+ * cards and can't be undone.
+ */
+function DeleteBinderControl({
+  label,
+  onDelete,
+}: {
+  label: string
+  onDelete: () => Promise<void>
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  async function handleConfirm() {
+    setBusy(true)
+    setFailed(false)
+    try {
+      // On success the row unmounts, so there's nothing to reset here.
+      await onDelete()
+    } catch {
+      setFailed(true)
+      setBusy(false)
+    }
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex shrink-0 items-center gap-1">
+        {failed && (
+          <span role="alert" className="text-[10px] text-ember-500 dark:text-ember-300">
+            Couldn&apos;t delete
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => void handleConfirm()}
+          disabled={busy}
+          className="inline-flex items-center gap-1 rounded bg-ember-500 px-2 py-1 text-[11px] font-medium text-coconut-50 hover:bg-ember-600 disabled:opacity-50"
+        >
+          {busy && <Loader2 size={11} className="animate-spin" />}
+          Delete
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setConfirming(false)
+            setFailed(false)
+          }}
+          disabled={busy}
+          className="rounded px-2 py-1 text-[11px] font-medium text-coconut-500 hover:bg-sand-200 disabled:opacity-50 dark:text-sand-300 dark:hover:bg-husk-100"
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      aria-label={`Delete ${label}`}
+      className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-ember-500 focus-visible:opacity-100 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-ember-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+    >
+      <Trash2 size={14} />
+    </button>
   )
 }

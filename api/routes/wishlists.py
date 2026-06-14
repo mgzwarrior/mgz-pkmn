@@ -15,6 +15,7 @@ Endpoints:
 - `PATCH  /wishlists/{id}`                  rename / edit description
 - `DELETE /wishlists/{id}`                  cascade-delete items
 - `POST   /wishlists/{id}/items`            add a card (optional max_price)
+- `POST   /wishlists/{id}/items/bulk`       add many cards at once (#268)
 - `DELETE /wishlists/{id}/items/{item_id}`  remove a card
 - `POST   /wishlists/{id}/items/{item_id}/promote`  acquire → collection (#504)
 """
@@ -110,6 +111,24 @@ class WishlistItemCreate(BaseModel):
     notes: str | None = None
     # Optional alert threshold — persisted but not yet wired to alerting.
     max_price: float | None = Field(default=None, ge=0)
+
+
+class BulkWishlistItemsCreate(BaseModel):
+    """Add a set of matched cards to a want-list in one call — the
+    results-table "add selected to binder (chasing)" bulk action (#268).
+    ``notes`` / ``max_price`` apply to every row in the batch."""
+
+    cards: list[dict[str, Any]] = Field(min_length=1, max_length=500)
+    notes: str | None = None
+    max_price: float | None = Field(default=None, ge=0)
+
+
+class BulkAddResult(BaseModel):
+    """Count plus the created rows, so the SPA can bump item counts and
+    invalidate the cross-surface ownership cache (#576) in one round-trip."""
+
+    added: int
+    items: list[WishlistItemOut]
 
 
 class PromoteRequest(BaseModel):
@@ -238,6 +257,42 @@ def add_wishlist_item(
     db.commit()
     db.refresh(item)
     return _serialize_item(item)
+
+
+@router.post("/wishlists/{wishlist_id}/items/bulk", status_code=201)
+def add_wishlist_items_bulk(
+    wishlist_id: int,
+    req: BulkWishlistItemsCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Add every card in ``req.cards`` to the want-list in one transaction —
+    same per-card handling as the single :func:`add_wishlist_item`."""
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
+    now = datetime.now(UTC)
+    items: list[WishlistItem] = []
+    for card in req.cards:
+        promoted = extract_card_identity(card)
+        price = extract_price_snapshot(card)
+        items.append(
+            WishlistItem(
+                wishlist_id=wishlist.id,
+                card_json=card,
+                notes=req.notes,
+                max_price=req.max_price,
+                price_snapshot=price,
+                priced_at=now if price is not None else None,
+                **promoted,
+            )
+        )
+    db.add_all(items)
+    db.commit()
+    for item in items:
+        db.refresh(item)
+    return BulkAddResult(
+        added=len(items),
+        items=[WishlistItemOut(**_serialize_item(i)) for i in items],
+    ).model_dump()
 
 
 @router.delete("/wishlists/{wishlist_id}/items/{item_id}", status_code=204)

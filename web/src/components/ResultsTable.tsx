@@ -14,6 +14,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, AlertCircle, Filter } from 'lucide-react'
 import { addOverride } from '../api/client'
+import { BulkActionBar } from './BulkActionBar'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import type { ResultsFilters, Row } from '../types'
@@ -73,7 +74,7 @@ interface Props {
 }
 
 export function ResultsTable({ onRerunLine }: Props) {
-  const { rows, progress, isRunning, settings, viewState, setViewState, resetViewState } =
+  const { rows, setRows, progress, isRunning, settings, viewState, setViewState, resetViewState } =
     useAppStore()
   const { sortColumn, sortDir, showFilters, filters } = viewState
   // Hoist the auth read here (not in ResultRow) so we don't fire one
@@ -155,6 +156,135 @@ export function ResultsTable({ onRerunLine }: Props) {
   )
   const hiddenOwnedCount = displayedRows.length - visibleRows.length
 
+  // ---- Multi-select (#268) -------------------------------------------------
+  // Selection is tracked by Row object reference: it rides along through
+  // sort/filter re-ordering, and a fresh lookup (new Row objects) drops it
+  // for free. Ephemeral by design — never persisted.
+  const [selected, setSelected] = useState<Set<Row>>(() => new Set())
+  // Index into `visibleRows` of the last toggled row, the anchor for a
+  // shift-click range.
+  const [anchorIdx, setAnchorIdx] = useState<number | null>(null)
+  // Power-user opt-in: keep the selection when the sort or filter changes.
+  // Off by default so selection clears on any view change.
+  const [preserveAcrossSort, setPreserveAcrossSort] = useState(false)
+  // Snapshot of `rows` taken just before a bulk delete so Undo can restore it.
+  const [undoSnapshot, setUndoSnapshot] = useState<Row[] | null>(null)
+
+  // Selection intersected with the current view, in view order — this is
+  // what the action bar operates on, so delete/retag/export all naturally
+  // honor the active sort + filter.
+  const selectedRows = useMemo(
+    () => visibleRows.filter((r) => selected.has(r)),
+    [visibleRows, selected],
+  )
+
+  // Clear the selection when the sort or filter changes (unless the
+  // power-user "preserve across sort" toggle is on), and when a fresh
+  // lookup starts. Done during render via React's "adjust state on a
+  // change" pattern rather than an effect, so there's no extra commit.
+  const viewSig = `${sortColumn}|${sortDir}|${JSON.stringify(filters)}`
+  const [prevViewSig, setPrevViewSig] = useState(viewSig)
+  if (viewSig !== prevViewSig) {
+    setPrevViewSig(viewSig)
+    if (!preserveAcrossSort && (selected.size > 0 || anchorIdx !== null)) {
+      setSelected(new Set())
+      setAnchorIdx(null)
+    }
+  }
+
+  const [prevRunning, setPrevRunning] = useState(isRunning)
+  if (isRunning !== prevRunning) {
+    setPrevRunning(isRunning)
+    // A fresh lookup just started — drop selection + undo from the old run.
+    // (Keyed on the run, not rows.length, so deleting every row still leaves
+    // Undo reachable.)
+    if (isRunning) {
+      if (selected.size > 0 || anchorIdx !== null) {
+        setSelected(new Set())
+        setAnchorIdx(null)
+      }
+      if (undoSnapshot !== null) setUndoSnapshot(null)
+    }
+  }
+
+  const toggleRow = useCallback(
+    (displayedIdx: number, shiftKey: boolean) => {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        if (shiftKey && anchorIdx !== null) {
+          // Shift-click selects the whole range between the anchor and the
+          // clicked row (inclusive).
+          const lo = Math.min(anchorIdx, displayedIdx)
+          const hi = Math.max(anchorIdx, displayedIdx)
+          for (let i = lo; i <= hi; i++) next.add(visibleRows[i])
+        } else {
+          const row = visibleRows[displayedIdx]
+          if (next.has(row)) next.delete(row)
+          else next.add(row)
+        }
+        return next
+      })
+      setAnchorIdx(displayedIdx)
+    },
+    [visibleRows, anchorIdx],
+  )
+
+  const allSelected = visibleRows.length > 0 && visibleRows.every((r) => selected.has(r))
+  const someSelected = visibleRows.some((r) => selected.has(r))
+
+  const toggleAll = useCallback(() => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      const everyVisibleSelected =
+        visibleRows.length > 0 && visibleRows.every((r) => next.has(r))
+      if (everyVisibleSelected) visibleRows.forEach((r) => next.delete(r))
+      else visibleRows.forEach((r) => next.add(r))
+      return next
+    })
+    setAnchorIdx(null)
+  }, [visibleRows])
+
+  const clearSelection = useCallback(() => {
+    setSelected(new Set())
+    setAnchorIdx(null)
+  }, [])
+
+  // Delete the selected rows from the results view, snapshotting the prior
+  // `rows` so Undo can put them back. Selection clears — the rows are gone.
+  const handleDelete = useCallback(() => {
+    const toRemove = selected
+    if (toRemove.size === 0) return
+    setUndoSnapshot(rows)
+    setRows(rows.filter((r) => !toRemove.has(r)))
+    setSelected(new Set())
+    setAnchorIdx(null)
+  }, [rows, selected, setRows])
+
+  const handleUndo = useCallback(() => {
+    if (!undoSnapshot) return
+    setRows(undoSnapshot)
+    setUndoSnapshot(null)
+  }, [undoSnapshot, setRows])
+
+  // Retag the selected rows in place, remapping the selection onto the new
+  // Row objects so the bar's count stays put after the action.
+  const handleRetag = useCallback(
+    (tag: string) => {
+      const sel = selected
+      if (sel.size === 0) return
+      const next = new Set<Row>()
+      const newRows = rows.map((r) => {
+        if (!sel.has(r)) return r
+        const retagged = { ...r, tag }
+        next.add(retagged)
+        return retagged
+      })
+      setRows(newRows)
+      setSelected(next)
+    },
+    [rows, selected, setRows],
+  )
+
   if (rows.length === 0 && !isRunning) {
     return (
       <div className="flex items-center justify-center rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 py-16 text-coconut-400 dark:text-sand-300 text-sm">
@@ -200,6 +330,17 @@ export function ResultsTable({ onRerunLine }: Props) {
           {showFilters ? 'Hide filters' : 'Filter'}
         </button>
         <div className="flex items-center gap-3">
+          {selectedRows.length > 0 && (
+            <label className="flex items-center gap-1.5 text-xs text-coconut-400 dark:text-sand-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={preserveAcrossSort}
+                onChange={(e) => setPreserveAcrossSort(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:text-sun-300"
+              />
+              Keep selection across sort
+            </label>
+          )}
           <SaveSearchButton auth={auth} />
           {(sortColumn || hasActiveFilters(filters)) && (
             <button
@@ -229,6 +370,18 @@ export function ResultsTable({ onRerunLine }: Props) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-left">
+              <th className="px-3 py-2 w-8">
+                <input
+                  type="checkbox"
+                  aria-label="Select all rows"
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected && !allSelected
+                  }}
+                  onChange={toggleAll}
+                  className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:text-sun-300"
+                />
+              </th>
               {showSavedActions && (
                 <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-20">
                   <span className="sr-only">Save actions</span>
@@ -291,6 +444,9 @@ export function ResultsTable({ onRerunLine }: Props) {
             </tr>
             {showFilters && (
               <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200">
+                <th>
+                  <span className="sr-only">Select (no filter)</span>
+                </th>
                 {showSavedActions && (
                   <th>
                     <span className="sr-only">Save actions (no filter)</span>
@@ -387,11 +543,13 @@ export function ResultsTable({ onRerunLine }: Props) {
                 ownership={ownershipForRow(row, lookupOwnership)}
                 onRerunLine={onRerunLine}
                 onOpenDetail={() => setDetailIndex(displayedIdx)}
+                selected={selected.has(row)}
+                onSelect={(shiftKey) => toggleRow(displayedIdx, shiftKey)}
               />
             ))}
             {isRunning && (
               <tr>
-                <td colSpan={13} className="py-2 px-3">
+                <td colSpan={14} className="py-2 px-3">
                   <div className="h-1 w-24 rounded animate-pulse bg-sand-200 dark:bg-husk-100" />
                 </td>
               </tr>
@@ -399,6 +557,18 @@ export function ResultsTable({ onRerunLine }: Props) {
           </tbody>
         </table>
       </div>
+
+      {(selectedRows.length > 0 || undoSnapshot !== null) && (
+        <BulkActionBar
+          selectedRows={selectedRows}
+          onClear={clearSelection}
+          onDelete={handleDelete}
+          onRetag={handleRetag}
+          canUndo={undoSnapshot !== null}
+          onUndo={handleUndo}
+          showBinderActions={showSavedActions}
+        />
+      )}
 
       <CardDetailModal
         rows={visibleRows}
@@ -498,6 +668,8 @@ function ResultRow({
   ownership,
   onRerunLine,
   onOpenDetail,
+  selected,
+  onSelect,
 }: {
   row: Row
   showImage: boolean
@@ -506,6 +678,8 @@ function ResultRow({
   ownership: CardOwnership | null | undefined
   onRerunLine?: (line: string) => void
   onOpenDetail?: () => void
+  selected: boolean
+  onSelect: (shiftKey: boolean) => void
 }) {
   const card = row.card
   const p = row.pricing
@@ -574,6 +748,19 @@ function ResultRow({
             : undefined
         }
       >
+        {/* Selection checkbox — onClick carries shiftKey for range select;
+            a no-op onChange keeps the input controlled without a warning. */}
+        <td className="px-3 py-1.5 w-8">
+          <input
+            type="checkbox"
+            aria-label={`Select ${(card?.name as string) ?? row.query.raw}`}
+            checked={selected}
+            onClick={(e) => onSelect(e.shiftKey)}
+            onChange={() => {}}
+            className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:text-sun-300"
+          />
+        </td>
+
         {/* Row actions — pinned left so they stay visible on narrow
             viewports where the table overflows horizontally. */}
         {showSavedActions && (
@@ -712,7 +899,7 @@ function ResultRow({
       {/* Override URL form (inline, expands below row) */}
       {showOverrideForm && (
         <tr className="border-b border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200/60">
-          <td colSpan={13} className="px-3 py-2">
+          <td colSpan={14} className="px-3 py-2">
             <div className="flex items-center gap-2">
               <input
                 type="url"

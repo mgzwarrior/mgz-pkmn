@@ -255,6 +255,36 @@ class WishlistsEndpointTests(_IsolatedDbMixin):
             resp = c.delete(f"/api/v1/wishlists/{wid_b}/items/{item_id}")
             self.assertEqual(resp.status_code, 404)
 
+    def test_bulk_add_items_round_trip(self) -> None:
+        # #268 — add a multi-select of matched rows to a want-list at once,
+        # with a shared price cap stamped on every row.
+        second = {**SAMPLE_CARD, "id": "base1-2", "name": "Blastoise", "number": "2"}
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "Chase board"}).json()["id"]
+
+            resp = c.post(
+                f"/api/v1/wishlists/{wid}/items/bulk",
+                json={"cards": [SAMPLE_CARD, second], "max_price": 50},
+            )
+            self.assertEqual(resp.status_code, 201)
+            body = resp.json()
+            self.assertEqual(body["added"], 2)
+            self.assertEqual({i["card"]["name"] for i in body["items"]}, {"Charizard", "Blastoise"})
+            self.assertTrue(all(i["max_price"] == 50 for i in body["items"]))
+
+            self.assertEqual(len(c.get(f"/api/v1/wishlists/{wid}").json()["items"]), 2)
+
+    def test_bulk_add_rejects_empty_list(self) -> None:
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "k"}).json()["id"]
+            resp = c.post(f"/api/v1/wishlists/{wid}/items/bulk", json={"cards": []})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_bulk_add_404_for_missing_wishlist(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/wishlists/9999/items/bulk", json={"cards": [SAMPLE_CARD]})
+            self.assertEqual(resp.status_code, 404)
+
 
 # ---------------------------------------------------------------------------
 # Promote: wishlist item → collection (#504)

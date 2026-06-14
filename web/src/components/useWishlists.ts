@@ -8,7 +8,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   addCardToWishlist,
+  bulkAddToWishlist,
   createWishlist,
+  deleteWishlist,
   fetchWishlists,
   type WishlistSummary,
 } from '../api/client'
@@ -99,11 +101,39 @@ export function useWishlists() {
     [],
   )
 
+  const bulkAdd = useCallback(
+    async (
+      wishlistId: number,
+      cards: Record<string, unknown>[],
+      opts?: { notes?: string | null; maxPrice?: number | null },
+    ) => {
+      const result = await bulkAddToWishlist(wishlistId, cards, opts)
+      invalidateOwnership()
+      set({
+        wishlists: state.wishlists.map((w) =>
+          w.id === wishlistId ? { ...w, item_count: w.item_count + result.added } : w,
+        ),
+      })
+      return result
+    },
+    [],
+  )
+
+  const remove = useCallback(async (wishlistId: number) => {
+    await deleteWishlist(wishlistId)
+    // Cascade-removed chases drop the cards' ownership badges (#576) — bust
+    // the shared cache so they re-fetch.
+    invalidateOwnership()
+    set({ wishlists: state.wishlists.filter((w) => w.id !== wishlistId) })
+  }, [])
+
   return {
     ...snapshot,
     refresh,
     create,
     addCard,
+    bulkAdd,
+    remove,
   }
 }
 
