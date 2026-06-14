@@ -26,19 +26,28 @@ Endpoints:
 - `DELETE /collections/{id}/items/{item_id}`  remove a card (manual/set only)
 - `GET    /collections/{id}/target`           catalog-backed membership + ownership overlay (#631)
 - `POST   /collections/{id}/chase`            push the un-owned matches onto a want-list (#631)
+- `GET    /collections/{id}/id-card.pdf`      printable binder cover ID card (#507)
 """
 
 from __future__ import annotations
 
+import hashlib
+import io
+import tempfile
 from collections import defaultdict
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 
+import requests
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from mgz_pkmn import cache as disk_cache
+from mgz_pkmn.set_cards import fetch_all_sets, write_collection_id_card_pdf
 from mgz_pkmn.sources import TCGClient
 
 from ..auth.session import current_user_or_default
@@ -799,6 +808,114 @@ def chase_collection(
         skipped=skipped,
         total_missing=total_missing,
     ).model_dump()
+
+
+# ---------------------------------------------------------------------------
+# #507 — printable collection ID card
+# ---------------------------------------------------------------------------
+
+#: Disk-image-cache category for auto-picked cover art, keyed by a hash of
+#: the card image URL so repeat prints reuse the download.
+_COVER_CATEGORY = "collection-covers"
+
+
+@router.get("/collections/{collection_id}/id-card.pdf")
+def collection_id_card(
+    collection_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+    api_key: str | None = None,
+    no_images: bool = False,
+) -> StreamingResponse:
+    """Render a printable collection ID card — the cover cutout for the
+    top-left pocket of a binder (#507): the collection's title, a representative
+    card photo, and an owned / total count.
+
+    The cover is auto-picked: the most valuable card you own in the collection,
+    falling back to the first. ``total`` is the catalog match count for a
+    catalog-scope smart collection and the printed set size for a set
+    collection; manual buckets and owned-scope smart collections have no
+    denominator, so the card shows just the owned count. Pass ``no_images=true``
+    to skip the cover fetch (text-only, fast on a cold cache)."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    owned_items = _id_card_owned_items(db, collection, current_user.id)
+    total = _id_card_total(collection, api_key)
+
+    cover_path: Path | None = None
+    if not no_images:
+        cover_url = _pick_cover_url(owned_items)
+        if cover_url:
+            cover_path = _fetch_cover(cover_url, TCGClient(api_key=api_key).session)
+
+    content = _render_id_card(collection.name, len(owned_items), total, cover_path)
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="collection-{collection_id}-id-card.pdf"'
+        },
+    )
+
+
+def _id_card_owned_items(db: Session, collection: Collection, user_id: int) -> list[CollectionItem]:
+    """The owned cards backing the ID card — resolved rule membership for a
+    dynamic collection, stored rows otherwise."""
+    if collection.kind == COLLECTION_KIND_DYNAMIC and collection.rule_json:
+        return resolve_dynamic_items(db, user_id, collection.rule_json)
+    return list(collection.items)
+
+
+def _pick_cover_url(items: list[CollectionItem]) -> str | None:
+    """Auto-pick the cover: the most valuable owned card with an image, else
+    the first with one."""
+    with_image = [i for i in items if i.card_image_url]
+    if not with_image:
+        return None
+    best = max(
+        with_image,
+        key=lambda i: float(i.price_snapshot) if i.price_snapshot is not None else -1.0,
+    )
+    return best.card_image_url
+
+
+def _id_card_total(collection: Collection, api_key: str | None) -> int | None:
+    """The denominator for the owned / total count, or None when the
+    collection has no well-defined total (manual bucket, owned-scope smart)."""
+    if (
+        collection.kind == COLLECTION_KIND_DYNAMIC
+        and collection.dynamic_scope == DYNAMIC_SCOPE_CATALOG
+    ):
+        return len(_fetch_catalog_cards(collection.rule_json, api_key))
+    if collection.kind == COLLECTION_KIND_SET and collection.source_set_id:
+        return _set_total(collection.source_set_id, api_key)
+    return None
+
+
+def _set_total(set_id: str, api_key: str | None) -> int | None:
+    """Printed card count for a set, from the catalog's cached set list."""
+    try:
+        sets = fetch_all_sets(TCGClient(api_key=api_key))
+    except requests.RequestException:
+        return None
+    for s in sets:
+        if s.get("id") == set_id:
+            total = s.get("printedTotal") or s.get("total")
+            return int(total) if total else None
+    return None
+
+
+def _fetch_cover(url: str, session: requests.Session) -> Path | None:
+    key = hashlib.sha256(url.encode()).hexdigest()[:16]
+    return disk_cache.download_and_cache_image(_COVER_CATEGORY, key, url, session)
+
+
+def _render_id_card(title: str, owned: int, total: int | None, cover_path: Path | None) -> bytes:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_path = Path(tmpdir) / "collection-id-card.pdf"
+        write_collection_id_card_pdf(
+            out_path, title=title, owned=owned, total=total, cover_path=cover_path
+        )
+        return out_path.read_bytes()
 
 
 # ---------------------------------------------------------------------------
