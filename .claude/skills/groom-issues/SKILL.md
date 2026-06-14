@@ -28,7 +28,7 @@ gh api "repos/$REPO/milestones?state=all&per_page=100" \
 gh label list --repo "$REPO" --limit 100
 ```
 
-Note the four label families grooming relies on: **`area:*`** (lookup, outputs, cache, devops, web, site, design), **`type:*`** (feature, bug, docs, test, chore), **`version:*`** (v1, v1.x, v2), and the cross-cutting **`epic:*`** / **`specialty:*`** families. [docs/roadmap.md](../../../docs/roadmap.md) is the navigator that maps milestones to the release thesis — read it before deciding what belongs where.
+Treat the `gh label list` output above as the **authoritative** label vocabulary — groom into exactly what the repo defines today, not a list memorized in this skill. As of writing it spans four families grooming relies on: **`area:*`** (lookup, outputs, cache, devops, web, site, design), **`type:*`** (feature, bug, docs, test, chore), **`version:*`** (v1, v1.x, v2), and the cross-cutting **`epic:*`** / **`specialty:*`** tags — but if the live list disagrees with this snapshot, the live list wins; never propose a label the repo doesn't define. [docs/roadmap.md](../../../docs/roadmap.md) is the navigator that maps milestones to the release thesis — read it before deciding what belongs where.
 
 ## Step 2 — Analyze issues for overlap and clear requirements
 
