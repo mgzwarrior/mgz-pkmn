@@ -41,9 +41,9 @@ instead of this skill.
 
 ## Step 2 — CHANGELOG consolidation pass
 
-release-please rotated `[Unreleased]` into a versioned section with one bullet
-per Conventional Commit — terse subject literals in its own header format. Reshape
-that section into the project's curated style. The marketing site and the
+release-please inserts a new versioned section at the top of `CHANGELOG.md`, one
+bullet per Conventional Commit — terse subject literals in its own header format.
+Reshape that section into the project's curated style. The marketing site and the
 live-demo "what's new" surface render `CHANGELOG.md` verbatim, so the version
 section you ship is exactly what every visitor reads.
 
@@ -52,8 +52,11 @@ section you ship is exactly what every visitor reads.
 1. **Normalize the header + footer to Keep-a-Changelog style.** release-please
    emits `## [X.Y.Z](compare-link) (YYYY-MM-DD)`; the project uses
    `## [X.Y.Z] - YYYY-MM-DD` with the compare link in the footer at the bottom
-   of the file. Match the existing `## [1.5.0] - …` sections and update the
-   `[Unreleased]` / `[X.Y.Z]` compare links in the footer.
+   of the file. Match the existing `## [1.5.0] - …` sections and add an
+   `[X.Y.Z]: …/compare/vPREV...vX.Y.Z` link to the footer. There is **no
+   `[Unreleased]` section or footer link** — the project retired that placeholder
+   (see [docs/contributing.md → Changelog](../../docs/contributing.md#changelog));
+   the top of the file starts at the latest shipped release.
 2. **Dedupe subsection headings.** One `### Added` / `### Changed` / `### Fixed`
    block per release. Collapse duplicates — multiple blocks break the marketing
    site's table of contents.
@@ -101,7 +104,7 @@ print('Latest shipped:', shipped[0].version, shipped[0].date)
 
 Should print `Latest shipped: $VERSION <today>`.
 
-## Step 5 — Push back + refresh the PR body
+## Step 5 — Push back + sync PR metadata
 
 Push to the **bot's branch** (don't rename it; `gh pr checkout` set the upstream).
 Sign off the commit (DCO is enforced) with a Conventional Commits subject:
@@ -112,16 +115,24 @@ git commit -s -m "chore(release): consolidate v$VERSION changelog"
 git push
 ```
 
-Then refresh the bot PR's body and metadata in place — don't open a competing PR
+Then sync **labels + milestone only** on the bot PR — don't open a competing PR
 (release-please reuses the branch on the next `main` push, so a parallel PR breaks
 its loop):
 
 ```bash
 gh pr edit "$BOT_PR" --repo mgzwarrior/mgz-pkmn \
   --add-label "area:devops" --add-label "version:v1.x" --add-label "agent:claude" \
-  --milestone "v$MILESTONE" \
-  --body "<summary of the release + the consolidation pass>"
+  --milestone "v$MILESTONE"
 ```
+
+> ⚠️ **Never touch the bot PR body** (`--body` / `--body-file`). release-please
+> embeds machine-readable release metadata there and re-parses it at merge time to
+> create the tag + Release. Overwriting it makes release-please log `could not parse
+> pull request body as a release PR` → no tag → no `release: published` event →
+> nothing publishes, and the *next* release PR re-lists the same notes. This broke
+> the v1.6.0 release (issue #651). The curated changelog already ships in
+> `CHANGELOG.md`; if you want a human summary on the PR, post a separate
+> `gh pr comment` instead.
 
 ## Step 6 — Wait for CI; do NOT merge
 
@@ -139,7 +150,10 @@ publishes from there.
 - Don't re-bump the version surfaces by hand — release-please already did, and
   the lock workflow already synced the lockfiles. Your only edits are the
   CHANGELOG prose and the `CITATION.cff` date.
-- Don't add `### Added/Changed/Fixed` subheadings to the empty `[Unreleased]`
-  block; they appear when the first entry lands.
+- Don't overwrite the bot PR body (`gh pr edit --body`) — it carries release-please's
+  machine-readable release metadata; clobbering it blocks tagging + publish (issue #651).
+  Edit labels/milestone only; put any human summary in a `gh pr comment`.
+- Don't re-add an empty `[Unreleased]` section to `CHANGELOG.md` — the project retired
+  that placeholder; release-please drafts the next version's section from commits.
 - Don't suggest a separate admin button, manual PyPI upload, or PAT — the merge
   is the trigger; everything downstream is automatic.
