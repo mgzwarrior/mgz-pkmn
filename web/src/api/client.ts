@@ -726,6 +726,36 @@ export async function deleteCollection(collectionId: number): Promise<void> {
   }
 }
 
+/**
+ * Download the printable collection ID card PDF (#507) — the cover cutout for
+ * the top-left binder pocket (title, a representative card photo, owned/total).
+ * Triggers a browser save; mirrors `downloadSetCardsPdf`.
+ */
+export async function downloadCollectionIdCardPdf(
+  collectionId: number,
+  apiKey?: string,
+): Promise<void> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/collections/${collectionId}/id-card.pdf${params}`)
+  if (!res.ok) {
+    let detail = `id card failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `collection-${collectionId}-id-card.pdf`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
 // ---------------------------------------------------------------------------
 // #575 — aggregate insights dashboard
 // ---------------------------------------------------------------------------

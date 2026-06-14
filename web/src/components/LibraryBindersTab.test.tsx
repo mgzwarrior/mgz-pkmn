@@ -7,6 +7,7 @@ import {
   fetchCollections,
   createCollection,
   deleteCollection,
+  downloadCollectionIdCardPdf,
   fetchWishlists,
   fetchWishlist,
   deleteWishlist,
@@ -18,6 +19,7 @@ vi.mock('../api/client', () => ({
   createCollection: vi.fn(),
   addCardToCollection: vi.fn(),
   deleteCollection: vi.fn(),
+  downloadCollectionIdCardPdf: vi.fn(),
   fetchWishlists: vi.fn(),
   createWishlist: vi.fn(),
   addCardToWishlist: vi.fn(),
@@ -33,6 +35,7 @@ const mockWishlists = vi.mocked(fetchWishlists)
 const mockCreate = vi.mocked(createCollection)
 const mockDeleteCollection = vi.mocked(deleteCollection)
 const mockDeleteWishlist = vi.mocked(deleteWishlist)
+const mockPrintIdCard = vi.mocked(downloadCollectionIdCardPdf)
 const mockFetchWishlist = vi.mocked(fetchWishlist)
 const mockTarget = vi.mocked(fetchCollectionTarget)
 
@@ -45,6 +48,7 @@ describe('LibraryBindersTab', () => {
     mockCreate.mockReset()
     mockDeleteCollection.mockReset()
     mockDeleteWishlist.mockReset()
+    mockPrintIdCard.mockReset()
     mockFetchWishlist.mockReset()
     mockTarget.mockReset()
     mockCollections.mockResolvedValue([])
@@ -342,6 +346,21 @@ describe('LibraryBindersTab', () => {
 
     await waitFor(() => expect(mockDeleteWishlist).toHaveBeenCalledWith(2))
     await waitFor(() => expect(screen.queryByText('Mew hunt')).not.toBeInTheDocument())
+  })
+
+  it('downloads the ID card for a collection', async () => {
+    mockCollections.mockResolvedValue([
+      { id: 1, name: 'Charizard masters', description: null, created_at: '2026-06-04T00:00:00', item_count: 4 },
+    ])
+    mockPrintIdCard.mockResolvedValue(undefined)
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Charizard masters')).toBeInTheDocument())
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /print ID card for collection "Charizard masters"/i }),
+    )
+
+    await waitFor(() => expect(mockPrintIdCard).toHaveBeenCalledWith(1, undefined))
   })
 
   it('keeps the binder when the delete confirm is cancelled', async () => {

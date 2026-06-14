@@ -1088,5 +1088,52 @@ class CollectionInsightsTests(_IsolatedDbMixin):
             self.assertEqual(nudge, [])
 
 
+class CollectionIdCardTests(_IsolatedDbMixin):
+    """`GET /api/v1/collections/{id}/id-card.pdf` — printable binder cover (#507)."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def test_id_card_renders_pdf_for_a_manual_collection(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            # no_images skips the cover fetch so the test stays offline.
+            resp = c.get(f"/api/v1/collections/{cid}/id-card.pdf?no_images=true")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.headers["content-type"], "application/pdf")
+            self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_id_card_renders_for_an_empty_collection(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Empty"}).json()["id"]
+            resp = c.get(f"/api/v1/collections/{cid}/id-card.pdf?no_images=true")
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_id_card_404_for_missing_collection(self) -> None:
+        with self._client() as c:
+            self.assertEqual(
+                c.get("/api/v1/collections/9999/id-card.pdf?no_images=true").status_code, 404
+            )
+
+    def test_pick_cover_prefers_the_most_valuable_card(self) -> None:
+        from types import SimpleNamespace
+
+        from api.routes.collections import _pick_cover_url
+
+        items = [
+            SimpleNamespace(card_image_url="cheap.png", price_snapshot=2.0),
+            SimpleNamespace(card_image_url="pricey.png", price_snapshot=300.0),
+            SimpleNamespace(card_image_url=None, price_snapshot=999.0),  # no image — skipped
+        ]
+        self.assertEqual(_pick_cover_url(items), "pricey.png")
+        self.assertIsNone(
+            _pick_cover_url([SimpleNamespace(card_image_url=None, price_snapshot=1.0)])
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
