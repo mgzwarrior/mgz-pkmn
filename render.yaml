@@ -136,6 +136,15 @@ services:
       - key: MGZ_PKMN_WARM_CARD_IMAGES_ON_STARTUP
         value: "1"
         previewValue: "0"
+      # Bounded concurrency for /bulk SSE lookups (#303). The route fans each
+      # line out as its own task gated by a semaphore of this size
+      # (api/routes/lookup.py:_bulk_concurrency) instead of walking the list
+      # serially. Pinned to the code default (8) to make the production
+      # posture explicit: high enough to mask upstream latency on a ~200-line
+      # Browse drop, low enough that a burst stays within pokemontcg.io's
+      # 30 rpm free tier (the client's 429 backoff absorbs any overshoot).
+      - key: MGZ_PKMN_BULK_CONCURRENCY
+        value: "8"
       # Hosted-demo auth scaffold (#61 epic, foundation in #407, GitHub
       # provider in #408). Toggle is in-blueprint because it's a
       # reviewable deploy policy decision; the secrets below ride the
