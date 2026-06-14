@@ -204,6 +204,71 @@ class FindTopCardsTests(unittest.TestCase):
         self.assertEqual(by_id["xy12-109"]["language"], "ja")
         self.assertEqual(by_id["sv8-3"]["language"], "en")
 
+    def test_set_hint_constrains_query_and_filters_other_sets(self) -> None:
+        # A set hint appends a `set.name:"…"` clause to the first name query and
+        # short-circuits once it fills the pool, so only that one query fires.
+        # The post-hoc `set_overlap` filter then drops any card the stub
+        # returned from a different set.
+        off_set = _card("o1", "Charizard", 100.0)
+        off_set["set"] = {"name": "Other Set", "series": "Other Series"}
+        client = _StubTCGClient(
+            {
+                'name:Charizard set.name:"Test Set"': [
+                    _card("c1", "Charizard ex", 50.0),
+                    off_set,
+                ],
+            }
+        )
+        q = CardQuery(raw="x", name="Charizard", set_hint="Test Set", bulk_top=5)
+        results = find_top_cards(client, q, limit=5)
+        self.assertEqual([c["id"] for c in results], ["c1"])
+        # The set hint short-circuits after the first matching query.
+        self.assertEqual(client.queries, ['name:Charizard set.name:"Test Set"'])
+
+    def test_subtype_with_set_hint_short_circuits(self) -> None:
+        # `top 4 tag team in Test Set` appends the set clause to the subtype
+        # query and stops at the first match — the series variant never fires.
+        client = _StubTCGClient(
+            {
+                'subtypes:"TAG TEAM" set.name:"Test Set"': [
+                    _card("tt1", "Pikachu & Zekrom-GX", 40.0, subtypes=["TAG TEAM", "GX"]),
+                ],
+            }
+        )
+        q = CardQuery(raw="x", name="tag team", set_hint="Test Set", bulk_top=4)
+        results = find_top_cards(client, q, limit=4)
+        self.assertEqual([c["id"] for c in results], ["tt1"])
+        self.assertEqual(client.queries, ['subtypes:"TAG TEAM" set.name:"Test Set"'])
+
+    def test_set_name_fallback_when_subject_is_a_set(self) -> None:
+        # `top 10 Surging Sparks cards` names no Pokemon, so the name search
+        # comes up empty and the subject is retried as a set name. The
+        # most-specific `set.name:"Surging Sparks"` shape resolves it.
+        client = _StubTCGClient(
+            {
+                'set.name:"Surging Sparks"': [
+                    _card("ss1", "Pikachu ex", 30.0),
+                    _card("ss2", "Milotic ex", 12.0),
+                ],
+            }
+        )
+        q = CardQuery(raw="x", name="Surging Sparks", bulk_top=10)
+        results = find_top_cards(client, q, limit=10)
+        self.assertEqual([c["id"] for c in results], ["ss1", "ss2"])
+
+    def test_flavor_text_fallback_for_subjective_subject(self) -> None:
+        # A subject that hits neither `name:` nor `set:` falls back to a
+        # `flavorText:"…"` search across the database.
+        client = _StubTCGClient(
+            {
+                'flavorText:"cute"': [_card("f1", "Jigglypuff", 9.0)],
+            }
+        )
+        q = CardQuery(raw="x", name="cute", bulk_top=5)
+        results = find_top_cards(client, q, limit=5)
+        self.assertEqual([c["id"] for c in results], ["f1"])
+        self.assertTrue(any(query == 'flavorText:"cute"' for query in client.queries))
+
 
 class PriceBoundaryFilterTests(unittest.TestCase):
     """`>` / `<` are exclusive: a card whose price exactly equals the bound
