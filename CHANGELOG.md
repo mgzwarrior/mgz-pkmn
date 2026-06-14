@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.6.0](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.5.0...v1.6.0) (2026-06-14)
+
+
+### Added
+
+* **api:** carry ebay_sold / ebay_active comp signals through the output serializers ([#612](https://github.com/mgzwarrior/mgz-pkmn/issues/612)) ([529c1f2](https://github.com/mgzwarrior/mgz-pkmn/commit/529c1f227e8d2183c20ba26d4452913ebc5d9f52)), closes [#423](https://github.com/mgzwarrior/mgz-pkmn/issues/423)
+* **api:** catalog-backed smart collections — target view + chase ([#632](https://github.com/mgzwarrior/mgz-pkmn/issues/632)) ([9357e0a](https://github.com/mgzwarrior/mgz-pkmn/commit/9357e0aa6397681c0d47176ba665cc1cab0d9e38))
+* **api:** eBay OAuth client-credentials flow + account-deletion endpoint ([#609](https://github.com/mgzwarrior/mgz-pkmn/issues/609)) ([0d03be6](https://github.com/mgzwarrior/mgz-pkmn/commit/0d03be65038009887fde30d9532745edc754ed94))
+* **api:** EbayClient adapter for sold + active listing comps ([#611](https://github.com/mgzwarrior/mgz-pkmn/issues/611)) ([053c944](https://github.com/mgzwarrior/mgz-pkmn/commit/053c944314fb635accf09465a24ab2d1aac0d3b0)), closes [#422](https://github.com/mgzwarrior/mgz-pkmn/issues/422)
+* **api:** gate eBay comps on configured keys + token-rotation runbook ([#615](https://github.com/mgzwarrior/mgz-pkmn/issues/615)) ([b43f84e](https://github.com/mgzwarrior/mgz-pkmn/commit/b43f84eb1b52b5b009985f1a2e1a5d83f37bb37c))
+* **api:** per-source TTL cache for eBay comps (sold 7d, active 6h) ([#613](https://github.com/mgzwarrior/mgz-pkmn/issues/613)) ([6317922](https://github.com/mgzwarrior/mgz-pkmn/commit/631792228312ffff777a0319cc70d1c8c239afe3)), closes [#424](https://github.com/mgzwarrior/mgz-pkmn/issues/424)
+* **api:** wire eBay comps into the lookup pipeline ([#618](https://github.com/mgzwarrior/mgz-pkmn/issues/618)) ([0b3ff21](https://github.com/mgzwarrior/mgz-pkmn/commit/0b3ff219d7b059f458c4e725772d3bfc92fcc7b1))
+* **web:** age-scaled rarity floor + chase-weighted sampling in swipe mode ([#626](https://github.com/mgzwarrior/mgz-pkmn/issues/626)) ([70e0cb8](https://github.com/mgzwarrior/mgz-pkmn/commit/70e0cb8dbd386fd6fd7e1a54920c46ff9f10e202)), closes [#580](https://github.com/mgzwarrior/mgz-pkmn/issues/580)
+* **web:** aggregate collection insights dashboard ([#575](https://github.com/mgzwarrior/mgz-pkmn/issues/575)) ([#648](https://github.com/mgzwarrior/mgz-pkmn/issues/648)) ([8c23d38](https://github.com/mgzwarrior/mgz-pkmn/commit/8c23d38d1105e2799a8272a0b299c27e2d0ef262))
+* **web:** collector golden path — promote a wishlist into a collection ([#504](https://github.com/mgzwarrior/mgz-pkmn/issues/504)) ([#638](https://github.com/mgzwarrior/mgz-pkmn/issues/638)) ([b64912e](https://github.com/mgzwarrior/mgz-pkmn/commit/b64912efe167f3a5530f6f7c9c15f602d0de794e))
+* **web:** cross-collection ownership badges on search, browse, and swipe ([#628](https://github.com/mgzwarrior/mgz-pkmn/issues/628)) ([72ea9d5](https://github.com/mgzwarrior/mgz-pkmn/commit/72ea9d5c633c16154b336b3640bb463d4a1b70ab))
+* **web:** delete buttons for binders — remove a collection, want-list, or want-list card ([#647](https://github.com/mgzwarrior/mgz-pkmn/issues/647)) ([c04d81b](https://github.com/mgzwarrior/mgz-pkmn/commit/c04d81ba993ec106b665320d61984e6fdb3cb07f))
+* **web:** dynamic rule-based collections ([#630](https://github.com/mgzwarrior/mgz-pkmn/issues/630)) ([1bae360](https://github.com/mgzwarrior/mgz-pkmn/commit/1bae360b47ee9dad90fd6d378951ef56bc78fd8e))
+* **web:** eBay comps column + sold sparkline in the results table and card popup ([#614](https://github.com/mgzwarrior/mgz-pkmn/issues/614)) ([2f3e09d](https://github.com/mgzwarrior/mgz-pkmn/commit/2f3e09d29ed12da06b544358ae133540c30d35e2)), closes [#425](https://github.com/mgzwarrior/mgz-pkmn/issues/425)
+* **web:** hide-owned toggle on search results — drop cards already in a collection ([#629](https://github.com/mgzwarrior/mgz-pkmn/issues/629)) ([2a93701](https://github.com/mgzwarrior/mgz-pkmn/commit/2a93701f155c7c0498e75aa1787c4dfb1e915f52))
+* **web:** library-aware swipe exclusion — persisted no-repeat memory + hide owned/chasing ([#627](https://github.com/mgzwarrior/mgz-pkmn/issues/627)) ([71b258f](https://github.com/mgzwarrior/mgz-pkmn/commit/71b258fe11679eba2c74fca9b9eaec98560217e7))
+* **web:** printable collection ID card for the binder cover ([#507](https://github.com/mgzwarrior/mgz-pkmn/issues/507)) ([#649](https://github.com/mgzwarrior/mgz-pkmn/issues/649)) ([663f1e7](https://github.com/mgzwarrior/mgz-pkmn/commit/663f1e7cac8987fce13c9092107c433a0991a9c2))
+* **web:** smart-collection target view — scope toggle, progress, chase ([#633](https://github.com/mgzwarrior/mgz-pkmn/issues/633)) ([babc7e6](https://github.com/mgzwarrior/mgz-pkmn/commit/babc7e69bee5533a5adc5e3e102161030271cfff))
+* **web:** unify collections and want-lists into a Binders library tab ([#639](https://github.com/mgzwarrior/mgz-pkmn/issues/639)) ([a287616](https://github.com/mgzwarrior/mgz-pkmn/commit/a287616486dc050fdfc141750892ccf6a9a90b5e)), closes [#503](https://github.com/mgzwarrior/mgz-pkmn/issues/503)
+
+
+### Fixed
+
+* **devops:** correct render buildFilter key from includedPaths to paths ([#637](https://github.com/mgzwarrior/mgz-pkmn/issues/637)) ([987bc79](https://github.com/mgzwarrior/mgz-pkmn/commit/987bc79279f5d2d5d64025edff38e2889ad010bc)), closes [#636](https://github.com/mgzwarrior/mgz-pkmn/issues/636)
+* **devops:** enable Render Preview Environments at blueprint root so previewValue applies ([#641](https://github.com/mgzwarrior/mgz-pkmn/issues/641)) ([44ec6f3](https://github.com/mgzwarrior/mgz-pkmn/commit/44ec6f35fbf3b5cd4ddd8ad119e2406c3e9976b5)), closes [#640](https://github.com/mgzwarrior/mgz-pkmn/issues/640)
+* **web:** prefetch a card stack in swipe mode so the next card reveals, not slides in ([#625](https://github.com/mgzwarrior/mgz-pkmn/issues/625)) ([8b8f6c2](https://github.com/mgzwarrior/mgz-pkmn/commit/8b8f6c23a338efcc2059faee55f8100215ac38a9)), closes [#624](https://github.com/mgzwarrior/mgz-pkmn/issues/624)
+
+
+### Changed
+
+* **sources:** describe eBay as the fourth source and accept ADR-0020 ([#616](https://github.com/mgzwarrior/mgz-pkmn/issues/616)) ([8bd8565](https://github.com/mgzwarrior/mgz-pkmn/commit/8bd85651bd092722217194c37828e6b7d2ace5cd))
+
 ## [Unreleased]
 
 ## [1.5.0] - 2026-06-10
