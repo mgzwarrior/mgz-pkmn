@@ -457,3 +457,135 @@ def _wrap_two_lines(c: canvas.Canvas, text: str, font: str, size: float, max_w: 
     while c.stringWidth(line2, font, size) > max_w and len(line2) > 3:
         line2 = line2[:-2] + "…"
     return [line1, line2]
+
+
+# ---------------------------------------------------------------------------
+# Collection ID card (#507)
+# ---------------------------------------------------------------------------
+
+#: Share of the cutout's inner height given to the cover card art. Larger
+#: than ``LOGO_BOX_RATIO`` because a card image is portrait — it wants the
+#: vertical room a landscape set logo doesn't.
+COVER_BOX_RATIO = 0.66
+
+
+def write_collection_id_card_pdf(
+    out_path: Path,
+    *,
+    title: str,
+    owned: int,
+    total: int | None,
+    cover_path: Path | None,
+    today: _dt.date | None = None,
+) -> None:
+    """Render a single collection ID card into the top-left binder pocket (#507).
+
+    One cutout — cover card art, the collection's title, and an owned / total
+    count — sized to a 9-pocket pocket and placed in slot 1 of a Letter page,
+    so the user can cut it out and front their binder with it. ``total`` is
+    ``None`` for collections with no well-defined denominator (a manual bucket);
+    the count then reads "N cards" instead of a fraction."""
+    today = today or _dt.date.today()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    c = canvas.Canvas(str(out_path), pagesize=letter)
+    branding.apply_pdf_metadata(c, out_path.stem)
+    tracker = branding.PageTracker(c, letter)
+    _draw_page_one_logo(c)
+    x = MARGIN_X
+    y = PAGE_H - MARGIN_Y - CARD_H
+    _draw_collection_cutout(
+        c,
+        x,
+        y,
+        title=title,
+        owned=owned,
+        total=total,
+        cover_path=cover_path,
+        generated=today.isoformat(),
+    )
+    tracker.finish()
+
+
+def _draw_collection_cutout(
+    c: canvas.Canvas,
+    x: float,
+    y: float,
+    *,
+    title: str,
+    owned: int,
+    total: int | None,
+    cover_path: Path | None,
+    generated: str,
+) -> None:
+    """One collection cutout: dashed cut line, cover art on top, title +
+    count underneath. Mirrors :func:`_draw_cutout`'s frame."""
+    c.saveState()
+    c.setStrokeColorRGB(*palette.rgb01("border-2"))
+    c.setLineWidth(0.4)
+    c.setDash(2, 2)
+    c.rect(x, y, CARD_W, CARD_H, stroke=1, fill=0)
+    c.setDash()
+    c.restoreState()
+
+    inner_x = x + CELL_PADDING
+    inner_y = y + CELL_PADDING
+    inner_w = CARD_W - 2 * CELL_PADDING
+    inner_h = CARD_H - 2 * CELL_PADDING
+
+    cover_h = inner_h * COVER_BOX_RATIO
+    cover_bottom = inner_y + inner_h - cover_h
+    if cover_path is not None and cover_path.exists():
+        _draw_logo(c, cover_path, inner_x, cover_bottom, inner_w, cover_h)
+    else:
+        _draw_placeholder(c, inner_x, cover_bottom, inner_w, cover_h, "no cover")
+
+    text_top = cover_bottom - TEXT_BLOCK_GAP
+    _draw_collection_text(
+        c,
+        inner_x,
+        inner_y,
+        inner_w,
+        text_top - inner_y,
+        title=title,
+        owned=owned,
+        total=total,
+        generated=generated,
+    )
+
+
+def _draw_collection_text(
+    c: canvas.Canvas,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    *,
+    title: str,
+    owned: int,
+    total: int | None,
+    generated: str,
+) -> None:
+    """Title (wrapped, up to 2 lines), the owned / total count, gen date."""
+    name_size = 13
+    cur_y = y + h - name_size
+    c.setFont("Helvetica-Bold", name_size)
+    c.setFillColorRGB(*palette.rgb01("fg-1"))
+    for line in _wrap_two_lines(c, title, "Helvetica-Bold", name_size, w):
+        c.drawCentredString(x + w / 2, cur_y, line)
+        cur_y -= name_size + 1
+
+    cur_y -= 5
+    c.setFont("Helvetica-Bold", 12)
+    c.setFillColorRGB(*palette.rgb01("brand-secondary"))
+    if total is not None:
+        c.drawCentredString(x + w / 2, cur_y, f"{owned} / {total}")
+        cur_y -= 10
+        c.setFont("Helvetica", 8)
+        c.setFillColorRGB(*palette.rgb01("fg-3"))
+        c.drawCentredString(x + w / 2, cur_y, "owned")
+    else:
+        c.drawCentredString(x + w / 2, cur_y, f"{owned} {'card' if owned == 1 else 'cards'}")
+
+    c.setFont("Helvetica", 7)
+    c.setFillColorRGB(*palette.rgb01("fg-3"))
+    c.drawCentredString(x + w / 2, y + 2, f"generated {generated}")

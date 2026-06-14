@@ -16,26 +16,38 @@ schema and resolver.
 Endpoints:
 
 - `GET    /collections`                       list user's collections
+- `GET    /collections/insights`              aggregate "at a glance" dashboard (#575)
 - `POST   /collections`                       create (manual, set, or dynamic)
 - `GET    /collections/{id}`                  full collection including items
 - `PATCH  /collections/{id}`                  rename / edit description / rule
 - `DELETE /collections/{id}`                  cascade-delete items
 - `POST   /collections/{id}/items`            add a card (manual/set only)
+- `POST   /collections/{id}/items/bulk`       add many cards at once (#268/#509)
 - `DELETE /collections/{id}/items/{item_id}`  remove a card (manual/set only)
 - `GET    /collections/{id}/target`           catalog-backed membership + ownership overlay (#631)
 - `POST   /collections/{id}/chase`            push the un-owned matches onto a want-list (#631)
+- `GET    /collections/{id}/id-card.pdf`      printable binder cover ID card (#507)
 """
 
 from __future__ import annotations
 
+import hashlib
+import io
+import tempfile
+from collections import defaultdict
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 
+import requests
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from mgz_pkmn import cache as disk_cache
+from mgz_pkmn.set_cards import fetch_all_sets, write_collection_id_card_pdf
 from mgz_pkmn.sources import TCGClient
 
 from ..auth.session import current_user_or_default
@@ -215,6 +227,93 @@ class CollectionItemCreate(BaseModel):
     added_via: str | None = None
 
 
+class BulkItemsCreate(BaseModel):
+    """Add a set of matched cards to a manual/set collection in one call.
+
+    Backs the results-table "add selected to binder (owned)" bulk action
+    (#268) and the haul mode (#509). Each card lands as its own quantity-1
+    row, mirroring the single-card :class:`CollectionItemCreate` insert; the
+    optional ``notes`` / ``added_via`` apply to every row in the batch."""
+
+    cards: list[dict[str, Any]] = Field(min_length=1, max_length=500)
+    notes: str | None = None
+    added_via: str | None = None
+
+
+class BulkAddResult(BaseModel):
+    """Count plus the created rows, so the SPA can bump item counts and
+    invalidate the cross-surface ownership cache (#576) in one round-trip."""
+
+    added: int
+    items: list[CollectionItemOut]
+
+
+# ---- #575: aggregate insights dashboard ----------------------------------
+
+
+class InsightsTotals(BaseModel):
+    """Headline counters across every collection the user owns."""
+
+    collections: int
+    #: Distinct ``(set_id, number)`` identities, plus each identity-less row.
+    unique_cards: int
+    #: Sum of ``quantity`` — counts vendor multiples.
+    total_quantity: int
+    #: Sum of ``price_snapshot * quantity`` over priced rows. Live per-card
+    #: snapshots, not a ``collection_snapshots`` read — that table's writer
+    #: is #508, so value-over-time stays out of this slice.
+    estimated_value: float
+
+
+class LabeledCount(BaseModel):
+    """One bar in a top-N breakdown — a label and its distinct-card count."""
+
+    label: str
+    count: int
+
+
+class DuplicateCard(BaseModel):
+    """A row a vendor holds in multiples within a single collection."""
+
+    card_name: str | None
+    card_set_id: str | None
+    card_number: str | None
+    quantity: int
+    collection_name: str
+
+
+class CrossCollectionCard(BaseModel):
+    """One card identity that shows up in two or more collections."""
+
+    card_name: str | None
+    card_set_id: str | None
+    card_number: str | None
+    total_quantity: int
+    collections: list[str]
+
+
+class AlreadyOwnedChase(BaseModel):
+    """A want-list card the user already owns in a collection — a cleanup
+    nudge (wishlist ∩ collection)."""
+
+    card_name: str | None
+    card_set_id: str | None
+    card_number: str | None
+    wishlist_id: int
+    wishlist_name: str
+    collections: list[str]
+
+
+class CollectionInsightsOut(BaseModel):
+    totals: InsightsTotals
+    top_types: list[LabeledCount]
+    top_rarities: list[LabeledCount]
+    top_sets: list[LabeledCount]
+    duplicate_multiples: list[DuplicateCard]
+    cross_collection: list[CrossCollectionCard]
+    already_owned_chasing: list[AlreadyOwnedChase]
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -262,6 +361,175 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
             )
         )
     return {"items": [item.model_dump() for item in items], "total": len(items)}
+
+
+#: How many bars each top-N breakdown returns, and how many cards the
+#: duplicate / cleanup lists cap at, so the payload stays bounded.
+_TOP_N = 8
+_LIST_CAP = 25
+
+
+def _identity(set_id: str | None, number: str | None) -> tuple[str, str] | None:
+    """The ``(set_id, number)`` handle, or None when the row predates the
+    promoted-identity backfill and can't be grouped."""
+    if set_id is None or number is None:
+        return None
+    return (set_id, number)
+
+
+def _top_labels(buckets: dict[str, set]) -> list[LabeledCount]:
+    """Top-N labels by distinct-card count, ties broken alphabetically."""
+    ranked = sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    return [LabeledCount(label=label, count=len(cards)) for label, cards in ranked[:_TOP_N]]
+
+
+def _aggregate_items(rows: list) -> dict[str, Any]:
+    """Roll the user's materialized collection items up into the dashboard's
+    breakdowns. Dynamic collections own no rows, so they never appear here —
+    their owned-scope membership is just a filtered view of cards already
+    counted, and double-counting them would inflate every total."""
+    total_quantity = 0
+    unique_extra = 0  # identity-less rows, each its own "unique" card
+    estimated_value = 0.0
+    type_cards: dict[str, set] = defaultdict(set)
+    rarity_cards: dict[str, set] = defaultdict(set)
+    set_cards: dict[str, set] = defaultdict(set)
+    owned_collections: dict[tuple, set] = defaultdict(set)
+    owned_quantity: dict[tuple, int] = defaultdict(int)
+    owned_meta: dict[tuple, dict] = {}
+    multiples: list[DuplicateCard] = []
+
+    for set_id, number, name, rarity, types, quantity, price, coll_name in rows:
+        qty = quantity or 0
+        total_quantity += qty
+        if price is not None:
+            estimated_value += float(price) * qty
+        ident = _identity(set_id, number)
+        if ident is None:
+            unique_extra += 1
+        else:
+            owned_collections[ident].add(coll_name)
+            owned_quantity[ident] += qty
+            owned_meta[ident] = {"card_name": name, "card_set_id": set_id, "card_number": number}
+            if set_id:
+                set_cards[set_id].add(ident)
+            if rarity:
+                rarity_cards[rarity].add(ident)
+            for t in types or []:
+                type_cards[t].add(ident)
+        if qty > 1:
+            multiples.append(
+                DuplicateCard(
+                    card_name=name,
+                    card_set_id=set_id,
+                    card_number=number,
+                    quantity=qty,
+                    collection_name=coll_name,
+                )
+            )
+
+    multiples.sort(key=lambda d: (-d.quantity, d.card_name or ""))
+    cross = [
+        CrossCollectionCard(
+            total_quantity=owned_quantity[ident],
+            collections=sorted(names),
+            **owned_meta[ident],
+        )
+        for ident, names in owned_collections.items()
+        if len(names) >= 2
+    ]
+    cross.sort(key=lambda c: (-len(c.collections), -c.total_quantity, c.card_name or ""))
+
+    return {
+        "total_quantity": total_quantity,
+        "unique_cards": len(owned_meta) + unique_extra,
+        "estimated_value": round(estimated_value, 2),
+        "top_types": _top_labels(type_cards),
+        "top_rarities": _top_labels(rarity_cards),
+        "top_sets": _top_labels(set_cards),
+        "duplicate_multiples": multiples[:_LIST_CAP],
+        "cross_collection": cross[:_LIST_CAP],
+        "owned_collections": owned_collections,
+    }
+
+
+def _already_owned_chasing(
+    db: Session, user_id: int, owned_collections: dict[tuple, set]
+) -> list[AlreadyOwnedChase]:
+    """Want-list cards the user already owns — the quiet cleanup nudge.
+    Acquired (``got it``) rows are excluded: they're intentionally kept as a
+    retrospective, not stale chases."""
+    rows = db.execute(
+        select(
+            WishlistItem.card_set_id,
+            WishlistItem.card_number,
+            WishlistItem.card_name,
+            Wishlist.id,
+            Wishlist.name,
+        )
+        .join(Wishlist, WishlistItem.wishlist_id == Wishlist.id)
+        .where(Wishlist.user_id == user_id, WishlistItem.acquired_at.is_(None))
+    ).all()
+    out: list[AlreadyOwnedChase] = []
+    for set_id, number, name, wl_id, wl_name in rows:
+        ident = _identity(set_id, number)
+        if ident is None or ident not in owned_collections:
+            continue
+        out.append(
+            AlreadyOwnedChase(
+                card_name=name,
+                card_set_id=set_id,
+                card_number=number,
+                wishlist_id=wl_id,
+                wishlist_name=wl_name,
+                collections=sorted(owned_collections[ident]),
+            )
+        )
+    return out[:_LIST_CAP]
+
+
+@router.get("/collections/insights")
+def collection_insights(db: DbSession, current_user: CurrentUser) -> dict:
+    """Aggregate "your collection at a glance" across all of a user's
+    collections (#575): totals, top types / rarities / sets, vendor
+    duplicates, and the wishlist ∩ collection cleanup nudge. Computed live
+    from the promoted card-identity columns — every breakdown is indexed SQL
+    + a small in-Python rollup, not a ``card_json`` scan."""
+    collection_count = (
+        db.scalar(select(func.count(Collection.id)).where(Collection.user_id == current_user.id))
+        or 0
+    )
+    rows = db.execute(
+        select(
+            CollectionItem.card_set_id,
+            CollectionItem.card_number,
+            CollectionItem.card_name,
+            CollectionItem.card_rarity,
+            CollectionItem.card_types_json,
+            CollectionItem.quantity,
+            CollectionItem.price_snapshot,
+            Collection.name,
+        )
+        .join(Collection, CollectionItem.collection_id == Collection.id)
+        .where(Collection.user_id == current_user.id)
+    ).all()
+
+    agg = _aggregate_items(rows)
+    out = CollectionInsightsOut(
+        totals=InsightsTotals(
+            collections=int(collection_count),
+            unique_cards=agg["unique_cards"],
+            total_quantity=agg["total_quantity"],
+            estimated_value=agg["estimated_value"],
+        ),
+        top_types=agg["top_types"],
+        top_rarities=agg["top_rarities"],
+        top_sets=agg["top_sets"],
+        duplicate_multiples=agg["duplicate_multiples"],
+        cross_collection=agg["cross_collection"],
+        already_owned_chasing=_already_owned_chasing(db, current_user.id, agg["owned_collections"]),
+    )
+    return out.model_dump()
 
 
 @router.post("/collections", status_code=201)
@@ -354,6 +622,47 @@ def add_collection_item(
     db.commit()
     db.refresh(item)
     return serialize_collection_item(item)
+
+
+@router.post("/collections/{collection_id}/items/bulk", status_code=201)
+def add_collection_items_bulk(
+    collection_id: int,
+    req: BulkItemsCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Add every card in ``req.cards`` to the collection in one transaction.
+
+    Same per-card handling as the single :func:`add_collection_item` (identity
+    + price-snapshot extraction, ``manual`` provenance by default); dynamic
+    collections are rejected for the same reason."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    _reject_if_dynamic(collection)
+    now = datetime.now(UTC)
+    items: list[CollectionItem] = []
+    for card in req.cards:
+        promoted = extract_card_identity(card)
+        price = extract_price_snapshot(card)
+        items.append(
+            CollectionItem(
+                collection_id=collection.id,
+                card_json=card,
+                notes=req.notes,
+                quantity=1,
+                added_via=req.added_via or ADDED_VIA_MANUAL,
+                price_snapshot=price,
+                priced_at=now if price is not None else None,
+                **promoted,
+            )
+        )
+    db.add_all(items)
+    db.commit()
+    for item in items:
+        db.refresh(item)
+    return BulkAddResult(
+        added=len(items),
+        items=[CollectionItemOut(**serialize_collection_item(i)) for i in items],
+    ).model_dump()
 
 
 @router.delete("/collections/{collection_id}/items/{item_id}", status_code=204)
@@ -499,6 +808,114 @@ def chase_collection(
         skipped=skipped,
         total_missing=total_missing,
     ).model_dump()
+
+
+# ---------------------------------------------------------------------------
+# #507 — printable collection ID card
+# ---------------------------------------------------------------------------
+
+#: Disk-image-cache category for auto-picked cover art, keyed by a hash of
+#: the card image URL so repeat prints reuse the download.
+_COVER_CATEGORY = "collection-covers"
+
+
+@router.get("/collections/{collection_id}/id-card.pdf")
+def collection_id_card(
+    collection_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+    api_key: str | None = None,
+    no_images: bool = False,
+) -> StreamingResponse:
+    """Render a printable collection ID card — the cover cutout for the
+    top-left pocket of a binder (#507): the collection's title, a representative
+    card photo, and an owned / total count.
+
+    The cover is auto-picked: the most valuable card you own in the collection,
+    falling back to the first. ``total`` is the catalog match count for a
+    catalog-scope smart collection and the printed set size for a set
+    collection; manual buckets and owned-scope smart collections have no
+    denominator, so the card shows just the owned count. Pass ``no_images=true``
+    to skip the cover fetch (text-only, fast on a cold cache)."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    owned_items = _id_card_owned_items(db, collection, current_user.id)
+    total = _id_card_total(collection, api_key)
+
+    cover_path: Path | None = None
+    if not no_images:
+        cover_url = _pick_cover_url(owned_items)
+        if cover_url:
+            cover_path = _fetch_cover(cover_url, TCGClient(api_key=api_key).session)
+
+    content = _render_id_card(collection.name, len(owned_items), total, cover_path)
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="collection-{collection_id}-id-card.pdf"'
+        },
+    )
+
+
+def _id_card_owned_items(db: Session, collection: Collection, user_id: int) -> list[CollectionItem]:
+    """The owned cards backing the ID card — resolved rule membership for a
+    dynamic collection, stored rows otherwise."""
+    if collection.kind == COLLECTION_KIND_DYNAMIC and collection.rule_json:
+        return resolve_dynamic_items(db, user_id, collection.rule_json)
+    return list(collection.items)
+
+
+def _pick_cover_url(items: list[CollectionItem]) -> str | None:
+    """Auto-pick the cover: the most valuable owned card with an image, else
+    the first with one."""
+    with_image = [i for i in items if i.card_image_url]
+    if not with_image:
+        return None
+    best = max(
+        with_image,
+        key=lambda i: float(i.price_snapshot) if i.price_snapshot is not None else -1.0,
+    )
+    return best.card_image_url
+
+
+def _id_card_total(collection: Collection, api_key: str | None) -> int | None:
+    """The denominator for the owned / total count, or None when the
+    collection has no well-defined total (manual bucket, owned-scope smart)."""
+    if (
+        collection.kind == COLLECTION_KIND_DYNAMIC
+        and collection.dynamic_scope == DYNAMIC_SCOPE_CATALOG
+    ):
+        return len(_fetch_catalog_cards(collection.rule_json, api_key))
+    if collection.kind == COLLECTION_KIND_SET and collection.source_set_id:
+        return _set_total(collection.source_set_id, api_key)
+    return None
+
+
+def _set_total(set_id: str, api_key: str | None) -> int | None:
+    """Printed card count for a set, from the catalog's cached set list."""
+    try:
+        sets = fetch_all_sets(TCGClient(api_key=api_key))
+    except requests.RequestException:
+        return None
+    for s in sets:
+        if s.get("id") == set_id:
+            total = s.get("printedTotal") or s.get("total")
+            return int(total) if total else None
+    return None
+
+
+def _fetch_cover(url: str, session: requests.Session) -> Path | None:
+    key = hashlib.sha256(url.encode()).hexdigest()[:16]
+    return disk_cache.download_and_cache_image(_COVER_CATEGORY, key, url, session)
+
+
+def _render_id_card(title: str, owned: int, total: int | None, cover_path: Path | None) -> bytes:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_path = Path(tmpdir) / "collection-id-card.pdf"
+        write_collection_id_card_pdf(
+            out_path, title=title, owned=owned, total=total, cover_path=cover_path
+        )
+        return out_path.read_bytes()
 
 
 # ---------------------------------------------------------------------------

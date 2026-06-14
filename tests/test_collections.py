@@ -437,6 +437,49 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             resp = c.delete(f"/api/v1/collections/{cid_b}/items/{item_id}")
             self.assertEqual(resp.status_code, 404)
 
+    def test_bulk_add_items_round_trip(self) -> None:
+        # #268 — drop a multi-select of matched rows into a collection in one
+        # call. Each card lands as its own row and the response carries them.
+        second = {**SAMPLE_CARD, "id": "base1-2", "name": "Blastoise", "number": "2"}
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show haul"}).json()["id"]
+
+            resp = c.post(
+                f"/api/v1/collections/{cid}/items/bulk",
+                json={"cards": [SAMPLE_CARD, second], "added_via": "bulk"},
+            )
+            self.assertEqual(resp.status_code, 201)
+            body = resp.json()
+            self.assertEqual(body["added"], 2)
+            self.assertEqual({i["card"]["name"] for i in body["items"]}, {"Charizard", "Blastoise"})
+            self.assertTrue(all(i["added_via"] == "bulk" for i in body["items"]))
+
+            detail = c.get(f"/api/v1/collections/{cid}").json()
+            self.assertEqual(len(detail["items"]), 2)
+            self.assertEqual(c.get("/api/v1/collections").json()["items"][0]["item_count"], 2)
+
+    def test_bulk_add_rejects_empty_list(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            resp = c.post(f"/api/v1/collections/{cid}/items/bulk", json={"cards": []})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_bulk_add_404_for_missing_collection(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/collections/9999/items/bulk", json={"cards": [SAMPLE_CARD]})
+            self.assertEqual(resp.status_code, 404)
+
+    def test_bulk_add_rejects_dynamic_collection(self) -> None:
+        # A dynamic collection's membership is its rule — direct adds are 409,
+        # same as the single-item endpoint.
+        with self._client() as c:
+            cid = c.post(
+                "/api/v1/collections",
+                json={"name": "All Eevees", "kind": "dynamic", "rule": {"name": "eevee"}},
+            ).json()["id"]
+            resp = c.post(f"/api/v1/collections/{cid}/items/bulk", json={"cards": [SAMPLE_CARD]})
+            self.assertEqual(resp.status_code, 409)
+
 
 # ---------------------------------------------------------------------------
 # Dynamic (rule-based) collections (#506)
@@ -936,6 +979,160 @@ class CollectionsAuthGateTests(_IsolatedDbMixin):
                     c.delete(f"/api/v1/collections/{cid}/items/{item_id}").status_code,
                     404,
                 )
+
+
+class CollectionInsightsTests(_IsolatedDbMixin):
+    """`GET /api/v1/collections/insights` — the aggregate dashboard (#575)."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def test_insights_empty_when_no_collections(self) -> None:
+        with self._client() as c:
+            body = c.get("/api/v1/collections/insights").json()
+            self.assertEqual(
+                body["totals"],
+                {"collections": 0, "unique_cards": 0, "total_quantity": 0, "estimated_value": 0.0},
+            )
+            self.assertEqual(body["top_types"], [])
+            self.assertEqual(body["duplicate_multiples"], [])
+            self.assertEqual(body["cross_collection"], [])
+            self.assertEqual(body["already_owned_chasing"], [])
+
+    def test_insights_totals_and_breakdowns(self) -> None:
+        priced = {**SAMPLE_CARD, "market_price": 250.0}  # Charizard, Fire, base1, Rare Holo
+        with self._client() as c:
+            owned = c.post("/api/v1/collections", json={"name": "Owned"}).json()["id"]
+            trade = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]
+            c.post(f"/api/v1/collections/{owned}/items", json={"card": priced, "quantity": 2})
+            c.post(f"/api/v1/collections/{owned}/items", json={"card": EEVEE_CARD})
+            c.post(f"/api/v1/collections/{trade}/items", json={"card": VAPOREON_CARD})
+
+            body = c.get("/api/v1/collections/insights").json()
+            self.assertEqual(
+                body["totals"],
+                {
+                    "collections": 2,
+                    "unique_cards": 3,  # three distinct (set, number) identities
+                    "total_quantity": 4,  # 2 + 1 + 1
+                    "estimated_value": 500.0,  # 250 * 2; only the Charizard is priced
+                },
+            )
+            sets = {b["label"]: b["count"] for b in body["top_sets"]}
+            self.assertEqual(sets["sv1"], 2)  # Eevee + Vaporeon
+            self.assertEqual(sets["base1"], 1)
+            types = {b["label"]: b["count"] for b in body["top_types"]}
+            self.assertEqual(types, {"Fire": 1, "Colorless": 1, "Water": 1})
+            rarities = {b["label"]: b["count"] for b in body["top_rarities"]}
+            self.assertEqual(rarities["Rare Holo"], 1)
+
+    def test_insights_flags_vendor_multiples(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD, "quantity": 3})
+            c.post(
+                f"/api/v1/collections/{cid}/items", json={"card": EEVEE_CARD}
+            )  # qty 1, not a dup
+
+            dups = c.get("/api/v1/collections/insights").json()["duplicate_multiples"]
+            self.assertEqual(len(dups), 1)
+            self.assertEqual(dups[0]["card_name"], "Charizard")
+            self.assertEqual(dups[0]["quantity"], 3)
+            self.assertEqual(dups[0]["collection_name"], "Trade Stock")
+
+    def test_insights_flags_cross_collection_cards(self) -> None:
+        with self._client() as c:
+            a = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            b = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]
+            c.post(f"/api/v1/collections/{a}/items", json={"card": SAMPLE_CARD})
+            c.post(f"/api/v1/collections/{b}/items", json={"card": SAMPLE_CARD, "quantity": 2})
+            c.post(f"/api/v1/collections/{a}/items", json={"card": EEVEE_CARD})  # single collection
+
+            cross = c.get("/api/v1/collections/insights").json()["cross_collection"]
+            self.assertEqual(len(cross), 1)
+            self.assertEqual(cross[0]["card_name"], "Charizard")
+            self.assertEqual(cross[0]["total_quantity"], 3)  # 1 + 2
+            self.assertEqual(sorted(cross[0]["collections"]), ["Show Binder", "Trade Stock"])
+
+    def test_insights_nudges_cards_you_own_but_still_chase(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            wid = c.post("/api/v1/wishlists", json={"name": "Chase"}).json()["id"]
+            c.post(f"/api/v1/wishlists/{wid}/items", json={"card": SAMPLE_CARD})  # already own it
+            c.post(f"/api/v1/wishlists/{wid}/items", json={"card": EEVEE_CARD})  # don't own it
+
+            nudge = c.get("/api/v1/collections/insights").json()["already_owned_chasing"]
+            self.assertEqual(len(nudge), 1)
+            self.assertEqual(nudge[0]["card_name"], "Charizard")
+            self.assertEqual(nudge[0]["wishlist_name"], "Chase")
+            self.assertEqual(nudge[0]["collections"], ["Show Binder"])
+
+    def test_insights_excludes_acquired_wishlist_cards(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            wid = c.post("/api/v1/wishlists", json={"name": "Chase"}).json()["id"]
+            item_id = c.post(f"/api/v1/wishlists/{wid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            # Marking the chase complete makes it a retrospective, not a stale
+            # want — it should drop out of the cleanup nudge.
+            c.post(
+                f"/api/v1/wishlists/{wid}/items/{item_id}/promote",
+                json={"collection_id": cid},
+            )
+            nudge = c.get("/api/v1/collections/insights").json()["already_owned_chasing"]
+            self.assertEqual(nudge, [])
+
+
+class CollectionIdCardTests(_IsolatedDbMixin):
+    """`GET /api/v1/collections/{id}/id-card.pdf` — printable binder cover (#507)."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def test_id_card_renders_pdf_for_a_manual_collection(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            # no_images skips the cover fetch so the test stays offline.
+            resp = c.get(f"/api/v1/collections/{cid}/id-card.pdf?no_images=true")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.headers["content-type"], "application/pdf")
+            self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_id_card_renders_for_an_empty_collection(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Empty"}).json()["id"]
+            resp = c.get(f"/api/v1/collections/{cid}/id-card.pdf?no_images=true")
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_id_card_404_for_missing_collection(self) -> None:
+        with self._client() as c:
+            self.assertEqual(
+                c.get("/api/v1/collections/9999/id-card.pdf?no_images=true").status_code, 404
+            )
+
+    def test_pick_cover_prefers_the_most_valuable_card(self) -> None:
+        from types import SimpleNamespace
+
+        from api.routes.collections import _pick_cover_url
+
+        items = [
+            SimpleNamespace(card_image_url="cheap.png", price_snapshot=2.0),
+            SimpleNamespace(card_image_url="pricey.png", price_snapshot=300.0),
+            SimpleNamespace(card_image_url=None, price_snapshot=999.0),  # no image — skipped
+        ]
+        self.assertEqual(_pick_cover_url(items), "pricey.png")
+        self.assertIsNone(
+            _pick_cover_url([SimpleNamespace(card_image_url=None, price_snapshot=1.0)])
+        )
 
 
 if __name__ == "__main__":

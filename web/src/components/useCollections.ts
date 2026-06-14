@@ -8,7 +8,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   addCardToCollection,
+  bulkAddToCollection,
   createCollection,
+  deleteCollection,
   fetchCollections,
   type CollectionSummary,
   type CreateCollectionOptions,
@@ -110,11 +112,41 @@ export function useCollections() {
     [],
   )
 
+  const bulkAdd = useCallback(
+    async (
+      collectionId: number,
+      cards: Record<string, unknown>[],
+      opts?: { notes?: string | null; addedVia?: string },
+    ) => {
+      const result = await bulkAddToCollection(collectionId, cards, opts)
+      // Every added card's ownership badge (#576) is now stale — drop the
+      // shared cache so it re-fetches.
+      invalidateOwnership()
+      set({
+        collections: state.collections.map((c) =>
+          c.id === collectionId ? { ...c, item_count: c.item_count + result.added } : c,
+        ),
+      })
+      return result
+    },
+    [],
+  )
+
+  const remove = useCallback(async (collectionId: number) => {
+    await deleteCollection(collectionId)
+    // Cascade-removed items drop the cards' ownership badges (#576) — bust
+    // the shared cache so they re-fetch.
+    invalidateOwnership()
+    set({ collections: state.collections.filter((c) => c.id !== collectionId) })
+  }, [])
+
   return {
     ...snapshot,
     refresh,
     create,
     addCard,
+    bulkAdd,
+    remove,
   }
 }
 

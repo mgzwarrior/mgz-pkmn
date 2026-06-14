@@ -23,6 +23,7 @@ from mgz_pkmn.set_cards import (
     fetch_all_sets,
     filter_sets_by_ids,
     warm_set_images,
+    write_collection_id_card_pdf,
     write_set_cards_pdf,
 )
 
@@ -181,6 +182,24 @@ class WritePdfTests(unittest.TestCase):
             out = Path(tmp) / "set-cards.pdf"
             self.assertEqual(write_set_cards_pdf([], out), 0)
             self.assertFalse(out.exists())
+
+    def test_collection_id_card_renders_with_fraction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "id-card.pdf"
+            write_collection_id_card_pdf(
+                out, title="Exeggutor line", owned=7, total=24, cover_path=None
+            )
+            self.assertTrue(out.exists())
+            self.assertTrue(out.read_bytes().startswith(b"%PDF"))
+
+    def test_collection_id_card_renders_count_only(self) -> None:
+        # No denominator (a manual bucket) → "N cards", no cover.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "id-card.pdf"
+            write_collection_id_card_pdf(
+                out, title="Show Binder", owned=1, total=None, cover_path=None
+            )
+            self.assertTrue(out.read_bytes().startswith(b"%PDF"))
 
     def test_paginates_when_more_than_nine_sets(self) -> None:
         sets = [_set(sid=f"set-{i}", name=f"Set {i}") for i in range(11)]

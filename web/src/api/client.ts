@@ -692,6 +692,130 @@ export async function addCardToCollection(
   return (await res.json()) as CollectionItem
 }
 
+/** Result of a bulk add: the created rows plus their count (#268). */
+export interface BulkAddResult<T> {
+  added: number
+  items: T[]
+}
+
+/** Add many cards to a collection in one call — the results-table
+ * "add selected to binder (owned)" action (#268). */
+export async function bulkAddToCollection(
+  collectionId: number,
+  cards: Record<string, unknown>[],
+  opts?: { notes?: string | null; addedVia?: string },
+): Promise<BulkAddResult<CollectionItem>> {
+  const res = await fetch(`${BASE}/collections/${collectionId}/items/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cards,
+      notes: opts?.notes ?? null,
+      added_via: opts?.addedVia ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`bulk add to collection failed: ${res.status}`)
+  return (await res.json()) as BulkAddResult<CollectionItem>
+}
+
+/** Delete a collection and cascade-remove its items. */
+export async function deleteCollection(collectionId: number): Promise<void> {
+  const res = await fetch(`${BASE}/collections/${collectionId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete collection failed: ${res.status}`)
+  }
+}
+
+/**
+ * Download the printable collection ID card PDF (#507) — the cover cutout for
+ * the top-left binder pocket (title, a representative card photo, owned/total).
+ * Triggers a browser save; mirrors `downloadSetCardsPdf`.
+ */
+export async function downloadCollectionIdCardPdf(
+  collectionId: number,
+  apiKey?: string,
+): Promise<void> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/collections/${collectionId}/id-card.pdf${params}`)
+  if (!res.ok) {
+    let detail = `id card failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `collection-${collectionId}-id-card.pdf`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+// ---------------------------------------------------------------------------
+// #575 — aggregate insights dashboard
+// ---------------------------------------------------------------------------
+
+export interface InsightsTotals {
+  collections: number
+  unique_cards: number
+  total_quantity: number
+  estimated_value: number
+}
+
+/** One bar in a top-N breakdown — a label and its distinct-card count. */
+export interface LabeledCount {
+  label: string
+  count: number
+}
+
+export interface DuplicateCard {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  quantity: number
+  collection_name: string
+}
+
+export interface CrossCollectionCard {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  total_quantity: number
+  collections: string[]
+}
+
+export interface AlreadyOwnedChase {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  wishlist_id: number
+  wishlist_name: string
+  collections: string[]
+}
+
+/** Aggregate "your collection at a glance" across all of the user's
+ * collections (#575). */
+export interface CollectionInsights {
+  totals: InsightsTotals
+  top_types: LabeledCount[]
+  top_rarities: LabeledCount[]
+  top_sets: LabeledCount[]
+  duplicate_multiples: DuplicateCard[]
+  cross_collection: CrossCollectionCard[]
+  already_owned_chasing: AlreadyOwnedChase[]
+}
+
+export async function fetchCollectionInsights(): Promise<CollectionInsights> {
+  const res = await fetch(`${BASE}/collections/insights`)
+  if (!res.ok) throw new Error(`collection insights failed: ${res.status}`)
+  return (await res.json()) as CollectionInsights
+}
+
 // ---------------------------------------------------------------------------
 // wishlists
 // ---------------------------------------------------------------------------
@@ -807,6 +931,47 @@ export async function addCardToWishlist(
   })
   if (!res.ok) throw new Error(`add to wishlist failed: ${res.status}`)
   return (await res.json()) as WishlistItem
+}
+
+/** Add many cards to a want-list in one call — the results-table
+ * "add selected to binder (chasing)" action (#268). */
+export async function bulkAddToWishlist(
+  wishlistId: number,
+  cards: Record<string, unknown>[],
+  opts?: { notes?: string | null; maxPrice?: number | null },
+): Promise<BulkAddResult<WishlistItem>> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cards,
+      notes: opts?.notes ?? null,
+      max_price: opts?.maxPrice ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`bulk add to want-list failed: ${res.status}`)
+  return (await res.json()) as BulkAddResult<WishlistItem>
+}
+
+/** Delete a want-list and cascade-remove its items. */
+export async function deleteWishlist(wishlistId: number): Promise<void> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete want-list failed: ${res.status}`)
+  }
+}
+
+/** Remove a single card from a want-list. */
+export async function deleteWishlistItem(
+  wishlistId: number,
+  itemId: number,
+): Promise<void> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items/${itemId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`remove want-list card failed: ${res.status}`)
+  }
 }
 
 // ---------------------------------------------------------------------------

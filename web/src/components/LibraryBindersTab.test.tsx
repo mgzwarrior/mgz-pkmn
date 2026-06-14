@@ -6,8 +6,11 @@ import { _resetWishlistsCacheForTests } from './useWishlists'
 import {
   fetchCollections,
   createCollection,
+  deleteCollection,
+  downloadCollectionIdCardPdf,
   fetchWishlists,
   fetchWishlist,
+  deleteWishlist,
   fetchCollectionTarget,
 } from '../api/client'
 
@@ -15,9 +18,12 @@ vi.mock('../api/client', () => ({
   fetchCollections: vi.fn(),
   createCollection: vi.fn(),
   addCardToCollection: vi.fn(),
+  deleteCollection: vi.fn(),
+  downloadCollectionIdCardPdf: vi.fn(),
   fetchWishlists: vi.fn(),
   createWishlist: vi.fn(),
   addCardToWishlist: vi.fn(),
+  deleteWishlist: vi.fn(),
   fetchWishlist: vi.fn(),
   promoteWishlistItem: vi.fn(),
   fetchCollectionTarget: vi.fn(),
@@ -27,6 +33,9 @@ vi.mock('../api/client', () => ({
 const mockCollections = vi.mocked(fetchCollections)
 const mockWishlists = vi.mocked(fetchWishlists)
 const mockCreate = vi.mocked(createCollection)
+const mockDeleteCollection = vi.mocked(deleteCollection)
+const mockDeleteWishlist = vi.mocked(deleteWishlist)
+const mockPrintIdCard = vi.mocked(downloadCollectionIdCardPdf)
 const mockFetchWishlist = vi.mocked(fetchWishlist)
 const mockTarget = vi.mocked(fetchCollectionTarget)
 
@@ -37,6 +46,9 @@ describe('LibraryBindersTab', () => {
     mockCollections.mockReset()
     mockWishlists.mockReset()
     mockCreate.mockReset()
+    mockDeleteCollection.mockReset()
+    mockDeleteWishlist.mockReset()
+    mockPrintIdCard.mockReset()
     mockFetchWishlist.mockReset()
     mockTarget.mockReset()
     mockCollections.mockResolvedValue([])
@@ -302,5 +314,66 @@ describe('LibraryBindersTab', () => {
     // The card name renders inside the opened detail dialog.
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText('Charizard')).toBeInTheDocument()
+  })
+
+  it('deletes a collection after the inline confirm', async () => {
+    mockCollections.mockResolvedValue([
+      { id: 1, name: 'Charizard masters', description: null, created_at: '2026-06-04T00:00:00', item_count: 4 },
+    ])
+    mockDeleteCollection.mockResolvedValue(undefined)
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Charizard masters')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /delete collection "Charizard masters"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => expect(mockDeleteCollection).toHaveBeenCalledWith(1))
+    await waitFor(() =>
+      expect(screen.queryByText('Charizard masters')).not.toBeInTheDocument(),
+    )
+  })
+
+  it('deletes a want-list after the inline confirm', async () => {
+    mockWishlists.mockResolvedValue([
+      { id: 2, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 3 },
+    ])
+    mockDeleteWishlist.mockResolvedValue(undefined)
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Mew hunt')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /delete want-list "Mew hunt"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => expect(mockDeleteWishlist).toHaveBeenCalledWith(2))
+    await waitFor(() => expect(screen.queryByText('Mew hunt')).not.toBeInTheDocument())
+  })
+
+  it('downloads the ID card for a collection', async () => {
+    mockCollections.mockResolvedValue([
+      { id: 1, name: 'Charizard masters', description: null, created_at: '2026-06-04T00:00:00', item_count: 4 },
+    ])
+    mockPrintIdCard.mockResolvedValue(undefined)
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Charizard masters')).toBeInTheDocument())
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /print ID card for collection "Charizard masters"/i }),
+    )
+
+    await waitFor(() => expect(mockPrintIdCard).toHaveBeenCalledWith(1, undefined))
+  })
+
+  it('keeps the binder when the delete confirm is cancelled', async () => {
+    mockCollections.mockResolvedValue([
+      { id: 1, name: 'Charizard masters', description: null, created_at: '2026-06-04T00:00:00', item_count: 4 },
+    ])
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Charizard masters')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /delete collection "Charizard masters"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+
+    expect(mockDeleteCollection).not.toHaveBeenCalled()
+    expect(screen.getByText('Charizard masters')).toBeInTheDocument()
   })
 })
