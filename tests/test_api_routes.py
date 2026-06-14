@@ -227,6 +227,98 @@ class LookupRouteTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Client memoization (#302)
+# ---------------------------------------------------------------------------
+
+
+class ClientMemoizationTests(unittest.TestCase):
+    """The upstream `requests.Session` pool is memoized per api_key so the
+    connection stays warm across requests (#302). The clients themselves are
+    rebuilt per request on purpose — their instance-local L1 `_cache` has no
+    TTL, so reusing a client would pin stale/empty results process-wide."""
+
+    def setUp(self) -> None:
+        from api.routes.lookup import _sessions_for
+
+        # Other tests share the process-wide cache; clear it so these assert
+        # against a known-empty starting point.
+        _sessions_for.cache_clear()
+
+    def _row(self):
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        row = Row(
+            query=CardQuery(raw="Pikachu", name="Pikachu"), card=None, pricing=Pricing(), tag=""
+        )
+        return [(row, "no_candidates")], "MISS"
+
+    def test_clients_are_rebuilt_but_share_the_pooled_session(self) -> None:
+        from api.routes.lookup import Settings, _make_clients
+
+        first = _make_clients(Settings(api_key="k1"))
+        second = _make_clients(Settings(api_key="k1"))
+        # Fresh client objects each call — keeps the L1 `_cache` request-scoped.
+        for a, b in zip(first, second, strict=True):
+            self.assertIsNot(a, b)
+        # ...but every client shares the warm, memoized session.
+        for a, b in zip(first, second, strict=True):
+            self.assertIs(a.session, b.session)
+
+    def test_sessions_are_shared_across_api_keys_and_hold_no_key(self) -> None:
+        # The pooled session is api-key-agnostic: a BYO key is applied per
+        # request, never stored on the session or used as a cache key, so it
+        # doesn't linger in process-global state.
+        from api.routes.lookup import Settings, _make_clients
+
+        a = _make_clients(Settings(api_key="k1"))
+        b = _make_clients(Settings(api_key="k2"))
+        self.assertIs(a[0].session, b[0].session)
+        self.assertNotIn("X-Api-Key", a[0].session.headers)
+        self.assertEqual(a[0]._api_key, "k1")
+
+    def test_api_key_is_sent_per_request_not_on_the_session(self) -> None:
+        # The key still authenticates — it rides on each upstream GET.
+        from unittest.mock import MagicMock
+
+        from mgz_pkmn.sources import TCGClient
+
+        session = MagicMock()
+        session.headers = {}
+        session.get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
+        TCGClient(api_key="secret", session=session)._network_fetch(
+            "https://api.pokemontcg.io/v2/cards?q=x"
+        )
+        self.assertEqual(session.get.call_args.kwargs["headers"], {"X-Api-Key": "secret"})
+        self.assertNotIn("X-Api-Key", session.headers)
+
+    def test_distinct_session_per_upstream(self) -> None:
+        # Each upstream gets its own session so connections don't cross hosts.
+        from api.routes.lookup import Settings, _make_clients
+
+        pkmn, tcgdex, pc, ebay = _make_clients(Settings(api_key="k1"))
+        sessions = {id(pkmn.session), id(tcgdex.session), id(pc.session), id(ebay.session)}
+        self.assertEqual(len(sessions), 4)
+
+    def test_consecutive_lookups_reuse_the_same_session(self) -> None:
+        seen: list[object] = []
+
+        def _record(pkmn, *args, **kwargs):
+            seen.append(pkmn)
+            return self._row()
+
+        with patch("api.routes.lookup._do_lookup", side_effect=_record):
+            client.post("/api/v1/lookup", json={"line": "Pikachu"})
+            client.post("/api/v1/lookup", json={"line": "Pikachu"})
+
+        self.assertEqual(len(seen), 2)
+        # Fresh TCGClient per request, same warm session underneath.
+        self.assertIsNot(seen[0], seen[1])
+        self.assertIs(seen[0].session, seen[1].session)
+
+
+# ---------------------------------------------------------------------------
 # /bulk (SSE) — stage streaming
 # ---------------------------------------------------------------------------
 

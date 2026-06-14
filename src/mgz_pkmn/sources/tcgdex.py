@@ -20,8 +20,10 @@ class TCGDexClient:
     """Two-step lookup: search by name, then hydrate each hit with full card
     details so we can score on set + rarity."""
 
-    def __init__(self, verbose: bool = False) -> None:
-        self.session = requests.Session()
+    def __init__(self, verbose: bool = False, session: requests.Session | None = None) -> None:
+        # Injected session keeps the connection pool warm across instances
+        # (#302); `_cache` stays instance-local.
+        self.session = session or requests.Session()
         self.session.headers["User-Agent"] = USER_AGENT
         self.verbose = verbose
         self._cache: dict[str, Any] = {}

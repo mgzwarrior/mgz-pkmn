@@ -12,6 +12,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from functools import lru_cache
 from typing import Any
 
 import requests as req_lib
@@ -65,14 +66,48 @@ class BulkRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=1)
+def _sessions_for() -> tuple[req_lib.Session, req_lib.Session, req_lib.Session, req_lib.Session]:
+    """One warm, header-light ``requests.Session`` per upstream (#302).
+
+    Sharing the session across requests keeps its connection pool warm, so
+    every upstream hit reuses a kept-alive connection instead of paying a
+    fresh TLS handshake. Each upstream gets its *own* session so connections
+    (and any default headers) don't cross hosts.
+
+    Crucially the sessions carry **no per-request secret**: a caller-supplied
+    pokemontcg.io api_key is applied per request as an ``X-Api-Key`` header by
+    ``TCGClient`` itself, never stored on the pooled session or used as a
+    cache key — so BYO credentials stay request-scoped rather than lingering
+    in process-global state.
+
+    We also memoize the session, not the client: the clients carry an
+    instance-local L1 ``_cache`` with no TTL, written on STALE/MISS reads and
+    keyed without ``cache_only``. Reusing a client across requests would pin
+    those entries process-wide — serving stale or empty results and
+    suppressing the disk SWR refresh until restart. Fresh clients per request
+    keep that L1 cache request-scoped (its original contract) while the shared
+    session still delivers the connection-reuse win. ``lru_cache`` and
+    ``Session.get``/``post`` are both safe for the concurrent FastAPI
+    threadpool.
+    """
+    return (
+        req_lib.Session(),
+        req_lib.Session(),
+        req_lib.Session(),
+        req_lib.Session(),
+    )
+
+
 def _make_clients(
     settings: Settings,
 ) -> tuple[TCGClient, TCGDexClient, PriceChartingClient, EbayClient]:
+    pkmn_s, tcgdex_s, pc_s, ebay_s = _sessions_for()
     return (
-        TCGClient(api_key=settings.api_key),
-        TCGDexClient(),
-        PriceChartingClient(),
-        EbayClient(),
+        TCGClient(api_key=settings.api_key, session=pkmn_s),
+        TCGDexClient(session=tcgdex_s),
+        PriceChartingClient(session=pc_s),
+        EbayClient(session=ebay_s),
     )
 
 
