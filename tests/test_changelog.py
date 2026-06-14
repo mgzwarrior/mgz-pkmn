@@ -108,8 +108,12 @@ class RealChangelogTests(unittest.TestCase):
     def setUp(self) -> None:
         self.releases = parse_changelog((REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
 
-    def test_first_release_is_unreleased(self) -> None:
-        self.assertTrue(self.releases[0].is_unreleased)
+    def test_first_release_is_shipped(self) -> None:
+        # No empty [Unreleased] placeholder ships; release-please drafts the next
+        # version's section directly, so the first entry is the latest shipped release.
+        first = self.releases[0]
+        self.assertFalse(first.is_unreleased)
+        self.assertRegex(first.date or "", r"^\d{4}-\d{2}-\d{2}$")
 
     def test_every_dated_release_has_iso_date(self) -> None:
         for release in self.releases:
