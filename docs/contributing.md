@@ -572,25 +572,23 @@ SPA). Thresholds will be revisited once we have a stable baseline.
 
 [CHANGELOG.md](../CHANGELOG.md) follows the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
-**Don't add `[Unreleased]` entries by hand in your PR.** release-please reads the Conventional Commits between releases and drafts the next release's bullets automatically — adding a hand-written entry on top of that produces a duplicate that ships to the marketing site and the live-demo "what's new" surface as the same change listed twice. The cut-release editorial consolidation pass (`.claude/skills/cut-release/SKILL.md` Step 5a) then rewrites release-please's terse bullets into the project's rich-paragraph style, pulling detail from PR bodies — so the things that matter for the final CHANGELOG are:
+**Don't hand-write changelog entries in your PR.** release-please reads the Conventional Commits between releases and drafts the next release's bullets automatically — adding a hand-written entry on top of that produces a duplicate that ships to the marketing site and the live-demo "what's new" surface as the same change listed twice. (There is no `[Unreleased]` placeholder section to add to, either — release-please drafts the next version's section straight from commits at release time.) The cut-release editorial consolidation pass (`.claude/skills/cut-release/SKILL.md` Step 2) then rewrites release-please's terse bullets into the project's rich-paragraph style, pulling detail from PR bodies — so the things that matter for the final CHANGELOG are:
 
 - **Your Conventional Commits subject** (`<type>(<scope>): <subject>`) — release-please uses it verbatim as the seed bullet. `feat:` lands under `### Added`, `fix:` under `### Fixed`, `perf:` / `refactor:` / `docs:` / `revert:` under `### Changed`. `chore:` / `ci:` / `test:` / `build:` / `style:` are hidden from the changelog by design — that's how you mark "changes users never see" (dependency bumps, CI config, internal refactors, test-only PRs).
 - **Your PR body** — the cut-release editorial pass reads it when rewriting bullets into the rich style. Include the **why**, the user-visible impact, and the files / surfaces touched. The richer your PR description, the richer the final changelog entry.
 
 If your change really has no user-visible impact, use a hidden type (`chore:`, `ci:`, `refactor:` for internal-only restructures, `test:`, `build:`, `style:`) and nothing ships to the changelog. No manual `### Hidden` block, no opt-out flag — the commit type is the contract.
 
-This rule is forward-looking: existing hand-written `[Unreleased]` entries that predate release-please stay until the next release's editorial pass folds or rewrites them.
-
 ## Releasing
 
-release-please owns the release end to end. A version-bump PR **is** the release — once it merges to `main`, release-please tags the commit and cuts the GitHub Release. That `release` event triggers `release.yml`, which builds the package, runs the test suite, publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via trusted publishing (with PEP 740 attestations), and attaches the built distribution to the Release.
+release-please owns the release end to end. A version-bump PR **is** the release — once it merges to `main`, release-please tags the commit and cuts the GitHub Release. That `release` event triggers `release.yml`, which builds the package, runs the test suite, and publishes to [PyPI](https://pypi.org/project/mgz-pkmn/) via trusted publishing (with PEP 740 attestations). PyPI is the canonical distribution; the built sdist + wheel are not attached to the GitHub Release (GitHub already attaches the source archives, and immutable releases reject post-hoc asset uploads).
 
 ### The release PR is drafted by release-please
 
 `.github/workflows/release-please.yml` watches `main` and opens a version-bump PR whenever release-worthy Conventional Commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `revert:`) accumulate. The bot's PR is the **canonical release PR** — don't open a competing one. The bot:
 
 - Bumps **every** version surface in one commit — root `pyproject.toml` (via the `python` release type) plus `api/pyproject.toml`, `web/package.json`, `site/package.json`, `CITATION.cff` (`version`), and `src/mgz_pkmn/__init__.py` (via the `extra-files` config in `release-please-config.json`).
-- Rotates `[Unreleased]` in `CHANGELOG.md` into a new versioned section with bullets generated from the commit subjects.
+- Inserts a new versioned section at the top of `CHANGELOG.md` with bullets generated from the commit subjects (no `[Unreleased]` placeholder — the file starts at the latest shipped release).
 - Signs the commit with `Signed-off-by: github-actions[bot] …` so the DCO check passes.
 
 release-please can't run `uv lock` or `npm install`, so [`release-please-lock.yml`](../.github/workflows/release-please-lock.yml) watches the bot branch and re-syncs `uv.lock`, `web/package-lock.json`, and `site/package-lock.json` after the bump — without this the `web` / `site` CI jobs (which run `npm ci`) would fail on the version mismatch. The PR's checks may flash red until that re-sync commit lands; that's expected.
@@ -635,9 +633,9 @@ unavailable (misconfigured, or an emergency release off-cycle), you can
 cut a release yourself:
 
 1. Open a single PR that bumps the version string in **every** surface
-   so the artifacts ship the same number, and rotates the changelog
-   (rename `[Unreleased]` to the new version with today's date, add a
-   fresh empty `[Unreleased]` above it, update the compare links):
+   so the artifacts ship the same number, and updates the changelog
+   (add a new `## [X.Y.Z] - <today>` section at the top and a matching
+   `[X.Y.Z]` compare link in the footer — no `[Unreleased]` placeholder):
    - **CLI** — `pyproject.toml` (root) and `src/mgz_pkmn/__init__.py`.
      Run `uv lock` afterwards to refresh `uv.lock`.
    - **API** — `api/pyproject.toml`. Served as `{"version": "..."}` by
