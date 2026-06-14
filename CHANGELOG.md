@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.6.1] - 2026-06-13
+
+### Fixed
+
+- DevOps: **Release pipeline now tags and publishes version-bump PRs reliably** ([#652](https://github.com/mgzwarrior/mgz-pkmn/issues/652), closes [#651](https://github.com/mgzwarrior/mgz-pkmn/issues/651)). Dropped the post-publish step that attached the build to the GitHub Release — it fails under immutable releases and was blocking the milestone close and marketing-site rebuild — and the release process no longer overwrites the release-please PR body, which had stopped v1.6.0 from tagging and publishing to PyPI.
+
 ## [1.6.0] - 2026-06-13
 
 ### Added
@@ -203,6 +209,7 @@ Foundation release. Establishes the full CLI pipeline, a FastAPI / React web UI,
 - Parser ReDoS vulnerabilities were eliminated across multiple regex passes.
 - URL substring sanitization and workflow permissions were hardened in response to CodeQL alerts.
 
+[1.6.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.1...v1.4.0
