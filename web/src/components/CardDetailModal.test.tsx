@@ -537,4 +537,24 @@ describe('CardDetailModal', () => {
     render(<CardDetailModal rows={[buildRow()]} index={0} onChangeIndex={() => {}} />)
     expect(screen.queryByText('eBay comps')).toBeNull()
   })
+
+  it('renders Buy links out to eBay and TCGPlayer with the affiliate rel', () => {
+    render(<CardDetailModal rows={[buildRow()]} index={0} onChangeIndex={() => {}} />)
+    expect(screen.getByText('Buy')).toBeInTheDocument()
+    const ebay = screen.getByTitle('Find on eBay')
+    const tcg = screen.getByTitle('Find on TCGPlayer')
+    expect(ebay).toHaveAttribute('href', expect.stringContaining('ebay.com/sch'))
+    expect(ebay).toHaveAttribute('href', expect.stringContaining('Charizard'))
+    expect(ebay).toHaveAttribute('rel', 'sponsored noopener')
+    expect(ebay).toHaveAttribute('target', '_blank')
+    expect(tcg).toHaveAttribute('href', expect.stringContaining('tcgplayer.com/search'))
+    expect(tcg).toHaveAttribute('rel', 'sponsored noopener')
+  })
+
+  it('omits the Buy block when the card has no name to search on', () => {
+    render(
+      <CardDetailModal rows={[buildRow({ card: null })]} index={0} onChangeIndex={() => {}} />,
+    )
+    expect(screen.queryByText('Buy')).toBeNull()
+  })
 })

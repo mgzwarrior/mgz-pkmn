@@ -21,6 +21,7 @@ import type { ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
 import { AddToCollectionButton } from './AddToCollectionButton'
 import { AddToWishlistButton } from './AddToWishlistButton'
+import { AffiliateLinks } from './AffiliateLinks'
 import { CardDetailModal } from './CardDetailModal'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
@@ -438,8 +439,8 @@ export function ResultsTable({ onRerunLine }: Props) {
                 onClick={cycleSort}
                 className="hidden sm:table-cell"
               />
-              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-8">
-                <span className="sr-only">Listing link</span>
+              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right">
+                Buy
               </th>
             </tr>
             {showFilters && (
@@ -527,7 +528,7 @@ export function ResultsTable({ onRerunLine }: Props) {
                   />
                 </FilterCell>
                 <th>
-                  <span className="sr-only">Listing link (no filter)</span>
+                  <span className="sr-only">Buy (no filter)</span>
                 </th>
               </tr>
             )}
@@ -880,19 +881,24 @@ function ResultRow({
           {p.source ?? '—'}
         </td>
 
-        {/* Listing link */}
-        <td className="px-3 py-2 w-8">
-          {p.url && (
-            <a
-              href={p.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
-              title="Open listing"
-            >
-              <ExternalLink size={13} />
-            </a>
-          )}
+        {/* Buy — the matched listing (if any) plus eBay + TCGPlayer affiliate
+            search links (#657). Unmatched rows have no card to search, so the
+            affiliate links omit themselves there. */}
+        <td className="px-3 py-2 whitespace-nowrap">
+          <div className="flex items-center justify-end gap-2">
+            {p.url && (
+              <a
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
+                title="Open listing"
+              >
+                <ExternalLink size={13} />
+              </a>
+            )}
+            <AffiliateLinks card={card} />
+          </div>
         </td>
       </tr>
 

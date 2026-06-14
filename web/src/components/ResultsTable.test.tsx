@@ -177,6 +177,44 @@ describe('ResultsTable', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('renders eBay + TCGPlayer affiliate Buy links on a matched row (#657)', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    const ebay = screen.getByTitle('Find on eBay')
+    const tcg = screen.getByTitle('Find on TCGPlayer')
+    expect(ebay).toHaveAttribute('href', expect.stringContaining('ebay.com/sch'))
+    expect(ebay).toHaveAttribute('rel', 'sponsored noopener')
+    expect(tcg).toHaveAttribute('href', expect.stringContaining('tcgplayer.com/search'))
+    expect(tcg).toHaveAttribute('rel', 'sponsored noopener')
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('omits affiliate Buy links on an unmatched row with no card', () => {
+    useAppStore.setState({
+      rows: [makeRow({ matched: false, card: null, query: { raw: 'whatever', name: 'whatever' } as Row['query'] })],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    expect(screen.queryByTitle('Find on eBay')).toBeNull()
+    expect(screen.queryByTitle('Find on TCGPlayer')).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+
   it('unmatched rows are not clickable and do not get the aria-label', () => {
     useAppStore.setState({
       rows: [

@@ -19,7 +19,9 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react'
 import { useEffect } from 'react'
 import type { CardData, EbaySoldComp, Pricing, Row } from '../types'
+import { ebayAffiliateUrl, tcgplayerAffiliateUrl } from '../utils/affiliateLinks'
 import { formatComp, formatMoney } from '../utils/format'
+import { AffiliateLinks } from './AffiliateLinks'
 import { EbaySparkline } from './EbaySparkline'
 import { hasEbayData, soldPriceSeries } from './ebayComps'
 
@@ -245,6 +247,8 @@ function CardDetailBody({
               </div>
             </div>
 
+            <BuyBlock card={card} />
+
             <EbayCompsBlock pricing={pricing} />
 
             <CardMetadataBlock card={card} />
@@ -252,6 +256,28 @@ function CardDetailBody({
         </div>
       </div>
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// BuyBlock — eBay + TCGPlayer affiliate search links for the card (#657).
+// Omitted entirely when the card has no name to search on, so a sparse or
+// unmatched card doesn't leave an empty "Buy" heading behind.
+// ---------------------------------------------------------------------------
+
+function BuyBlock({ card }: { card: CardData | null }) {
+  const links = <AffiliateLinks card={card} variant="pill" />
+  // AffiliateLinks renders null when there's nothing to link to; mirror that
+  // so the heading never shows up alone.
+  if (!ebayAffiliateUrl(card) && !tcgplayerAffiliateUrl(card)) return null
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300 mb-2">
+        Buy
+      </h3>
+      {links}
+    </div>
   )
 }
 
