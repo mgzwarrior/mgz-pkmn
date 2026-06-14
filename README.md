@@ -117,6 +117,13 @@ the FastAPI server. Swagger UI lives at <http://localhost:8000/docs>.
 Prefer not to install anything? The same UI is hosted at
 <https://mgz-pkmn.onrender.com>.
 
+Every matched result — both in the results table and the card detail
+view — carries a "Buy" affordance that links out to eBay and TCGPlayer
+searches for that exact printing, opening in a new tab. The links are
+affiliate-tagged where a code is configured (eBay today; TCGPlayer once
+its affiliate application lands) and fall back to plain searches
+otherwise, so they always work.
+
 The hosted demo can sign users in with GitHub, Google, Discord, or an
 email magic link when auth is enabled. See
 [Deployment](docs/deployment.md#environment-variables) for the provider
