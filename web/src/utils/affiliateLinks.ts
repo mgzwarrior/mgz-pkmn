@@ -23,7 +23,9 @@ export interface AffiliateConfig {
  * links degrade to plain searches until the real codes are filled in.
  */
 export const AFFILIATE: AffiliateConfig = {
-  ebayCampaignId: '',
+  ebayCampaignId: '5339156329',
+  // Empty until the TCGPlayer (Impact) affiliate application is accepted —
+  // links stay plain searches until then.
   tcgplayerAffiliateId: '',
 }
 
