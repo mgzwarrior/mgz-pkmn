@@ -132,7 +132,7 @@ fix:  ## Auto-fix safe ruff issues + reformat.
 # file listed here has a D-rank-or-worse function or a B-rank-or-worse
 # maintainability index that pre-dates the gate; the gate stays green on
 # green-field, then tightens as each is brought to A. See issue #387.
-RADON_CC_EXCLUDE := src/mgz_pkmn/spreadsheet.py,src/mgz_pkmn/lookup.py,src/mgz_pkmn/cache.py,src/mgz_pkmn/parser.py,src/mgz_pkmn/binder.py,src/mgz_pkmn/report.py
+RADON_CC_EXCLUDE := src/mgz_pkmn/spreadsheet.py,src/mgz_pkmn/lookup.py,src/mgz_pkmn/cache.py,src/mgz_pkmn/binder.py,src/mgz_pkmn/report.py
 RADON_MI_EXCLUDE := src/mgz_pkmn/cache.py
 
 .PHONY: complexity
