@@ -17,7 +17,7 @@
  * [OwnershipBadge](./OwnershipBadge.tsx) chip (#576): palm for owned,
  * sun for chasing.
  */
-import { Loader2, Sparkles, Trash2 } from 'lucide-react'
+import { BarChart3, Loader2, Sparkles, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type {
   CollectionRule,
@@ -25,6 +25,7 @@ import type {
   DynamicScope,
   WishlistSummary,
 } from '../api/client'
+import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
 import { WishlistDetail } from './WishlistDetail'
 import { useCollections } from './useCollections'
@@ -122,6 +123,8 @@ export function LibraryBindersTab() {
   const [targetCollection, setTargetCollection] = useState<CollectionSummary | null>(null)
   // The want-list whose detail modal is open.
   const [openWishlist, setOpenWishlist] = useState<WishlistSummary | null>(null)
+  // The aggregate insights dashboard.
+  const [insightsOpen, setInsightsOpen] = useState(false)
 
   useEffect(() => {
     void refreshCollections()
@@ -169,14 +172,24 @@ export function LibraryBindersTab() {
         <span className="text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
           Binders
         </span>
-        <button
-          type="button"
-          onClick={() => setFormOpen((o) => !o)}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-palm-600 hover:bg-palm-50 dark:text-palm-300 dark:hover:bg-husk-100"
-        >
-          <Sparkles size={12} />
-          New smart collection
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => setInsightsOpen(true)}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-palm-600 hover:bg-palm-50 dark:text-palm-300 dark:hover:bg-husk-100"
+          >
+            <BarChart3 size={12} />
+            Insights
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormOpen((o) => !o)}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-palm-600 hover:bg-palm-50 dark:text-palm-300 dark:hover:bg-husk-100"
+          >
+            <Sparkles size={12} />
+            New smart collection
+          </button>
+        </div>
       </div>
 
       <div
@@ -326,6 +339,7 @@ export function LibraryBindersTab() {
           if (!o) setOpenWishlist(null)
         }}
       />
+      <CollectionInsights open={insightsOpen} onOpenChange={setInsightsOpen} />
     </div>
   )
 }

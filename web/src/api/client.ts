@@ -727,6 +727,66 @@ export async function deleteCollection(collectionId: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// #575 — aggregate insights dashboard
+// ---------------------------------------------------------------------------
+
+export interface InsightsTotals {
+  collections: number
+  unique_cards: number
+  total_quantity: number
+  estimated_value: number
+}
+
+/** One bar in a top-N breakdown — a label and its distinct-card count. */
+export interface LabeledCount {
+  label: string
+  count: number
+}
+
+export interface DuplicateCard {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  quantity: number
+  collection_name: string
+}
+
+export interface CrossCollectionCard {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  total_quantity: number
+  collections: string[]
+}
+
+export interface AlreadyOwnedChase {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  wishlist_id: number
+  wishlist_name: string
+  collections: string[]
+}
+
+/** Aggregate "your collection at a glance" across all of the user's
+ * collections (#575). */
+export interface CollectionInsights {
+  totals: InsightsTotals
+  top_types: LabeledCount[]
+  top_rarities: LabeledCount[]
+  top_sets: LabeledCount[]
+  duplicate_multiples: DuplicateCard[]
+  cross_collection: CrossCollectionCard[]
+  already_owned_chasing: AlreadyOwnedChase[]
+}
+
+export async function fetchCollectionInsights(): Promise<CollectionInsights> {
+  const res = await fetch(`${BASE}/collections/insights`)
+  if (!res.ok) throw new Error(`collection insights failed: ${res.status}`)
+  return (await res.json()) as CollectionInsights
+}
+
+// ---------------------------------------------------------------------------
 // wishlists
 // ---------------------------------------------------------------------------
 
