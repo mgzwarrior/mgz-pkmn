@@ -78,6 +78,114 @@ class WarmCardImagesResult:
     sets_failed: list[str] = field(default_factory=list)
 
 
+@dataclass
+class _WarmState:
+    """Running counters threaded through the warm pass.
+
+    A small mutable accumulator so the per-image / per-card helpers can
+    update progress in place while the coordinator keeps the loop flat."""
+
+    images_warmed: int = 0
+    images_failed: int = 0
+    bytes_written: int = 0
+    sets_failed: list[str] = field(default_factory=list)
+
+
+def _throttle(throttle_ms: int) -> None:
+    if throttle_ms > 0:
+        time.sleep(throttle_ms / 1000.0)
+
+
+def _warm_one_image(
+    pkmn: TCGClient,
+    card_id: str,
+    url: str,
+    category: str,
+    state: _WarmState,
+    *,
+    max_bytes: int | None,
+    skip_existing: bool,
+) -> bool:
+    """Warm a single (card, size) image into the cache, mutating `state`.
+
+    Returns False when the `--max-bytes` budget is reached and the whole
+    pass must stop; True to keep going (including the skipped-existing,
+    download-failure, and write-failure paths, which never abort the pass)."""
+    if skip_existing and disk_cache.read_image(category, card_id) is not None:
+        state.images_warmed += 1
+        return True
+
+    # Pre-download budget check: stop cleanly when we're already at the cap.
+    if max_bytes is not None and state.bytes_written >= max_bytes:
+        return False
+
+    content = _download_bytes(pkmn.session, url)
+    if content is None:
+        state.images_failed += 1
+        return True
+
+    # Post-download, pre-write budget check. The pre-check above can't see
+    # *this* download's size — a download larger than the remaining budget
+    # would otherwise push us past the hard cap. This enforces the
+    # docstring's "would the next write push us over?" contract exactly
+    # (caught in Copilot review of #371).
+    if max_bytes is not None and state.bytes_written + len(content) > max_bytes:
+        return False
+
+    path = disk_cache.write_image(category, card_id, content, ext=url)
+    if path is None:
+        state.images_failed += 1
+        return True
+    state.images_warmed += 1
+    state.bytes_written += len(content)
+    return True
+
+
+def _warm_card(
+    pkmn: TCGClient,
+    card: dict,
+    requested_sizes: list[str],
+    state: _WarmState,
+    *,
+    max_bytes: int | None,
+    skip_existing: bool,
+) -> bool:
+    """Warm every requested size for one card. Returns False if the budget
+    was reached partway through (caller must stop the pass)."""
+    card_id = card.get("id")
+    if not card_id:
+        return True
+    images = card.get("images") or {}
+    for size in requested_sizes:
+        url = images.get(size)
+        if not url:
+            continue
+        if not _warm_one_image(
+            pkmn,
+            card_id,
+            url,
+            _CATEGORY_BY_SIZE[size],
+            state,
+            max_bytes=max_bytes,
+            skip_existing=skip_existing,
+        ):
+            return False
+    return True
+
+
+def _build_result(
+    state: _WarmState, *, sets_attempted: int, budget_reached: bool
+) -> WarmCardImagesResult:
+    return WarmCardImagesResult(
+        sets_attempted=sets_attempted,
+        images_warmed=state.images_warmed,
+        images_failed=state.images_failed,
+        bytes_written=state.bytes_written,
+        budget_reached=budget_reached,
+        sets_failed=state.sets_failed,
+    )
+
+
 def warm_card_images(
     pkmn: TCGClient,
     *,
@@ -124,10 +232,7 @@ def warm_card_images(
 
     ids = set_ids if set_ids is not None else fetch_set_ids(pkmn)
     total = len(ids)
-    images_warmed = 0
-    images_failed = 0
-    bytes_written = 0
-    sets_failed: list[str] = []
+    state = _WarmState()
 
     for index, set_id in enumerate(ids, start=1):
         if on_progress is not None:
@@ -140,74 +245,24 @@ def warm_card_images(
         query = f'set.id:"{set_id}"'
         cards, _status = pkmn.search_all(query)
         if not cards:
-            sets_failed.append(set_id)
-            if throttle_ms > 0:
-                time.sleep(throttle_ms / 1000.0)
+            state.sets_failed.append(set_id)
+            _throttle(throttle_ms)
             continue
 
         for card in cards:
-            card_id = card.get("id")
-            if not card_id:
-                continue
-            images = card.get("images") or {}
-            for size in requested_sizes:
-                url = images.get(size)
-                if not url:
-                    continue
-                category = _CATEGORY_BY_SIZE[size]
-                if skip_existing and disk_cache.read_image(category, card_id) is not None:
-                    images_warmed += 1
-                    continue
+            if not _warm_card(
+                pkmn,
+                card,
+                requested_sizes,
+                state,
+                max_bytes=max_bytes,
+                skip_existing=skip_existing,
+            ):
+                return _build_result(state, sets_attempted=index, budget_reached=True)
 
-                if max_bytes is not None and bytes_written >= max_bytes:
-                    return WarmCardImagesResult(
-                        sets_attempted=index,
-                        images_warmed=images_warmed,
-                        images_failed=images_failed,
-                        bytes_written=bytes_written,
-                        budget_reached=True,
-                        sets_failed=sets_failed,
-                    )
+        _throttle(throttle_ms)
 
-                content = _download_bytes(pkmn.session, url)
-                if content is None:
-                    images_failed += 1
-                    continue
-
-                # Post-download, pre-write budget check. The pre-check
-                # above stops cleanly when we're already at the cap, but
-                # it can't see *this* download's size — and a download
-                # larger than the remaining budget would otherwise push
-                # us past the hard cap. This second check enforces the
-                # docstring's "would the next write push us over?"
-                # contract exactly (caught in Copilot review of #371).
-                if max_bytes is not None and bytes_written + len(content) > max_bytes:
-                    return WarmCardImagesResult(
-                        sets_attempted=index,
-                        images_warmed=images_warmed,
-                        images_failed=images_failed,
-                        bytes_written=bytes_written,
-                        budget_reached=True,
-                        sets_failed=sets_failed,
-                    )
-
-                path = disk_cache.write_image(category, card_id, content, ext=url)
-                if path is None:
-                    images_failed += 1
-                    continue
-                images_warmed += 1
-                bytes_written += len(content)
-
-        if throttle_ms > 0:
-            time.sleep(throttle_ms / 1000.0)
-
-    return WarmCardImagesResult(
-        sets_attempted=total,
-        images_warmed=images_warmed,
-        images_failed=images_failed,
-        bytes_written=bytes_written,
-        sets_failed=sets_failed,
-    )
+    return _build_result(state, sets_attempted=total, budget_reached=False)
 
 
 def _download_bytes(session: requests.Session, url: str, *, timeout: float = 30.0) -> bytes | None:
