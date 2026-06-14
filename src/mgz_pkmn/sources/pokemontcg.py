@@ -20,8 +20,16 @@ API_BASE = "https://api.pokemontcg.io/v2"
 class TCGClient:
     """Thin wrapper around api.pokemontcg.io with response caching + 429 retry."""
 
-    def __init__(self, api_key: str | None = None, verbose: bool = False) -> None:
-        self.session = requests.Session()
+    def __init__(
+        self,
+        api_key: str | None = None,
+        verbose: bool = False,
+        session: requests.Session | None = None,
+    ) -> None:
+        # Accept an injected session so callers can keep a connection pool warm
+        # across instances (#302); the per-instance `_cache` below stays
+        # instance-local, which the API route relies on for correctness.
+        self.session = session or requests.Session()
         self.session.headers["User-Agent"] = USER_AGENT
         if api_key:
             self.session.headers["X-Api-Key"] = api_key

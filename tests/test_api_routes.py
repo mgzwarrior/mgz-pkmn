@@ -232,15 +232,17 @@ class LookupRouteTests(unittest.TestCase):
 
 
 class ClientMemoizationTests(unittest.TestCase):
-    """The upstream client quartet is memoized per api_key so each client's
-    `requests.Session` pool + in-memory cache survive across requests."""
+    """The upstream `requests.Session` pool is memoized per api_key so the
+    connection stays warm across requests (#302). The clients themselves are
+    rebuilt per request on purpose — their instance-local L1 `_cache` has no
+    TTL, so reusing a client would pin stale/empty results process-wide."""
 
     def setUp(self) -> None:
-        from api.routes.lookup import _clients_for
+        from api.routes.lookup import _sessions_for
 
         # Other tests share the process-wide cache; clear it so these assert
         # against a known-empty starting point.
-        _clients_for.cache_clear()
+        _sessions_for.cache_clear()
 
     def _row(self):
         from mgz_pkmn.parser import CardQuery
@@ -252,23 +254,35 @@ class ClientMemoizationTests(unittest.TestCase):
         )
         return [(row, "no_candidates")], "MISS"
 
-    def test_make_clients_returns_the_same_instances_for_one_api_key(self) -> None:
+    def test_one_api_key_reuses_sessions_but_rebuilds_clients(self) -> None:
         from api.routes.lookup import Settings, _make_clients
 
         first = _make_clients(Settings(api_key="k1"))
         second = _make_clients(Settings(api_key="k1"))
-        # Every member of the quartet is reused, not rebuilt.
+        # Fresh client objects each call — keeps the L1 `_cache` request-scoped.
         for a, b in zip(first, second, strict=True):
-            self.assertIs(a, b)
+            self.assertIsNot(a, b)
+        # ...but every client shares the warm, memoized session.
+        for a, b in zip(first, second, strict=True):
+            self.assertIs(a.session, b.session)
 
-    def test_a_different_api_key_gets_a_fresh_quartet(self) -> None:
+    def test_a_different_api_key_gets_fresh_sessions(self) -> None:
         from api.routes.lookup import Settings, _make_clients
 
         a = _make_clients(Settings(api_key="k1"))
         b = _make_clients(Settings(api_key="k2"))
-        self.assertIsNot(a[0], b[0])
+        self.assertIsNot(a[0].session, b[0].session)
 
-    def test_consecutive_lookups_reuse_the_same_tcgclient(self) -> None:
+    def test_distinct_session_per_upstream(self) -> None:
+        # The pokemontcg.io api-key header must never ride along to the other
+        # hosts, so each upstream gets its own session.
+        from api.routes.lookup import Settings, _make_clients
+
+        pkmn, tcgdex, pc, ebay = _make_clients(Settings(api_key="k1"))
+        sessions = {id(pkmn.session), id(tcgdex.session), id(pc.session), id(ebay.session)}
+        self.assertEqual(len(sessions), 4)
+
+    def test_consecutive_lookups_reuse_the_same_session(self) -> None:
         seen: list[object] = []
 
         def _record(pkmn, *args, **kwargs):
@@ -280,7 +294,9 @@ class ClientMemoizationTests(unittest.TestCase):
             client.post("/api/v1/lookup", json={"line": "Pikachu"})
 
         self.assertEqual(len(seen), 2)
-        self.assertIs(seen[0], seen[1])
+        # Fresh TCGClient per request, same warm session underneath.
+        self.assertIsNot(seen[0], seen[1])
+        self.assertIs(seen[0].session, seen[1].session)
 
 
 # ---------------------------------------------------------------------------

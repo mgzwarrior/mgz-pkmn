@@ -67,37 +67,46 @@ class BulkRequest(BaseModel):
 
 
 @lru_cache(maxsize=8)
-def _clients_for(
+def _sessions_for(
     api_key: str | None,
-) -> tuple[TCGClient, TCGDexClient, PriceChartingClient, EbayClient]:
-    """Build the upstream client quartet, memoized per api_key (#302).
+) -> tuple[req_lib.Session, req_lib.Session, req_lib.Session, req_lib.Session]:
+    """One warm ``requests.Session`` per upstream, memoized per api_key (#302).
 
-    Reusing one instance across requests keeps each client's
-    ``requests.Session`` connection pool warm — saving a TLS handshake per
-    upstream hit — and lets ``TCGClient._cache`` serve repeat queries from
-    memory instead of re-reading + re-decoding the disk cache. Only the
-    api_key affects construction: the other three take no auth-bearing input,
-    and ``lang`` is a per-search argument (``find_card(..., default_lang=…)``),
-    not a constructor input, so it doesn't fragment the cache.
+    Reusing the session across requests keeps its connection pool warm, so
+    every upstream hit reuses a kept-alive connection instead of paying a
+    fresh TLS handshake. Each upstream gets its *own* session so headers
+    don't cross-contaminate (the pokemontcg.io key must never ride along to
+    TCGdex / PriceCharting). Only the api_key matters — ``lang`` is a
+    per-search argument, not a connection input.
 
-    Thread-safety: ``lru_cache`` itself is thread-safe, and ``Session`` is
-    documented safe for concurrent ``get``/``post``. ``TCGClient._cache`` is a
-    bare dict shared across the FastAPI threadpool, but a racy read is benign
-    — worst case a duplicated upstream fetch and cache overwrite — so it stays
-    lock-free until a benchmark says otherwise.
+    We deliberately memoize the *session*, not the client: the clients carry
+    an instance-local ``_cache`` (L1) with no TTL, written on STALE/MISS reads
+    and keyed without ``cache_only``. Reusing a client across requests would
+    pin those entries process-wide — serving stale or empty results and
+    suppressing the disk SWR refresh until restart. Fresh clients per request
+    keep that L1 cache request-scoped (its original contract) while the shared
+    session still delivers the connection-reuse win. ``lru_cache`` and
+    ``Session.get``/``post`` are both safe for the concurrent FastAPI
+    threadpool.
     """
     return (
-        TCGClient(api_key=api_key),
-        TCGDexClient(),
-        PriceChartingClient(),
-        EbayClient(),
+        req_lib.Session(),
+        req_lib.Session(),
+        req_lib.Session(),
+        req_lib.Session(),
     )
 
 
 def _make_clients(
     settings: Settings,
 ) -> tuple[TCGClient, TCGDexClient, PriceChartingClient, EbayClient]:
-    return _clients_for(settings.api_key)
+    pkmn_s, tcgdex_s, pc_s, ebay_s = _sessions_for(settings.api_key)
+    return (
+        TCGClient(api_key=settings.api_key, session=pkmn_s),
+        TCGDexClient(session=tcgdex_s),
+        PriceChartingClient(session=pc_s),
+        EbayClient(session=ebay_s),
+    )
 
 
 def _query_to_dict(q: CardQuery) -> dict[str, Any]:
