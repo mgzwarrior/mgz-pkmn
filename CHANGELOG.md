@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.6.1](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.0...v1.6.1) (2026-06-14)
+
+
+### Fixed
+
+* **devops:** make release finalize immutable-safe and stop bot-PR-body overwrites ([#652](https://github.com/mgzwarrior/mgz-pkmn/issues/652)) ([34f927c](https://github.com/mgzwarrior/mgz-pkmn/commit/34f927c587f589e3177da250031a45c5831789da)), closes [#651](https://github.com/mgzwarrior/mgz-pkmn/issues/651)
+
 ## [1.6.0] - 2026-06-13
 
 ### Added
