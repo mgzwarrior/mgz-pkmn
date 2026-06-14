@@ -50,6 +50,29 @@ class Row:
     tag: str = ""  # input-file stem so rows stay grouped per source list
 
 
+COLUMN_WIDTHS = {
+    "A": 16,  # Image
+    "B": 14,  # Source (tag)
+    "C": 28,  # Input
+    "D": 24,  # Name
+    "E": 22,  # Set
+    "F": 18,  # Series
+    "G": 10,  # Number
+    "H": 14,  # Rarity
+    "I": 16,  # Variant
+    "J": 18,  # Database
+    "K": 12,  # Market
+    "L": 10,
+    "M": 10,
+    "N": 10,
+    "O": 10,
+    "P": 16,  # eBay Sold (median)
+    "Q": 16,  # eBay Active (floor)
+    "R": 14,  # Price Source
+    "S": 38,  # Listing URL
+}
+
+
 def _money_format(currency: str) -> str:
     if currency == "EUR":
         return '"€"#,##0.00'
@@ -64,10 +87,24 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
     ws = wb.active
     ws.title = "Cards"
 
-    header_font = Font(bold=True, color=palette.hex("fg-on-dark"))
-    header_fill = PatternFill("solid", fgColor=palette.hex(palette.HEADER_BAND))
     over_cap_fill = PatternFill("solid", fgColor=palette.hex("warning-bg"))  # above-cap rows
 
+    _write_header_row(ws)
+    _apply_column_widths(ws)
+
+    for i, row in enumerate(rows, start=2):
+        _write_data_row(ws, i, row, max_price, over_cap_fill)
+
+    ws.freeze_panes = "C2"
+    _write_totals_footer(ws, len(rows))
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(out_path)
+
+
+def _write_header_row(ws: Any) -> None:
+    header_font = Font(bold=True, color=palette.hex("fg-on-dark"))
+    header_fill = PatternFill("solid", fgColor=palette.hex(palette.HEADER_BAND))
     ws.append(HEADERS)
     for col_idx, _ in enumerate(HEADERS, start=1):
         cell = ws.cell(row=1, column=col_idx)
@@ -75,101 +112,92 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    widths = {
-        "A": 16,  # Image
-        "B": 14,  # Source (tag)
-        "C": 28,  # Input
-        "D": 24,  # Name
-        "E": 22,  # Set
-        "F": 18,  # Series
-        "G": 10,  # Number
-        "H": 14,  # Rarity
-        "I": 16,  # Variant
-        "J": 18,  # Database
-        "K": 12,  # Market
-        "L": 10,
-        "M": 10,
-        "N": 10,
-        "O": 10,
-        "P": 16,  # eBay Sold (median)
-        "Q": 16,  # eBay Active (floor)
-        "R": 14,  # Price Source
-        "S": 38,  # Listing URL
-    }
-    for col, w in widths.items():
+
+def _apply_column_widths(ws: Any) -> None:
+    for col, w in COLUMN_WIDTHS.items():
         ws.column_dimensions[col].width = w
     ws.row_dimensions[1].height = 22
 
-    for i, row in enumerate(rows, start=2):
-        ws.row_dimensions[i].height = THUMB_H * 0.78  # excel "points", approx px*0.75
 
-        card = row.card or {}
-        card_set = card.get("set") or {}
-        market = row.pricing.market
-        money_fmt = _money_format(row.pricing.currency)
+def _write_data_row(ws: Any, i: int, row: Row, max_price: float | None, over_cap_fill: Any) -> None:
+    ws.row_dimensions[i].height = THUMB_H * 0.78  # excel "points", approx px*0.75
 
-        ws.cell(row=i, column=2, value=row.tag)
-        ws.cell(row=i, column=3, value=row.query.raw)
-        ws.cell(row=i, column=4, value=card.get("name") or "(not found)")
-        ws.cell(row=i, column=5, value=card_set.get("name"))
-        ws.cell(row=i, column=6, value=card_set.get("series"))
-        ws.cell(row=i, column=7, value=card.get("number"))
-        ws.cell(row=i, column=8, value=card.get("rarity"))
-        ws.cell(row=i, column=9, value=row.pricing.variant)
-        ws.cell(row=i, column=10, value=card.get("_database") or "")
+    card = row.card or {}
+    card_set = card.get("set") or {}
+    money_fmt = _money_format(row.pricing.currency)
 
-        is_over_cap = max_price is not None and market is not None and market > max_price
+    _write_card_cells(ws, i, row, card, card_set)
+    _write_pricing_cells(ws, i, row, money_fmt, max_price, over_cap_fill)
+    _embed_thumbnail(ws, i, row)
 
-        if market is not None:
-            market_cell = ws.cell(row=i, column=11, value=market)
-            market_cell.number_format = money_fmt
-            if is_over_cap:
-                market_cell.fill = over_cap_fill
-                market_cell.font = Font(bold=True, color=palette.hex("warning-fg"))
-            else:
-                # In-budget market in brand green, matching the binder/checklist.
-                market_cell.font = Font(bold=True, color=palette.hex("success-fg"))
-            for offset, pct in enumerate(COMP_PERCENTS):
-                cell = ws.cell(row=i, column=12 + offset, value=round(market * pct / 100, 2))
-                cell.number_format = money_fmt
-                if is_over_cap:
-                    cell.fill = over_cap_fill
+
+def _write_card_cells(ws: Any, i: int, row: Row, card: dict[str, Any], card_set: dict) -> None:
+    ws.cell(row=i, column=2, value=row.tag)
+    ws.cell(row=i, column=3, value=row.query.raw)
+    ws.cell(row=i, column=4, value=card.get("name") or "(not found)")
+    ws.cell(row=i, column=5, value=card_set.get("name"))
+    ws.cell(row=i, column=6, value=card_set.get("series"))
+    ws.cell(row=i, column=7, value=card.get("number"))
+    ws.cell(row=i, column=8, value=card.get("rarity"))
+    ws.cell(row=i, column=9, value=row.pricing.variant)
+    ws.cell(row=i, column=10, value=card.get("_database") or "")
+
+
+def _write_pricing_cells(
+    ws: Any, i: int, row: Row, money_fmt: str, max_price: float | None, over_cap_fill: Any
+) -> None:
+    market = row.pricing.market
+    is_over_cap = max_price is not None and market is not None and market > max_price
+
+    if market is not None:
+        market_cell = ws.cell(row=i, column=11, value=market)
+        market_cell.number_format = money_fmt
+        if is_over_cap:
+            market_cell.fill = over_cap_fill
+            market_cell.font = Font(bold=True, color=palette.hex("warning-fg"))
         else:
-            ws.cell(row=i, column=11, value="—")
+            # In-budget market in brand green, matching the binder/checklist.
+            market_cell.font = Font(bold=True, color=palette.hex("success-fg"))
+        for offset, pct in enumerate(COMP_PERCENTS):
+            cell = ws.cell(row=i, column=12 + offset, value=round(market * pct / 100, 2))
+            cell.number_format = money_fmt
+            if is_over_cap:
+                cell.fill = over_cap_fill
+    else:
+        ws.cell(row=i, column=11, value="—")
 
-        for offset, value in enumerate(
-            (row.pricing.ebay_sold_median, row.pricing.ebay_active_floor)
-        ):
-            cell = ws.cell(row=i, column=16 + offset, value=value if value is not None else "—")
-            if value is not None:
-                cell.number_format = money_fmt
+    for offset, value in enumerate((row.pricing.ebay_sold_median, row.pricing.ebay_active_floor)):
+        cell = ws.cell(row=i, column=16 + offset, value=value if value is not None else "—")
+        if value is not None:
+            cell.number_format = money_fmt
 
-        ws.cell(row=i, column=18, value=row.pricing.source or "")
-        if row.pricing.url:
-            link_cell = ws.cell(row=i, column=19, value=row.pricing.url)
-            link_cell.hyperlink = row.pricing.url
-            link_cell.font = Font(color=palette.hex("fg-link"), underline="single")
+    ws.cell(row=i, column=18, value=row.pricing.source or "")
+    if row.pricing.url:
+        link_cell = ws.cell(row=i, column=19, value=row.pricing.url)
+        link_cell.hyperlink = row.pricing.url
+        link_cell.font = Font(color=palette.hex("fg-link"), underline="single")
 
-        if row.image_path and row.image_path.exists():
-            try:
-                thumb_bytes = make_thumbnail(row.image_path, (THUMB_W, THUMB_H))
-                xl_img = XLImage(io.BytesIO(thumb_bytes))
-                xl_img.width = THUMB_W
-                xl_img.height = THUMB_H
-                anchor_cell = f"A{i}"
-                ws.add_image(xl_img, anchor_cell)
-                ws.column_dimensions["A"].width = max(
-                    ws.column_dimensions["A"].width or 16, THUMB_W / 7
-                )
-                ws.row_dimensions[i].height = THUMB_H * 0.78
-            except Exception as exc:
-                print(f"  ! thumbnail embed failed for {row.query}: {exc}", file=sys.stderr)
 
-    ws.freeze_panes = "C2"
+def _embed_thumbnail(ws: Any, i: int, row: Row) -> None:
+    if not (row.image_path and row.image_path.exists()):
+        return
+    try:
+        thumb_bytes = make_thumbnail(row.image_path, (THUMB_W, THUMB_H))
+        xl_img = XLImage(io.BytesIO(thumb_bytes))
+        xl_img.width = THUMB_W
+        xl_img.height = THUMB_H
+        anchor_cell = f"A{i}"
+        ws.add_image(xl_img, anchor_cell)
+        ws.column_dimensions["A"].width = max(ws.column_dimensions["A"].width or 16, THUMB_W / 7)
+        ws.row_dimensions[i].height = THUMB_H * 0.78
+    except Exception as exc:
+        print(f"  ! thumbnail embed failed for {row.query}: {exc}", file=sys.stderr)
 
+
+def _write_totals_footer(ws: Any, row_count: int) -> None:
     # Summary footer. Note: SUM aggregates all rows regardless of currency, so
     # mixed-currency runs will produce an arithmetic-but-not-meaningful total.
-    last = len(rows) + 2
+    last = row_count + 2
     ws.cell(row=last + 1, column=10, value="Totals:").font = Font(bold=True)
     for offset, _pct in enumerate([100, *COMP_PERCENTS]):
         col = 11 + offset
@@ -184,9 +212,6 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
     brand_cell = ws.cell(row=last + 1, column=2, value=branding.PROJECT_NAME)
     brand_cell.hyperlink = branding.PROJECT_URL
     brand_cell.font = Font(bold=True, color=palette.hex("fg-link"), underline="single")
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(out_path)
 
 
 def _apply_workbook_branding(wb: Workbook, out_path: Path) -> None:
