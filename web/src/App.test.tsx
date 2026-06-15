@@ -241,6 +241,35 @@ describe('App: bulk-run timestamp lifecycle', () => {
     expect(useAppStore.getState().progress).toEqual({ done: 3, total: 3 })
   })
 
+  it('progress counts a deduped line so a duplicate card ID still reaches total', async () => {
+    // With dedupe on, a line resolving to an already-seen card ID is skipped
+    // from the table but still resolved its input line — it must count toward
+    // progress, otherwise the bar strands below total (e.g. 2 / 3).
+    useAppStore.setState({ inputText: 'Pikachu\nPikachu\nMew' })
+    useAppStore.getState().updateSettings({ dedupe: true })
+
+    let captured: { onEvent: (e: BulkEvent) => void } | null = null
+    mockBulkLookup.mockImplementation(
+      (_lines: string[], _settings: unknown, onEvent: (e: BulkEvent) => void) => {
+        captured = { onEvent }
+        return new Promise<void>(() => {})
+      },
+    )
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /look up/i }))
+    await waitFor(() => expect(captured).not.toBeNull())
+
+    // Lines 0 and 1 resolve to the same card ID; line 1 is the duplicate.
+    const dup = (index: number) => ({ ...makeEvent(index, 3), card: { id: 'pika', name: 'Pikachu' } })
+    act(() => captured!.onEvent(dup(0)))
+    expect(useAppStore.getState().progress).toEqual({ done: 1, total: 3 })
+    act(() => captured!.onEvent(dup(1)))
+    expect(useAppStore.getState().progress).toEqual({ done: 2, total: 3 })
+    act(() => captured!.onEvent(makeEvent(2, 3)))
+    expect(useAppStore.getState().progress).toEqual({ done: 3, total: 3 })
+  })
+
   it('a bulkLookup network rejection without onDone still stamps runEndedAt via the App-level catch', async () => {
     // Mirrors the real path where `fetch` itself rejects before
     // bulkLookup gets a chance to call onDone — the only case the

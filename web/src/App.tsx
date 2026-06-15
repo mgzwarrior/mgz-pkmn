@@ -197,6 +197,12 @@ function App() {
       // Subsequent events (top:N expansions) leave the status alone.
       markLineStatus(event.index, event.matched ? 'resolved' : 'error')
 
+      // Count the line toward progress before any dedupe skip — a duplicate
+      // card ID still resolved its line, so omitting it here would strand the
+      // bar below total (e.g. `Pikachu\nPikachu\nMew` finishing at 2 / 3).
+      resolvedLines.add(event.index)
+      setProgress({ done: resolvedLines.size, total: event.total })
+
       if (settings.dedupe && event.matched && event.card) {
         const cid = event.card.id as string | undefined
         if (cid) {
@@ -213,9 +219,6 @@ function App() {
         matched: event.matched,
         reason: event.reason,
       })
-
-      resolvedLines.add(event.index)
-      setProgress({ done: resolvedLines.size, total: event.total })
     }
 
     // `bulkLookup` calls `onDone` on every normal exit path (non-OK
