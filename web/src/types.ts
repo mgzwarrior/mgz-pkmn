@@ -114,16 +114,24 @@ export interface RowEvent extends Row {
   done?: false
 }
 
+/** Split-cache freshness for a run, as reported on the SSE done frame and the
+ * `X-Cache` response header. `MISS-CACHE-ONLY` is the anonymous cache-only
+ * variant of a miss; the SPA treats it like any other upstream read. */
+export type CacheStatus = 'HIT' | 'STALE' | 'MISS' | 'MISS-CACHE-ONLY'
+
 /** The single terminating SSE frame emitted once all lines are done.
  *
  * `run_id` carries the id of the run the backend just persisted, or
  * `null` if persistence fell through. The SPA reads it so a "Save this
- * search" action can target the just-completed run without re-listing. */
+ * search" action can target the just-completed run without re-listing.
+ * `cache_status` aggregates the run's disk-cache freshness so the
+ * lookup-timer can show whether results came from cache or upstream (#310). */
 export interface DoneEvent {
   index?: undefined
   total: number
   done: true
   run_id: number | null
+  cache_status: CacheStatus
 }
 
 /** Any frame emitted by POST /api/v1/bulk. */

@@ -416,11 +416,22 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
         # Per-line resolved Rows keyed by stream index, so we can persist in
         # input order even though lookups finish out of order.
         resolved_by_idx: dict[int, list[Row]] = {}
+        # Per-line split-cache outcomes, aggregated into the `done` event so the
+        # SPA can render a single run-level source chip (#310). Appended from the
+        # loop thread once each `run_in_threadpool` resolves — no lock needed.
+        cache_statuses: list[str] = []
 
         async def process_line(stream_idx: int, line: str) -> None:
             async with sem:
                 q = parse_line(line)
                 if q is None:
+                    # Deliberately *not* appended to `cache_statuses`: an
+                    # unparseable line performs no cache read, so it can't be
+                    # graded HIT/STALE/MISS. The run-level chip reports where the
+                    # actual results came from, and folding a synthetic MISS in
+                    # here would make an all-cache-hit run with one typo claim it
+                    # went upstream. An all-unparseable run still reports MISS via
+                    # the empty-list default below, matching the /lookup route.
                     row = _unparseable_row(line, req.settings.tag)
                     resolved_by_idx[stream_idx] = [row]
                     await frames.put(
@@ -441,12 +452,10 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
                         {"index": _idx, "total": total, "stage": name},
                     )
 
-                # `_do_lookup` now returns (pairs, cache_status); the SSE
-                # stream consumes per-row pairs and drops the aggregate status
-                # — `X-Cache` is set at response-header level by the /lookup
-                # route, not per-event in the stream. SSE coverage is deferred
-                # to the #310 follow-up.
-                pairs, _ = await run_in_threadpool(
+                # `_do_lookup` returns (pairs, cache_status). The per-row pairs
+                # stream out as events; the aggregate status feeds the run-level
+                # source chip carried on the `done` event (#310).
+                pairs, line_status = await run_in_threadpool(
                     _do_lookup,
                     pkmn,
                     tcgdex,
@@ -457,6 +466,7 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
                     cache_only=cache_only,
                     ebay=ebay,
                 )
+                cache_statuses.append(line_status)
                 resolved_by_idx[stream_idx] = [row for row, _reason in pairs]
                 for row, reason in pairs:
                     await frames.put(
@@ -519,9 +529,25 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
         except Exception:  # pragma: no cover — defensive, persistence is best-effort
             logger.exception("Failed to persist run after /bulk completion")
 
+        # Aggregate the per-line outcomes into one run-level signal (MISS
+        # dominates STALE dominates HIT). No real lookup ran (all lines blank
+        # or unparseable) → MISS, matching the /lookup route's default.
+        run_cache_status = worse_cache_status(*cache_statuses) if cache_statuses else "MISS"
         # `run_id` surfaces so the SPA can offer a "Save this search" action
-        # against the just-completed run without re-querying the list.
-        yield f"data: {json.dumps({'done': True, 'total': total, 'run_id': run_id})}\n\n"
+        # against the just-completed run without re-querying the list;
+        # `cache_status` feeds the lookup-timer source chip (#310).
+        yield (
+            "data: "
+            + json.dumps(
+                {
+                    "done": True,
+                    "total": total,
+                    "run_id": run_id,
+                    "cache_status": run_cache_status,
+                }
+            )
+            + "\n\n"
+        )
 
     return StreamingResponse(
         event_stream(),

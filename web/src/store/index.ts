@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
+  CacheStatus,
   ProcessingLine,
   RecentRun,
   Row,
@@ -100,6 +101,14 @@ interface AppState {
   runEndedAt: number | null
   setRunStartedAt: (t: number | null) => void
   setRunEndedAt: (t: number | null) => void
+
+  /**
+   * Disk-cache freshness of the most recent run, from the SSE done frame.
+   * `null` while a run is in flight or before any run this session; the
+   * lookup-timer reads it to show a cache-vs-upstream source chip (#310).
+   */
+  cacheStatus: CacheStatus | null
+  setCacheStatus: (s: CacheStatus | null) => void
 
   /** Per-input-line status tracked across the current bulk lookup. */
   processingLines: ProcessingLine[]
@@ -222,6 +231,9 @@ export const useAppStore = create<AppState>()(
       runEndedAt: null,
       setRunStartedAt: (runStartedAt) => set({ runStartedAt }),
       setRunEndedAt: (runEndedAt) => set({ runEndedAt }),
+
+      cacheStatus: null,
+      setCacheStatus: (cacheStatus) => set({ cacheStatus }),
 
       processingLines: [],
       setProcessingLines: (processingLines) => set({ processingLines }),
