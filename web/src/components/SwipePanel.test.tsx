@@ -93,6 +93,23 @@ async function swipeKey(key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp') {
   }
 }
 
+// Save the PREP_LIST_NUDGE_THRESHOLD (3) cards needed to surface the
+// build-prep-list nudge, waiting on the header chip after each so the next
+// card has mounted before the following swipe. Callers must supply at least
+// three candidate cards via mockFetchSetCards.
+async function saveThreeCards() {
+  for (const n of [1, 2, 3]) {
+    await swipeKey('ArrowRight')
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole('button', { name: new RegExp(`${n} saved · reset`, 'i') }),
+        ).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
+  }
+}
+
 describe('SwipePanel', () => {
   let randomSpy: ReturnType<typeof vi.spyOn>
 
@@ -332,10 +349,19 @@ describe('SwipePanel', () => {
 
   it('surfaces a Build prep list error when wishlist creation fails', async () => {
     mockCreateWishlist.mockRejectedValue(new Error('quota exceeded'))
+    mockFetchSets.mockResolvedValue([
+      { id: 'sv1', name: 'Scarlet & Violet', series: 'SV', total: 3, releaseDate: '2023/03/31' },
+    ])
+    mockFetchSetCards.mockResolvedValue([
+      card({ id: 'sv1-1', name: 'Pikachu', number: '1', market: 5 }),
+      card({ id: 'sv1-2', name: 'Charizard', number: '2', market: 50 }),
+      card({ id: 'sv1-3', name: 'Blastoise', number: '3', market: 40 }),
+    ])
 
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
-    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    // The nudge only appears once PREP_LIST_NUDGE_THRESHOLD (3) cards are saved.
+    await saveThreeCards()
     await waitFor(
       () =>
         expect(screen.getByLabelText('Prep list name')).toBeInTheDocument(),
@@ -367,13 +393,23 @@ describe('SwipePanel', () => {
       added_at: '2026-06-06T00:00:00',
     })
 
+    mockFetchSets.mockResolvedValue([
+      { id: 'sv1', name: 'Scarlet & Violet', series: 'SV', total: 3, releaseDate: '2023/03/31' },
+    ])
+    mockFetchSetCards.mockResolvedValue([
+      card({ id: 'sv1-1', name: 'Pikachu', number: '1', market: 5 }),
+      card({ id: 'sv1-2', name: 'Charizard', number: '2', market: 50 }),
+      card({ id: 'sv1-3', name: 'Blastoise', number: '3', market: 40 }),
+    ])
+
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
-    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    // The nudge only appears once PREP_LIST_NUDGE_THRESHOLD (3) cards are saved.
+    await saveThreeCards()
     await waitFor(
       () =>
         expect(
-          screen.getByRole('button', { name: /1 saved · reset/i }),
+          screen.getByRole('button', { name: /3 saved · reset/i }),
         ).toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
@@ -389,7 +425,7 @@ describe('SwipePanel', () => {
     await waitFor(() =>
       expect(screen.queryByText(/Build a prep list/i)).not.toBeInTheDocument(),
     )
-    expect(mockAddCardToWishlist).toHaveBeenCalledTimes(1)
+    expect(mockAddCardToWishlist).toHaveBeenCalledTimes(3)
   })
 
   it('tapping the card (no drag) opens the same detail modal Search rows use', async () => {
