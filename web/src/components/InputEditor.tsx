@@ -13,6 +13,7 @@ import { parseLine } from '../api/client'
 import { useAppStore } from '../store'
 import type { CardQuery } from '../types'
 import { LookupTimer } from './LookupTimer'
+import { CacheSourceChip } from './CacheSourceChip'
 
 interface Props {
   onRun: (overrideText?: string) => void
@@ -139,9 +140,10 @@ export function InputEditor({ onRun, onStop }: Props) {
         </div>
       </div>
 
-      {/* Optional lookup-timer readout (settings-gated). Sits under the
-          toolbar so it's adjacent to the Look up / Stop button. */}
-      <div className="flex justify-end">
+      {/* Optional lookup-timer readout + cache-source chip (settings-gated).
+          Sits under the toolbar so it's adjacent to the Look up / Stop button. */}
+      <div className="flex items-center justify-end gap-3">
+        <CacheSourceChip />
         <LookupTimer />
       </div>
 

@@ -60,6 +60,7 @@ function App() {
     setRunEndedAt,
     pushRecentRun,
     setCurrentRunId,
+    setCacheStatus,
     resetViewState,
     setRuns,
   } = useAppStore()
@@ -156,6 +157,9 @@ function App() {
     // rows aren't a saved search yet. The done frame surfaces the
     // freshly-persisted `run_id` so the Save button has a target.
     setCurrentRunId(null)
+    // Clear the prior run's cache-source signal so the chip doesn't linger
+    // with a stale value while the new run streams in (#310).
+    setCacheStatus(null)
     // Fresh stream → reset the view state so a saved search's sort or
     // filters don't bleed onto the new run.
     resetViewState()
@@ -178,6 +182,8 @@ function App() {
         // a legitimate value when persistence fell through server-side
         // (best-effort) — leave currentRunId unset in that case.
         if (event.run_id != null) setCurrentRunId(event.run_id)
+        // Surface the run's disk-cache freshness for the lookup-timer chip.
+        setCacheStatus(event.cache_status)
         return
       }
       if (!firstEventSeen) {
@@ -254,6 +260,7 @@ function App() {
     setRunEndedAt,
     pushRecentRun,
     setCurrentRunId,
+    setCacheStatus,
     resetViewState,
   ])
 
