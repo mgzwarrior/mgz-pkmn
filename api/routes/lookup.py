@@ -483,12 +483,26 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
         # Drain frames as they land and stream them out. ADR-0013:
         # failures-during-stream don't write — the persistence call is after
         # this loop, so a client disconnect stops iteration before the commit.
-        while True:
-            item = await frames.get()
-            if item is _STREAM_DONE:
-                break
-            yield f"data: {json.dumps(item)}\n\n"
-        await runner  # surface bookkeeping errors from the done-signal task
+        try:
+            while True:
+                item = await frames.get()
+                if item is _STREAM_DONE:
+                    break
+                yield f"data: {json.dumps(item)}\n\n"
+            await runner  # surface bookkeeping errors from the done-signal task
+        except BaseException:
+            # Client disconnect (the Stop button aborts the fetch, raising
+            # GeneratorExit here) or a mid-stream error: cancel the fan-out so
+            # queued lookups stop hitting upstream into a queue nobody reads
+            # (#303). In-flight threadpool calls can't be force-killed, but on
+            # a large pasted list the bulk of the work is still parked on the
+            # semaphore and cancels immediately. Persistence below is skipped —
+            # the re-raise exits the generator before the commit (ADR-0013).
+            for task in tasks:
+                task.cancel()
+            runner.cancel()
+            await asyncio.gather(*tasks, runner, return_exceptions=True)
+            raise
 
         resolved: list[Row] = [
             row for idx in sorted(resolved_by_idx) for row in resolved_by_idx[idx]

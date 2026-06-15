@@ -164,6 +164,11 @@ function App() {
 
     // Track unique card IDs for client-side deduplication.
     const seenIds = new Set<string>()
+    // Distinct input lines that have produced a terminal row. The server now
+    // streams results out of completion order (#303), so progress counts
+    // resolved lines rather than reading the latest event's index — otherwise
+    // a late-finishing early line would make the bar regress.
+    const resolvedLines = new Set<number>()
     let firstEventSeen = false
 
     function onEvent(event: BulkEvent) {
@@ -192,6 +197,12 @@ function App() {
       // Subsequent events (top:N expansions) leave the status alone.
       markLineStatus(event.index, event.matched ? 'resolved' : 'error')
 
+      // Count the line toward progress before any dedupe skip — a duplicate
+      // card ID still resolved its line, so omitting it here would strand the
+      // bar below total (e.g. `Pikachu\nPikachu\nMew` finishing at 2 / 3).
+      resolvedLines.add(event.index)
+      setProgress({ done: resolvedLines.size, total: event.total })
+
       if (settings.dedupe && event.matched && event.card) {
         const cid = event.card.id as string | undefined
         if (cid) {
@@ -208,8 +219,6 @@ function App() {
         matched: event.matched,
         reason: event.reason,
       })
-
-      setProgress({ done: event.index + 1, total: event.total })
     }
 
     // `bulkLookup` calls `onDone` on every normal exit path (non-OK
