@@ -8,7 +8,7 @@
  * stays out of the default user's way. Renders nothing until a run has
  * reported a `cache_status` on its SSE done frame.
  */
-import { Database, CloudDownload } from 'lucide-react'
+import { Database, CloudDownload, CloudOff } from 'lucide-react'
 import { useAppStore } from '../store'
 
 export function CacheSourceChip() {
@@ -17,16 +17,21 @@ export function CacheSourceChip() {
   if (!settings.showTimer) return null
   if (cacheStatus == null) return null
 
-  // STALE served from cache too — it just kicked off a background pricing
-  // refresh, so it still counts as a cache read for the source label.
-  const fromCache = cacheStatus === 'HIT' || cacheStatus === 'STALE'
-  const Icon = fromCache ? Database : CloudDownload
-  const label =
+  // Four distinct outcomes:
+  //   HIT / STALE         — served from cache (STALE also kicked off a
+  //                          background pricing refresh, but still a cache read)
+  //   MISS                — a real upstream fetch happened
+  //   MISS-CACHE-ONLY     — anonymous cache-only mode: a disk miss that
+  //                          *skips* upstream entirely, so it's neither cache
+  //                          nor upstream — the data simply wasn't warmed.
+  const { Icon, label } =
     cacheStatus === 'HIT'
-      ? 'from cache'
+      ? { Icon: Database, label: 'from cache' }
       : cacheStatus === 'STALE'
-        ? 'from cache · refreshing'
-        : 'from upstream'
+        ? { Icon: Database, label: 'from cache · refreshing' }
+        : cacheStatus === 'MISS-CACHE-ONLY'
+          ? { Icon: CloudOff, label: 'not in cache' }
+          : { Icon: CloudDownload, label: 'from upstream' }
 
   return (
     <div

@@ -425,6 +425,13 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
             async with sem:
                 q = parse_line(line)
                 if q is None:
+                    # Deliberately *not* appended to `cache_statuses`: an
+                    # unparseable line performs no cache read, so it can't be
+                    # graded HIT/STALE/MISS. The run-level chip reports where the
+                    # actual results came from, and folding a synthetic MISS in
+                    # here would make an all-cache-hit run with one typo claim it
+                    # went upstream. An all-unparseable run still reports MISS via
+                    # the empty-list default below, matching the /lookup route.
                     row = _unparseable_row(line, req.settings.tag)
                     resolved_by_idx[stream_idx] = [row]
                     await frames.put(

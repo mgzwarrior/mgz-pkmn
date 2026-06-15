@@ -59,9 +59,12 @@ describe('CacheSourceChip', () => {
     expect(screen.getByText('from upstream')).toBeInTheDocument()
   })
 
-  it('treats the anonymous cache-only miss as an upstream read', () => {
+  it('labels the anonymous cache-only miss as not-in-cache, not upstream', () => {
+    // cache_only mode skips upstream on a miss, so "from upstream" would be a
+    // lie — the card simply wasn't warmed.
     useAppStore.setState({ cacheStatus: 'MISS-CACHE-ONLY' })
     render(<CacheSourceChip />)
-    expect(screen.getByText('from upstream')).toBeInTheDocument()
+    expect(screen.getByText('not in cache')).toBeInTheDocument()
+    expect(screen.queryByText('from upstream')).not.toBeInTheDocument()
   })
 })
