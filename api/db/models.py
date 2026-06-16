@@ -20,6 +20,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -164,6 +165,25 @@ class Run(Base):
 COLLECTION_KIND_MANUAL = "manual"
 COLLECTION_KIND_SET = "set"
 COLLECTION_KIND_DYNAMIC = "dynamic"
+#: A ``binder`` is a manual bucket with physical-binder identity (#679): a
+#: pocket ``binder_format``, a cover ``binder_color``, an optional slot
+#: ``capacity``, and an ``is_master_set`` target flag. It rides the same
+#: ``collection_items`` machinery as ``manual`` — the extra columns are just
+#: identity — so ownership badges, insights, and the ID-card PDF work as-is.
+COLLECTION_KIND_BINDER = "binder"
+
+#: Allowed ``Collection.binder_format`` values — the page pocket layout.
+#: Null for non-binder kinds (and binders that haven't chosen one). See #679.
+BINDER_FORMAT_4_POCKET = "4-pocket"
+BINDER_FORMAT_9_POCKET = "9-pocket"
+BINDER_FORMAT_12_POCKET = "12-pocket"
+BINDER_FORMATS = (BINDER_FORMAT_4_POCKET, BINDER_FORMAT_9_POCKET, BINDER_FORMAT_12_POCKET)
+
+#: Allowed ``Collection.binder_color`` values — design-token palette names
+#: (``design/tokens/colors_and_type.css``) used to tint the cover swatch in
+#: the library list. Stored as the token stem so the SPA maps it to
+#: ``bg-<color>-500`` without a lookup table. See #679.
+BINDER_COLORS = ("palm", "sun", "sky", "ember", "coconut", "sand")
 
 #: Allowed values for ``Collection.dynamic_scope`` (#631). ``owned`` matches
 #: the rule against the user's own cards — an inventory view (the #630
@@ -211,6 +231,17 @@ class Collection(Base):
     #: ``catalog``; null reads as ``owned``. ``catalog`` flips the rule from
     #: an inventory view into a catalog-backed target view with progress.
     dynamic_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # ---- #679: physical-binder identity (only meaningful for kind='binder') ----
+    #: Page pocket layout — one of :data:`BINDER_FORMATS`. Null when unset.
+    binder_format: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: Cover color — a design-token palette stem from :data:`BINDER_COLORS`.
+    binder_color: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: Total card slots, so the list can show how full the binder is. Null
+    #: when the collector hasn't pinned a size.
+    capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: Whether the binder targets the *master set* of the set it organizes
+    #: (``source_set_id``). Nullable so rows predating #679 read as not-master.
+    is_master_set: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     items: Mapped[list[CollectionItem]] = relationship(
         back_populates="collection",

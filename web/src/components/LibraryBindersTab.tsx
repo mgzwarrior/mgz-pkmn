@@ -17,41 +17,18 @@
  * [OwnershipBadge](./OwnershipBadge.tsx) chip (#576): palm for owned,
  * sun for chasing.
  */
-import { BarChart3, Loader2, Printer, Sparkles, Trash2 } from 'lucide-react'
+import { BarChart3, Loader2, Pencil, Plus, Printer, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { downloadCollectionIdCardPdf } from '../api/client'
-import type {
-  CollectionRule,
-  CollectionSummary,
-  DynamicScope,
-  WishlistSummary,
-} from '../api/client'
+import type { CollectionSummary, WishlistSummary } from '../api/client'
 import { useAppStore } from '../store'
+import { BinderModal } from './BinderModal'
+import { SWATCH_BG } from './binderIdentity'
 import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
 import { WishlistDetail } from './WishlistDetail'
 import { useCollections } from './useCollections'
 import { useWishlists } from './useWishlists'
-
-/** The single-predicate fields the inline rule builder offers. The API
- * accepts several predicates ANDed together; the V1 form keeps it to one. */
-const RULE_FIELDS = [
-  { key: 'name', label: 'Name contains' },
-  { key: 'types', label: 'Type is' },
-  { key: 'set_id', label: 'Set is' },
-  { key: 'rarity', label: 'Rarity is' },
-  { key: 'number', label: 'Number is' },
-] as const
-
-type RuleField = (typeof RULE_FIELDS)[number]['key']
-
-/** The two dynamic scopes, framed for the toggle. `owned` is an inventory
- * view over your own cards; `catalog` is a target view over the whole
- * catalog with progress (#631). */
-const SCOPE_OPTIONS: { key: DynamicScope; label: string }[] = [
-  { key: 'owned', label: 'My cards' },
-  { key: 'catalog', label: 'Whole catalog' },
-]
 
 /** Binders come in two kinds: owned (a collection) and chasing (a
  * want-list). The filter scopes the list to one kind or shows both. */
@@ -69,14 +46,9 @@ type BinderRow =
   | { key: string; kind: 'owned'; created_at: string; collection: CollectionSummary }
   | { key: string; kind: 'chasing'; created_at: string; wishlist: WishlistSummary }
 
-function buildRule(field: RuleField, value: string): CollectionRule {
-  const v = value.trim()
-  // `types` is a list on the wire; every other predicate is a scalar.
-  return field === 'types' ? { types: [v] } : { [field]: v }
-}
-
 /** A catalog-scope smart collection is a target with progress, so it reads
- * as "target"; an owned-scope one is an inventory view ("smart"). */
+ * as "target"; an owned-scope one is an inventory view ("smart"). A binder
+ * renders its own identity (color / format / capacity) instead of a pill. */
 function kindPill(c: CollectionSummary): string | null {
   if (c.kind === 'dynamic') return c.dynamic_scope === 'catalog' ? 'target' : 'smart'
   if (c.kind === 'set') return 'set'
@@ -90,10 +62,10 @@ function isCatalogTarget(c: CollectionSummary): boolean {
 /** Empty-state copy keyed off the active filter. */
 function emptyMessage(filter: BinderFilter): string {
   if (filter === 'owned')
-    return "No owned binders yet. Run a lookup, then click the bookmark icon on a matched row to start a collection — or spin up a smart collection above."
+    return "No owned binders yet. Hit New binder to make one, or click the bookmark icon on a matched row to start a collection."
   if (filter === 'chasing')
     return "No want-lists yet. Run a lookup, then click the heart icon on a matched row to start chasing a card."
-  return "You don't have any binders yet. Run a lookup, then click the bookmark icon to start a collection or the heart icon to start a want-list — or spin up a smart collection above."
+  return "You don't have any binders yet. Hit New binder to make one, or run a lookup and click the bookmark icon to save a card or the heart icon to start a want-list."
 }
 
 export function LibraryBindersTab() {
@@ -102,7 +74,6 @@ export function LibraryBindersTab() {
     loading: cLoading,
     error: cError,
     refresh: refreshCollections,
-    create,
     remove: removeCollection,
   } = useCollections()
   const {
@@ -114,13 +85,14 @@ export function LibraryBindersTab() {
   } = useWishlists()
 
   const [filter, setFilter] = useState<BinderFilter>('all')
-  const [formOpen, setFormOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [field, setField] = useState<RuleField>('name')
-  const [value, setValue] = useState('')
-  const [scope, setScope] = useState<DynamicScope>('owned')
-  const [submitting, setSubmitting] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
+  // The binder create/edit modal. `null` editing means create; a binder
+  // means edit. `modalOpen` drives the dialog independently so a fresh
+  // create starts from a clean slate.
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingBinder, setEditingBinder] = useState<CollectionSummary | null>(null)
+  // Bumped on each open so the modal remounts and re-seeds its form from the
+  // current target (create vs. a specific binder) via its lazy initializers.
+  const [modalKey, setModalKey] = useState(0)
   // The catalog-scope target collection whose detail modal is open.
   const [targetCollection, setTargetCollection] = useState<CollectionSummary | null>(null)
   // The want-list whose detail modal is open.
@@ -136,6 +108,18 @@ export function LibraryBindersTab() {
   const loading = cLoading || wLoading
   const error = cError ?? wError
 
+  function openCreate() {
+    setEditingBinder(null)
+    setModalKey((k) => k + 1)
+    setModalOpen(true)
+  }
+
+  function openEdit(c: CollectionSummary) {
+    setEditingBinder(c)
+    setModalKey((k) => k + 1)
+    setModalOpen(true)
+  }
+
   // Interleave both kinds newest-first, then scope to the active filter.
   const rows: BinderRow[] = [
     ...collections.map(
@@ -146,27 +130,6 @@ export function LibraryBindersTab() {
     ),
   ].sort((a, b) => b.created_at.localeCompare(a.created_at))
   const visible = filter === 'all' ? rows : rows.filter((r) => r.kind === filter)
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    if (!name.trim() || !value.trim()) return
-    setSubmitting(true)
-    setFormError(null)
-    try {
-      await create(name.trim(), {
-        kind: 'dynamic',
-        rule: buildRule(field, value),
-        dynamic_scope: scope,
-      })
-      setName('')
-      setValue('')
-      setFormOpen(false)
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   return (
     <div className="space-y-3">
@@ -185,11 +148,11 @@ export function LibraryBindersTab() {
           </button>
           <button
             type="button"
-            onClick={() => setFormOpen((o) => !o)}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-palm-600 hover:bg-palm-50 dark:text-palm-300 dark:hover:bg-husk-100"
+            onClick={openCreate}
+            className="inline-flex items-center gap-1 rounded bg-palm-500 px-2 py-1 text-[11px] font-medium text-coconut-50 hover:bg-palm-600 dark:text-husk-300"
           >
-            <Sparkles size={12} />
-            New smart collection
+            <Plus size={12} />
+            New binder
           </button>
         </div>
       </div>
@@ -217,83 +180,6 @@ export function LibraryBindersTab() {
         ))}
       </div>
 
-      {formOpen && (
-        <form
-          onSubmit={handleCreate}
-          className="space-y-2 rounded-md border border-sand-200 bg-sand-50 p-3 dark:border-husk-100 dark:bg-husk-200"
-        >
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Collection name (e.g. all Eevees)"
-            className="w-full rounded border border-sand-300 bg-coconut-50 px-2 py-1 text-xs text-coconut-700 placeholder:text-coconut-400 dark:border-husk-100 dark:bg-husk-100 dark:text-sand-50"
-          />
-          <div className="flex gap-2">
-            <select
-              value={field}
-              onChange={(e) => setField(e.target.value as RuleField)}
-              className="shrink-0 rounded border border-sand-300 bg-coconut-50 px-2 py-1 text-xs text-coconut-700 dark:border-husk-100 dark:bg-husk-100 dark:text-sand-50"
-            >
-              {RULE_FIELDS.map((f) => (
-                <option key={f.key} value={f.key}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={field === 'types' ? 'Fire' : 'Eevee'}
-              className="min-w-0 flex-1 rounded border border-sand-300 bg-coconut-50 px-2 py-1 text-xs text-coconut-700 placeholder:text-coconut-400 dark:border-husk-100 dark:bg-husk-100 dark:text-sand-50"
-            />
-          </div>
-          <div>
-            <div
-              role="radiogroup"
-              aria-label="Membership scope"
-              className="inline-flex rounded border border-sand-300 p-0.5 dark:border-husk-100"
-            >
-              {SCOPE_OPTIONS.map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={scope === s.key}
-                  onClick={() => setScope(s.key)}
-                  className={`rounded px-2 py-0.5 text-[11px] font-medium ${
-                    scope === s.key
-                      ? 'bg-palm-500 text-coconut-50 dark:text-husk-300'
-                      : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-[10px] text-coconut-400 dark:text-sand-300">
-              {scope === 'owned'
-                ? 'Filters the cards you already own.'
-                : 'Pulls every match from the catalog and tracks your progress.'}
-            </p>
-          </div>
-          {formError && (
-            <div role="alert" className="text-[11px] text-sun-600 dark:text-sun-300">
-              {formError}
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={submitting || !name.trim() || !value.trim()}
-            className="inline-flex items-center gap-1 rounded bg-palm-500 px-3 py-1 text-[11px] font-medium text-coconut-50 hover:bg-palm-600 disabled:opacity-50 dark:text-husk-300"
-          >
-            {submitting && <Loader2 size={11} className="animate-spin" />}
-            Create
-          </button>
-        </form>
-      )}
-
       {loading && rows.length === 0 ? (
         <div className="flex items-center gap-2 text-xs text-coconut-400 dark:text-sand-300">
           <Loader2 size={12} className="animate-spin" />
@@ -313,6 +199,7 @@ export function LibraryBindersTab() {
                 key={row.key}
                 collection={row.collection}
                 onOpenTarget={setTargetCollection}
+                onEdit={openEdit}
                 onDelete={removeCollection}
               />
             ) : (
@@ -342,6 +229,12 @@ export function LibraryBindersTab() {
         }}
       />
       <CollectionInsights open={insightsOpen} onOpenChange={setInsightsOpen} />
+      <BinderModal
+        key={modalKey}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        editing={editingBinder}
+      />
     </div>
   )
 }
@@ -367,16 +260,60 @@ function CardCount({ count }: { count: number }) {
   )
 }
 
+/** `held / capacity` with a thin fill bar — how full a binder is. Falls back
+ * to a plain count when no capacity is pinned. */
+function CapacityFill({ count, capacity }: { count: number; capacity: number }) {
+  const pct = Math.min(100, Math.round((count / capacity) * 100))
+  const full = count >= capacity
+  return (
+    <div className="ml-3 flex shrink-0 flex-col items-end gap-0.5">
+      <span className="text-[11px] tabular-nums text-coconut-500 dark:text-sand-200">
+        {count}
+        <span className="text-coconut-400 dark:text-sand-300"> / {capacity}</span>
+      </span>
+      <div className="h-1 w-16 overflow-hidden rounded-full bg-sand-200 dark:bg-husk-100">
+        <div
+          className={`h-full rounded-full ${full ? 'bg-ember-500' : 'bg-palm-500'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/** The cover-color dot + format / master-set chips that give a binder its
+ * shelf identity in the list. Renders nothing for non-binder collections. */
+function BinderIdentity({ c }: { c: CollectionSummary }) {
+  if (c.kind !== 'binder') return null
+  return (
+    <>
+      {c.binder_format && (
+        <span className="shrink-0 rounded bg-sand-200 px-1.5 py-0.5 text-[10px] font-medium text-coconut-600 dark:bg-husk-100 dark:text-sand-200">
+          {c.binder_format}
+        </span>
+      )}
+      {c.is_master_set && (
+        <span className="shrink-0 rounded bg-sun-400/20 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-husk-500 dark:bg-sun-400/25 dark:text-sun-200">
+          master set
+        </span>
+      )}
+    </>
+  )
+}
+
 function CollectionRow({
   collection: c,
   onOpenTarget,
+  onEdit,
   onDelete,
 }: {
   collection: CollectionSummary
   onOpenTarget: (c: CollectionSummary) => void
+  onEdit: (c: CollectionSummary) => void
   onDelete: (id: number) => Promise<void>
 }) {
   const pill = kindPill(c)
+  const isBinder = c.kind === 'binder'
   // A catalog-scope target opens its progress detail; everything else is
   // a static row.
   const openable = isCatalogTarget(c)
@@ -384,7 +321,14 @@ function CollectionRow({
     <>
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <KindBadge kind="owned" />
+          {isBinder && c.binder_color ? (
+            <span
+              className={`h-3 w-3 shrink-0 rounded-full ${SWATCH_BG[c.binder_color]}`}
+              aria-hidden
+            />
+          ) : (
+            <KindBadge kind="owned" />
+          )}
           <span className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
             {c.name}
           </span>
@@ -393,6 +337,7 @@ function CollectionRow({
               {pill}
             </span>
           )}
+          <BinderIdentity c={c} />
         </div>
         {c.description && (
           <div className="truncate text-[11px] text-coconut-400 dark:text-sand-300">
@@ -400,7 +345,11 @@ function CollectionRow({
           </div>
         )}
       </div>
-      <CardCount count={c.item_count} />
+      {isBinder && c.capacity ? (
+        <CapacityFill count={c.item_count} capacity={c.capacity} />
+      ) : (
+        <CardCount count={c.item_count} />
+      )}
     </>
   )
   return (
@@ -415,6 +364,17 @@ function CollectionRow({
         </button>
       ) : (
         <div className="flex flex-1 items-center justify-between py-2">{body}</div>
+      )}
+      {isBinder && (
+        <button
+          type="button"
+          onClick={() => onEdit(c)}
+          aria-label={`Edit binder "${c.name}"`}
+          title="Edit binder"
+          className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-palm-600 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-palm-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+        >
+          <Pencil size={14} />
+        </button>
       )}
       <PrintIdCardControl collectionId={c.id} label={`collection "${c.name}"`} />
       <DeleteBinderControl label={`collection "${c.name}"`} onDelete={() => onDelete(c.id)} />

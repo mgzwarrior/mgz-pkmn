@@ -62,6 +62,9 @@ from ..db.collection_rules import (
 )
 from ..db.models import (
     ADDED_VIA_MANUAL,
+    BINDER_COLORS,
+    BINDER_FORMATS,
+    COLLECTION_KIND_BINDER,
     COLLECTION_KIND_DYNAMIC,
     COLLECTION_KIND_MANUAL,
     COLLECTION_KIND_SET,
@@ -77,7 +80,12 @@ from ..db.session import get_db
 
 #: The kinds a caller may create. Mirrors the model constants; kept here so
 #: the create/patch validators reject an unknown kind with a 422.
-_VALID_KINDS = (COLLECTION_KIND_MANUAL, COLLECTION_KIND_SET, COLLECTION_KIND_DYNAMIC)
+_VALID_KINDS = (
+    COLLECTION_KIND_MANUAL,
+    COLLECTION_KIND_SET,
+    COLLECTION_KIND_DYNAMIC,
+    COLLECTION_KIND_BINDER,
+)
 #: Allowed ``dynamic_scope`` values on create. Null/owned is the default.
 _VALID_SCOPES = (DYNAMIC_SCOPE_OWNED, DYNAMIC_SCOPE_CATALOG)
 
@@ -106,6 +114,11 @@ class CollectionSummaryOut(BaseModel):
     rule: dict[str, Any] | None
     #: #631 — ``owned`` / ``catalog`` for dynamic collections, else null.
     dynamic_scope: str | None
+    # ---- #679: physical-binder identity (null for non-binder kinds) ----
+    binder_format: str | None
+    binder_color: str | None
+    capacity: int | None
+    is_master_set: bool | None
 
 
 class CollectionItemOut(BaseModel):
@@ -142,19 +155,30 @@ class CollectionOut(BaseModel):
     rule: dict[str, Any] | None
     #: #631 — ``owned`` / ``catalog`` for dynamic collections, else null.
     dynamic_scope: str | None
+    # ---- #679: physical-binder identity (null for non-binder kinds) ----
+    binder_format: str | None
+    binder_color: str | None
+    capacity: int | None
+    is_master_set: bool | None
 
 
 class CollectionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
     #: Defaults to ``manual`` so existing callers are unchanged. ``set``
-    #: requires ``source_set_id``; ``dynamic`` requires ``rule``.
+    #: requires ``source_set_id``; ``dynamic`` requires ``rule``; ``binder``
+    #: is a manual bucket carrying the #679 identity fields below.
     kind: str = COLLECTION_KIND_MANUAL
     source_set_id: str | None = Field(default=None, max_length=64)
     rule: dict[str, Any] | None = None
     #: #631 — only read for ``kind == 'dynamic'``. ``owned`` (default) is the
     #: inventory view; ``catalog`` is the catalog-backed target view.
     dynamic_scope: str | None = None
+    # ---- #679: only read for ``kind == 'binder'``; dropped otherwise ----
+    binder_format: str | None = None
+    binder_color: str | None = None
+    capacity: int | None = Field(default=None, ge=1)
+    is_master_set: bool | None = None
 
 
 class CollectionPatch(BaseModel):
@@ -163,6 +187,13 @@ class CollectionPatch(BaseModel):
     #: Editing a dynamic collection's rule re-points its membership. Only
     #: meaningful on ``kind == 'dynamic'`` collections.
     rule: dict[str, Any] | None = None
+    # ---- #679: editable binder identity. Each patched only when its key is
+    # present in the request body, so a partial PATCH leaves the rest intact;
+    # rejected with a 409 on non-binder collections. ----
+    binder_format: str | None = None
+    binder_color: str | None = None
+    capacity: int | None = Field(default=None, ge=1)
+    is_master_set: bool | None = None
 
 
 # ---- #631: catalog-backed target view + chase ----------------------------
@@ -358,6 +389,10 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
                 source_set_id=c.source_set_id,
                 rule=c.rule_json,
                 dynamic_scope=c.dynamic_scope,
+                binder_format=c.binder_format,
+                binder_color=c.binder_color,
+                capacity=c.capacity,
+                is_master_set=c.is_master_set,
             )
         )
     return {"items": [item.model_dump() for item in items], "total": len(items)}
@@ -542,6 +577,17 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
     source_set_id, rule_json, dynamic_scope = _validate_kind_fields(
         req.kind, req.source_set_id, req.rule, req.dynamic_scope
     )
+    # Binder identity rides only the binder kind; other kinds drop it so it
+    # never lingers as dead state (mirrors how rule/scope are kind-scoped).
+    is_binder = req.kind == COLLECTION_KIND_BINDER
+    if is_binder:
+        _validate_binder_format(req.binder_format)
+        _validate_binder_color(req.binder_color)
+        if req.is_master_set and not source_set_id:
+            raise HTTPException(
+                status_code=422,
+                detail="a master-set binder needs a source_set_id to target",
+            )
     collection = Collection(
         user_id=current_user.id,
         name=req.name.strip(),
@@ -550,6 +596,10 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
         source_set_id=source_set_id,
         rule_json=rule_json,
         dynamic_scope=dynamic_scope,
+        binder_format=req.binder_format if is_binder else None,
+        binder_color=req.binder_color if is_binder else None,
+        capacity=req.capacity if is_binder else None,
+        is_master_set=req.is_master_set if is_binder else None,
     )
     db.add(collection)
     db.commit()
@@ -585,6 +635,7 @@ def patch_collection(
                 detail="only dynamic collections have a rule",
             )
         collection.rule_json = _normalize_rule_or_422(req.rule)
+    _patch_binder_fields(collection, req)
     db.commit()
     db.refresh(collection)
     return _serialize_collection(db, collection, current_user.id)
@@ -946,13 +997,19 @@ def _validate_kind_fields(
     """Cross-check the kind-specific fields, returning the values to persist.
 
     A ``set`` collection needs a ``source_set_id`` anchor; a ``dynamic`` one
-    needs a valid ``rule`` and a scope (defaulting to ``owned``). Fields that
-    don't belong to the chosen kind are dropped rather than stored as dead
-    state."""
+    needs a valid ``rule`` and a scope (defaulting to ``owned``); a ``binder``
+    may optionally organize a set, so it passes ``source_set_id`` through.
+    Fields that don't belong to the chosen kind are dropped rather than
+    stored as dead state."""
     if kind == COLLECTION_KIND_SET:
         if not source_set_id:
             raise HTTPException(status_code=422, detail="set collections require a source_set_id")
         return source_set_id, None, None
+    if kind == COLLECTION_KIND_BINDER:
+        # A binder optionally organizes a set; the anchor is optional and
+        # only required when the binder targets the master set (validated in
+        # _normalize_binder_fields). No rule, no scope.
+        return (source_set_id or None), None, None
     if kind == COLLECTION_KIND_DYNAMIC:
         scope = dynamic_scope or DYNAMIC_SCOPE_OWNED
         if scope not in _VALID_SCOPES:
@@ -970,6 +1027,58 @@ def _normalize_rule_or_422(rule: dict[str, Any] | None) -> dict[str, Any]:
         return normalize_rule(rule)
     except RuleValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _validate_binder_format(value: str | None) -> None:
+    if value is not None and value not in BINDER_FORMATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown binder_format '{value}'; allowed: {', '.join(BINDER_FORMATS)}",
+        )
+
+
+def _validate_binder_color(value: str | None) -> None:
+    if value is not None and value not in BINDER_COLORS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown binder_color '{value}'; allowed: {', '.join(BINDER_COLORS)}",
+        )
+
+
+#: The binder-identity keys a PATCH may carry, so each is applied only when
+#: present in the request body (a partial PATCH leaves the rest intact).
+_BINDER_PATCH_FIELDS = ("binder_format", "binder_color", "capacity", "is_master_set")
+
+
+def _patch_binder_fields(collection: Collection, req: CollectionPatch) -> None:
+    """Apply any binder-identity edits in ``req`` to ``collection``.
+
+    Only the keys the caller actually sent are touched; passing ``null``
+    clears one. Editing identity on a non-binder collection is a 409 — those
+    kinds don't carry it. A master-set toggle still requires a set anchor."""
+    touched = [f for f in _BINDER_PATCH_FIELDS if f in req.model_fields_set]
+    if not touched:
+        return
+    if collection.kind != COLLECTION_KIND_BINDER:
+        raise HTTPException(
+            status_code=409,
+            detail="only binder collections carry format/color/capacity/master-set",
+        )
+    if "binder_format" in touched:
+        _validate_binder_format(req.binder_format)
+        collection.binder_format = req.binder_format
+    if "binder_color" in touched:
+        _validate_binder_color(req.binder_color)
+        collection.binder_color = req.binder_color
+    if "capacity" in touched:
+        collection.capacity = req.capacity
+    if "is_master_set" in touched:
+        if req.is_master_set and not collection.source_set_id:
+            raise HTTPException(
+                status_code=422,
+                detail="a master-set binder needs a source_set_id to target",
+            )
+        collection.is_master_set = req.is_master_set
 
 
 def _reject_if_dynamic(collection: Collection) -> None:
@@ -1045,6 +1154,10 @@ def _serialize_collection(db: Session, collection: Collection, user_id: int) -> 
         source_set_id=collection.source_set_id,
         rule=collection.rule_json,
         dynamic_scope=collection.dynamic_scope,
+        binder_format=collection.binder_format,
+        binder_color=collection.binder_color,
+        capacity=collection.capacity,
+        is_master_set=collection.is_master_set,
     ).model_dump()
 
 

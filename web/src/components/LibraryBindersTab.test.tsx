@@ -17,6 +17,7 @@ import {
 vi.mock('../api/client', () => ({
   fetchCollections: vi.fn(),
   createCollection: vi.fn(),
+  updateCollection: vi.fn(),
   addCardToCollection: vi.fn(),
   deleteCollection: vi.fn(),
   downloadCollectionIdCardPdf: vi.fn(),
@@ -161,7 +162,36 @@ describe('LibraryBindersTab', () => {
     expect(screen.getByText('smart')).toBeInTheDocument()
   })
 
-  it('creates a dynamic collection from the inline rule form', async () => {
+  it('renders a binder row with its format, capacity fill, and edit affordance', async () => {
+    mockCollections.mockResolvedValue([
+      {
+        id: 2,
+        name: 'Trade binder',
+        description: null,
+        created_at: '2026-06-12T00:00:00',
+        item_count: 90,
+        kind: 'binder',
+        source_set_id: null,
+        rule: null,
+        binder_color: 'sky',
+        binder_format: '9-pocket',
+        capacity: 360,
+        is_master_set: false,
+      },
+    ])
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Trade binder')).toBeInTheDocument())
+
+    expect(screen.getByText('9-pocket')).toBeInTheDocument()
+    // Capacity fill renders held / capacity.
+    expect(screen.getByText('/ 360')).toBeInTheDocument()
+    // The edit affordance opens the modal in edit mode (prefilled name).
+    fireEvent.click(screen.getByRole('button', { name: /edit binder "trade binder"/i }))
+    expect(screen.getByRole('heading', { name: /edit binder/i })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Trade binder')).toBeInTheDocument()
+  })
+
+  it('creates a dynamic collection from the smart-collection path in the binder modal', async () => {
     mockCreate.mockResolvedValue({
       id: 9,
       name: 'All Eevees',
@@ -175,8 +205,9 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
-    fireEvent.click(screen.getByRole('button', { name: /new smart collection/i }))
-    fireEvent.change(screen.getByPlaceholderText(/collection name/i), {
+    fireEvent.click(screen.getByRole('button', { name: /new binder/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /smart collection/i }))
+    fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
     fireEvent.change(screen.getByPlaceholderText('Eevee'), {
@@ -208,8 +239,9 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
-    fireEvent.click(screen.getByRole('button', { name: /new smart collection/i }))
-    fireEvent.change(screen.getByPlaceholderText(/collection name/i), {
+    fireEvent.click(screen.getByRole('button', { name: /new binder/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /smart collection/i }))
+    fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
     fireEvent.change(screen.getByPlaceholderText('Eevee'), {

@@ -12,8 +12,10 @@ import {
   createCollection,
   deleteCollection,
   fetchCollections,
+  updateCollection,
   type CollectionSummary,
   type CreateCollectionOptions,
+  type UpdateCollectionOptions,
 } from '../api/client'
 import { invalidateOwnership } from './useCardOwnership'
 
@@ -82,11 +84,40 @@ export function useCollections() {
             source_set_id: created.source_set_id,
             rule: created.rule,
             dynamic_scope: created.dynamic_scope,
+            binder_format: created.binder_format,
+            binder_color: created.binder_color,
+            capacity: created.capacity,
+            is_master_set: created.is_master_set,
           },
           ...state.collections,
         ],
       })
       return created
+    },
+    [],
+  )
+
+  const update = useCallback(
+    async (collectionId: number, patch: UpdateCollectionOptions) => {
+      const updated = await updateCollection(collectionId, patch)
+      // Merge the edited identity back into the cached summary so every
+      // surface re-renders without a refetch. item_count is untouched here.
+      set({
+        collections: state.collections.map((c) =>
+          c.id === collectionId
+            ? {
+                ...c,
+                name: updated.name,
+                description: updated.description,
+                binder_format: updated.binder_format,
+                binder_color: updated.binder_color,
+                capacity: updated.capacity,
+                is_master_set: updated.is_master_set,
+              }
+            : c,
+        ),
+      })
+      return updated
     },
     [],
   )
@@ -144,6 +175,7 @@ export function useCollections() {
     ...snapshot,
     refresh,
     create,
+    update,
     addCard,
     bulkAdd,
     remove,
