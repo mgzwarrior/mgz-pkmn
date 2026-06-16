@@ -544,11 +544,15 @@ export type CollectionKind = 'manual' | 'set' | 'dynamic' | 'binder'
 export type BinderFormat = '4-pocket' | '9-pocket' | '12-pocket'
 
 /**
- * Cover color of a physical binder (#679) — a design-token palette stem the
- * SPA maps to `bg-<color>-500`. Mirrors the server's `BINDER_COLORS`
- * allowlist; keep the two in sync.
+ * Curated cover-color preset (#679) — a design-token palette stem the SPA
+ * maps to `bg-<color>-500`. Mirrors the server's `BINDER_COLORS` preset
+ * allowlist. A binder may also store a freeform `#rrggbb` hex (#681), so the
+ * stored `binder_color` field is a plain `string`, not this union.
  */
-export type BinderColor = 'palm' | 'sun' | 'sky' | 'ember' | 'coconut' | 'sand'
+export type BinderColor = 'palm' | 'sun' | 'sky' | 'ember' | 'coconut' | 'sand' | 'husk'
+
+/** How a binder's cards are physically stored (#681). */
+export type BinderType = 'regular' | 'toploader' | 'graded' | 'other'
 
 /**
  * For a `dynamic` collection (#631): `owned` resolves the rule against your
@@ -572,9 +576,11 @@ export interface CollectionSummary {
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
-  // #679 — physical-binder identity; null for non-binder kinds.
+  // #679/#681 — binder identity. format/capacity are physical-only;
+  // color (preset stem or #rrggbb hex) / type / master-set are shared.
   binder_format?: BinderFormat | null
-  binder_color?: BinderColor | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
 }
@@ -596,9 +602,10 @@ export interface Collection {
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
-  // #679 — physical-binder identity; null for non-binder kinds.
+  // #679/#681 — binder identity (see CollectionSummary).
   binder_format?: BinderFormat | null
-  binder_color?: BinderColor | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
 }
@@ -616,9 +623,10 @@ export interface CreateCollectionOptions {
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
-  // #679 — only read server-side for `kind: 'binder'`.
+  // #679/#681 — server keeps the fields each kind carries, drops the rest.
   binder_format?: BinderFormat | null
-  binder_color?: BinderColor | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
 }
@@ -639,6 +647,7 @@ export async function createCollection(
       dynamic_scope: options?.dynamic_scope ?? null,
       binder_format: options?.binder_format ?? null,
       binder_color: options?.binder_color ?? null,
+      binder_type: options?.binder_type ?? null,
       capacity: options?.capacity ?? null,
       is_master_set: options?.is_master_set ?? null,
     }),
@@ -656,7 +665,8 @@ export interface UpdateCollectionOptions {
   name?: string
   description?: string | null
   binder_format?: BinderFormat | null
-  binder_color?: BinderColor | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
 }

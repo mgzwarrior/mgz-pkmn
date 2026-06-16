@@ -23,7 +23,7 @@ import { downloadCollectionIdCardPdf } from '../api/client'
 import type { CollectionSummary, WishlistSummary } from '../api/client'
 import { useAppStore } from '../store'
 import { BinderModal } from './BinderModal'
-import { SWATCH_BG } from './binderIdentity'
+import { BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
 import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
 import { WishlistDetail } from './WishlistDetail'
@@ -281,12 +281,26 @@ function CapacityFill({ count, capacity }: { count: number; capacity: number }) 
   )
 }
 
-/** The cover-color dot + format / master-set chips that give a binder its
- * shelf identity in the list. Renders nothing for non-binder collections. */
+/** A collection carries binder identity if it's a physical or smart binder. */
+function hasBinderIdentity(c: CollectionSummary): boolean {
+  return c.kind === 'binder' || c.kind === 'dynamic'
+}
+
+const BINDER_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  BINDER_TYPE_OPTIONS.map((o) => [o.value, o.label]),
+)
+
+/** The storage-type / format / master-set chips that give a binder its shelf
+ * identity in the list. Format is physical-only; the rest are shared. */
 function BinderIdentity({ c }: { c: CollectionSummary }) {
-  if (c.kind !== 'binder') return null
+  if (!hasBinderIdentity(c)) return null
   return (
     <>
+      {c.binder_type && c.binder_type !== 'regular' && (
+        <span className="shrink-0 rounded bg-sand-200 px-1.5 py-0.5 text-[10px] font-medium text-coconut-600 dark:bg-husk-100 dark:text-sand-200">
+          {BINDER_TYPE_LABELS[c.binder_type] ?? c.binder_type}
+        </span>
+      )}
       {c.binder_format && (
         <span className="shrink-0 rounded bg-sand-200 px-1.5 py-0.5 text-[10px] font-medium text-coconut-600 dark:bg-husk-100 dark:text-sand-200">
           {c.binder_format}
@@ -314,6 +328,8 @@ function CollectionRow({
 }) {
   const pill = kindPill(c)
   const isBinder = c.kind === 'binder'
+  const identity = hasBinderIdentity(c)
+  const cover = coverSwatch(c.binder_color)
   // A catalog-scope target opens its progress detail; everything else is
   // a static row.
   const openable = isCatalogTarget(c)
@@ -321,9 +337,10 @@ function CollectionRow({
     <>
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          {isBinder && c.binder_color ? (
+          {identity && c.binder_color ? (
             <span
-              className={`h-3 w-3 shrink-0 rounded-full ${SWATCH_BG[c.binder_color]}`}
+              className={`h-3 w-3 shrink-0 rounded-full ${cover.className}`}
+              style={cover.style}
               aria-hidden
             />
           ) : (
@@ -367,7 +384,7 @@ function CollectionRow({
       ) : (
         <div className="flex flex-1 items-center justify-between py-2">{body}</div>
       )}
-      {isBinder && (
+      {identity && (
         <button
           type="button"
           onClick={() => onEdit(c)}

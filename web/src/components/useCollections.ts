@@ -87,6 +87,7 @@ export function useCollections() {
             dynamic_scope: created.dynamic_scope,
             binder_format: created.binder_format,
             binder_color: created.binder_color,
+            binder_type: created.binder_type,
             capacity: created.capacity,
             is_master_set: created.is_master_set,
           },
@@ -112,6 +113,7 @@ export function useCollections() {
                 description: updated.description,
                 binder_format: updated.binder_format,
                 binder_color: updated.binder_color,
+                binder_type: updated.binder_type,
                 capacity: updated.capacity,
                 is_master_set: updated.is_master_set,
               }

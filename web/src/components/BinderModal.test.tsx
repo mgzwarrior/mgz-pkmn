@@ -37,6 +37,7 @@ describe('BinderModal', () => {
       kind: 'binder',
       binder_color: 'sky',
       binder_format: '9-pocket',
+      binder_type: 'toploader',
       capacity: 360,
     })
     render(<BinderModal open onOpenChange={() => {}} />)
@@ -46,10 +47,14 @@ describe('BinderModal', () => {
     })
     // Default cover color is palm; switch to sky.
     fireEvent.click(screen.getByRole('button', { name: 'Sky' }))
-    fireEvent.click(screen.getByRole('button', { name: /more binder details/i }))
+    fireEvent.click(screen.getByRole('button', { name: /more details/i }))
     fireEvent.change(screen.getByPlaceholderText('360'), { target: { value: '360' } })
-    // The pocket-format select is the only combobox in the details panel.
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '9-pocket' } })
+    fireEvent.change(screen.getByRole('combobox', { name: /storage type/i }), {
+      target: { value: 'toploader' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: /pocket format/i }), {
+      target: { value: '9-pocket' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
     await waitFor(() =>
@@ -57,11 +62,41 @@ describe('BinderModal', () => {
         kind: 'binder',
         binder_format: '9-pocket',
         binder_color: 'sky',
+        binder_type: 'toploader',
         capacity: 360,
         source_set_id: null,
         is_master_set: false,
       }),
     )
+  })
+
+  it('creates a smart binder carrying shared identity but no physical fields', async () => {
+    mockCreate.mockResolvedValue({
+      id: 6,
+      name: 'All Eevees',
+      description: null,
+      created_at: '2026-06-15T00:00:00',
+      items: [],
+      kind: 'dynamic',
+      rule: { name: 'Eevee' },
+      binder_color: 'ember',
+    })
+    render(<BinderModal open onOpenChange={() => {}} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: /smart binder/i }))
+    fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
+      target: { value: 'All Eevees' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Eevee'), { target: { value: 'Eevee' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ember' }))
+    fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled())
+    const [, opts] = mockCreate.mock.calls[0]
+    expect(opts).toMatchObject({ kind: 'dynamic', binder_color: 'ember', dynamic_scope: 'owned' })
+    // A smart binder has no fixed slots — physical fields aren't sent.
+    expect(opts).not.toHaveProperty('binder_format')
+    expect(opts).not.toHaveProperty('capacity')
   })
 
   it('prefills and PATCHes an existing binder', async () => {

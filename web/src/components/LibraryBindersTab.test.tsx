@@ -206,7 +206,7 @@ describe('LibraryBindersTab', () => {
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
     fireEvent.click(screen.getByRole('button', { name: /new binder/i }))
-    fireEvent.click(screen.getByRole('radio', { name: /smart collection/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /smart binder/i }))
     fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
@@ -216,11 +216,14 @@ describe('LibraryBindersTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
     await waitFor(() =>
-      expect(mockCreate).toHaveBeenCalledWith('All Eevees', {
-        kind: 'dynamic',
-        rule: { name: 'Eevee' },
-        dynamic_scope: 'owned',
-      }),
+      expect(mockCreate).toHaveBeenCalledWith(
+        'All Eevees',
+        expect.objectContaining({
+          kind: 'dynamic',
+          rule: { name: 'Eevee' },
+          dynamic_scope: 'owned',
+        }),
+      ),
     )
   })
 
@@ -240,7 +243,7 @@ describe('LibraryBindersTab', () => {
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
     fireEvent.click(screen.getByRole('button', { name: /new binder/i }))
-    fireEvent.click(screen.getByRole('radio', { name: /smart collection/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /smart binder/i }))
     fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
@@ -251,11 +254,14 @@ describe('LibraryBindersTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
     await waitFor(() =>
-      expect(mockCreate).toHaveBeenCalledWith('All Eevees', {
-        kind: 'dynamic',
-        rule: { name: 'Eevee' },
-        dynamic_scope: 'catalog',
-      }),
+      expect(mockCreate).toHaveBeenCalledWith(
+        'All Eevees',
+        expect.objectContaining({
+          kind: 'dynamic',
+          rule: { name: 'Eevee' },
+          dynamic_scope: 'catalog',
+        }),
+      ),
     )
   })
 
