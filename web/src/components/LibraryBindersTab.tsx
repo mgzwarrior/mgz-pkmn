@@ -346,7 +346,9 @@ function CollectionRow({
         )}
       </div>
       {isBinder && c.capacity ? (
-        <CapacityFill count={c.item_count} capacity={c.capacity} />
+        // Capacity counts occupied pockets — sum of item quantities (vendor
+        // multiples), not row count. Falls back to item_count pre-#679.
+        <CapacityFill count={c.total_quantity ?? c.item_count} capacity={c.capacity} />
       ) : (
         <CardCount count={c.item_count} />
       )}

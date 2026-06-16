@@ -108,6 +108,10 @@ class CollectionSummaryOut(BaseModel):
     description: str | None
     created_at: str
     item_count: int
+    #: Sum of item ``quantity`` (vendor multiples), i.e. occupied slots — what
+    #: a binder's capacity fill measures (#679). Equals ``item_count`` for a
+    #: dynamic collection's resolved membership.
+    total_quantity: int
     # ---- #506: kind + rule so the SPA can badge dynamic/set collections ----
     kind: str
     source_set_id: str | None
@@ -357,6 +361,9 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
         select(
             CollectionItem.collection_id,
             func.count(CollectionItem.id).label("item_count"),
+            # Occupied slots = sum of vendor multiples; backs a binder's
+            # capacity fill (#679), which counts pockets, not rows.
+            func.coalesce(func.sum(CollectionItem.quantity), 0).label("total_quantity"),
         )
         .group_by(CollectionItem.collection_id)
         .subquery()
@@ -365,19 +372,22 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
         select(
             Collection,
             func.coalesce(item_count_subq.c.item_count, 0).label("item_count"),
+            func.coalesce(item_count_subq.c.total_quantity, 0).label("total_quantity"),
         )
         .outerjoin(item_count_subq, Collection.id == item_count_subq.c.collection_id)
         .where(Collection.user_id == current_user.id)
         .order_by(Collection.created_at.desc(), Collection.id.desc())
     )
     items = []
-    for c, item_count in db.execute(stmt).all():
+    for c, item_count, total_quantity in db.execute(stmt).all():
         # Dynamic collections own no rows — the join counts 0. Resolve the
         # rule against owned inventory so the badge reflects live membership.
         if c.kind == COLLECTION_KIND_DYNAMIC and c.rule_json:
             count = count_dynamic_items(db, current_user.id, c.rule_json)
+            qty = count
         else:
             count = int(item_count)
+            qty = int(total_quantity)
         items.append(
             CollectionSummaryOut(
                 id=c.id,
@@ -385,6 +395,7 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
                 description=c.description,
                 created_at=c.created_at.isoformat(),
                 item_count=count,
+                total_quantity=qty,
                 kind=c.kind,
                 source_set_id=c.source_set_id,
                 rule=c.rule_json,

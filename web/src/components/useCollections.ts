@@ -80,6 +80,7 @@ export function useCollections() {
             description: created.description,
             created_at: created.created_at,
             item_count: created.items.length,
+            total_quantity: created.items.length,
             kind: created.kind,
             source_set_id: created.source_set_id,
             rule: created.rule,
@@ -135,7 +136,11 @@ export function useCollections() {
       set({
         collections: state.collections.map((c) =>
           c.id === collectionId
-            ? { ...c, item_count: c.item_count + 1 }
+            ? {
+                ...c,
+                item_count: c.item_count + 1,
+                total_quantity: (c.total_quantity ?? c.item_count) + 1,
+              }
             : c,
         ),
       })
@@ -155,7 +160,13 @@ export function useCollections() {
       invalidateOwnership()
       set({
         collections: state.collections.map((c) =>
-          c.id === collectionId ? { ...c, item_count: c.item_count + result.added } : c,
+          c.id === collectionId
+            ? {
+                ...c,
+                item_count: c.item_count + result.added,
+                total_quantity: (c.total_quantity ?? c.item_count) + result.added,
+              }
+            : c,
         ),
       })
       return result

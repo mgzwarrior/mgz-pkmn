@@ -1274,6 +1274,21 @@ class BinderEndpointTests(_IsolatedDbMixin):
             self.assertEqual(patched["binder_color"], "sky")
             self.assertEqual(patched["capacity"], 180)
 
+    def test_summary_total_quantity_counts_vendor_multiples(self) -> None:
+        with self._client() as c:
+            cid = c.post(
+                "/api/v1/collections",
+                json={"name": "Bulk binder", "kind": "binder", "capacity": 360},
+            ).json()["id"]
+            # One row holding four copies — one item, four occupied slots.
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": dict(SAMPLE_CARD), "quantity": 4},
+            )
+            summary = c.get("/api/v1/collections").json()["items"][0]
+            self.assertEqual(summary["item_count"], 1)
+            self.assertEqual(summary["total_quantity"], 4)
+
     def test_patch_identity_on_non_binder_is_409(self) -> None:
         with self._client() as c:
             cid = c.post("/api/v1/collections", json={"name": "Manual"}).json()["id"]

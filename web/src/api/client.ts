@@ -563,6 +563,9 @@ export interface CollectionSummary {
   description: string | null
   created_at: string
   item_count: number
+  // #679 — occupied slots (sum of item quantities); a binder's capacity fill
+  // counts pockets, not rows. Optional so older cached payloads type-check.
+  total_quantity?: number
   // #506 — present on every response; optional here so older cached
   // payloads (and test fixtures) without them still type-check.
   kind?: CollectionKind
