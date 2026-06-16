@@ -51,6 +51,10 @@ const SWIPE_THRESHOLD_Y = 110
 /** Pointer movement (px) past which a gesture counts as a drag, not a tap.
  *  Below it, releasing opens the detail modal instead. */
 const CLICK_SLOP = 6
+/** Saved-card count that has to accrue before the build-prep-list nudge
+ *  appears — casual swipers aren't pestered before they have a haul worth
+ *  turning into a wishlist. */
+const PREP_LIST_NUDGE_THRESHOLD = 3
 
 interface Drag {
   startX: number
@@ -244,6 +248,10 @@ export function SwipePanel({ active }: SwipePanelProps) {
         }
       />
 
+      {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
+        <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
+      )}
+
       <div className="flex flex-col items-center gap-3">
         {error && (
           <p
@@ -337,10 +345,6 @@ export function SwipePanel({ active }: SwipePanelProps) {
 
         <KeyboardHint />
       </div>
-
-      {profile.saved.length > 0 && (
-        <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
-      )}
 
       <CardDetailModal
         rows={detailRows}
@@ -795,8 +799,9 @@ function ExhaustedState({ onReset }: { onReset: () => void }) {
 }
 
 /**
- * BuildPrepList — bottom-of-panel CTA. Inline form that creates a new
- * wishlist from the user's saved cards and adds each one in order. On
+ * BuildPrepList — nudge above the card stack, in the swiper's eye line.
+ * Inline form that creates a new wishlist from the user's saved cards and
+ * adds each one in order. Gated on PREP_LIST_NUDGE_THRESHOLD saves. On
  * success it clears the local saved list so the user starts fresh on
  * the next swipe session; the new wishlist is visible immediately in
  * the Library because both surfaces share the
