@@ -99,6 +99,36 @@ describe('BinderModal', () => {
     expect(opts).not.toHaveProperty('capacity')
   })
 
+  it('lets you save identity edits to an existing smart binder without a rule', async () => {
+    const smart: CollectionSummary = {
+      id: 8,
+      name: 'All Eevees',
+      description: null,
+      created_at: '2026-06-10T00:00:00',
+      item_count: 5,
+      kind: 'dynamic',
+      source_set_id: null,
+      rule: { name: 'eevee' },
+      dynamic_scope: 'owned',
+      binder_color: 'palm',
+    }
+    mockUpdate.mockResolvedValue({ ...smart, items: [], binder_color: 'sky' } as never)
+    render(<BinderModal open onOpenChange={() => {}} editing={smart} />)
+
+    // Save is enabled immediately — no throwaway rule value required.
+    const save = screen.getByRole('button', { name: /^save$/i })
+    expect(save).not.toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Sky' }))
+    fireEvent.click(save)
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        8,
+        expect.objectContaining({ name: 'All Eevees', binder_color: 'sky' }),
+      ),
+    )
+  })
+
   it('prefills and PATCHes an existing binder', async () => {
     const binder: CollectionSummary = {
       id: 7,

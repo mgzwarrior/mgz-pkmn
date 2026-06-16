@@ -112,7 +112,11 @@ export function BinderModal({ open, onOpenChange, editing }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const isSmart = mode === 'smart'
-  const canSubmit = name.trim().length > 0 && (!isSmart || value.trim().length > 0)
+  // The rule is only authored on create — editing a smart binder touches just
+  // its identity (name/color/type/master-set), so the rule value isn't
+  // required (and the rule editor is hidden) in edit mode.
+  const editingRule = isSmart && !isEdit
+  const canSubmit = name.trim().length > 0 && (!editingRule || value.trim().length > 0)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -273,7 +277,7 @@ export function BinderModal({ open, onOpenChange, editing }: Props) {
               </div>
             </div>
 
-            {isSmart && (
+            {editingRule && (
               <div className="space-y-3">
                 <div className="flex gap-2">
                   <select
