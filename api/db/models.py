@@ -20,6 +20,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -164,6 +165,42 @@ class Run(Base):
 COLLECTION_KIND_MANUAL = "manual"
 COLLECTION_KIND_SET = "set"
 COLLECTION_KIND_DYNAMIC = "dynamic"
+#: A ``binder`` is a manual bucket with physical-binder identity (#679): a
+#: pocket ``binder_format``, a cover ``binder_color``, a ``binder_type``
+#: storage style, an optional slot ``capacity``, and an ``is_master_set``
+#: target flag. It rides the same ``collection_items`` machinery as
+#: ``manual`` — the extra columns are just identity — so ownership badges,
+#: insights, and the ID-card PDF work as-is. As of #681 the cover/type/
+#: master-set identity is shared with ``dynamic`` (smart binder) collections;
+#: only ``binder_format``/``capacity`` stay physical-only.
+COLLECTION_KIND_BINDER = "binder"
+
+#: Allowed ``Collection.binder_format`` values — the page pocket layout.
+#: Null for non-binder kinds (and binders that haven't chosen one). See #679.
+BINDER_FORMAT_4_POCKET = "4-pocket"
+BINDER_FORMAT_9_POCKET = "9-pocket"
+BINDER_FORMAT_12_POCKET = "12-pocket"
+BINDER_FORMATS = (BINDER_FORMAT_4_POCKET, BINDER_FORMAT_9_POCKET, BINDER_FORMAT_12_POCKET)
+
+#: Allowed ``Collection.binder_type`` values — how the cards are physically
+#: stored (#681). ``regular`` is binder pages; ``toploader`` and ``graded``
+#: cover the rigid-holder / slab cases Cardrake calls out for chase cards.
+BINDER_TYPE_REGULAR = "regular"
+BINDER_TYPE_TOPLOADER = "toploader"
+BINDER_TYPE_GRADED = "graded"
+BINDER_TYPE_OTHER = "other"
+BINDER_TYPES = (
+    BINDER_TYPE_REGULAR,
+    BINDER_TYPE_TOPLOADER,
+    BINDER_TYPE_GRADED,
+    BINDER_TYPE_OTHER,
+)
+
+#: Curated ``Collection.binder_color`` presets — design-token palette stems
+#: (``design/tokens/colors_and_type.css``) the SPA maps to ``bg-<color>-500``.
+#: A binder may also store a freeform ``#rrggbb`` hex (#681, user data — see
+#: ``_validate_binder_color``); both render as the cover swatch.
+BINDER_COLORS = ("palm", "sun", "sky", "ember", "coconut", "sand", "husk")
 
 #: Allowed values for ``Collection.dynamic_scope`` (#631). ``owned`` matches
 #: the rule against the user's own cards — an inventory view (the #630
@@ -211,6 +248,21 @@ class Collection(Base):
     #: ``catalog``; null reads as ``owned``. ``catalog`` flips the rule from
     #: an inventory view into a catalog-backed target view with progress.
     dynamic_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # ---- #679: physical-binder identity (only meaningful for kind='binder') ----
+    #: Page pocket layout — one of :data:`BINDER_FORMATS`. Null when unset.
+    #: Physical binders only (a smart binder has no fixed slots).
+    binder_format: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: Cover color — a :data:`BINDER_COLORS` token stem or a ``#rrggbb`` hex
+    #: (#681). Shared identity: set on physical and smart binders alike.
+    binder_color: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: Storage style — one of :data:`BINDER_TYPES` (#681). Shared identity.
+    binder_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: Total card slots, so the list can show how full the binder is. Null
+    #: when the collector hasn't pinned a size.
+    capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: Whether the binder targets the *master set* of the set it organizes
+    #: (``source_set_id``). Nullable so rows predating #679 read as not-master.
+    is_master_set: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     items: Mapped[list[CollectionItem]] = relationship(
         back_populates="collection",

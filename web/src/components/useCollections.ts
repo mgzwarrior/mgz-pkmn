@@ -12,8 +12,10 @@ import {
   createCollection,
   deleteCollection,
   fetchCollections,
+  updateCollection,
   type CollectionSummary,
   type CreateCollectionOptions,
+  type UpdateCollectionOptions,
 } from '../api/client'
 import { invalidateOwnership } from './useCardOwnership'
 
@@ -78,15 +80,47 @@ export function useCollections() {
             description: created.description,
             created_at: created.created_at,
             item_count: created.items.length,
+            total_quantity: created.items.length,
             kind: created.kind,
             source_set_id: created.source_set_id,
             rule: created.rule,
             dynamic_scope: created.dynamic_scope,
+            binder_format: created.binder_format,
+            binder_color: created.binder_color,
+            binder_type: created.binder_type,
+            capacity: created.capacity,
+            is_master_set: created.is_master_set,
           },
           ...state.collections,
         ],
       })
       return created
+    },
+    [],
+  )
+
+  const update = useCallback(
+    async (collectionId: number, patch: UpdateCollectionOptions) => {
+      const updated = await updateCollection(collectionId, patch)
+      // Merge the edited identity back into the cached summary so every
+      // surface re-renders without a refetch. item_count is untouched here.
+      set({
+        collections: state.collections.map((c) =>
+          c.id === collectionId
+            ? {
+                ...c,
+                name: updated.name,
+                description: updated.description,
+                binder_format: updated.binder_format,
+                binder_color: updated.binder_color,
+                binder_type: updated.binder_type,
+                capacity: updated.capacity,
+                is_master_set: updated.is_master_set,
+              }
+            : c,
+        ),
+      })
+      return updated
     },
     [],
   )
@@ -104,7 +138,11 @@ export function useCollections() {
       set({
         collections: state.collections.map((c) =>
           c.id === collectionId
-            ? { ...c, item_count: c.item_count + 1 }
+            ? {
+                ...c,
+                item_count: c.item_count + 1,
+                total_quantity: (c.total_quantity ?? c.item_count) + 1,
+              }
             : c,
         ),
       })
@@ -124,7 +162,13 @@ export function useCollections() {
       invalidateOwnership()
       set({
         collections: state.collections.map((c) =>
-          c.id === collectionId ? { ...c, item_count: c.item_count + result.added } : c,
+          c.id === collectionId
+            ? {
+                ...c,
+                item_count: c.item_count + result.added,
+                total_quantity: (c.total_quantity ?? c.item_count) + result.added,
+              }
+            : c,
         ),
       })
       return result
@@ -144,6 +188,7 @@ export function useCollections() {
     ...snapshot,
     refresh,
     create,
+    update,
     addCard,
     bulkAdd,
     remove,

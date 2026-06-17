@@ -264,10 +264,12 @@ function BinderPicker({
   const [newName, setNewName] = useState('')
 
   const owned = kind === 'owned'
-  // Owned-scope dynamic collections are rule-defined — you can't hand-add to
-  // them, so keep them out of the picker.
+  // Dynamic collections are rule-defined — you can't hand-add to them, so
+  // keep only the hand-curated kinds (manual / set / binder) in the picker.
   const binders: (CollectionSummary | WishlistSummary)[] = owned
-    ? collections.collections.filter((c) => !('kind' in c) || c.kind === 'manual' || c.kind === 'set')
+    ? collections.collections.filter(
+        (c) => !('kind' in c) || c.kind === 'manual' || c.kind === 'set' || c.kind === 'binder',
+      )
     : wishlists.wishlists
   const disabled = cards.length === 0
 

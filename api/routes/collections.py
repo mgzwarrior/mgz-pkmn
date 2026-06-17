@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import re
 import tempfile
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -62,6 +63,10 @@ from ..db.collection_rules import (
 )
 from ..db.models import (
     ADDED_VIA_MANUAL,
+    BINDER_COLORS,
+    BINDER_FORMATS,
+    BINDER_TYPES,
+    COLLECTION_KIND_BINDER,
     COLLECTION_KIND_DYNAMIC,
     COLLECTION_KIND_MANUAL,
     COLLECTION_KIND_SET,
@@ -77,9 +82,26 @@ from ..db.session import get_db
 
 #: The kinds a caller may create. Mirrors the model constants; kept here so
 #: the create/patch validators reject an unknown kind with a 422.
-_VALID_KINDS = (COLLECTION_KIND_MANUAL, COLLECTION_KIND_SET, COLLECTION_KIND_DYNAMIC)
+_VALID_KINDS = (
+    COLLECTION_KIND_MANUAL,
+    COLLECTION_KIND_SET,
+    COLLECTION_KIND_DYNAMIC,
+    COLLECTION_KIND_BINDER,
+)
 #: Allowed ``dynamic_scope`` values on create. Null/owned is the default.
 _VALID_SCOPES = (DYNAMIC_SCOPE_OWNED, DYNAMIC_SCOPE_CATALOG)
+
+#: Kinds that carry the shared cover/type/master-set identity (#681): a
+#: physical ``binder`` and a ``dynamic`` (smart) binder. ``manual``/``set``
+#: are legacy buckets created outside the binder modal and stay plain.
+_IDENTITY_KINDS = (COLLECTION_KIND_BINDER, COLLECTION_KIND_DYNAMIC)
+#: Kinds that additionally carry the physical pocket ``binder_format`` and
+#: slot ``capacity`` — a smart binder has no fixed slots, so just the binder.
+_PHYSICAL_KINDS = (COLLECTION_KIND_BINDER,)
+
+#: A freeform cover color: a 6-digit ``#rrggbb`` hex (#681). Token-stem
+#: presets are validated against :data:`BINDER_COLORS` instead.
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 router = APIRouter()
 
@@ -100,12 +122,23 @@ class CollectionSummaryOut(BaseModel):
     description: str | None
     created_at: str
     item_count: int
+    #: Sum of item ``quantity`` (vendor multiples), i.e. occupied slots — what
+    #: a binder's capacity fill measures (#679). Equals ``item_count`` for a
+    #: dynamic collection's resolved membership.
+    total_quantity: int
     # ---- #506: kind + rule so the SPA can badge dynamic/set collections ----
     kind: str
     source_set_id: str | None
     rule: dict[str, Any] | None
     #: #631 — ``owned`` / ``catalog`` for dynamic collections, else null.
     dynamic_scope: str | None
+    # ---- #679/#681: binder identity. format/capacity are physical-only;
+    # color/type/master-set are shared across binder + smart binder. ----
+    binder_format: str | None
+    binder_color: str | None
+    binder_type: str | None
+    capacity: int | None
+    is_master_set: bool | None
 
 
 class CollectionItemOut(BaseModel):
@@ -142,19 +175,34 @@ class CollectionOut(BaseModel):
     rule: dict[str, Any] | None
     #: #631 — ``owned`` / ``catalog`` for dynamic collections, else null.
     dynamic_scope: str | None
+    # ---- #679/#681: binder identity. format/capacity are physical-only;
+    # color/type/master-set are shared across binder + smart binder. ----
+    binder_format: str | None
+    binder_color: str | None
+    binder_type: str | None
+    capacity: int | None
+    is_master_set: bool | None
 
 
 class CollectionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
     #: Defaults to ``manual`` so existing callers are unchanged. ``set``
-    #: requires ``source_set_id``; ``dynamic`` requires ``rule``.
+    #: requires ``source_set_id``; ``dynamic`` requires ``rule``; ``binder``
+    #: is a manual bucket carrying the #679 identity fields below.
     kind: str = COLLECTION_KIND_MANUAL
     source_set_id: str | None = Field(default=None, max_length=64)
     rule: dict[str, Any] | None = None
     #: #631 — only read for ``kind == 'dynamic'``. ``owned`` (default) is the
     #: inventory view; ``catalog`` is the catalog-backed target view.
     dynamic_scope: str | None = None
+    # ---- #679/#681: binder identity. format/capacity persist for binders;
+    # color/type/master-set for binder + smart binder; dropped otherwise. ----
+    binder_format: str | None = None
+    binder_color: str | None = None
+    binder_type: str | None = None
+    capacity: int | None = Field(default=None, ge=1)
+    is_master_set: bool | None = None
 
 
 class CollectionPatch(BaseModel):
@@ -163,6 +211,14 @@ class CollectionPatch(BaseModel):
     #: Editing a dynamic collection's rule re-points its membership. Only
     #: meaningful on ``kind == 'dynamic'`` collections.
     rule: dict[str, Any] | None = None
+    # ---- #679/#681: editable binder identity. Each patched only when its key
+    # is present in the request body, so a partial PATCH leaves the rest
+    # intact; rejected with a 409 on kinds that don't carry the field. ----
+    binder_format: str | None = None
+    binder_color: str | None = None
+    binder_type: str | None = None
+    capacity: int | None = Field(default=None, ge=1)
+    is_master_set: bool | None = None
 
 
 # ---- #631: catalog-backed target view + chase ----------------------------
@@ -326,6 +382,9 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
         select(
             CollectionItem.collection_id,
             func.count(CollectionItem.id).label("item_count"),
+            # Occupied slots = sum of vendor multiples; backs a binder's
+            # capacity fill (#679), which counts pockets, not rows.
+            func.coalesce(func.sum(CollectionItem.quantity), 0).label("total_quantity"),
         )
         .group_by(CollectionItem.collection_id)
         .subquery()
@@ -334,19 +393,22 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
         select(
             Collection,
             func.coalesce(item_count_subq.c.item_count, 0).label("item_count"),
+            func.coalesce(item_count_subq.c.total_quantity, 0).label("total_quantity"),
         )
         .outerjoin(item_count_subq, Collection.id == item_count_subq.c.collection_id)
         .where(Collection.user_id == current_user.id)
         .order_by(Collection.created_at.desc(), Collection.id.desc())
     )
     items = []
-    for c, item_count in db.execute(stmt).all():
+    for c, item_count, total_quantity in db.execute(stmt).all():
         # Dynamic collections own no rows — the join counts 0. Resolve the
         # rule against owned inventory so the badge reflects live membership.
         if c.kind == COLLECTION_KIND_DYNAMIC and c.rule_json:
             count = count_dynamic_items(db, current_user.id, c.rule_json)
+            qty = count
         else:
             count = int(item_count)
+            qty = int(total_quantity)
         items.append(
             CollectionSummaryOut(
                 id=c.id,
@@ -354,10 +416,16 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
                 description=c.description,
                 created_at=c.created_at.isoformat(),
                 item_count=count,
+                total_quantity=qty,
                 kind=c.kind,
                 source_set_id=c.source_set_id,
                 rule=c.rule_json,
                 dynamic_scope=c.dynamic_scope,
+                binder_format=c.binder_format,
+                binder_color=c.binder_color,
+                binder_type=c.binder_type,
+                capacity=c.capacity,
+                is_master_set=c.is_master_set,
             )
         )
     return {"items": [item.model_dump() for item in items], "total": len(items)}
@@ -542,6 +610,23 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
     source_set_id, rule_json, dynamic_scope = _validate_kind_fields(
         req.kind, req.source_set_id, req.rule, req.dynamic_scope
     )
+    # Cover/type/master-set identity rides binder + smart binder; physical
+    # format/capacity ride only the physical binder. Other kinds drop it all
+    # so it never lingers as dead state (mirrors how rule/scope are scoped).
+    has_identity = req.kind in _IDENTITY_KINDS
+    physical = req.kind in _PHYSICAL_KINDS
+    if has_identity:
+        _validate_binder_color(req.binder_color)
+        _validate_binder_type(req.binder_type)
+        # A physical master-set binder needs a set anchor to target; on a
+        # smart binder the rule defines membership, so the flag is a label.
+        if req.is_master_set and physical and not source_set_id:
+            raise HTTPException(
+                status_code=422,
+                detail="a master-set binder needs a source_set_id to target",
+            )
+    if physical:
+        _validate_binder_format(req.binder_format)
     collection = Collection(
         user_id=current_user.id,
         name=req.name.strip(),
@@ -550,6 +635,11 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
         source_set_id=source_set_id,
         rule_json=rule_json,
         dynamic_scope=dynamic_scope,
+        binder_format=req.binder_format if physical else None,
+        binder_color=req.binder_color if has_identity else None,
+        binder_type=req.binder_type if has_identity else None,
+        capacity=req.capacity if physical else None,
+        is_master_set=req.is_master_set if has_identity else None,
     )
     db.add(collection)
     db.commit()
@@ -585,6 +675,7 @@ def patch_collection(
                 detail="only dynamic collections have a rule",
             )
         collection.rule_json = _normalize_rule_or_422(req.rule)
+    _patch_binder_fields(collection, req)
     db.commit()
     db.refresh(collection)
     return _serialize_collection(db, collection, current_user.id)
@@ -946,13 +1037,19 @@ def _validate_kind_fields(
     """Cross-check the kind-specific fields, returning the values to persist.
 
     A ``set`` collection needs a ``source_set_id`` anchor; a ``dynamic`` one
-    needs a valid ``rule`` and a scope (defaulting to ``owned``). Fields that
-    don't belong to the chosen kind are dropped rather than stored as dead
-    state."""
+    needs a valid ``rule`` and a scope (defaulting to ``owned``); a ``binder``
+    may optionally organize a set, so it passes ``source_set_id`` through.
+    Fields that don't belong to the chosen kind are dropped rather than
+    stored as dead state."""
     if kind == COLLECTION_KIND_SET:
         if not source_set_id:
             raise HTTPException(status_code=422, detail="set collections require a source_set_id")
         return source_set_id, None, None
+    if kind == COLLECTION_KIND_BINDER:
+        # A binder optionally organizes a set; the anchor is optional and
+        # only required when the binder targets the master set (validated in
+        # _normalize_binder_fields). No rule, no scope.
+        return (source_set_id or None), None, None
     if kind == COLLECTION_KIND_DYNAMIC:
         scope = dynamic_scope or DYNAMIC_SCOPE_OWNED
         if scope not in _VALID_SCOPES:
@@ -970,6 +1067,84 @@ def _normalize_rule_or_422(rule: dict[str, Any] | None) -> dict[str, Any]:
         return normalize_rule(rule)
     except RuleValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _validate_binder_format(value: str | None) -> None:
+    if value is not None and value not in BINDER_FORMATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown binder_format '{value}'; allowed: {', '.join(BINDER_FORMATS)}",
+        )
+
+
+def _validate_binder_color(value: str | None) -> None:
+    # A preset token stem, or a freeform #rrggbb hex (#681, user data).
+    if value is None or value in BINDER_COLORS or _HEX_COLOR_RE.match(value):
+        return
+    raise HTTPException(
+        status_code=422,
+        detail=f"unknown binder_color '{value}'; use a preset ({', '.join(BINDER_COLORS)}) or a #rrggbb hex",
+    )
+
+
+def _validate_binder_type(value: str | None) -> None:
+    if value is not None and value not in BINDER_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown binder_type '{value}'; allowed: {', '.join(BINDER_TYPES)}",
+        )
+
+
+#: Shared-identity keys a PATCH may carry on binder + smart binder.
+_IDENTITY_PATCH_FIELDS = ("binder_color", "binder_type", "is_master_set")
+#: Physical-only keys a PATCH may carry on a physical binder.
+_PHYSICAL_PATCH_FIELDS = ("binder_format", "capacity")
+
+
+def _patch_binder_fields(collection: Collection, req: CollectionPatch) -> None:
+    """Apply any binder-identity edits in ``req`` to ``collection``.
+
+    Only the keys the caller actually sent are touched; passing ``null``
+    clears one. Cover/type/master-set ride binder + smart binder; format/
+    capacity ride only the physical binder. Editing a field on a kind that
+    doesn't carry it is a 409. A physical master-set toggle needs a set
+    anchor; on a smart binder it's a free-standing label."""
+    identity = [f for f in _IDENTITY_PATCH_FIELDS if f in req.model_fields_set]
+    physical = [f for f in _PHYSICAL_PATCH_FIELDS if f in req.model_fields_set]
+    if not identity and not physical:
+        return
+    if identity and collection.kind not in _IDENTITY_KINDS:
+        raise HTTPException(
+            status_code=409,
+            detail="only binders carry cover color, storage type, and master-set",
+        )
+    if physical and collection.kind not in _PHYSICAL_KINDS:
+        raise HTTPException(
+            status_code=409,
+            detail="only physical binders carry pocket format and capacity",
+        )
+    if "binder_format" in physical:
+        _validate_binder_format(req.binder_format)
+        collection.binder_format = req.binder_format
+    if "capacity" in physical:
+        collection.capacity = req.capacity
+    if "binder_color" in identity:
+        _validate_binder_color(req.binder_color)
+        collection.binder_color = req.binder_color
+    if "binder_type" in identity:
+        _validate_binder_type(req.binder_type)
+        collection.binder_type = req.binder_type
+    if "is_master_set" in identity:
+        if (
+            req.is_master_set
+            and collection.kind in _PHYSICAL_KINDS
+            and not collection.source_set_id
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="a master-set binder needs a source_set_id to target",
+            )
+        collection.is_master_set = req.is_master_set
 
 
 def _reject_if_dynamic(collection: Collection) -> None:
@@ -1045,6 +1220,11 @@ def _serialize_collection(db: Session, collection: Collection, user_id: int) -> 
         source_set_id=collection.source_set_id,
         rule=collection.rule_json,
         dynamic_scope=collection.dynamic_scope,
+        binder_format=collection.binder_format,
+        binder_color=collection.binder_color,
+        binder_type=collection.binder_type,
+        capacity=collection.capacity,
+        is_master_set=collection.is_master_set,
     ).model_dump()
 
 

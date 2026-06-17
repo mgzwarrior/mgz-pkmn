@@ -537,8 +537,22 @@ export interface CollectionRule {
   rarity?: string
 }
 
-/** One of `manual` (default), `set`, or `dynamic`. */
-export type CollectionKind = 'manual' | 'set' | 'dynamic'
+/** One of `manual` (default), `set`, `dynamic`, or `binder`. */
+export type CollectionKind = 'manual' | 'set' | 'dynamic' | 'binder'
+
+/** Page pocket layout of a physical binder (#679). */
+export type BinderFormat = '4-pocket' | '9-pocket' | '12-pocket'
+
+/**
+ * Curated cover-color preset (#679) — a design-token palette stem the SPA
+ * maps to `bg-<color>-500`. Mirrors the server's `BINDER_COLORS` preset
+ * allowlist. A binder may also store a freeform `#rrggbb` hex (#681), so the
+ * stored `binder_color` field is a plain `string`, not this union.
+ */
+export type BinderColor = 'palm' | 'sun' | 'sky' | 'ember' | 'coconut' | 'sand' | 'husk'
+
+/** How a binder's cards are physically stored (#681). */
+export type BinderType = 'regular' | 'toploader' | 'graded' | 'other'
 
 /**
  * For a `dynamic` collection (#631): `owned` resolves the rule against your
@@ -553,12 +567,22 @@ export interface CollectionSummary {
   description: string | null
   created_at: string
   item_count: number
+  // #679 — occupied slots (sum of item quantities); a binder's capacity fill
+  // counts pockets, not rows. Optional so older cached payloads type-check.
+  total_quantity?: number
   // #506 — present on every response; optional here so older cached
   // payloads (and test fixtures) without them still type-check.
   kind?: CollectionKind
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
+  // #679/#681 — binder identity. format/capacity are physical-only;
+  // color (preset stem or #rrggbb hex) / type / master-set are shared.
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+  is_master_set?: boolean | null
 }
 
 export interface CollectionItem {
@@ -578,6 +602,12 @@ export interface Collection {
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
+  // #679/#681 — binder identity (see CollectionSummary).
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+  is_master_set?: boolean | null
 }
 
 export async function fetchCollections(): Promise<CollectionSummary[]> {
@@ -593,6 +623,12 @@ export interface CreateCollectionOptions {
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
+  // #679/#681 — server keeps the fields each kind carries, drops the rest.
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+  is_master_set?: boolean | null
 }
 
 export async function createCollection(
@@ -609,9 +645,42 @@ export async function createCollection(
       source_set_id: options?.source_set_id ?? null,
       rule: options?.rule ?? null,
       dynamic_scope: options?.dynamic_scope ?? null,
+      binder_format: options?.binder_format ?? null,
+      binder_color: options?.binder_color ?? null,
+      binder_type: options?.binder_type ?? null,
+      capacity: options?.capacity ?? null,
+      is_master_set: options?.is_master_set ?? null,
     }),
   })
   if (!res.ok) throw new Error(`create collection failed: ${res.status}`)
+  return (await res.json()) as Collection
+}
+
+/**
+ * Fields a PATCH may carry. Only the keys present are sent, so a partial
+ * edit leaves the rest intact (the server reads `model_fields_set`). Binder
+ * identity edits are rejected server-side on non-binder collections.
+ */
+export interface UpdateCollectionOptions {
+  name?: string
+  description?: string | null
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+  is_master_set?: boolean | null
+}
+
+export async function updateCollection(
+  collectionId: number,
+  patch: UpdateCollectionOptions,
+): Promise<Collection> {
+  const res = await fetch(`${BASE}/collections/${collectionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`update collection failed: ${res.status}`)
   return (await res.json()) as Collection
 }
 

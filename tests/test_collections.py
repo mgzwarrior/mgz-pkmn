@@ -1135,5 +1135,274 @@ class CollectionIdCardTests(_IsolatedDbMixin):
         )
 
 
+class BinderIdentityMigrationTests(_IsolatedDbMixin):
+    """The #679 binder-identity columns land additively and round-trip
+    down/up without disturbing the rest of the schema."""
+
+    _COLS = ("binder_format", "binder_color", "capacity", "is_master_set")
+
+    def test_binder_columns_present(self) -> None:
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        for col in self._COLS:
+            self.assertIn(col, cols)
+
+    def test_round_trip_downgrade_then_reupgrade(self) -> None:
+        from alembic import command
+
+        from api.db import migrate as migrate_mod
+
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cfg = migrate_mod._alembic_config()
+        cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+        # Step back past the binder-identity revision to its parent.
+        command.downgrade(cfg, "d5e2f7a3c9b1")
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        for col in self._COLS:
+            self.assertNotIn(col, cols)
+
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        for col in self._COLS:
+            self.assertIn(col, cols)
+
+
+class BinderEndpointTests(_IsolatedDbMixin):
+    """`kind='binder'` create/patch carrying the #679 physical identity."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def test_create_binder_persists_identity(self) -> None:
+        with self._client() as c:
+            resp = c.post(
+                "/api/v1/collections",
+                json={
+                    "name": "Trade binder",
+                    "kind": "binder",
+                    "binder_format": "9-pocket",
+                    "binder_color": "palm",
+                    "binder_type": "toploader",
+                    "capacity": 360,
+                },
+            )
+            self.assertEqual(resp.status_code, 201)
+            body = resp.json()
+            self.assertEqual(body["kind"], "binder")
+            self.assertEqual(body["binder_format"], "9-pocket")
+            self.assertEqual(body["binder_color"], "palm")
+            self.assertEqual(body["binder_type"], "toploader")
+            self.assertEqual(body["capacity"], 360)
+
+            # Identity round-trips through the list view too.
+            summary = c.get("/api/v1/collections").json()["items"][0]
+            self.assertEqual(summary["binder_color"], "palm")
+            self.assertEqual(summary["binder_type"], "toploader")
+            self.assertEqual(summary["capacity"], 360)
+
+    def test_create_binder_accepts_custom_hex_color(self) -> None:
+        with self._client() as c:
+            body = c.post(
+                "/api/v1/collections",
+                json={"name": "Custom", "kind": "binder", "binder_color": "#1a2b3c"},
+            ).json()
+            self.assertEqual(body["binder_color"], "#1a2b3c")
+
+    def test_create_rejects_bad_hex_and_unknown_type(self) -> None:
+        with self._client() as c:
+            self.assertEqual(
+                c.post(
+                    "/api/v1/collections",
+                    json={"name": "B", "kind": "binder", "binder_color": "#xyz"},
+                ).status_code,
+                422,
+            )
+            self.assertEqual(
+                c.post(
+                    "/api/v1/collections",
+                    json={"name": "B", "kind": "binder", "binder_type": "shoebox"},
+                ).status_code,
+                422,
+            )
+
+    def test_master_set_binder_requires_source_set(self) -> None:
+        with self._client() as c:
+            resp = c.post(
+                "/api/v1/collections",
+                json={"name": "Master set", "kind": "binder", "is_master_set": True},
+            )
+            self.assertEqual(resp.status_code, 422)
+
+            ok = c.post(
+                "/api/v1/collections",
+                json={
+                    "name": "Master set",
+                    "kind": "binder",
+                    "source_set_id": "sv1",
+                    "is_master_set": True,
+                },
+            )
+            self.assertEqual(ok.status_code, 201)
+            body = ok.json()
+            self.assertTrue(body["is_master_set"])
+            self.assertEqual(body["source_set_id"], "sv1")
+
+    def test_create_rejects_unknown_format_and_color(self) -> None:
+        with self._client() as c:
+            self.assertEqual(
+                c.post(
+                    "/api/v1/collections",
+                    json={"name": "B", "kind": "binder", "binder_format": "8-pocket"},
+                ).status_code,
+                422,
+            )
+            self.assertEqual(
+                c.post(
+                    "/api/v1/collections",
+                    json={"name": "B", "kind": "binder", "binder_color": "magenta"},
+                ).status_code,
+                422,
+            )
+
+    def test_create_rejects_zero_capacity(self) -> None:
+        with self._client() as c:
+            self.assertEqual(
+                c.post(
+                    "/api/v1/collections",
+                    json={"name": "B", "kind": "binder", "capacity": 0},
+                ).status_code,
+                422,
+            )
+
+    def test_non_binder_kinds_drop_identity_fields(self) -> None:
+        with self._client() as c:
+            body = c.post(
+                "/api/v1/collections",
+                json={"name": "Plain", "binder_color": "palm", "capacity": 100},
+            ).json()
+            self.assertIsNone(body["binder_color"])
+            self.assertIsNone(body["capacity"])
+
+    def test_patch_edits_binder_identity(self) -> None:
+        with self._client() as c:
+            cid = c.post(
+                "/api/v1/collections",
+                json={"name": "B", "kind": "binder", "binder_color": "sun"},
+            ).json()["id"]
+
+            patched = c.patch(
+                f"/api/v1/collections/{cid}",
+                json={"binder_color": "sky", "capacity": 180},
+            ).json()
+            self.assertEqual(patched["binder_color"], "sky")
+            self.assertEqual(patched["capacity"], 180)
+
+    def test_summary_total_quantity_counts_vendor_multiples(self) -> None:
+        with self._client() as c:
+            cid = c.post(
+                "/api/v1/collections",
+                json={"name": "Bulk binder", "kind": "binder", "capacity": 360},
+            ).json()["id"]
+            # One row holding four copies — one item, four occupied slots.
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": dict(SAMPLE_CARD), "quantity": 4},
+            )
+            summary = c.get("/api/v1/collections").json()["items"][0]
+            self.assertEqual(summary["item_count"], 1)
+            self.assertEqual(summary["total_quantity"], 4)
+
+    def test_patch_identity_on_non_binder_is_409(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Manual"}).json()["id"]
+            resp = c.patch(f"/api/v1/collections/{cid}", json={"binder_color": "palm"})
+            self.assertEqual(resp.status_code, 409)
+
+
+class BinderTypeMigrationTests(_IsolatedDbMixin):
+    """The #681 ``collections.binder_type`` column lands additively and
+    round-trips down/up without disturbing the rest of the schema."""
+
+    def test_binder_type_column_present(self) -> None:
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertIn("binder_type", cols)
+
+    def test_round_trip_downgrade_then_reupgrade(self) -> None:
+        from alembic import command
+
+        from api.db import migrate as migrate_mod
+
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cfg = migrate_mod._alembic_config()
+        cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+        command.downgrade(cfg, "f7c4b2a9e6d3")
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertNotIn("binder_type", cols)
+
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertIn("binder_type", cols)
+
+
+class SmartBinderIdentityTests(_IsolatedDbMixin):
+    """#681 — a dynamic (smart) binder carries the shared cover/type/master-set
+    identity, but not the physical pocket format / capacity."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def _make_smart(self, c: TestClient, **extra) -> dict:
+        return c.post(
+            "/api/v1/collections",
+            json={"name": "All Eevees", "kind": "dynamic", "rule": {"name": "eevee"}, **extra},
+        ).json()
+
+    def test_smart_binder_carries_shared_identity(self) -> None:
+        with self._client() as c:
+            body = self._make_smart(c, binder_color="sky", binder_type="graded", is_master_set=True)
+            self.assertEqual(body["binder_color"], "sky")
+            self.assertEqual(body["binder_type"], "graded")
+            self.assertTrue(body["is_master_set"])
+
+    def test_smart_master_set_needs_no_source_set(self) -> None:
+        # Unlike a physical binder, a smart master-set flag is just a label —
+        # the rule defines membership, so no source_set_id is required.
+        with self._client() as c:
+            body = self._make_smart(c, is_master_set=True)
+            self.assertEqual(c.get(f"/api/v1/collections/{body['id']}").status_code, 200)
+            self.assertTrue(body["is_master_set"])
+
+    def test_smart_binder_drops_physical_fields(self) -> None:
+        with self._client() as c:
+            body = self._make_smart(c, binder_format="9-pocket", capacity=180)
+            self.assertIsNone(body["binder_format"])
+            self.assertIsNone(body["capacity"])
+
+    def test_patch_physical_field_on_smart_binder_is_409(self) -> None:
+        with self._client() as c:
+            cid = self._make_smart(c)["id"]
+            self.assertEqual(
+                c.patch(f"/api/v1/collections/{cid}", json={"capacity": 90}).status_code,
+                409,
+            )
+
+    def test_patch_identity_on_smart_binder_works(self) -> None:
+        with self._client() as c:
+            cid = self._make_smart(c)["id"]
+            body = c.patch(f"/api/v1/collections/{cid}", json={"binder_color": "ember"}).json()
+            self.assertEqual(body["binder_color"], "ember")
+
+
 if __name__ == "__main__":
     unittest.main()
