@@ -33,7 +33,16 @@ import {
   BINDER_TYPE_OPTIONS,
   SWATCH_BG,
 } from './binderIdentity'
+import { SetCombobox } from './SetCombobox'
 import { useCollections } from './useCollections'
+
+/** Seed values for a fresh binder created from another surface (e.g. the
+ * Browse set view, #682). Applied only on create, not when editing. */
+export interface BinderPrefill {
+  name?: string
+  sourceSetId?: string
+  isMasterSet?: boolean
+}
 
 /** The single-predicate fields the smart-binder rule builder offers. */
 const RULE_FIELDS = [
@@ -71,9 +80,11 @@ interface Props {
   onOpenChange: (open: boolean) => void
   /** When set, edit this binder's identity; otherwise create a new one. */
   editing?: CollectionSummary | null
+  /** Seed a fresh binder's fields (create only) — e.g. opened from Browse. */
+  prefill?: BinderPrefill
 }
 
-export function BinderModal({ open, onOpenChange, editing }: Props) {
+export function BinderModal({ open, onOpenChange, editing, prefill }: Props) {
   const { create, update } = useCollections()
   const isEdit = editing != null
   // A dynamic collection edits as a smart binder; everything else as physical.
@@ -83,7 +94,7 @@ export function BinderModal({ open, onOpenChange, editing }: Props) {
   // a create). The parent remounts this modal with a fresh `key` on each
   // open, so these lazy initializers stand in for a reset-on-open effect.
   const [mode, setMode] = useState<BinderMode>(editMode)
-  const [name, setName] = useState(() => editing?.name ?? '')
+  const [name, setName] = useState(() => editing?.name ?? prefill?.name ?? '')
   const [color, setColor] = useState<string | null>(
     () => editing?.binder_color ?? (editing ? null : 'palm'),
   )
@@ -92,15 +103,21 @@ export function BinderModal({ open, onOpenChange, editing }: Props) {
   const [capacity, setCapacity] = useState(() =>
     editing?.capacity != null ? String(editing.capacity) : '',
   )
-  const [sourceSetId, setSourceSetId] = useState(() => editing?.source_set_id ?? '')
-  const [isMasterSet, setIsMasterSet] = useState(() => Boolean(editing?.is_master_set))
+  const [sourceSetId, setSourceSetId] = useState(
+    () => editing?.source_set_id ?? prefill?.sourceSetId ?? '',
+  )
+  const [isMasterSet, setIsMasterSet] = useState(() =>
+    Boolean(editing?.is_master_set ?? prefill?.isMasterSet),
+  )
   const [detailsOpen, setDetailsOpen] = useState(() =>
     Boolean(
       editing?.binder_format ||
         editing?.capacity ||
         editing?.source_set_id ||
         editing?.binder_type ||
-        editing?.is_master_set,
+        editing?.is_master_set ||
+        prefill?.sourceSetId ||
+        prefill?.isMasterSet,
     ),
   )
   // Smart-binder rule state.
@@ -408,12 +425,11 @@ export function BinderModal({ open, onOpenChange, editing }: Props) {
                           <span className="text-[11px] font-medium text-coconut-500 dark:text-sand-300">
                             Organizes a set (optional)
                           </span>
-                          <input
-                            type="text"
+                          <SetCombobox
                             value={sourceSetId}
-                            onChange={(e) => setSourceSetId(e.target.value)}
-                            placeholder="Set ID, e.g. sv1"
-                            className={inputClass}
+                            onChange={setSourceSetId}
+                            inputClassName={inputClass}
+                            placeholder="Search sets, e.g. Surging Sparks"
                           />
                         </label>
                       )}
