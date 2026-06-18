@@ -31,7 +31,7 @@ jobs:
   relock:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # PAT so the follow-up push re-triggers the PR's CI (GITHUB_TOKEN
           # pushes don't fire `pull_request` workflows).
