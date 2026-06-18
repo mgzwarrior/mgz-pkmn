@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, within, act } from '@testing-library/react'
 import { SetCombobox } from './SetCombobox'
 
 describe('SetCombobox', () => {
@@ -9,7 +9,10 @@ describe('SetCombobox', () => {
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'jungle' } })
     const option = screen.getByRole('option', { name: /jungle/i })
-    fireEvent.click(within(option).getByRole('button'))
+    const button = within(option).getByRole('button')
+    // mousedown is prevented so input focus survives the click → pick.
+    fireEvent.mouseDown(button)
+    fireEvent.click(button)
 
     expect(onChange).toHaveBeenLastCalledWith('base2')
     expect(screen.getByRole('combobox')).toHaveValue('Jungle')
@@ -26,6 +29,9 @@ describe('SetCombobox', () => {
     // An exact ID resolves to that ID (the canonical stored value).
     fireEvent.change(input, { target: { value: 'base1' } })
     expect(onChange).toHaveBeenLastCalledWith('base1')
+    // Clearing the field clears the anchor.
+    fireEvent.change(input, { target: { value: '' } })
+    expect(onChange).toHaveBeenLastCalledWith('')
   })
 
   it('does not store a partial name fragment as a set ID', () => {
@@ -44,4 +50,83 @@ describe('SetCombobox', () => {
     render(<SetCombobox value="base1" onChange={() => {}} />)
     expect(screen.getByRole('combobox')).toHaveValue('Base')
   })
+
+  it('navigates the list with the arrow keys and picks the active row on Enter', () => {
+    const onChange = vi.fn()
+    render(<SetCombobox value="" onChange={onChange} />)
+    const input = screen.getByRole('combobox')
+
+    fireEvent.change(input, { target: { value: 'base' } })
+    const options = screen.getAllByRole('option')
+    expect(options.length).toBeGreaterThan(1)
+    // First row is active by default; arrow down moves to the second.
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true')
+    // Arrow up returns to the first row.
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // Enter commits the active row's set ID and shows its name.
+    expect(onChange).toHaveBeenLastCalledWith('base1')
+    expect(input).toHaveValue('Base')
+  })
+
+  it('hovering a row makes it active', () => {
+    render(<SetCombobox value="" onChange={() => {}} />)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'base' } })
+
+    const second = screen.getAllByRole('option')[1]
+    fireEvent.mouseEnter(within(second).getByRole('button'))
+    expect(second).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('closes the list on Escape and re-opens on focus', () => {
+    render(<SetCombobox value="" onChange={() => {}} />)
+    const input = screen.getByRole('combobox')
+
+    fireEvent.change(input, { target: { value: 'base' } })
+    expect(screen.queryByRole('listbox')).toBeInTheDocument()
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+
+    fireEvent.focus(input)
+    expect(screen.queryByRole('listbox')).toBeInTheDocument()
+  })
+
+  it('closes the list shortly after blur', () => {
+    vi.useFakeTimers()
+    try {
+      render(<SetCombobox value="" onChange={() => {}} />)
+      const input = screen.getByRole('combobox')
+
+      fireEvent.change(input, { target: { value: 'base' } })
+      expect(screen.queryByRole('listbox')).toBeInTheDocument()
+
+      fireEvent.blur(input)
+      act(() => {
+        vi.runAllTimers()
+      })
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('hides a logo that fails to load', () => {
+    render(<SetCombobox value="" onChange={() => {}} />)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'jungle' } })
+
+    const logo = screen.getByRole('option', { name: /jungle/i }).querySelector('img')
+    expect(logo).not.toBeNull()
+    fireEvent.error(logo!)
+    expect(logo!).toHaveStyle({ display: 'none' })
+  })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
