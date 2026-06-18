@@ -45,12 +45,29 @@ export function SetCombobox({ value, onChange, inputClassName, placeholder, id }
     ).slice(0, MAX_MATCHES)
   }, [query])
 
-  // Resolve free text to a known set's ID when it matches a name/ID exactly,
-  // else pass the raw text through so a typed ID still works.
+  // Resolve free text to the stored set ID. An exact name/ID match commits
+  // that set's ID; empty clears the anchor. A partial fragment that still
+  // matches known sets isn't a valid anchor — leave it uncommitted (empty)
+  // so a half-typed name like "Surging" never gets stored as a set ID; the
+  // user resolves it by picking an option or finishing the exact name. Text
+  // that matches no known set passes through as a raw ID (a set that landed
+  // upstream since the last catalog bake still works).
   function resolve(text: string) {
-    const q = text.trim().toLowerCase()
+    const raw = text.trim()
+    const q = raw.toLowerCase()
+    if (!q) {
+      onChange('')
+      return
+    }
     const exact = BAKED_SETS.find((s) => s.name.toLowerCase() === q || s.id.toLowerCase() === q)
-    onChange(exact ? exact.id : text.trim())
+    if (exact) {
+      onChange(exact.id)
+      return
+    }
+    const isFragment = BAKED_SETS.some(
+      (s) => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q),
+    )
+    onChange(isFragment ? '' : raw)
   }
 
   function pick(s: SetInfo) {

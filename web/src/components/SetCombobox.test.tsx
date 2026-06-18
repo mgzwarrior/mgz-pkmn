@@ -28,6 +28,18 @@ describe('SetCombobox', () => {
     expect(onChange).toHaveBeenLastCalledWith('base1')
   })
 
+  it('does not store a partial name fragment as a set ID', () => {
+    const onChange = vi.fn()
+    render(<SetCombobox value="" onChange={onChange} />)
+
+    // "jung" matches Jungle but is no set's exact name/ID — it must not be
+    // committed as the anchor; the value stays empty until a pick.
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'jung' } })
+    expect(onChange).toHaveBeenLastCalledWith('')
+    // The matches still surface so the user can pick the real set.
+    expect(screen.getAllByRole('option').length).toBeGreaterThan(0)
+  })
+
   it('shows the set name, not the bare ID, for a known starting value', () => {
     render(<SetCombobox value="base1" onChange={() => {}} />)
     expect(screen.getByRole('combobox')).toHaveValue('Base')
