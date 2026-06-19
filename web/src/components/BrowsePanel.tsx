@@ -6,12 +6,13 @@
  * Pokémon across every set). State + effects live in
  * [useBrowseController](./useBrowseController.ts).
  */
-import { ArrowLeft, ImageOff, Library, Loader2, Search } from 'lucide-react'
+import { ArrowLeft, ImageOff, Library, Loader2, Search, Wallet } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
+import { BinderModal, type BinderPrefill } from './BinderModal'
 import { browseCardToPayload, browseCardToRow, type BrowseSetContext } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
 import { useCardOwnership } from './useCardOwnership'
@@ -74,6 +75,10 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   const { user } = useAuth()
   const showSavedActions = user !== null
 
+  // A fresh binder pre-anchored to the set you're walking (#682). Non-null
+  // mounts the modal; closing clears it so the next open re-seeds cleanly.
+  const [binderPrefill, setBinderPrefill] = useState<BinderPrefill | null>(null)
+
   const drilledIn = viewMode === 'set' ? !!activeSet : !!activePokemon
   const onBack = () =>
     viewMode === 'set' ? setActiveSet(null) : setActivePokemon(null)
@@ -121,7 +126,21 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             </span>
           )}
         </div>
-        <ViewModeToggle value={viewMode} onChange={setViewMode} />
+        <div className="flex flex-none items-center gap-2">
+          {viewMode === 'set' && activeSet && showSavedActions && (
+            <button
+              type="button"
+              onClick={() =>
+                setBinderPrefill({ name: activeSet.name, sourceSetId: activeSet.id })
+              }
+              className="inline-flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:bg-sand-50 dark:hover:bg-husk-200"
+            >
+              <Wallet size={14} />
+              Create binder
+            </button>
+          )}
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+        </div>
       </header>
 
       <p className="px-5 pt-3 text-sm text-coconut-400 dark:text-sand-300">
@@ -166,6 +185,18 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
           filter={pokedexFilter}
           onFilter={setPokedexFilter}
           onPick={(p) => setActivePokemon(p)}
+        />
+      )}
+
+      {/* Mounted only while a prefill is set, so each open re-seeds the form
+          from the current set via the modal's lazy initializers (#682). */}
+      {binderPrefill && (
+        <BinderModal
+          open
+          onOpenChange={(o) => {
+            if (!o) setBinderPrefill(null)
+          }}
+          prefill={binderPrefill}
         />
       )}
     </div>
