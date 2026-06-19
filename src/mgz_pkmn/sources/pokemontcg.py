@@ -20,11 +20,21 @@ API_BASE = "https://api.pokemontcg.io/v2"
 class TCGClient:
     """Thin wrapper around api.pokemontcg.io with response caching + 429 retry."""
 
-    def __init__(self, api_key: str | None = None, verbose: bool = False) -> None:
-        self.session = requests.Session()
+    def __init__(
+        self,
+        api_key: str | None = None,
+        verbose: bool = False,
+        session: requests.Session | None = None,
+    ) -> None:
+        # Accept an injected session so callers can keep a connection pool warm
+        # across instances (#302); the per-instance `_cache` below stays
+        # instance-local, which the API route relies on for correctness.
+        self.session = session or requests.Session()
         self.session.headers["User-Agent"] = USER_AGENT
-        if api_key:
-            self.session.headers["X-Api-Key"] = api_key
+        # Applied per request (see `_network_fetch`), not stored on the session:
+        # the session may be shared across requests, and a caller-supplied key
+        # must not linger in a pooled session's headers (#302).
+        self._api_key = api_key
         self.verbose = verbose
         # L1 in-memory cache. Stores (cards, status) — status is the worst
         # disk-cache outcome we observed when first populating this entry,
@@ -130,9 +140,10 @@ class TCGClient:
         error after retries). Raises on persistent non-retryable errors."""
         if cache_only:
             return None
+        headers = {"X-Api-Key": self._api_key} if self._api_key else None
         for attempt in range(4):
             try:
-                resp = self.session.get(url, timeout=60)
+                resp = self.session.get(url, headers=headers, timeout=60)
                 if resp.status_code == 429:
                     time.sleep(2**attempt)
                     continue

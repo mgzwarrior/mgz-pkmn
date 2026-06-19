@@ -202,8 +202,7 @@ describe('HelpModal', () => {
     expect(await screen.findByText('Finding cards')).toBeInTheDocument()
     expect(screen.getByText('Results & card details')).toBeInTheDocument()
     expect(screen.getByText('Library')).toBeInTheDocument()
-    expect(screen.getByText('Collections')).toBeInTheDocument()
-    expect(screen.getByText('Wishlists')).toBeInTheDocument()
+    expect(screen.getByText('Binders')).toBeInTheDocument()
   })
 
   it('Take the tour button closes the modal and fires the callback', async () => {

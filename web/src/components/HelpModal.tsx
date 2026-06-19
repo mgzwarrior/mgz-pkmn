@@ -1,9 +1,9 @@
 /**
  * HelpModal — onboarding/help dialog whose sections track the live app:
  * what it does, the Search / Browse / Swipe modes, writing queries,
- * results + card details, the Library (Searches / Recent / Collections /
- * Wishlists), settings, exports, and shortcuts. Includes a "Take the
- * tour" button that hands control off to the Tour component.
+ * results + card details, the Library (Searches / Recent / Binders),
+ * settings, exports, and shortcuts. Includes a "Take the tour" button
+ * that hands control off to the Tour component.
  *
  * The "what's new" surface is a collapsible bar pinned below the header,
  * collapsed by default and condensed to the latest release's top features.
@@ -334,14 +334,13 @@ export function HelpModal({ onStartTour }: Props) {
                 rows={[
                   ['Searches', 'Lookups you have saved with a name. Click one to reload its cards, sort, and filters.'],
                   ['Recent', 'Your last few lookups, kept on this device. One tap re-runs them.'],
-                  ['Collections', 'Cards you own, grouped into lists. Build them with the save button on any result row.'],
-                  ['Wishlists', 'Your want-lists — cards you are hunting, each with an optional price cap.'],
+                  ['Binders', 'Your collections (cards you own) and want-lists (cards you are chasing) in one place. Filter by Owned or Chasing; build them with the save and heart buttons on any result row.'],
                 ]}
               />
               <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">
-                Collections, want-lists, and saved searches are tied to your
-                account — sign in on the hosted demo to use them. The self-hosted
-                build keeps everything locally.
+                Binders and saved searches are tied to your account — sign in on
+                the hosted demo to use them. The self-hosted build keeps
+                everything locally.
               </p>
             </Section>
 

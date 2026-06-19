@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
+  CacheStatus,
   ProcessingLine,
   RecentRun,
   Row,
@@ -39,6 +40,21 @@ const DEFAULT_SETTINGS: Settings = {
   // yet (epic #416), so the column would be empty for now. The `merge`
   // below backfills this for users with persisted pre-#425 settings.
   showEbay: false,
+  // Owned-card filtering is opt-in (#339): a fresh result set shows everything,
+  // and the user turns this on to drop cards already in one of their
+  // collections, leaving just what's still missing. The `merge` below backfills
+  // it for users with older persisted settings.
+  hideOwned: false,
+  // Swipe mode opens on the chase tier — only each set's top rarity — so a
+  // session feels like flipping chase cards, not walking bulk (#580). The
+  // `merge` below backfills this for users with older persisted settings.
+  swipeRarityFloor: 'chase',
+  // Library-aware exclusion is opt-in (#581): a fresh deck shows everything
+  // (minus already-seen), and the user turns these on to hide cards they
+  // already own / are already chasing. The `merge` below backfills both for
+  // users with older persisted settings.
+  swipeExcludeOwned: false,
+  swipeExcludeChasing: false,
 }
 
 interface AppState {
@@ -85,6 +101,14 @@ interface AppState {
   runEndedAt: number | null
   setRunStartedAt: (t: number | null) => void
   setRunEndedAt: (t: number | null) => void
+
+  /**
+   * Disk-cache freshness of the most recent run, from the SSE done frame.
+   * `null` while a run is in flight or before any run this session; the
+   * lookup-timer reads it to show a cache-vs-upstream source chip (#310).
+   */
+  cacheStatus: CacheStatus | null
+  setCacheStatus: (s: CacheStatus | null) => void
 
   /** Per-input-line status tracked across the current bulk lookup. */
   processingLines: ProcessingLine[]
@@ -207,6 +231,9 @@ export const useAppStore = create<AppState>()(
       runEndedAt: null,
       setRunStartedAt: (runStartedAt) => set({ runStartedAt }),
       setRunEndedAt: (runEndedAt) => set({ runEndedAt }),
+
+      cacheStatus: null,
+      setCacheStatus: (cacheStatus) => set({ cacheStatus }),
 
       processingLines: [],
       setProcessingLines: (processingLines) => set({ processingLines }),

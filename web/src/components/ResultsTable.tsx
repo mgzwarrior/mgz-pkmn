@@ -14,13 +14,18 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, AlertCircle, Filter } from 'lucide-react'
 import { addOverride } from '../api/client'
+import { BulkActionBar } from './BulkActionBar'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import type { ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
 import { AddToCollectionButton } from './AddToCollectionButton'
 import { AddToWishlistButton } from './AddToWishlistButton'
+import { AffiliateLinks } from './AffiliateLinks'
 import { CardDetailModal } from './CardDetailModal'
+import { useCardOwnership } from './useCardOwnership'
+import { OwnershipBadge } from './OwnershipBadge'
+import type { CardOwnership } from '../api/client'
 import { EbaySparkline } from './EbaySparkline'
 import { soldPriceSeries } from './ebayComps'
 import { SaveSearchButton } from './SaveSearchButton'
@@ -32,12 +37,45 @@ import {
   type SortDir,
 } from './resultsTableFilter'
 
+/**
+ * Pull the promoted `(set_id, number)` identity off a matched row for the
+ * ownership lookup (#576). Returns null for unmatched rows or rows missing
+ * either half of the identity.
+ */
+function rowIdentity(row: Row): { setId: string; number: string } | null {
+  if (!row.matched || !row.card) return null
+  const setId = (row.card.set as { id?: string } | undefined)?.id
+  const number = row.card.number as string | undefined
+  if (!setId || !number) return null
+  return { setId, number }
+}
+
+/** Resolve a row's ownership through the shared lookup, or undefined. */
+function ownershipForRow(
+  row: Row,
+  lookup: (setId: string, number: string) => CardOwnership | null | undefined,
+): CardOwnership | null | undefined {
+  const id = rowIdentity(row)
+  return id ? lookup(id.setId, id.number) : undefined
+}
+
+/**
+ * Whether a resolved ownership means the card sits in at least one collection
+ * (#339). Wishlist-only occupancy ("chasing") doesn't count as owned — those
+ * are exactly the cards the want-list view should keep. `undefined` (not yet
+ * known) and `null` (no occupancy) are both not-owned, so a row stays visible
+ * until its ownership resolves rather than flickering out mid-stream.
+ */
+function isOwned(ownership: CardOwnership | null | undefined): boolean {
+  return ownership != null && ownership.collections.length > 0
+}
+
 interface Props {
   onRerunLine?: (line: string) => void
 }
 
 export function ResultsTable({ onRerunLine }: Props) {
-  const { rows, progress, isRunning, settings, viewState, setViewState, resetViewState } =
+  const { rows, setRows, progress, isRunning, settings, viewState, setViewState, resetViewState } =
     useAppStore()
   const { sortColumn, sortDir, showFilters, filters } = viewState
   // Hoist the auth read here (not in ResultRow) so we don't fire one
@@ -92,6 +130,162 @@ export function ResultsTable({ onRerunLine }: Props) {
     return map
   }, [rows])
 
+  // Cross-collection ownership badges (#576). Batch the matched rows'
+  // identities into one lookup; signed-out users get no library, so skip it.
+  const ownershipIds = useMemo(
+    () =>
+      showSavedActions
+        ? displayedRows
+            .map(rowIdentity)
+            .filter((id): id is { setId: string; number: string } => id !== null)
+        : [],
+    [showSavedActions, displayedRows],
+  )
+  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
+
+  // #339: when "hide owned" is on, drop matched rows already in one of the
+  // user's collections, leaving just what's still missing. Owned-ness reuses
+  // the badge's lookup, so no extra request. Signed-out users have no library,
+  // so the toggle is inert for them.
+  const hideOwned = settings.hideOwned && showSavedActions
+  const visibleRows = useMemo(
+    () =>
+      hideOwned
+        ? displayedRows.filter((row) => !isOwned(ownershipForRow(row, lookupOwnership)))
+        : displayedRows,
+    [hideOwned, displayedRows, lookupOwnership],
+  )
+  const hiddenOwnedCount = displayedRows.length - visibleRows.length
+
+  // ---- Multi-select (#268) -------------------------------------------------
+  // Selection is tracked by Row object reference: it rides along through
+  // sort/filter re-ordering, and a fresh lookup (new Row objects) drops it
+  // for free. Ephemeral by design — never persisted.
+  const [selected, setSelected] = useState<Set<Row>>(() => new Set())
+  // Index into `visibleRows` of the last toggled row, the anchor for a
+  // shift-click range.
+  const [anchorIdx, setAnchorIdx] = useState<number | null>(null)
+  // Power-user opt-in: keep the selection when the sort or filter changes.
+  // Off by default so selection clears on any view change.
+  const [preserveAcrossSort, setPreserveAcrossSort] = useState(false)
+  // Snapshot of `rows` taken just before a bulk delete so Undo can restore it.
+  const [undoSnapshot, setUndoSnapshot] = useState<Row[] | null>(null)
+
+  // Selection intersected with the current view, in view order — this is
+  // what the action bar operates on, so delete/retag/export all naturally
+  // honor the active sort + filter.
+  const selectedRows = useMemo(
+    () => visibleRows.filter((r) => selected.has(r)),
+    [visibleRows, selected],
+  )
+
+  // Clear the selection when the sort or filter changes (unless the
+  // power-user "preserve across sort" toggle is on), and when a fresh
+  // lookup starts. Done during render via React's "adjust state on a
+  // change" pattern rather than an effect, so there's no extra commit.
+  const viewSig = `${sortColumn}|${sortDir}|${JSON.stringify(filters)}`
+  const [prevViewSig, setPrevViewSig] = useState(viewSig)
+  if (viewSig !== prevViewSig) {
+    setPrevViewSig(viewSig)
+    if (!preserveAcrossSort && (selected.size > 0 || anchorIdx !== null)) {
+      setSelected(new Set())
+      setAnchorIdx(null)
+    }
+  }
+
+  const [prevRunning, setPrevRunning] = useState(isRunning)
+  if (isRunning !== prevRunning) {
+    setPrevRunning(isRunning)
+    // A fresh lookup just started — drop selection + undo from the old run.
+    // (Keyed on the run, not rows.length, so deleting every row still leaves
+    // Undo reachable.)
+    if (isRunning) {
+      if (selected.size > 0 || anchorIdx !== null) {
+        setSelected(new Set())
+        setAnchorIdx(null)
+      }
+      if (undoSnapshot !== null) setUndoSnapshot(null)
+    }
+  }
+
+  const toggleRow = useCallback(
+    (displayedIdx: number, shiftKey: boolean) => {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        if (shiftKey && anchorIdx !== null) {
+          // Shift-click selects the whole range between the anchor and the
+          // clicked row (inclusive).
+          const lo = Math.min(anchorIdx, displayedIdx)
+          const hi = Math.max(anchorIdx, displayedIdx)
+          for (let i = lo; i <= hi; i++) next.add(visibleRows[i])
+        } else {
+          const row = visibleRows[displayedIdx]
+          if (next.has(row)) next.delete(row)
+          else next.add(row)
+        }
+        return next
+      })
+      setAnchorIdx(displayedIdx)
+    },
+    [visibleRows, anchorIdx],
+  )
+
+  const allSelected = visibleRows.length > 0 && visibleRows.every((r) => selected.has(r))
+  const someSelected = visibleRows.some((r) => selected.has(r))
+
+  const toggleAll = useCallback(() => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      const everyVisibleSelected =
+        visibleRows.length > 0 && visibleRows.every((r) => next.has(r))
+      if (everyVisibleSelected) visibleRows.forEach((r) => next.delete(r))
+      else visibleRows.forEach((r) => next.add(r))
+      return next
+    })
+    setAnchorIdx(null)
+  }, [visibleRows])
+
+  const clearSelection = useCallback(() => {
+    setSelected(new Set())
+    setAnchorIdx(null)
+  }, [])
+
+  // Delete the selected rows from the results view, snapshotting the prior
+  // `rows` so Undo can put them back. Selection clears — the rows are gone.
+  const handleDelete = useCallback(() => {
+    const toRemove = selected
+    if (toRemove.size === 0) return
+    setUndoSnapshot(rows)
+    setRows(rows.filter((r) => !toRemove.has(r)))
+    setSelected(new Set())
+    setAnchorIdx(null)
+  }, [rows, selected, setRows])
+
+  const handleUndo = useCallback(() => {
+    if (!undoSnapshot) return
+    setRows(undoSnapshot)
+    setUndoSnapshot(null)
+  }, [undoSnapshot, setRows])
+
+  // Retag the selected rows in place, remapping the selection onto the new
+  // Row objects so the bar's count stays put after the action.
+  const handleRetag = useCallback(
+    (tag: string) => {
+      const sel = selected
+      if (sel.size === 0) return
+      const next = new Set<Row>()
+      const newRows = rows.map((r) => {
+        if (!sel.has(r)) return r
+        const retagged = { ...r, tag }
+        next.add(retagged)
+        return retagged
+      })
+      setRows(newRows)
+      setSelected(next)
+    },
+    [rows, selected, setRows],
+  )
+
   if (rows.length === 0 && !isRunning) {
     return (
       <div className="flex items-center justify-center rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 py-16 text-coconut-400 dark:text-sand-300 text-sm">
@@ -137,6 +331,17 @@ export function ResultsTable({ onRerunLine }: Props) {
           {showFilters ? 'Hide filters' : 'Filter'}
         </button>
         <div className="flex items-center gap-3">
+          {selectedRows.length > 0 && (
+            <label className="flex items-center gap-1.5 text-xs text-coconut-400 dark:text-sand-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={preserveAcrossSort}
+                onChange={(e) => setPreserveAcrossSort(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:text-sun-300"
+              />
+              Keep selection across sort
+            </label>
+          )}
           <SaveSearchButton auth={auth} />
           {(sortColumn || hasActiveFilters(filters)) && (
             <button
@@ -148,11 +353,14 @@ export function ResultsTable({ onRerunLine }: Props) {
             </button>
           )}
           <p className="text-xs text-coconut-400 dark:text-sand-300 text-right">
-            {displayedRows.filter((r) => r.matched).length} matched ·{' '}
-            {displayedRows.filter((r) => !r.matched).length} unmatched ·{' '}
-            {displayedRows.length} shown
-            {displayedRows.length !== rows.length && (
+            {visibleRows.filter((r) => r.matched).length} matched ·{' '}
+            {visibleRows.filter((r) => !r.matched).length} unmatched ·{' '}
+            {visibleRows.length} shown
+            {visibleRows.length !== rows.length && (
               <span className="text-coconut-400 dark:text-sand-300"> (of {rows.length})</span>
+            )}
+            {hiddenOwnedCount > 0 && (
+              <span className="text-palm-500 dark:text-palm-200"> · {hiddenOwnedCount} owned hidden</span>
             )}
           </p>
         </div>
@@ -163,6 +371,18 @@ export function ResultsTable({ onRerunLine }: Props) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-left">
+              <th className="px-3 py-2 w-8">
+                <input
+                  type="checkbox"
+                  aria-label="Select all rows"
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected && !allSelected
+                  }}
+                  onChange={toggleAll}
+                  className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:text-sun-300"
+                />
+              </th>
               {showSavedActions && (
                 <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-20">
                   <span className="sr-only">Save actions</span>
@@ -219,12 +439,15 @@ export function ResultsTable({ onRerunLine }: Props) {
                 onClick={cycleSort}
                 className="hidden sm:table-cell"
               />
-              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-8">
-                <span className="sr-only">Listing link</span>
+              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right">
+                Buy
               </th>
             </tr>
             {showFilters && (
               <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200">
+                <th>
+                  <span className="sr-only">Select (no filter)</span>
+                </th>
                 {showSavedActions && (
                   <th>
                     <span className="sr-only">Save actions (no filter)</span>
@@ -305,26 +528,29 @@ export function ResultsTable({ onRerunLine }: Props) {
                   />
                 </FilterCell>
                 <th>
-                  <span className="sr-only">Listing link (no filter)</span>
+                  <span className="sr-only">Buy (no filter)</span>
                 </th>
               </tr>
             )}
           </thead>
           <tbody>
-            {displayedRows.map((row, displayedIdx) => (
+            {visibleRows.map((row, displayedIdx) => (
               <ResultRow
                 key={rowKeys.get(row) ?? -1}
                 row={row}
                 showImage={!settings.noImages}
                 showSavedActions={showSavedActions}
                 showEbay={settings.showEbay}
+                ownership={ownershipForRow(row, lookupOwnership)}
                 onRerunLine={onRerunLine}
                 onOpenDetail={() => setDetailIndex(displayedIdx)}
+                selected={selected.has(row)}
+                onSelect={(shiftKey) => toggleRow(displayedIdx, shiftKey)}
               />
             ))}
             {isRunning && (
               <tr>
-                <td colSpan={13} className="py-2 px-3">
+                <td colSpan={14} className="py-2 px-3">
                   <div className="h-1 w-24 rounded animate-pulse bg-sand-200 dark:bg-husk-100" />
                 </td>
               </tr>
@@ -333,8 +559,20 @@ export function ResultsTable({ onRerunLine }: Props) {
         </table>
       </div>
 
+      {(selectedRows.length > 0 || undoSnapshot !== null) && (
+        <BulkActionBar
+          selectedRows={selectedRows}
+          onClear={clearSelection}
+          onDelete={handleDelete}
+          onRetag={handleRetag}
+          canUndo={undoSnapshot !== null}
+          onUndo={handleUndo}
+          showBinderActions={showSavedActions}
+        />
+      )}
+
       <CardDetailModal
-        rows={displayedRows}
+        rows={visibleRows}
         index={detailIndex}
         onChangeIndex={setDetailIndex}
       />
@@ -428,15 +666,21 @@ function ResultRow({
   showImage,
   showSavedActions,
   showEbay,
+  ownership,
   onRerunLine,
   onOpenDetail,
+  selected,
+  onSelect,
 }: {
   row: Row
   showImage: boolean
   showSavedActions: boolean
   showEbay: boolean
+  ownership: CardOwnership | null | undefined
   onRerunLine?: (line: string) => void
   onOpenDetail?: () => void
+  selected: boolean
+  onSelect: (shiftKey: boolean) => void
 }) {
   const card = row.card
   const p = row.pricing
@@ -505,6 +749,19 @@ function ResultRow({
             : undefined
         }
       >
+        {/* Selection checkbox — onClick carries shiftKey for range select;
+            a no-op onChange keeps the input controlled without a warning. */}
+        <td className="px-3 py-1.5 w-8">
+          <input
+            type="checkbox"
+            aria-label={`Select ${(card?.name as string) ?? row.query.raw}`}
+            checked={selected}
+            onClick={(e) => onSelect(e.shiftKey)}
+            onChange={() => {}}
+            className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:text-sun-300"
+          />
+        </td>
+
         {/* Row actions — pinned left so they stay visible on narrow
             viewports where the table overflows horizontally. */}
         {showSavedActions && (
@@ -544,6 +801,7 @@ function ResultRow({
             <div>
               <div className="font-medium text-coconut-700 dark:text-sand-50 truncate">{card?.name as string}</div>
               <div className="text-xs text-coconut-400 dark:text-sand-300 truncate">{row.query.raw}</div>
+              <OwnershipBadge ownership={ownership} className="mt-0.5" />
             </div>
           ) : (
             <div>
@@ -623,26 +881,31 @@ function ResultRow({
           {p.source ?? '—'}
         </td>
 
-        {/* Listing link */}
-        <td className="px-3 py-2 w-8">
-          {p.url && (
-            <a
-              href={p.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
-              title="Open listing"
-            >
-              <ExternalLink size={13} />
-            </a>
-          )}
+        {/* Buy — the matched listing (if any) plus eBay + TCGPlayer affiliate
+            search links (#657). Unmatched rows have no card to search, so the
+            affiliate links omit themselves there. */}
+        <td className="px-3 py-2 whitespace-nowrap">
+          <div className="flex items-center justify-end gap-2">
+            {p.url && (
+              <a
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
+                title="Open listing"
+              >
+                <ExternalLink size={13} />
+              </a>
+            )}
+            <AffiliateLinks card={card} />
+          </div>
         </td>
       </tr>
 
       {/* Override URL form (inline, expands below row) */}
       {showOverrideForm && (
         <tr className="border-b border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200/60">
-          <td colSpan={13} className="px-3 py-2">
+          <td colSpan={14} className="px-3 py-2">
             <div className="flex items-center gap-2">
               <input
                 type="url"

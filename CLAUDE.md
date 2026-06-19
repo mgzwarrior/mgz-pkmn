@@ -87,6 +87,14 @@ No other format is acceptable. Keep the description short (2–4 words, kebab-ca
   design (use these for dependency bumps, CI tweaks, internal refactors, test-only PRs) —
   and (2) a rich PR body the editorial pass can pull detail from. See
   [docs/contributing.md → Changelog](docs/contributing.md#changelog).
+- **No empty `[Unreleased]` placeholder section.** release-please now drafts the next
+  version's section straight from the accumulated Conventional Commits, so the old
+  Keep-a-Changelog ritual of carrying a stub `## [Unreleased]` header (and its
+  `compare/...HEAD` footer link) at the top of [CHANGELOG.md](CHANGELOG.md) is retired.
+  Don't re-add it during a release consolidation or in a feature PR — the public surfaces
+  (marketing site, live-demo "what's new") already filter Unreleased out, so the stub only
+  invites drift. The footer keeps versioned compare links; the top of the file starts at the
+  latest shipped release.
 - For **deployment-affecting** changes, update [render.yaml](render.yaml) in the
   same PR so the hosted-demo blueprint stays in sync with the code. The blueprint
   is the canonical declaration of what the deployed API needs — keeping it in the

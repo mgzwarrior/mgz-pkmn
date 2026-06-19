@@ -72,6 +72,10 @@ describe('ExportBar', () => {
         sort: 'number',
         showTimer: false,
         showEbay: false,
+        hideOwned: false,
+        swipeRarityFloor: 'chase',
+        swipeExcludeOwned: false,
+        swipeExcludeChasing: false,
       },
     })
     mockExportFile.mockReset()
@@ -145,6 +149,10 @@ describe('ExportBar', () => {
         sort: 'alpha',
         showTimer: false,
         showEbay: false,
+        hideOwned: false,
+        swipeRarityFloor: 'chase',
+        swipeExcludeOwned: false,
+        swipeExcludeChasing: false,
       },
     })
 

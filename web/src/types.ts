@@ -114,16 +114,24 @@ export interface RowEvent extends Row {
   done?: false
 }
 
+/** Split-cache freshness for a run, as reported on the SSE done frame and the
+ * `X-Cache` response header. `MISS-CACHE-ONLY` is the anonymous cache-only
+ * variant of a miss; the SPA treats it like any other upstream read. */
+export type CacheStatus = 'HIT' | 'STALE' | 'MISS' | 'MISS-CACHE-ONLY'
+
 /** The single terminating SSE frame emitted once all lines are done.
  *
  * `run_id` carries the id of the run the backend just persisted, or
  * `null` if persistence fell through. The SPA reads it so a "Save this
- * search" action can target the just-completed run without re-listing. */
+ * search" action can target the just-completed run without re-listing.
+ * `cache_status` aggregates the run's disk-cache freshness so the
+ * lookup-timer can show whether results came from cache or upstream (#310). */
 export interface DoneEvent {
   index?: undefined
   total: number
   done: true
   run_id: number | null
+  cache_status: CacheStatus
 }
 
 /** Any frame emitted by POST /api/v1/bulk. */
@@ -141,6 +149,14 @@ export type SortMode =
 /** Export formats accepted by POST /api/v1/export. */
 export type ExportFormat = 'xlsx' | 'pdf' | 'condensed-pdf' | 'checklist'
 
+/**
+ * Swipe-mode rarity floor — how aggressively the candidate pool is trimmed
+ * toward chase cards. `all` keeps every rarity, `rare` drops Common +
+ * Uncommon, and `chase` keeps only each set's top rarity tier (age-scaled:
+ * Base Set → Rare Holo, modern sets → Special Illustration Rare / Hyper).
+ */
+export type RarityFloor = 'all' | 'rare' | 'chase'
+
 /** Application-level settings stored in Zustand and sent with each request. */
 export interface Settings {
   apiKey: string
@@ -152,6 +168,25 @@ export interface Settings {
   showTimer: boolean
   /** Show the eBay comps column (median sold + sparkline) in the results table. */
   showEbay: boolean
+  /**
+   * Hide owned cards from the search-results table (#339). Opt-in: when on, a
+   * matched row whose `(set_id, number)` identity appears in any of your
+   * collections is dropped from the view, turning a lookup into a want-list
+   * resolver. Signed-out users have no library, so the toggle is a no-op for
+   * them. Defaults off so the feature is additive.
+   */
+  hideOwned: boolean
+  /** Swipe-mode rarity floor (swipe-header control; not in the settings drawer). */
+  swipeRarityFloor: RarityFloor
+  /**
+   * Swipe-mode library-aware exclusion (#581). Opt-in: when on, the deck
+   * stops serving cards already in any of your collections (`Owned`) or on
+   * any of your wishlists (`Chasing`). Both default off; the no-repeat
+   * memory that excludes already-*seen* cards is always on and isn't a
+   * setting.
+   */
+  swipeExcludeOwned: boolean
+  swipeExcludeChasing: boolean
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */

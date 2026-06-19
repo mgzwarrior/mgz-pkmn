@@ -10,8 +10,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from collections.abc import Callable
+from functools import lru_cache
 from typing import Any
 
 import requests as req_lib
@@ -23,7 +25,7 @@ from pydantic import BaseModel
 from mgz_pkmn.lookup import find_card, find_top_cards
 from mgz_pkmn.parser import CardQuery, parse_line
 from mgz_pkmn.pricing import Pricing, extract_pricing
-from mgz_pkmn.sources import PriceChartingClient, TCGClient, TCGDexClient
+from mgz_pkmn.sources import EbayClient, PriceChartingClient, TCGClient, TCGDexClient
 from mgz_pkmn.sources.base import worse_cache_status
 from mgz_pkmn.spreadsheet import Row
 
@@ -65,11 +67,48 @@ class BulkRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _make_clients(settings: Settings) -> tuple[TCGClient, TCGDexClient, PriceChartingClient]:
+@lru_cache(maxsize=1)
+def _sessions_for() -> tuple[req_lib.Session, req_lib.Session, req_lib.Session, req_lib.Session]:
+    """One warm, header-light ``requests.Session`` per upstream (#302).
+
+    Sharing the session across requests keeps its connection pool warm, so
+    every upstream hit reuses a kept-alive connection instead of paying a
+    fresh TLS handshake. Each upstream gets its *own* session so connections
+    (and any default headers) don't cross hosts.
+
+    Crucially the sessions carry **no per-request secret**: a caller-supplied
+    pokemontcg.io api_key is applied per request as an ``X-Api-Key`` header by
+    ``TCGClient`` itself, never stored on the pooled session or used as a
+    cache key — so BYO credentials stay request-scoped rather than lingering
+    in process-global state.
+
+    We also memoize the session, not the client: the clients carry an
+    instance-local L1 ``_cache`` with no TTL, written on STALE/MISS reads and
+    keyed without ``cache_only``. Reusing a client across requests would pin
+    those entries process-wide — serving stale or empty results and
+    suppressing the disk SWR refresh until restart. Fresh clients per request
+    keep that L1 cache request-scoped (its original contract) while the shared
+    session still delivers the connection-reuse win. ``lru_cache`` and
+    ``Session.get``/``post`` are both safe for the concurrent FastAPI
+    threadpool.
+    """
     return (
-        TCGClient(api_key=settings.api_key),
-        TCGDexClient(),
-        PriceChartingClient(),
+        req_lib.Session(),
+        req_lib.Session(),
+        req_lib.Session(),
+        req_lib.Session(),
+    )
+
+
+def _make_clients(
+    settings: Settings,
+) -> tuple[TCGClient, TCGDexClient, PriceChartingClient, EbayClient]:
+    pkmn_s, tcgdex_s, pc_s, ebay_s = _sessions_for()
+    return (
+        TCGClient(api_key=settings.api_key, session=pkmn_s),
+        TCGDexClient(session=tcgdex_s),
+        PriceChartingClient(session=pc_s),
+        EbayClient(session=ebay_s),
     )
 
 
@@ -140,6 +179,7 @@ def _do_lookup(
     on_stage: Callable[[str], None] | None = None,
     *,
     cache_only: bool = False,
+    ebay: EbayClient | None = None,
 ) -> tuple[list[tuple[Row, str]], str]:
     """Run a blocking card lookup and return `(pairs, cache_status)`.
 
@@ -172,6 +212,17 @@ def _do_lookup(
     def _bump_status(s: str) -> None:
         status_acc[0] = worse_cache_status(status_acc[0], s)
 
+    def _with_ebay(pricing: Pricing, card: dict[str, Any]) -> Pricing:
+        """Fold eBay comps into `pricing` when the source is configured.
+
+        Auto-on when credentials are present; a no-op (eBay fields stay None)
+        otherwise, so an unconfigured deploy behaves exactly as before with no
+        extra network call.
+        """
+        if ebay is not None and ebay.auth.configured:
+            pricing.ebay_sold_median, pricing.ebay_active_floor = ebay.comps_for_card(card)
+        return pricing
+
     if q.bulk_top or q.bulk_all:
         try:
             effective_limit = None if q.bulk_all else q.bulk_top
@@ -189,7 +240,7 @@ def _do_lookup(
             top = []
             err = True
         for card in top:
-            pricing = extract_pricing(card, q.variant_hint)
+            pricing = _with_ebay(extract_pricing(card, q.variant_hint), card)
             out.append((Row(query=q, card=card, pricing=pricing, tag=settings.tag), "matched"))
         if not top:
             reason = "error" if err else "no_results"
@@ -213,7 +264,7 @@ def _do_lookup(
         if result.card:
             if on_stage is not None:
                 on_stage("pricing")
-            pricing = extract_pricing(result.card, q.variant_hint)
+            pricing = _with_ebay(extract_pricing(result.card, q.variant_hint), result.card)
             out.append(
                 (
                     Row(query=q, card=result.card, pricing=pricing, tag=settings.tag),
@@ -278,7 +329,7 @@ async def lookup(req: LookupRequest, current_user: CurrentUserOptional) -> JSONR
             headers={"X-Cache": "MISS"},
         )
 
-    pkmn, tcgdex, pc = _make_clients(req.settings)
+    pkmn, tcgdex, pc, ebay = _make_clients(req.settings)
     pairs, cache_status = await run_in_threadpool(
         _do_lookup,
         pkmn,
@@ -287,6 +338,7 @@ async def lookup(req: LookupRequest, current_user: CurrentUserOptional) -> JSONR
         q,
         req.settings,
         cache_only=_cache_only_for_user(current_user),
+        ebay=ebay,
     )
     return JSONResponse(
         content={"rows": [_row_to_dict(r, reason) for r, reason in pairs]},
@@ -294,18 +346,28 @@ async def lookup(req: LookupRequest, current_user: CurrentUserOptional) -> JSONR
     )
 
 
-def _stage_frame(index: int, total: int, stage: str) -> str:
-    """Serialize a progress-only SSE frame (no row payload).
-
-    Distinguishable from a resolved-row frame by the absence of `matched` /
-    `query` — the SPA branches on that to update a line's current stage
-    without appending a result row."""
-    return f"data: {json.dumps({'index': index, 'total': total, 'stage': stage})}\n\n"
+_BULK_CONCURRENCY_ENV = "MGZ_PKMN_BULK_CONCURRENCY"
+_DEFAULT_BULK_CONCURRENCY = 8
 
 
-# Sentinel pushed onto a line's stage queue once its threadpool lookup
-# resolves, so the async drain loop knows to stop waiting for more stages.
-_STAGE_DONE = object()
+def _bulk_concurrency() -> int:
+    """Max number of /bulk lines looked up at once (#303).
+
+    Bounded by `MGZ_PKMN_BULK_CONCURRENCY` (default 8) — high enough to mask
+    upstream latency, low enough that a burst stays within pokemontcg.io's
+    30 rpm free tier. The upstream client's 429 backoff (`pokemontcg.py`)
+    absorbs any transient overshoot. A value below 1 (or unparseable) falls
+    back to the default."""
+    try:
+        n = int(os.environ.get(_BULK_CONCURRENCY_ENV, "").strip())
+    except ValueError:
+        return _DEFAULT_BULK_CONCURRENCY
+    return n if n >= 1 else _DEFAULT_BULK_CONCURRENCY
+
+
+# Sentinel pushed onto the shared frame queue once every line's lookup has
+# resolved, so the async drain loop knows the stream is complete.
+_STREAM_DONE = object()
 
 
 @router.post("/bulk")
@@ -335,45 +397,65 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
     ]
     total = len(indexed)
 
-    pkmn, tcgdex, pc = _make_clients(req.settings)
+    pkmn, tcgdex, pc, ebay = _make_clients(req.settings)
     cache_only = _cache_only_for_user(current_user)
 
     async def event_stream():
         loop = asyncio.get_running_loop()
-        # Accumulate the Rows we yield so we can persist them after the
-        # stream completes. ADR-0013: failures-during-stream don't write —
-        # the persistence call is the last thing in the generator, so a
-        # client disconnect stops iteration before the commit.
-        resolved: list[Row] = []
         started = time.monotonic()
-        for stream_idx, (_orig_idx, line) in enumerate(indexed):
-            q = parse_line(line)
-            if q is None:
-                row = _unparseable_row(line, req.settings.tag)
-                resolved.append(row)
-                payload = {
-                    "index": stream_idx,
-                    "total": total,
-                    **_row_to_dict(row, "unparseable"),
-                }
-                yield f"data: {json.dumps(payload)}\n\n"
-                continue
 
-            # The line is in the pipeline before any upstream call goes out.
-            yield _stage_frame(stream_idx, total, "parsed")
+        # Fan the lines out with bounded concurrency (#303): each line runs as
+        # its own task gated by a semaphore, so at most `_bulk_concurrency()`
+        # lookups hit upstream at once instead of walking the list strictly
+        # serially. Every frame (progress + resolved row) is pushed onto one
+        # shared queue that the generator drains and yields as events complete
+        # — *not* in input order. Clients key on `index`, so arrival order
+        # doesn't matter to the SPA's per-line `ProcessingQueue`.
+        sem = asyncio.Semaphore(_bulk_concurrency())
+        frames: asyncio.Queue = asyncio.Queue()
+        # Per-line resolved Rows keyed by stream index, so we can persist in
+        # input order even though lookups finish out of order.
+        resolved_by_idx: dict[int, list[Row]] = {}
+        # Per-line split-cache outcomes, aggregated into the `done` event so the
+        # SPA can render a single run-level source chip (#310). Appended from the
+        # loop thread once each `run_in_threadpool` resolves — no lock needed.
+        cache_statuses: list[str] = []
 
-            # Bridge the synchronous `on_stage` callback (invoked on the
-            # threadpool worker) to this async generator. The worker pushes
-            # stage names via `call_soon_threadsafe`; a done-callback pushes a
-            # sentinel once the lookup returns. We drain in between, so stage
-            # frames interleave with the blocking lookup in real time.
-            stage_queue: asyncio.Queue = asyncio.Queue()
+        async def process_line(stream_idx: int, line: str) -> None:
+            async with sem:
+                q = parse_line(line)
+                if q is None:
+                    # Deliberately *not* appended to `cache_statuses`: an
+                    # unparseable line performs no cache read, so it can't be
+                    # graded HIT/STALE/MISS. The run-level chip reports where the
+                    # actual results came from, and folding a synthetic MISS in
+                    # here would make an all-cache-hit run with one typo claim it
+                    # went upstream. An all-unparseable run still reports MISS via
+                    # the empty-list default below, matching the /lookup route.
+                    row = _unparseable_row(line, req.settings.tag)
+                    resolved_by_idx[stream_idx] = [row]
+                    await frames.put(
+                        {"index": stream_idx, "total": total, **_row_to_dict(row, "unparseable")}
+                    )
+                    return
 
-            def on_stage(name: str, _q: asyncio.Queue = stage_queue) -> None:
-                loop.call_soon_threadsafe(_q.put_nowait, name)
+                # The line is in the pipeline before any upstream call goes out.
+                await frames.put({"index": stream_idx, "total": total, "stage": "parsed"})
 
-            task = asyncio.ensure_future(
-                run_in_threadpool(
+                # Bridge the synchronous `on_stage` callback (invoked on the
+                # threadpool worker) onto the shared frame queue from the loop
+                # thread, so stage frames interleave with the blocking lookup
+                # in real time.
+                def on_stage(name: str, _idx: int = stream_idx) -> None:
+                    loop.call_soon_threadsafe(
+                        frames.put_nowait,
+                        {"index": _idx, "total": total, "stage": name},
+                    )
+
+                # `_do_lookup` returns (pairs, cache_status). The per-row pairs
+                # stream out as events; the aggregate status feeds the run-level
+                # source chip carried on the `done` event (#310).
+                pairs, line_status = await run_in_threadpool(
                     _do_lookup,
                     pkmn,
                     tcgdex,
@@ -382,31 +464,59 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
                     req.settings,
                     on_stage,
                     cache_only=cache_only,
+                    ebay=ebay,
                 )
-            )
-            task.add_done_callback(lambda _t, _q=stage_queue: _q.put_nowait(_STAGE_DONE))
+                cache_statuses.append(line_status)
+                resolved_by_idx[stream_idx] = [row for row, _reason in pairs]
+                for row, reason in pairs:
+                    await frames.put(
+                        {"index": stream_idx, "total": total, **_row_to_dict(row, reason)}
+                    )
 
+        tasks = [
+            asyncio.ensure_future(process_line(stream_idx, line))
+            for stream_idx, (_orig_idx, line) in enumerate(indexed)
+        ]
+
+        async def _signal_when_done() -> None:
+            # `return_exceptions=True` guarantees the done sentinel is always
+            # queued (a raising task can't deadlock the drain loop). `_do_lookup`
+            # already swallows upstream RequestExceptions into error rows, so a
+            # task exception here is unexpected — log it and carry on.
+            for result in await asyncio.gather(*tasks, return_exceptions=True):
+                if isinstance(result, Exception):
+                    logger.error("A /bulk line task failed", exc_info=result)
+            await frames.put(_STREAM_DONE)
+
+        runner = asyncio.ensure_future(_signal_when_done())
+
+        # Drain frames as they land and stream them out. ADR-0013:
+        # failures-during-stream don't write — the persistence call is after
+        # this loop, so a client disconnect stops iteration before the commit.
+        try:
             while True:
-                item = await stage_queue.get()
-                if item is _STAGE_DONE:
+                item = await frames.get()
+                if item is _STREAM_DONE:
                     break
-                yield _stage_frame(stream_idx, total, item)
+                yield f"data: {json.dumps(item)}\n\n"
+            await runner  # surface bookkeeping errors from the done-signal task
+        except BaseException:
+            # Client disconnect (the Stop button aborts the fetch, raising
+            # GeneratorExit here) or a mid-stream error: cancel the fan-out so
+            # queued lookups stop hitting upstream into a queue nobody reads
+            # (#303). In-flight threadpool calls can't be force-killed, but on
+            # a large pasted list the bulk of the work is still parked on the
+            # semaphore and cancels immediately. Persistence below is skipped —
+            # the re-raise exits the generator before the commit (ADR-0013).
+            for task in tasks:
+                task.cancel()
+            runner.cancel()
+            await asyncio.gather(*tasks, runner, return_exceptions=True)
+            raise
 
-            # `_do_lookup` now returns (pairs, cache_status); the SSE
-            # stream consumes per-row pairs and drops the aggregate status
-            # — `X-Cache` is set at response-header level by the /lookup
-            # route, not per-event in the stream. SSE coverage is deferred
-            # to the #310 follow-up.
-            pairs, _ = task.result()
-            for row, reason in pairs:
-                resolved.append(row)
-                payload = {
-                    "index": stream_idx,
-                    "total": total,
-                    **_row_to_dict(row, reason),
-                }
-                yield f"data: {json.dumps(payload)}\n\n"
-
+        resolved: list[Row] = [
+            row for idx in sorted(resolved_by_idx) for row in resolved_by_idx[idx]
+        ]
         elapsed = time.monotonic() - started
         run_id: int | None = None
         try:
@@ -419,9 +529,25 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
         except Exception:  # pragma: no cover — defensive, persistence is best-effort
             logger.exception("Failed to persist run after /bulk completion")
 
+        # Aggregate the per-line outcomes into one run-level signal (MISS
+        # dominates STALE dominates HIT). No real lookup ran (all lines blank
+        # or unparseable) → MISS, matching the /lookup route's default.
+        run_cache_status = worse_cache_status(*cache_statuses) if cache_statuses else "MISS"
         # `run_id` surfaces so the SPA can offer a "Save this search" action
-        # against the just-completed run without re-querying the list.
-        yield f"data: {json.dumps({'done': True, 'total': total, 'run_id': run_id})}\n\n"
+        # against the just-completed run without re-querying the list;
+        # `cache_status` feeds the lookup-timer source chip (#310).
+        yield (
+            "data: "
+            + json.dumps(
+                {
+                    "done": True,
+                    "total": total,
+                    "run_id": run_id,
+                    "cache_status": run_cache_status,
+                }
+            )
+            + "\n\n"
+        )
 
     return StreamingResponse(
         event_stream(),

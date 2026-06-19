@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.6.1] - 2026-06-13
+
+### Fixed
+
+- DevOps: **Release pipeline now tags and publishes version-bump PRs reliably** ([#652](https://github.com/mgzwarrior/mgz-pkmn/issues/652), closes [#651](https://github.com/mgzwarrior/mgz-pkmn/issues/651)). Dropped the post-publish step that attached the build to the GitHub Release — it fails under immutable releases and was blocking the milestone close and marketing-site rebuild — and the release process no longer overwrites the release-please PR body, which had stopped v1.6.0 from tagging and publishing to PyPI.
+
+## [1.6.0] - 2026-06-13
+
+### Added
+
+- API + Web: **eBay joined the lineup as a fourth comps source** ([#609](https://github.com/mgzwarrior/mgz-pkmn/issues/609), [#611](https://github.com/mgzwarrior/mgz-pkmn/issues/611), [#612](https://github.com/mgzwarrior/mgz-pkmn/issues/612), [#613](https://github.com/mgzwarrior/mgz-pkmn/issues/613), [#614](https://github.com/mgzwarrior/mgz-pkmn/issues/614), [#615](https://github.com/mgzwarrior/mgz-pkmn/issues/615), [#616](https://github.com/mgzwarrior/mgz-pkmn/issues/616), [#618](https://github.com/mgzwarrior/mgz-pkmn/issues/618), closes [#422](https://github.com/mgzwarrior/mgz-pkmn/issues/422), [#423](https://github.com/mgzwarrior/mgz-pkmn/issues/423), [#424](https://github.com/mgzwarrior/mgz-pkmn/issues/424), [#425](https://github.com/mgzwarrior/mgz-pkmn/issues/425)). Card lookups now pull eBay sold and active listing comps alongside the existing sources: an OAuth client-credentials client and `EbayClient` adapter fetch them, a per-source TTL cache holds sold comps for 7 days and active for 6 hours, and the results table and card popup gained an eBay comps column with a sold-price sparkline. eBay stays gated behind configured keys with a token-rotation runbook, and ADR-0020 records eBay as the fourth source.
+- Web: **Collections and want-lists merged into one Binders library** ([#639](https://github.com/mgzwarrior/mgz-pkmn/issues/639), [#504](https://github.com/mgzwarrior/mgz-pkmn/issues/504), [#507](https://github.com/mgzwarrior/mgz-pkmn/issues/507), [#575](https://github.com/mgzwarrior/mgz-pkmn/issues/575), [#647](https://github.com/mgzwarrior/mgz-pkmn/issues/647), closes [#503](https://github.com/mgzwarrior/mgz-pkmn/issues/503)). Collections and want-lists now live together under a single Binders tab: you can promote a want-list straight into a collection, an aggregate insights dashboard summarizes a binder's value and progress, each binder can print a collection ID card for its cover, and delete actions remove a binder or an individual card.
+- API + Web: **Smart, rule-based collections that fill themselves from the catalog** ([#630](https://github.com/mgzwarrior/mgz-pkmn/issues/630), [#632](https://github.com/mgzwarrior/mgz-pkmn/issues/632), [#633](https://github.com/mgzwarrior/mgz-pkmn/issues/633)). Define a collection by rule and it pulls matching cards from the catalog, with a target view that toggles scope, tracks set-completion progress, and surfaces the remaining chase cards.
+- Web: **Discovery learned what you already own** ([#627](https://github.com/mgzwarrior/mgz-pkmn/issues/627), [#628](https://github.com/mgzwarrior/mgz-pkmn/issues/628), [#629](https://github.com/mgzwarrior/mgz-pkmn/issues/629)). Search, browse, and swipe now show cross-collection ownership badges, search results gained a hide-owned toggle, and swipe keeps a persisted no-repeat memory while skipping cards you already own or are chasing.
+- Web: **Swipe surfaces better cards** ([#626](https://github.com/mgzwarrior/mgz-pkmn/issues/626), closes [#580](https://github.com/mgzwarrior/mgz-pkmn/issues/580)). Swipe sampling now applies an age-scaled rarity floor per set and weights toward chase cards.
+
+### Fixed
+
+- Web: **Swipe cards reveal in place instead of sliding in** ([#625](https://github.com/mgzwarrior/mgz-pkmn/issues/625), closes [#624](https://github.com/mgzwarrior/mgz-pkmn/issues/624)). Swipe prefetches a stack of cards so the next one is ready to reveal rather than sliding in on demand.
+- DevOps: **Render blueprint corrections for path filtering and preview environments** ([#637](https://github.com/mgzwarrior/mgz-pkmn/issues/637), [#641](https://github.com/mgzwarrior/mgz-pkmn/issues/641), closes [#636](https://github.com/mgzwarrior/mgz-pkmn/issues/636), [#640](https://github.com/mgzwarrior/mgz-pkmn/issues/640)). The build filter uses the correct `paths` key, and Preview Environments are enabled at the blueprint root so `previewValue` applies.
 
 ## [1.5.0] - 2026-06-10
 
@@ -190,7 +209,8 @@ Foundation release. Establishes the full CLI pipeline, a FastAPI / React web UI,
 - Parser ReDoS vulnerabilities were eliminated across multiple regex passes.
 - URL substring sanitization and workflow permissions were hardened in response to CodeQL alerts.
 
-[Unreleased]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.5.0...HEAD
+[1.6.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.0...v1.6.1
+[1.6.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.3.0...v1.3.1

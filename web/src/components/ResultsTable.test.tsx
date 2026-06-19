@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
+import {
+  bulkAddToCollection,
+  exportFile,
+  fetchCardOwnership,
+  fetchCollections,
+} from '../api/client'
+import { _resetCardOwnershipForTests } from './useCardOwnership'
+import { _resetCollectionsCacheForTests } from './useCollections'
+import { _resetWishlistsCacheForTests } from './useWishlists'
 import type { Row } from '../types'
 
 const { fetchMeMock } = vi.hoisted(() => ({ fetchMeMock: vi.fn() }))
@@ -16,6 +25,20 @@ vi.mock('../api/client', () => ({
   // signed-out test below overrides via mockResolvedValueOnce.
   fetchMe: fetchMeMock,
   logout: vi.fn(),
+  // The matched rows trigger a cross-collection ownership lookup (#576);
+  // default to "nothing owned" so no badge renders in existing tests.
+  fetchCardOwnership: vi.fn(async () => ({})),
+  // The bulk action bar (#268) mounts on selection and reads the binder
+  // lists; default to empty so the pickers render their no-binders state.
+  fetchCollections: vi.fn(async () => []),
+  fetchWishlists: vi.fn(async () => []),
+  createCollection: vi.fn(),
+  createWishlist: vi.fn(),
+  addCardToCollection: vi.fn(),
+  addCardToWishlist: vi.fn(),
+  bulkAddToCollection: vi.fn(async () => ({ added: 0, items: [] })),
+  bulkAddToWishlist: vi.fn(async () => ({ added: 0, items: [] })),
+  exportFile: vi.fn(async () => undefined),
 }))
 
 beforeEach(() => {
@@ -36,6 +59,12 @@ beforeEach(() => {
     viewState: { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters } },
     currentRunId: null,
   })
+  _resetCardOwnershipForTests()
+  _resetCollectionsCacheForTests()
+  _resetWishlistsCacheForTests()
+  vi.mocked(fetchCardOwnership).mockReset()
+  vi.mocked(fetchCardOwnership).mockResolvedValue({})
+  vi.mocked(exportFile).mockClear()
 })
 
 function makeRow(over: Partial<Row> = {}): Row {
@@ -85,6 +114,37 @@ describe('ResultsTable', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('renders the cross-collection ownership badge on a matched row (#576)', async () => {
+    vi.mocked(fetchCardOwnership).mockResolvedValue({
+      'base1::4': {
+        collections: [{ id: 1, name: 'Show Binder', quantity: 2 }],
+        wishlists: [],
+      },
+    })
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { id: 'base1', name: 'Base Set' },
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    // The lookup is keyed on (set_id, number); the badge appears once it resolves.
+    expect(await screen.findByText('owned ×2')).toBeInTheDocument()
+    expect(vi.mocked(fetchCardOwnership)).toHaveBeenCalledWith([
+      { set_id: 'base1', number: '4' },
+    ])
+    useAppStore.setState({ rows: [] })
+  })
+
   it('clicking an inner link inside a row does not open the modal', () => {
     useAppStore.setState({
       rows: [
@@ -114,6 +174,45 @@ describe('ResultsTable', () => {
     const link = screen.getByTitle('Open listing')
     fireEvent.click(link)
     expect(screen.queryByRole('dialog')).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('renders eBay + TCGPlayer affiliate Buy links on a matched row (#657)', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: {
+            id: 'base1-4',
+            name: 'Charizard',
+            number: '4',
+            rarity: 'Rare Holo',
+            set: { name: 'Base Set' },
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    const ebay = screen.getByTitle('Find on eBay')
+    const tcg = screen.getByTitle('Find on TCGPlayer')
+    expect(ebay).toHaveAttribute('href', expect.stringContaining('ebay.com/sch'))
+    expect(ebay).toHaveAttribute('rel', 'sponsored noopener')
+    // Routed through the TCGPlayer Impact tracking redirect (#696).
+    expect(tcg).toHaveAttribute('href', expect.stringContaining('partner.tcgplayer.com/c/'))
+    expect(tcg).toHaveAttribute('rel', 'sponsored noopener')
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('omits affiliate Buy links on an unmatched row with no card', () => {
+    useAppStore.setState({
+      rows: [makeRow({ matched: false, card: null, query: { raw: 'whatever', name: 'whatever' } as Row['query'] })],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    expect(screen.queryByTitle('Find on eBay')).toBeNull()
+    expect(screen.queryByTitle('Find on TCGPlayer')).toBeNull()
     useAppStore.setState({ rows: [] })
   })
 
@@ -266,15 +365,19 @@ describe('ResultsTable', () => {
     })
     const bodyRow = container.querySelector('tbody tr')!
     const cells = bodyRow.querySelectorAll(':scope > td')
-    const firstCell = cells[0]
-    expect(firstCell.querySelector('button[aria-label="Save to collection"]')).not.toBeNull()
-    expect(firstCell.querySelector('button[aria-label="Save to wishlist"]')).not.toBeNull()
+    // The selection checkbox (#268) is pinned leftmost, so the save-actions
+    // cell is the one holding the buttons — find it rather than assume index.
+    const actionsCell = Array.from(cells).find((td) =>
+      td.querySelector('button[aria-label="Save to collection"]'),
+    )!
+    expect(actionsCell).toBeTruthy()
+    expect(actionsCell.querySelector('button[aria-label="Save to wishlist"]')).not.toBeNull()
     const nameCell = Array.from(cells).find((td) =>
       td.textContent?.includes('Charizard'),
     )
     expect(nameCell).toBeTruthy()
     expect(
-      firstCell.compareDocumentPosition(nameCell!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      actionsCell.compareDocumentPosition(nameCell!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     useAppStore.setState({ rows: [] })
   })
@@ -625,6 +728,299 @@ describe('ResultsTable: header sort cycle', () => {
     })
     render(<ResultsTable />)
     expect(screen.queryByText('eBay sold')).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+})
+
+describe('ResultsTable: hide owned (#339)', () => {
+  function ownedRow(name: string, number: string): Row {
+    return makeRow({
+      card: { id: `base1-${number}`, name, number, set: { id: 'base1', name: 'Base Set' } },
+      pricing: { market: 100, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+    })
+  }
+
+  it('drops owned rows and surfaces an "owned hidden" count when the setting is on', async () => {
+    vi.mocked(fetchCardOwnership).mockResolvedValue({
+      'base1::4': { collections: [{ id: 1, name: 'Show Binder', quantity: 2 }], wishlists: [] },
+    })
+    useAppStore.getState().updateSettings({ hideOwned: true })
+    useAppStore.setState({
+      rows: [ownedRow('Charizard', '4'), ownedRow('Pikachu', '58')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    // Pikachu (unowned) stays; Charizard drops once its occupancy resolves.
+    expect(await screen.findByText('Pikachu')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Charizard')).toBeNull())
+    expect(screen.getByText(/1 owned hidden/)).toBeInTheDocument()
+    expect(screen.getByText(/1 matched · 0 unmatched · 1 shown/)).toBeInTheDocument()
+
+    useAppStore.getState().updateSettings({ hideOwned: false })
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('keeps wishlist-only ("chasing") rows — those are what you still want', async () => {
+    vi.mocked(fetchCardOwnership).mockResolvedValue({
+      'base1::4': { collections: [], wishlists: [{ id: 9, name: 'Grails' }] },
+    })
+    useAppStore.getState().updateSettings({ hideOwned: true })
+    useAppStore.setState({
+      rows: [ownedRow('Charizard', '4')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    expect(await screen.findByText('chasing')).toBeInTheDocument()
+    expect(screen.getByText('Charizard')).toBeInTheDocument()
+    expect(screen.queryByText(/owned hidden/)).toBeNull()
+
+    useAppStore.getState().updateSettings({ hideOwned: false })
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('keeps owned rows when the setting is off', async () => {
+    vi.mocked(fetchCardOwnership).mockResolvedValue({
+      'base1::4': { collections: [{ id: 1, name: 'Show Binder', quantity: 2 }], wishlists: [] },
+    })
+    useAppStore.getState().updateSettings({ hideOwned: false })
+    useAppStore.setState({
+      rows: [ownedRow('Charizard', '4')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    // The owned badge still resolves, but the row stays put.
+    expect(await screen.findByText('owned ×2')).toBeInTheDocument()
+    expect(screen.getByText('Charizard')).toBeInTheDocument()
+    expect(screen.queryByText(/owned hidden/)).toBeNull()
+
+    useAppStore.setState({ rows: [] })
+  })
+})
+
+describe('ResultsTable: bulk row actions (#268)', () => {
+  function matched(name: string, number: string, market = 100): Row {
+    return makeRow({
+      card: { id: `base1-${number}`, name, number, set: { id: 'base1', name: 'Base Set' } },
+      pricing: { market, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+    })
+  }
+
+  // Sign out so the binder pickers (which need a library) stay hidden — the
+  // view actions under test (select / delete / retag / export) don't need a
+  // user, and this keeps the bar free of async collection fetches.
+  function signOut() {
+    fetchMeMock.mockReset()
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
+    _resetAuthStoreForTests()
+  }
+
+  function bar() {
+    return screen.getByRole('region', { name: /bulk actions/i })
+  }
+
+  it('shows the action bar with a count once a row is selected', () => {
+    signOut()
+    useAppStore.setState({
+      rows: [matched('Charizard', '4'), matched('Pikachu', '58')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    expect(screen.queryByRole('region', { name: /bulk actions/i })).toBeNull()
+    fireEvent.click(screen.getByLabelText('Select Charizard'))
+    expect(within(bar()).getByText('1 selected')).toBeInTheDocument()
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('select-all selects every visible row, then clears them', () => {
+    signOut()
+    useAppStore.setState({
+      rows: [matched('Charizard', '4'), matched('Pikachu', '58'), matched('Squirtle', '63')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText('Select all rows'))
+    expect(within(bar()).getByText('3 selected')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Select all rows'))
+    expect(screen.queryByRole('region', { name: /bulk actions/i })).toBeNull()
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('shift-click selects the contiguous range from the anchor', () => {
+    signOut()
+    useAppStore.setState({
+      rows: [matched('A', '1'), matched('B', '2'), matched('C', '3'), matched('D', '4')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText('Select A')) // anchor
+    fireEvent.click(screen.getByLabelText('Select C'), { shiftKey: true })
+    // A, B, C are now selected; D is not.
+    expect(within(bar()).getByText('3 selected')).toBeInTheDocument()
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('Delete drops the selected rows and Undo restores them', () => {
+    signOut()
+    useAppStore.setState({
+      rows: [matched('Charizard', '4'), matched('Pikachu', '58')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText('Select Charizard'))
+    fireEvent.click(within(bar()).getByRole('button', { name: /delete/i }))
+
+    expect(useAppStore.getState().rows.map((r) => r.card?.name)).toEqual(['Pikachu'])
+    // The bar stays up in its "Rows removed" state so Undo is reachable.
+    expect(within(bar()).getByText(/rows removed/i)).toBeInTheDocument()
+
+    fireEvent.click(within(bar()).getByRole('button', { name: /undo/i }))
+    expect(useAppStore.getState().rows.map((r) => r.card?.name)).toEqual([
+      'Charizard',
+      'Pikachu',
+    ])
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('Retag applies the tag to only the selected rows', () => {
+    signOut()
+    useAppStore.setState({
+      rows: [matched('Charizard', '4'), matched('Pikachu', '58')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText('Select Charizard'))
+    fireEvent.click(within(bar()).getByRole('button', { name: /retag/i }))
+    fireEvent.change(screen.getByLabelText(/new tag for selected rows/i), {
+      target: { value: 'show-a' },
+    })
+    fireEvent.click(within(bar()).getByRole('button', { name: /^set$/i }))
+
+    const rows = useAppStore.getState().rows
+    expect(rows.find((r) => r.card?.name === 'Charizard')?.tag).toBe('show-a')
+    expect(rows.find((r) => r.card?.name === 'Pikachu')?.tag).toBe('')
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('Export selected sends only the selected rows to exportFile', async () => {
+    signOut()
+    useAppStore.setState({
+      rows: [matched('Charizard', '4'), matched('Pikachu', '58')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText('Select Pikachu'))
+    // Radix DropdownMenu opens on the keyboard activation path under jsdom.
+    const trigger = within(bar()).getByRole('button', { name: /export/i })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+    fireEvent.click(await screen.findByText('Download .xlsx'))
+
+    await waitFor(() => expect(vi.mocked(exportFile)).toHaveBeenCalled())
+    const [rowsArg, format] = vi.mocked(exportFile).mock.calls[0]
+    expect(format).toBe('xlsx')
+    expect(rowsArg.map((r) => r.card?.name)).toEqual(['Pikachu'])
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('clears the selection on sort by default, keeps it when "preserve" is on', () => {
+    signOut()
+    useAppStore.setState({
+      rows: [matched('Charizard', '4'), matched('Abra', '1')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    // Select, then sort — selection clears because preserve is off.
+    fireEvent.click(screen.getByLabelText('Select Charizard'))
+    expect(within(bar()).getByText('1 selected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /sort by name/i }))
+    expect(screen.queryByRole('region', { name: /bulk actions/i })).toBeNull()
+
+    // Re-select, flip preserve on, then sort again — selection survives.
+    fireEvent.click(screen.getByLabelText('Select Charizard'))
+    fireEvent.click(screen.getByLabelText(/keep selection across sort/i))
+    fireEvent.click(screen.getByRole('button', { name: /sort by name/i }))
+    expect(within(bar()).getByText('1 selected')).toBeInTheDocument()
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('hides the add-to-binder pickers for a signed-out user', () => {
+    signOut()
+    useAppStore.setState({
+      rows: [matched('Charizard', '4')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText('Select Charizard'))
+    // View actions are present; binder pickers are not.
+    expect(within(bar()).getByRole('button', { name: /retag/i })).toBeInTheDocument()
+    expect(within(bar()).queryByRole('button', { name: /add as owned/i })).toBeNull()
+    expect(within(bar()).queryByRole('button', { name: /add as chasing/i })).toBeNull()
+
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('adds the selected matched cards to a collection via the binder picker', async () => {
+    // Signed-in default mock → binder pickers render. Seed one collection.
+    vi.mocked(fetchCollections).mockResolvedValue([
+      {
+        id: 7,
+        name: 'Show Binder',
+        description: null,
+        created_at: '2026-06-06T00:00:00',
+        item_count: 0,
+      },
+    ])
+    vi.mocked(bulkAddToCollection).mockResolvedValue({ added: 2, items: [] })
+    useAppStore.setState({
+      rows: [matched('Charizard', '4'), matched('Pikachu', '58')],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText('Select all rows'))
+    const owned = await within(bar()).findByRole('button', { name: /add as owned/i })
+    owned.focus()
+    fireEvent.keyDown(owned, { key: 'Enter', code: 'Enter' })
+
+    const item = (await screen.findByText('Show Binder')).closest('[role="menuitem"]')!
+    fireEvent.click(item)
+
+    await waitFor(() => expect(vi.mocked(bulkAddToCollection)).toHaveBeenCalled())
+    const [collectionId, cards] = vi.mocked(bulkAddToCollection).mock.calls[0]
+    expect(collectionId).toBe(7)
+    expect(cards).toHaveLength(2)
+
     useAppStore.setState({ rows: [] })
   })
 })

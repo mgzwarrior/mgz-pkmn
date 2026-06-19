@@ -19,7 +19,24 @@ class FallbackGroup(click.Group):
 
     Lets `pkmn cards.txt` keep working alongside `pkmn lookup cards.txt`
     and `pkmn set-cards` — preserves the historical, no-subcommand CLI
-    while still surfacing real subcommands in `--help`."""
+    while still surfacing real subcommands in `--help`.
+
+    Two parser stages need the fallback. An unknown *first positional*
+    (`pkmn cards.txt`) trips `resolve_command`; an unknown *option*
+    (`pkmn --no-images cards.txt`) trips `parse_args` on the root group
+    before `resolve_command` ever runs, so both are caught."""
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        try:
+            return super().parse_args(ctx, list(args))
+        except click.NoSuchOption:
+            if "lookup" not in self.commands:
+                raise
+            # An option meant for `lookup` hit the root group's parser.
+            # Re-parse with an explicit subcommand so the option lands on
+            # lookup's parser instead. `list(args)` above keeps the
+            # original `args` intact for this retry.
+            return super().parse_args(ctx, ["lookup", *args])
 
     def resolve_command(
         self, ctx: click.Context, args: list[str]

@@ -189,7 +189,7 @@ def _trim_card(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _fetch_set_cards(set_id: str, api_key: str | None) -> list[dict[str, Any]]:
+def _fetch_set_cards(set_id: str, api_key: str | None) -> tuple[list[dict[str, Any]], str]:
     """Fetch every card in `set_id` via pokemontcg.io and return slim shapes.
 
     Uses `TCGClient.search_all` so the request flows through the existing
@@ -197,13 +197,15 @@ def _fetch_set_cards(set_id: str, api_key: str | None) -> list[dict[str, Any]]:
     Browse open of that set is a disk-cache hit upstream, plus the trim
     is microseconds. `q=set.id:{id}` is the canonical pokemontcg.io
     filter; ids are short alnum so quoting isn't strictly needed but
-    we include it for defence against future ids with special chars."""
+    we include it for defence against future ids with special chars.
+
+    Returns `(cards, cache_status)`; the status is the worst split-cache
+    outcome across the paged walk (#372), surfaced as `X-Cache` by the
+    route handler so a contributor can tell a warm-cache open from an
+    upstream round-trip (#310)."""
     client = TCGClient(api_key=api_key)
-    # `search_all` returns (cards, cache_status) post-#372; the cache_status
-    # is unused here. Surfacing it on `/sets/{set_id}/cards` is the
-    # remaining slice of #310 (follow-up to this PR).
-    cards, _status = client.search_all(f'set.id:"{set_id}"')
-    return [_trim_card(c) for c in cards]
+    cards, status = client.search_all(f'set.id:"{set_id}"')
+    return [_trim_card(c) for c in cards], status
 
 
 @router.get("/sets/{set_id}/cards")
@@ -222,14 +224,18 @@ async def get_set_cards(
     404 when the set is unknown / empty (the upstream catalog returned
     nothing for `set.id:{set_id}`). The SPA surfaces the detail message
     to the user.
+
+    Sets an `X-Cache` header (`HIT` / `STALE` / `MISS`) mirroring the disk
+    cache freshness of the underlying pokemontcg.io read (#310).
     """
-    cards = await run_in_threadpool(_fetch_set_cards, set_id, api_key)
+    cards, cache_status = await run_in_threadpool(_fetch_set_cards, set_id, api_key)
     if not cards:
         raise HTTPException(
             status_code=404,
             detail=f"no cards found for set '{set_id}'",
         )
     response.headers["Cache-Control"] = f"public, max-age={_SET_CARDS_BROWSER_TTL}"
+    response.headers["X-Cache"] = cache_status
     return {"set_id": set_id, "cards": cards}
 
 

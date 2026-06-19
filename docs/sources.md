@@ -1,11 +1,11 @@
 # Sources & coverage
 
-The tool layers three open data sources. Each line is tried against them
-in order; the first source that produces a usable match wins.
+The tool draws on four data sources. Three of them — [pokemontcg.io], [TCGdex], and [PriceCharting] — resolve the card itself: each line is tried against them in order, and the first source that produces a usable match wins. The fourth, [eBay], never resolves cards — listing titles are too unreliable for structural data — and instead contributes sold- and active-listing comps to the pricing ensemble (see [ADR-0020](adr/0020-ebay-pricing-source.md) and [ADR-0023](adr/0023-source-ensemble-pricing.md)).
 
 [pokemontcg.io]: https://pokemontcg.io
 [TCGdex]: https://tcgdex.dev
 [PriceCharting]: https://www.pricecharting.com
+[eBay]: https://www.ebay.com
 
 ## pokemontcg.io (default)
 

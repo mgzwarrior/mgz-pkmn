@@ -1,17 +1,23 @@
 /**
  * useCollections — shared fetcher + lightweight cache for the
  * `/api/v1/collections` summary list. Both the `AddToCollectionButton`
- * picker (per result row) and the `LibraryCollectionsTab` listing read
+ * picker (per result row) and the `LibraryBindersTab` listing read
  * from here, so creating a collection in one surface lights up the
  * other without a second round-trip.
  */
 import { useCallback, useEffect, useState } from 'react'
 import {
   addCardToCollection,
+  bulkAddToCollection,
   createCollection,
+  deleteCollection,
   fetchCollections,
+  updateCollection,
   type CollectionSummary,
+  type CreateCollectionOptions,
+  type UpdateCollectionOptions,
 } from '../api/client'
+import { invalidateOwnership } from './useCardOwnership'
 
 interface State {
   collections: CollectionSummary[]
@@ -60,23 +66,64 @@ export function useCollections() {
     }
   }, [])
 
-  const create = useCallback(async (name: string, description?: string) => {
-    const created = await createCollection(name, description)
-    // Append to the cache and bump item_count when items arrive later.
-    set({
-      collections: [
-        {
-          id: created.id,
-          name: created.name,
-          description: created.description,
-          created_at: created.created_at,
-          item_count: created.items.length,
-        },
-        ...state.collections,
-      ],
-    })
-    return created
-  }, [])
+  const create = useCallback(
+    async (name: string, options?: CreateCollectionOptions) => {
+      const created = await createCollection(name, options)
+      // Append to the cache and bump item_count when items arrive later.
+      // A dynamic collection lands with its already-resolved membership, so
+      // seed item_count from the returned items rather than zero.
+      set({
+        collections: [
+          {
+            id: created.id,
+            name: created.name,
+            description: created.description,
+            created_at: created.created_at,
+            item_count: created.items.length,
+            total_quantity: created.items.length,
+            kind: created.kind,
+            source_set_id: created.source_set_id,
+            rule: created.rule,
+            dynamic_scope: created.dynamic_scope,
+            binder_format: created.binder_format,
+            binder_color: created.binder_color,
+            binder_type: created.binder_type,
+            capacity: created.capacity,
+            is_master_set: created.is_master_set,
+          },
+          ...state.collections,
+        ],
+      })
+      return created
+    },
+    [],
+  )
+
+  const update = useCallback(
+    async (collectionId: number, patch: UpdateCollectionOptions) => {
+      const updated = await updateCollection(collectionId, patch)
+      // Merge the edited identity back into the cached summary so every
+      // surface re-renders without a refetch. item_count is untouched here.
+      set({
+        collections: state.collections.map((c) =>
+          c.id === collectionId
+            ? {
+                ...c,
+                name: updated.name,
+                description: updated.description,
+                binder_format: updated.binder_format,
+                binder_color: updated.binder_color,
+                binder_type: updated.binder_type,
+                capacity: updated.capacity,
+                is_master_set: updated.is_master_set,
+              }
+            : c,
+        ),
+      })
+      return updated
+    },
+    [],
+  )
 
   const addCard = useCallback(
     async (
@@ -85,10 +132,17 @@ export function useCollections() {
       notes?: string,
     ) => {
       await addCardToCollection(collectionId, card, notes)
+      // The card's ownership badge (#576) is now stale across every
+      // surface — drop the shared cache so it re-fetches.
+      invalidateOwnership()
       set({
         collections: state.collections.map((c) =>
           c.id === collectionId
-            ? { ...c, item_count: c.item_count + 1 }
+            ? {
+                ...c,
+                item_count: c.item_count + 1,
+                total_quantity: (c.total_quantity ?? c.item_count) + 1,
+              }
             : c,
         ),
       })
@@ -96,11 +150,48 @@ export function useCollections() {
     [],
   )
 
+  const bulkAdd = useCallback(
+    async (
+      collectionId: number,
+      cards: Record<string, unknown>[],
+      opts?: { notes?: string | null; addedVia?: string },
+    ) => {
+      const result = await bulkAddToCollection(collectionId, cards, opts)
+      // Every added card's ownership badge (#576) is now stale — drop the
+      // shared cache so it re-fetches.
+      invalidateOwnership()
+      set({
+        collections: state.collections.map((c) =>
+          c.id === collectionId
+            ? {
+                ...c,
+                item_count: c.item_count + result.added,
+                total_quantity: (c.total_quantity ?? c.item_count) + result.added,
+              }
+            : c,
+        ),
+      })
+      return result
+    },
+    [],
+  )
+
+  const remove = useCallback(async (collectionId: number) => {
+    await deleteCollection(collectionId)
+    // Cascade-removed items drop the cards' ownership badges (#576) — bust
+    // the shared cache so they re-fetch.
+    invalidateOwnership()
+    set({ collections: state.collections.filter((c) => c.id !== collectionId) })
+  }, [])
+
   return {
     ...snapshot,
     refresh,
     create,
+    update,
     addCard,
+    bulkAdd,
+    remove,
   }
 }
 

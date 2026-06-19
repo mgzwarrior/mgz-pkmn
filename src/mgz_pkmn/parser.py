@@ -151,6 +151,99 @@ class CardQuery:
         return " ".join(bits) + bound
 
 
+@dataclass(frozen=True)
+class _LineContext:
+    """The per-line fields shared by every `CardQuery` a parse can emit —
+    captured once so the stage helpers don't each thread six arguments."""
+
+    raw: str
+    variant: str | None
+    url_hint: str | None
+    price_min: float | None
+    price_max: float | None
+    price_min_exclusive: bool
+    price_max_exclusive: bool
+
+    def query(
+        self,
+        name: str,
+        set_hint: str | None = None,
+        number: str | None = None,
+        *,
+        bulk_top: int | None = None,
+        bulk_all: bool = False,
+    ) -> CardQuery:
+        return CardQuery(
+            self.raw,
+            name,
+            set_hint,
+            number,
+            self.variant,
+            self.url_hint,
+            bulk_top,
+            price_min=self.price_min,
+            price_max=self.price_max,
+            price_min_exclusive=self.price_min_exclusive,
+            price_max_exclusive=self.price_max_exclusive,
+            bulk_all=bulk_all,
+        )
+
+
+def _extract_variant(body: str) -> tuple[str | None, str]:
+    """Pull a `[variant]` tag out of the line, returning (variant, remainder)."""
+    m = VARIANT_RE.search(body)
+    if not m:
+        return None, body
+    variant = m.group(1).strip()
+    return variant, (body[: m.start()] + body[m.end() :]).strip()
+
+
+def _extract_url_hint(body: str) -> tuple[str | None, str]:
+    """Pull a URL out first — it's an explicit lookup hint and must not be
+    confused with a card number or set name. Returns (url_hint, remainder)."""
+    m = URL_RE.search(body)
+    if not m:
+        return None, body
+    url_hint = m.group(0).rstrip(",;)]")
+    body = (body[: m.start()] + body[m.end() :]).strip()
+    body = re.sub(r"[|\-—]\s*$", "", body).strip()
+    return url_hint, body
+
+
+def _parse_delimited(body: str, ctx: _LineContext) -> CardQuery | None:
+    """Pipe / dash delimited canonical forms (`name | set | number`). Returns
+    None when no delimiter yields a usable split, leaving the positional
+    fallback to try."""
+    for sep in ("|", " - ", " — "):
+        if sep not in body:
+            continue
+        parts = [p.strip() for p in body.split(sep) if p.strip()]
+        if len(parts) >= 3:
+            if NUMBER_RE.match(parts[-1].replace(" ", "")):
+                return ctx.query(parts[0], " ".join(parts[1:-1]), _normalize_number(parts[-1]))
+            return ctx.query(parts[0], " ".join(parts[1:]))
+        if len(parts) == 2:
+            if NUMBER_RE.match(parts[1].replace(" ", "")):
+                return ctx.query(parts[0], None, _normalize_number(parts[1]))
+            return ctx.query(parts[0], parts[1])
+    return None
+
+
+def _parse_positional(body: str, ctx: _LineContext) -> CardQuery | None:
+    """Fallback: the first number-shaped token is the number, everything else
+    is name + set."""
+    number = None
+    leftover: list[str] = []
+    for tok in body.split():
+        if number is None and NUMBER_RE.match(tok):
+            number = _normalize_number(tok)
+        else:
+            leftover.append(tok)
+    if not leftover:
+        return None
+    return ctx.query(" ".join(leftover), None, number)
+
+
 def parse_line(line: str) -> CardQuery | None:
     """Best-effort parse of a single card line into name / set / number / variant."""
     raw_input = line.strip()
@@ -163,24 +256,8 @@ def parse_line(line: str) -> CardQuery | None:
     if not body:
         return None
 
-    variant = None
-    m = VARIANT_RE.search(body)
-    if m:
-        variant = m.group(1).strip()
-        body = (body[: m.start()] + body[m.end() :]).strip()
-
-    # Pull any URL out of the line first — we treat it as an explicit lookup
-    # hint and don't want it confused with a card number or set name.
-    url_hint = None
-    url_match = URL_RE.search(body)
-    if url_match:
-        url_hint = url_match.group(0).rstrip(",;)]")
-        body = (body[: url_match.start()] + body[url_match.end() :]).strip()
-        body = re.sub(r"[|\-—]\s*$", "", body).strip()
-
-    # Keep `raw` referring to the original input (pre-strip) so the spreadsheet
-    # column shows what the user actually wrote.
-    raw = raw_input
+    variant, body = _extract_variant(body)
+    url_hint, body = _extract_url_hint(body)
 
     # In-line price conditions (`>= $20`, `<= $50`, `between` via two clauses).
     # Pulled out before bulk-phrase matching because the bulk regex is anchored
@@ -189,19 +266,20 @@ def parse_line(line: str) -> CardQuery | None:
         body
     )
 
+    # `raw` stays the original input (pre-strip) so the spreadsheet column
+    # shows what the user actually wrote.
+    ctx = _LineContext(
+        raw_input,
+        variant,
+        url_hint,
+        price_min,
+        price_max,
+        price_min_exclusive,
+        price_max_exclusive,
+    )
+
     if not body and url_hint:
-        return CardQuery(
-            raw,
-            _name_from_url(url_hint),
-            None,
-            None,
-            variant,
-            url_hint,
-            price_min=price_min,
-            price_max=price_max,
-            price_min_exclusive=price_min_exclusive,
-            price_max_exclusive=price_max_exclusive,
-        )
+        return ctx.query(_name_from_url(url_hint))
 
     # "Top-N chase cards" patterns trump the regular parsing. The user is
     # asking for a bulk lookup, not a single specific card. Pipe-delimited
@@ -209,105 +287,9 @@ def parse_line(line: str) -> CardQuery | None:
     bulk = _try_bulk(body)
     if bulk is not None:
         count, name, set_hint = bulk
-        return CardQuery(
-            raw,
-            name,
-            set_hint,
-            None,
-            variant,
-            url_hint,
-            count,
-            price_min=price_min,
-            price_max=price_max,
-            price_min_exclusive=price_min_exclusive,
-            price_max_exclusive=price_max_exclusive,
-            bulk_all=count is None,
-        )
+        return ctx.query(name, set_hint, bulk_top=count, bulk_all=count is None)
 
-    # Pipe or dash delimited canonical forms first.
-    for sep in ("|", " - ", " — "):
-        if sep in body:
-            parts = [p.strip() for p in body.split(sep) if p.strip()]
-            if len(parts) >= 3:
-                if NUMBER_RE.match(parts[-1].replace(" ", "")):
-                    name = parts[0]
-                    set_hint = " ".join(parts[1:-1])
-                    return CardQuery(
-                        raw,
-                        name,
-                        set_hint,
-                        _normalize_number(parts[-1]),
-                        variant,
-                        url_hint,
-                        price_min=price_min,
-                        price_max=price_max,
-                        price_min_exclusive=price_min_exclusive,
-                        price_max_exclusive=price_max_exclusive,
-                    )
-                return CardQuery(
-                    raw,
-                    parts[0],
-                    " ".join(parts[1:]),
-                    None,
-                    variant,
-                    url_hint,
-                    price_min=price_min,
-                    price_max=price_max,
-                    price_min_exclusive=price_min_exclusive,
-                    price_max_exclusive=price_max_exclusive,
-                )
-            if len(parts) == 2:
-                if NUMBER_RE.match(parts[1].replace(" ", "")):
-                    return CardQuery(
-                        raw,
-                        parts[0],
-                        None,
-                        _normalize_number(parts[1]),
-                        variant,
-                        url_hint,
-                        price_min=price_min,
-                        price_max=price_max,
-                        price_min_exclusive=price_min_exclusive,
-                        price_max_exclusive=price_max_exclusive,
-                    )
-                return CardQuery(
-                    raw,
-                    parts[0],
-                    parts[1],
-                    None,
-                    variant,
-                    url_hint,
-                    price_min=price_min,
-                    price_max=price_max,
-                    price_min_exclusive=price_min_exclusive,
-                    price_max_exclusive=price_max_exclusive,
-                )
-
-    # Positional fallback. Find a number-shaped token; everything else is name+set.
-    tokens = body.split()
-    number = None
-    leftover: list[str] = []
-    for tok in tokens:
-        if number is None and NUMBER_RE.match(tok):
-            number = _normalize_number(tok)
-        else:
-            leftover.append(tok)
-
-    if not leftover:
-        return None
-    name = " ".join(leftover)
-    return CardQuery(
-        raw,
-        name,
-        None,
-        number,
-        variant,
-        url_hint,
-        price_min=price_min,
-        price_max=price_max,
-        price_min_exclusive=price_min_exclusive,
-        price_max_exclusive=price_max_exclusive,
-    )
+    return _parse_delimited(body, ctx) or _parse_positional(body, ctx)
 
 
 def _extract_price_conds(

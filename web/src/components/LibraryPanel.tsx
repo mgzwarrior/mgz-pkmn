@@ -1,9 +1,10 @@
 /**
  * LibraryPanel — unified destination for the visitor's saved stuff:
- * Searches (named saved runs), Recent (client-side input history),
- * Collections (*"I own these"*), and Wishlists (*"I want these"*). Four
- * tabs, one surface — replaces the desktop saved-searches rail and the
- * two header chips that used to open Collections / Wishlists modals.
+ * Searches (named saved runs), Recent (client-side input history), and
+ * Binders — the merged home for collections (*"I own these"*) and
+ * want-lists (*"I'm chasing these"*). Three tabs, one surface — replaces
+ * the desktop saved-searches rail and the two header chips that used to
+ * open Collections / Wishlists modals.
  *
  * Two layouts share the same tab content:
  * - `variant="sidebar"` (desktop, lg+) — persistent left rail; can
@@ -18,28 +19,26 @@
  * lookup against the current settings.
  */
 import { useState } from 'react'
-import { Bookmark, ChevronDown, ChevronLeft, ChevronRight, Heart, History, Library, Search } from 'lucide-react'
+import { BookOpen, Bookmark, ChevronDown, ChevronLeft, ChevronRight, History, Library, Search } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import { LibrarySearchesTab } from './LibrarySearchesTab'
 import { LibraryRecentTab } from './LibraryRecentTab'
-import { LibraryCollectionsTab } from './LibraryCollectionsTab'
-import { LibraryWishlistsTab } from './LibraryWishlistsTab'
+import { LibraryBindersTab } from './LibraryBindersTab'
 
-type LibraryTab = 'searches' | 'recent' | 'collections' | 'wishlists'
+type LibraryTab = 'searches' | 'recent' | 'binders'
 
 const ALL_TABS: { value: LibraryTab; label: string; icon: typeof Search }[] = [
   { value: 'searches', label: 'Searches', icon: Bookmark },
   { value: 'recent', label: 'Recent', icon: History },
-  { value: 'collections', label: 'Collections', icon: Library },
-  { value: 'wishlists', label: 'Wishlists', icon: Heart },
+  { value: 'binders', label: 'Binders', icon: BookOpen },
 ]
 
-// Collections / wishlists are user-scoped surfaces. On auth-enabled
-// deploys with no identified user the tabs are hidden — same gate the
-// pre-Library header chips applied. Self-host (authEnabled=false)
-// falls back to the default user so both tabs stay visible.
-const USER_SCOPED_TABS = new Set<LibraryTab>(['collections', 'wishlists'])
+// Binders (collections + want-lists) are a user-scoped surface. On
+// auth-enabled deploys with no identified user the tab is hidden — same
+// gate the pre-Library header chips applied. Self-host (authEnabled=false)
+// falls back to the default user so the tab stays visible.
+const USER_SCOPED_TABS = new Set<LibraryTab>(['binders'])
 
 interface Props {
   variant: 'sidebar' | 'accordion'
@@ -176,10 +175,8 @@ function renderTab(tab: LibraryTab, onRun: (overrideText: string) => void) {
       return <LibrarySearchesTab />
     case 'recent':
       return <LibraryRecentTab onRun={onRun} />
-    case 'collections':
-      return <LibraryCollectionsTab />
-    case 'wishlists':
-      return <LibraryWishlistsTab />
+    case 'binders':
+      return <LibraryBindersTab />
   }
 }
 
@@ -199,8 +196,7 @@ function TabStrip({
   const counts: Record<LibraryTab, number | null> = {
     searches: runsCount,
     recent: recentCount,
-    collections: null,
-    wishlists: null,
+    binders: null,
   }
   return (
     <div
@@ -208,10 +204,13 @@ function TabStrip({
       aria-label="Library sections"
       className="grid grid-cols-2 gap-1 rounded border border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200 p-0.5"
     >
-      {tabs.map((t) => {
+      {tabs.map((t, i) => {
         const Icon = t.icon
         const active = t.value === activeTab
         const count = counts[t.value]
+        // An odd final tab spans the full row so the 2-col grid never
+        // leaves a dangling empty cell (signed-in: Searches/Recent/Binders).
+        const spanFull = i === tabs.length - 1 && tabs.length % 2 === 1
         return (
           <button
             key={t.value}
@@ -220,6 +219,8 @@ function TabStrip({
             aria-selected={active}
             onClick={() => onChange(t.value)}
             className={`flex min-w-0 items-center justify-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium transition-colors ${
+              spanFull ? 'col-span-2' : ''
+            } ${
               active
                 ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
                 : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'

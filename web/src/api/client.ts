@@ -524,12 +524,65 @@ export async function unlinkIdentity(identityId: number): Promise<void> {
 // collections
 // ---------------------------------------------------------------------------
 
+/**
+ * A dynamic collection's membership rule (#506). AND of predicates; every
+ * field optional but a rule must carry at least one. Maps onto the promoted
+ * card-identity columns the API resolves against.
+ */
+export interface CollectionRule {
+  name?: string
+  types?: string[]
+  set_id?: string
+  number?: string
+  rarity?: string
+}
+
+/** One of `manual` (default), `set`, `dynamic`, or `binder`. */
+export type CollectionKind = 'manual' | 'set' | 'dynamic' | 'binder'
+
+/** Page pocket layout of a physical binder (#679). */
+export type BinderFormat = '4-pocket' | '9-pocket' | '12-pocket'
+
+/**
+ * Curated cover-color preset (#679) — a design-token palette stem the SPA
+ * maps to `bg-<color>-500`. Mirrors the server's `BINDER_COLORS` preset
+ * allowlist. A binder may also store a freeform `#rrggbb` hex (#681), so the
+ * stored `binder_color` field is a plain `string`, not this union.
+ */
+export type BinderColor = 'palm' | 'sun' | 'sky' | 'ember' | 'coconut' | 'sand' | 'husk'
+
+/** How a binder's cards are physically stored (#681). */
+export type BinderType = 'regular' | 'toploader' | 'graded' | 'other'
+
+/**
+ * For a `dynamic` collection (#631): `owned` resolves the rule against your
+ * own cards (an inventory view); `catalog` resolves the full matching set
+ * from the catalog and overlays ownership (a target view with progress).
+ */
+export type DynamicScope = 'owned' | 'catalog'
+
 export interface CollectionSummary {
   id: number
   name: string
   description: string | null
   created_at: string
   item_count: number
+  // #679 — occupied slots (sum of item quantities); a binder's capacity fill
+  // counts pockets, not rows. Optional so older cached payloads type-check.
+  total_quantity?: number
+  // #506 — present on every response; optional here so older cached
+  // payloads (and test fixtures) without them still type-check.
+  kind?: CollectionKind
+  source_set_id?: string | null
+  rule?: CollectionRule | null
+  dynamic_scope?: DynamicScope | null
+  // #679/#681 — binder identity. format/capacity are physical-only;
+  // color (preset stem or #rrggbb hex) / type / master-set are shared.
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+  is_master_set?: boolean | null
 }
 
 export interface CollectionItem {
@@ -545,6 +598,16 @@ export interface Collection {
   description: string | null
   created_at: string
   items: CollectionItem[]
+  kind?: CollectionKind
+  source_set_id?: string | null
+  rule?: CollectionRule | null
+  dynamic_scope?: DynamicScope | null
+  // #679/#681 — binder identity (see CollectionSummary).
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+  is_master_set?: boolean | null
 }
 
 export async function fetchCollections(): Promise<CollectionSummary[]> {
@@ -554,17 +617,134 @@ export async function fetchCollections(): Promise<CollectionSummary[]> {
   return data.items as CollectionSummary[]
 }
 
+export interface CreateCollectionOptions {
+  description?: string | null
+  kind?: CollectionKind
+  source_set_id?: string | null
+  rule?: CollectionRule | null
+  dynamic_scope?: DynamicScope | null
+  // #679/#681 — server keeps the fields each kind carries, drops the rest.
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+  is_master_set?: boolean | null
+}
+
 export async function createCollection(
   name: string,
-  description?: string | null,
+  options?: CreateCollectionOptions,
 ): Promise<Collection> {
   const res = await fetch(`${BASE}/collections`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description: description ?? null }),
+    body: JSON.stringify({
+      name,
+      description: options?.description ?? null,
+      kind: options?.kind ?? 'manual',
+      source_set_id: options?.source_set_id ?? null,
+      rule: options?.rule ?? null,
+      dynamic_scope: options?.dynamic_scope ?? null,
+      binder_format: options?.binder_format ?? null,
+      binder_color: options?.binder_color ?? null,
+      binder_type: options?.binder_type ?? null,
+      capacity: options?.capacity ?? null,
+      is_master_set: options?.is_master_set ?? null,
+    }),
   })
   if (!res.ok) throw new Error(`create collection failed: ${res.status}`)
   return (await res.json()) as Collection
+}
+
+/**
+ * Fields a PATCH may carry. Only the keys present are sent, so a partial
+ * edit leaves the rest intact (the server reads `model_fields_set`). Binder
+ * identity edits are rejected server-side on non-binder collections.
+ */
+export interface UpdateCollectionOptions {
+  name?: string
+  description?: string | null
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+  is_master_set?: boolean | null
+}
+
+export async function updateCollection(
+  collectionId: number,
+  patch: UpdateCollectionOptions,
+): Promise<Collection> {
+  const res = await fetch(`${BASE}/collections/${collectionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`update collection failed: ${res.status}`)
+  return (await res.json()) as Collection
+}
+
+// ---------------------------------------------------------------------------
+// #631 — catalog-backed target view + chase
+// ---------------------------------------------------------------------------
+
+/** One catalog match, annotated with the user's ownership of it. */
+export interface TargetCard {
+  card: Record<string, unknown>
+  card_set_id: string | null
+  card_number: string | null
+  owned: boolean
+  owned_quantity: number
+}
+
+/** Resolved catalog membership for a `catalog`-scope dynamic collection. */
+export interface CollectionTarget {
+  id: number
+  name: string
+  rule: CollectionRule | null
+  total: number
+  owned_count: number
+  cards: TargetCard[]
+}
+
+export async function fetchCollectionTarget(
+  collectionId: number,
+  apiKey?: string,
+): Promise<CollectionTarget> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/collections/${collectionId}/target${params}`)
+  if (!res.ok) throw new Error(`collection target failed: ${res.status}`)
+  return (await res.json()) as CollectionTarget
+}
+
+export interface ChaseResult {
+  wishlist_id: number
+  added: number
+  skipped: number
+  total_missing: number
+}
+
+/**
+ * Push the un-owned matches onto a want-list. Pass exactly one of
+ * `wishlistName` (creates a fresh list) or `wishlistId` (an existing one).
+ */
+export async function chaseCollection(
+  collectionId: number,
+  target: { wishlistName?: string; wishlistId?: number; maxPrice?: number },
+  apiKey?: string,
+): Promise<ChaseResult> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/collections/${collectionId}/chase${params}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      wishlist_name: target.wishlistName ?? null,
+      wishlist_id: target.wishlistId ?? null,
+      max_price: target.maxPrice ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`chase failed: ${res.status}`)
+  return (await res.json()) as ChaseResult
 }
 
 export async function addCardToCollection(
@@ -579,6 +759,130 @@ export async function addCardToCollection(
   })
   if (!res.ok) throw new Error(`add to collection failed: ${res.status}`)
   return (await res.json()) as CollectionItem
+}
+
+/** Result of a bulk add: the created rows plus their count (#268). */
+export interface BulkAddResult<T> {
+  added: number
+  items: T[]
+}
+
+/** Add many cards to a collection in one call — the results-table
+ * "add selected to binder (owned)" action (#268). */
+export async function bulkAddToCollection(
+  collectionId: number,
+  cards: Record<string, unknown>[],
+  opts?: { notes?: string | null; addedVia?: string },
+): Promise<BulkAddResult<CollectionItem>> {
+  const res = await fetch(`${BASE}/collections/${collectionId}/items/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cards,
+      notes: opts?.notes ?? null,
+      added_via: opts?.addedVia ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`bulk add to collection failed: ${res.status}`)
+  return (await res.json()) as BulkAddResult<CollectionItem>
+}
+
+/** Delete a collection and cascade-remove its items. */
+export async function deleteCollection(collectionId: number): Promise<void> {
+  const res = await fetch(`${BASE}/collections/${collectionId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete collection failed: ${res.status}`)
+  }
+}
+
+/**
+ * Download the printable collection ID card PDF (#507) — the cover cutout for
+ * the top-left binder pocket (title, a representative card photo, owned/total).
+ * Triggers a browser save; mirrors `downloadSetCardsPdf`.
+ */
+export async function downloadCollectionIdCardPdf(
+  collectionId: number,
+  apiKey?: string,
+): Promise<void> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/collections/${collectionId}/id-card.pdf${params}`)
+  if (!res.ok) {
+    let detail = `id card failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `collection-${collectionId}-id-card.pdf`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+// ---------------------------------------------------------------------------
+// #575 — aggregate insights dashboard
+// ---------------------------------------------------------------------------
+
+export interface InsightsTotals {
+  collections: number
+  unique_cards: number
+  total_quantity: number
+  estimated_value: number
+}
+
+/** One bar in a top-N breakdown — a label and its distinct-card count. */
+export interface LabeledCount {
+  label: string
+  count: number
+}
+
+export interface DuplicateCard {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  quantity: number
+  collection_name: string
+}
+
+export interface CrossCollectionCard {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  total_quantity: number
+  collections: string[]
+}
+
+export interface AlreadyOwnedChase {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  wishlist_id: number
+  wishlist_name: string
+  collections: string[]
+}
+
+/** Aggregate "your collection at a glance" across all of the user's
+ * collections (#575). */
+export interface CollectionInsights {
+  totals: InsightsTotals
+  top_types: LabeledCount[]
+  top_rarities: LabeledCount[]
+  top_sets: LabeledCount[]
+  duplicate_multiples: DuplicateCard[]
+  cross_collection: CrossCollectionCard[]
+  already_owned_chasing: AlreadyOwnedChase[]
+}
+
+export async function fetchCollectionInsights(): Promise<CollectionInsights> {
+  const res = await fetch(`${BASE}/collections/insights`)
+  if (!res.ok) throw new Error(`collection insights failed: ${res.status}`)
+  return (await res.json()) as CollectionInsights
 }
 
 // ---------------------------------------------------------------------------
@@ -599,6 +903,19 @@ export interface WishlistItem {
   notes: string | null
   max_price: number | null
   added_at: string
+  // Promoted identity + lifecycle fields (#574/#504). Optional so partial
+  // fixtures stay valid — the wire always carries them (null when absent).
+  card_set_id?: string | null
+  card_number?: string | null
+  card_name?: string | null
+  card_rarity?: string | null
+  card_types?: string[] | null
+  card_image_url?: string | null
+  price_snapshot?: number | null
+  priced_at?: string | null
+  // Non-null once the chase is closed and the card is owned (#504).
+  acquired_at?: string | null
+  acquired_collection_item_id?: number | null
 }
 
 export interface Wishlist {
@@ -614,6 +931,44 @@ export async function fetchWishlists(): Promise<WishlistSummary[]> {
   if (!res.ok) throw new Error(`wishlists failed: ${res.status}`)
   const data = await res.json()
   return data.items as WishlistSummary[]
+}
+
+export async function fetchWishlist(wishlistId: number): Promise<Wishlist> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}`)
+  if (!res.ok) throw new Error(`wishlist failed: ${res.status}`)
+  return (await res.json()) as Wishlist
+}
+
+/** The wishlist row (now acquired) plus the collection row it produced. */
+export interface PromoteResult {
+  wishlist_item: WishlistItem
+  collection_item: CollectionItem
+}
+
+/**
+ * Close a chase: mark a wishlist item acquired and land it in a collection
+ * (#504). The wishlist row survives — stamped `acquired_at` — so the list
+ * doubles as a show retrospective.
+ */
+export async function promoteWishlistItem(
+  wishlistId: number,
+  itemId: number,
+  opts: { collectionId: number; quantity?: number; notes?: string | null },
+): Promise<PromoteResult> {
+  const res = await fetch(
+    `${BASE}/wishlists/${wishlistId}/items/${itemId}/promote`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        collection_id: opts.collectionId,
+        quantity: opts.quantity ?? 1,
+        notes: opts.notes ?? null,
+      }),
+    },
+  )
+  if (!res.ok) throw new Error(`promote failed: ${res.status}`)
+  return (await res.json()) as PromoteResult
 }
 
 export async function createWishlist(
@@ -645,4 +1000,140 @@ export async function addCardToWishlist(
   })
   if (!res.ok) throw new Error(`add to wishlist failed: ${res.status}`)
   return (await res.json()) as WishlistItem
+}
+
+/** Add many cards to a want-list in one call — the results-table
+ * "add selected to binder (chasing)" action (#268). */
+export async function bulkAddToWishlist(
+  wishlistId: number,
+  cards: Record<string, unknown>[],
+  opts?: { notes?: string | null; maxPrice?: number | null },
+): Promise<BulkAddResult<WishlistItem>> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cards,
+      notes: opts?.notes ?? null,
+      max_price: opts?.maxPrice ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`bulk add to want-list failed: ${res.status}`)
+  return (await res.json()) as BulkAddResult<WishlistItem>
+}
+
+/** Delete a want-list and cascade-remove its items. */
+export async function deleteWishlist(wishlistId: number): Promise<void> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete want-list failed: ${res.status}`)
+  }
+}
+
+/** Remove a single card from a want-list. */
+export async function deleteWishlistItem(
+  wishlistId: number,
+  itemId: number,
+): Promise<void> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items/${itemId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`remove want-list card failed: ${res.status}`)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// swipe (library-aware deck memory + exclusion, #581)
+// ---------------------------------------------------------------------------
+
+/** The promoted `(set_id, number)` identity the swipe deck excludes on. */
+export interface SwipeCardIdentity {
+  set_id: string
+  number: string
+}
+
+/**
+ * Identities the swipe deck should skip for the current user. Always
+ * includes the persisted "already seen" set; `owned` / `chasing` fold in
+ * the user's collection / wishlist cards respectively. The SPA keys its
+ * candidate filter on `${set_id}-${number}` so this composes directly with
+ * the client-side sampler.
+ */
+export async function fetchSwipeExcluded(opts?: {
+  owned?: boolean
+  chasing?: boolean
+}): Promise<SwipeCardIdentity[]> {
+  const params = new URLSearchParams()
+  if (opts?.owned) params.set('owned', 'true')
+  if (opts?.chasing) params.set('chasing', 'true')
+  const qs = params.toString()
+  const res = await fetch(`${BASE}/swipe/excluded${qs ? `?${qs}` : ''}`)
+  if (!res.ok) throw new Error(`swipe excluded failed: ${res.status}`)
+  const data = await res.json()
+  return data.cards as SwipeCardIdentity[]
+}
+
+/** Record one shown card so it never resurfaces across sessions. Idempotent. */
+export async function recordSwipeSeen(
+  setId: string,
+  number: string,
+  dir?: string,
+): Promise<void> {
+  const res = await fetch(`${BASE}/swipe/seen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ set_id: setId, number, dir: dir ?? null }),
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`record swipe seen failed: ${res.status}`)
+  }
+}
+
+/** Reset the deck — clear the user's seen memory, or just one set's. */
+export async function resetSwipeSeen(setId?: string): Promise<void> {
+  const qs = setId ? `?set_id=${encodeURIComponent(setId)}` : ''
+  const res = await fetch(`${BASE}/swipe/seen${qs}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`reset swipe seen failed: ${res.status}`)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// card ownership (cross-collection badges, #576)
+// ---------------------------------------------------------------------------
+
+export interface CollectionOccupancy {
+  id: number
+  name: string
+  quantity: number
+}
+
+export interface WishlistOccupancy {
+  id: number
+  name: string
+}
+
+export interface CardOwnership {
+  collections: CollectionOccupancy[]
+  wishlists: WishlistOccupancy[]
+}
+
+/**
+ * Per-card occupancy across the user's collections + wishlists, for a batch
+ * of `(set_id, number)` identities. The response is a sparse map keyed by
+ * `${set_id}::${number}` — only cards the user owns or is chasing appear, so
+ * the SPA renders a badge exactly when the key is present.
+ */
+export async function fetchCardOwnership(
+  cards: { set_id: string; number: string }[],
+): Promise<Record<string, CardOwnership>> {
+  const res = await fetch(`${BASE}/cards/ownership`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cards }),
+  })
+  if (!res.ok) throw new Error(`card ownership failed: ${res.status}`)
+  const data = await res.json()
+  return data.ownership as Record<string, CardOwnership>
 }

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---- Stage 1: build the SPA ----
-FROM node:20-alpine AS web-builder
+FROM node:22-alpine AS web-builder
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci

@@ -332,7 +332,12 @@ def _draw_cell(
     geom: dict,
     max_price: float | None = None,
 ) -> None:
-    """Render one card cell. (x, y) is the bottom-left of the cell."""
+    """Render one card cell. (x, y) is the bottom-left of the cell.
+
+    A layout coordinator: it computes the cell geometry, then hands each
+    visual block (border, banner, image, caption text, price, comps) to a
+    helper in top-to-bottom order, threading the descending `line_y` cursor
+    through the caption stack."""
     cell_w = geom["cell_w"]
     cell_h = geom["cell_h"]
     image_w = geom["image_w"]
@@ -359,6 +364,27 @@ def _draw_cell(
     if language and language.lower() != "en":
         _draw_lang_banner(c, image_x, banner_top_y, image_w, language, layout)
 
+    _draw_cell_image(c, row, image_x, image_y, image_w, image_h, layout)
+
+    cx = x + cell_w / 2
+    max_w = cell_w - 8
+    line_y = image_y - 6 - layout.caption_leading
+    line_y = _draw_cell_caption_text(c, row.card or {}, language, cx, line_y, max_w, layout)
+    line_y = _draw_cell_price(c, row, cx, line_y, max_w, layout, max_price)
+    _draw_cell_comps(c, row, cx, line_y, max_w, layout)
+
+
+def _draw_cell_image(
+    c: canvas.Canvas,
+    row: Row,
+    image_x: float,
+    image_y: float,
+    image_w: float,
+    image_h: float,
+    layout: BinderLayout,
+) -> None:
+    """Draw the card image, falling back to a placeholder on a missing file
+    or a decode/draw error."""
     if row.image_path and row.image_path.exists():
         try:
             buf = _shrink_for_pdf(row.image_path, layout)
@@ -383,17 +409,23 @@ def _draw_cell(
             "no image" if row.card else "(not found)",
         )
 
-    # Caption block.
-    card = row.card or {}
+
+def _draw_cell_caption_text(
+    c: canvas.Canvas,
+    card: dict,
+    language: str,
+    cx: float,
+    line_y: float,
+    max_w: float,
+    layout: BinderLayout,
+) -> float:
+    """Name (bold), `(#num/total)`, and set name. Returns the cursor below
+    the set-name line, ready for the price block."""
     name = card.get("name") or "(not found)"
     card_set = card.get("set") or {}
     set_name = card_set.get("name") or "?"
     number = card.get("number") or "?"
     total = card_set.get("printedTotal") or card_set.get("total")
-
-    line_y = image_y - 6 - layout.caption_leading
-    cx = x + cell_w / 2
-    max_w = cell_w - 8
 
     # 1. Name (bold).
     c.setFillColorRGB(*palette.rgb01("fg-1"))
@@ -411,8 +443,20 @@ def _draw_cell(
     line_y -= layout.caption_leading
     c.setFont("Helvetica", layout.caption_font_size)
     _draw_truncated(c, cx, line_y, set_name, max_w)
+    return line_y
 
-    # 4. Market price labelled "MP" (slightly emphasized).
+
+def _draw_cell_price(
+    c: canvas.Canvas,
+    row: Row,
+    cx: float,
+    line_y: float,
+    max_w: float,
+    layout: BinderLayout,
+    max_price: float | None,
+) -> float:
+    """Market price labelled "MP". Red `! MP` above cap, green in budget,
+    oblique "no price" when unpriced. Returns the cursor below the line."""
     line_y -= layout.caption_leading + 1
     if row.pricing.market is not None:
         sym = "€" if row.pricing.currency == "EUR" else "$"
@@ -429,8 +473,18 @@ def _draw_cell(
         c.setFont("Helvetica-Oblique", layout.caption_font_size)
         c.setFillColorRGB(*palette.rgb01("fg-3"))
         _draw_truncated(c, cx, line_y, "no price", max_w)
+    return line_y
 
-    # 5-8. Comp tiers, one per line for visibility.
+
+def _draw_cell_comps(
+    c: canvas.Canvas,
+    row: Row,
+    cx: float,
+    line_y: float,
+    max_w: float,
+    layout: BinderLayout,
+) -> None:
+    """Comp tiers, one per line at 80/85/90/95% of market."""
     c.setFillColorRGB(*palette.rgb01("fg-2"))
     c.setFont("Helvetica", layout.comp_font_size)
     if row.pricing.market is not None:

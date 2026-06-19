@@ -60,6 +60,7 @@ function App() {
     setRunEndedAt,
     pushRecentRun,
     setCurrentRunId,
+    setCacheStatus,
     resetViewState,
     setRuns,
   } = useAppStore()
@@ -156,6 +157,9 @@ function App() {
     // rows aren't a saved search yet. The done frame surfaces the
     // freshly-persisted `run_id` so the Save button has a target.
     setCurrentRunId(null)
+    // Clear the prior run's cache-source signal so the chip doesn't linger
+    // with a stale value while the new run streams in (#310).
+    setCacheStatus(null)
     // Fresh stream → reset the view state so a saved search's sort or
     // filters don't bleed onto the new run.
     resetViewState()
@@ -164,6 +168,11 @@ function App() {
 
     // Track unique card IDs for client-side deduplication.
     const seenIds = new Set<string>()
+    // Distinct input lines that have produced a terminal row. The server now
+    // streams results out of completion order (#303), so progress counts
+    // resolved lines rather than reading the latest event's index — otherwise
+    // a late-finishing early line would make the bar regress.
+    const resolvedLines = new Set<number>()
     let firstEventSeen = false
 
     function onEvent(event: BulkEvent) {
@@ -173,6 +182,8 @@ function App() {
         // a legitimate value when persistence fell through server-side
         // (best-effort) — leave currentRunId unset in that case.
         if (event.run_id != null) setCurrentRunId(event.run_id)
+        // Surface the run's disk-cache freshness for the lookup-timer chip.
+        setCacheStatus(event.cache_status)
         return
       }
       if (!firstEventSeen) {
@@ -192,6 +203,12 @@ function App() {
       // Subsequent events (top:N expansions) leave the status alone.
       markLineStatus(event.index, event.matched ? 'resolved' : 'error')
 
+      // Count the line toward progress before any dedupe skip — a duplicate
+      // card ID still resolved its line, so omitting it here would strand the
+      // bar below total (e.g. `Pikachu\nPikachu\nMew` finishing at 2 / 3).
+      resolvedLines.add(event.index)
+      setProgress({ done: resolvedLines.size, total: event.total })
+
       if (settings.dedupe && event.matched && event.card) {
         const cid = event.card.id as string | undefined
         if (cid) {
@@ -208,8 +225,6 @@ function App() {
         matched: event.matched,
         reason: event.reason,
       })
-
-      setProgress({ done: event.index + 1, total: event.total })
     }
 
     // `bulkLookup` calls `onDone` on every normal exit path (non-OK
@@ -245,6 +260,7 @@ function App() {
     setRunEndedAt,
     pushRecentRun,
     setCurrentRunId,
+    setCacheStatus,
     resetViewState,
   ])
 
@@ -442,6 +458,15 @@ function App() {
 
       <footer className="border-t border-sand-300 dark:border-husk-200 py-4 text-center text-xs text-coconut-400 dark:text-sand-400">
         mgz-pkmn · a personal card-show prep tool ·{' '}
+        <a
+          href="https://mgz-pkmn.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+        >
+          mgz-pkmn.com
+        </a>{' '}
+        ·{' '}
         <a
           href="https://github.com/mgzwarrior/mgz-pkmn"
           target="_blank"

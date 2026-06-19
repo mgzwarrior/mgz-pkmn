@@ -28,16 +28,20 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import type { Row, SetCard } from '../types'
+import { useAppStore } from '../store'
+import type { RarityFloor, Row, SetCard } from '../types'
 import { browseCardToPayload, browseCardToRow } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
+import { useCardOwnership } from './useCardOwnership'
+import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
 import {
   useSwipeProfile,
   type SavedCard,
   type SwipeAction,
 } from './useSwipeProfile'
-import { useSwipeCandidates } from './useSwipeCandidates'
+import { STACK_SIZE, useSwipeCandidates } from './useSwipeCandidates'
+import { useSwipeExclusions } from './useSwipeExclusions'
 import { useWishlists } from './useWishlists'
 
 /** Horizontal-drag threshold (px) that commits a pass/save decision. */
@@ -47,6 +51,10 @@ const SWIPE_THRESHOLD_Y = 110
 /** Pointer movement (px) past which a gesture counts as a drag, not a tap.
  *  Below it, releasing opens the detail modal instead. */
 const CLICK_SLOP = 6
+/** Saved-card count that has to accrue before the build-prep-list nudge
+ *  appears — casual swipers aren't pestered before they have a haul worth
+ *  turning into a wishlist. */
+const PREP_LIST_NUDGE_THRESHOLD = 3
 
 interface Drag {
   startX: number
@@ -63,12 +71,41 @@ interface SwipePanelProps {
 
 export function SwipePanel({ active }: SwipePanelProps) {
   const { profile, seenSet, act, clearSaved, reset } = useSwipeProfile()
-  const { current, loading, exhausted, error, advance } = useSwipeCandidates({
-    active,
-    seenSet,
+  const { settings, updateSettings } = useAppStore()
+  const { excludedKeys, recordSeen, resetDeck } = useSwipeExclusions({
+    excludeOwned: settings.swipeExcludeOwned,
+    excludeChasing: settings.swipeExcludeChasing,
   })
+  const { current, upcoming, loading, exhausted, error, advance } =
+    useSwipeCandidates({
+      active,
+      seenSet,
+      excludedKeys,
+      rarityFloor: settings.swipeRarityFloor,
+    })
   const { user } = useAuth()
   const showSavedActions = user !== null
+
+  // Cross-collection ownership badge (#576). Prefetch the current card plus
+  // the peeks beneath it so the badge is ready as each rises to the top.
+  // Only signed-in users have a library to check, matching the save buttons.
+  const ownershipIds = useMemo(
+    () =>
+      showSavedActions
+        ? [current, ...upcoming]
+            .filter((c): c is NonNullable<typeof c> => c != null)
+            .map((c) => ({ setId: c.setId, number: c.card.number }))
+        : [],
+    [showSavedActions, current, upcoming],
+  )
+  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
+
+  // Reset both the local taste profile (session-local seen + saved) and the
+  // server-persisted deck memory, so "reset" surfaces a genuinely fresh deck.
+  const handleReset = useCallback(() => {
+    reset()
+    resetDeck()
+  }, [reset, resetDeck])
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [outgoing, setOutgoing] = useState<SwipeAction | null>(null)
@@ -76,7 +113,6 @@ export function SwipePanel({ active }: SwipePanelProps) {
   // `Row[]`, so a one-element array of the current card is enough — there's
   // no queue to step through here.
   const [detailOpen, setDetailOpen] = useState(false)
-  const cardRef = useRef<HTMLDivElement | null>(null)
   // Distinguishes a tap (opens the detail modal) from a drag (a swipe
   // decision). Set true once a pointer moves past the click slop so the
   // trailing click event after a drag doesn't pop the modal open.
@@ -97,12 +133,16 @@ export function SwipePanel({ active }: SwipePanelProps) {
       // Let the exit animation play before swapping the card.
       window.setTimeout(() => {
         act(current.card, current.setId, action)
+        // Persist the card as seen so it never resurfaces in a future
+        // session (#581). Local `seenSet` handles the in-session no-repeat;
+        // this is the durable layer.
+        recordSeen(current.setId, current.card.number, action)
         setOutgoing(null)
         setDrag(null)
         advance()
       }, 180)
     },
-    [current, act, advance],
+    [current, act, recordSeen, advance],
   )
 
   // Keyboard shortcuts — global while the panel is mounted + active.
@@ -190,7 +230,27 @@ export function SwipePanel({ active }: SwipePanelProps) {
       aria-label="Swipe mode"
       className="flex flex-col gap-4 rounded-lg border border-sand-300 bg-sand-50 px-5 py-5 dark:border-husk-50 dark:bg-husk-200"
     >
-      <SwipeHeader savedCount={profile.saved.length} onReset={reset} />
+      <SwipeHeader
+        savedCount={profile.saved.length}
+        onReset={handleReset}
+        rarityFloor={settings.swipeRarityFloor}
+        onRarityFloorChange={(swipeRarityFloor) =>
+          updateSettings({ swipeRarityFloor })
+        }
+        showLibraryToggles={showSavedActions}
+        excludeOwned={settings.swipeExcludeOwned}
+        excludeChasing={settings.swipeExcludeChasing}
+        onExcludeOwnedChange={(swipeExcludeOwned) =>
+          updateSettings({ swipeExcludeOwned })
+        }
+        onExcludeChasingChange={(swipeExcludeChasing) =>
+          updateSettings({ swipeExcludeChasing })
+        }
+      />
+
+      {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
+        <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
+      )}
 
       <div className="flex flex-col items-center gap-3">
         {error && (
@@ -203,7 +263,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
         )}
 
         {exhausted && !current && (
-          <ExhaustedState onReset={reset} />
+          <ExhaustedState onReset={handleReset} />
         )}
 
         {!current && !exhausted && (
@@ -211,32 +271,48 @@ export function SwipePanel({ active }: SwipePanelProps) {
         )}
 
         {current && (
-          <div
-            ref={cardRef}
-            data-testid="swipe-card"
-            role="button"
-            tabIndex={0}
-            aria-label={`View details for ${current.card.name}`}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerEnd}
-            onPointerCancel={onPointerEnd}
-            onClick={onCardClick}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                setDetailOpen(true)
-              }
-            }}
-            style={cardTransformStyle(drag, outgoing)}
-            className="relative w-full max-w-xs cursor-pointer touch-none select-none rounded-xl border border-sand-300 bg-sand-50 p-3 shadow-lg shadow-coconut-700/10 dark:border-husk-50 dark:bg-husk-400 dark:shadow-coconut-900/40"
-          >
-            <CardArtwork card={current.card} />
-            <CardMeta
-              card={current.card}
-              setName={current.setName}
-            />
-            <DragHint drag={drag} outgoing={outgoing} />
+          // The whole stack renders as one keyed list so the next card
+          // keeps its DOM node as it's promoted from peek to top — it
+          // *rises* into place rather than the old node being reused and
+          // sliding back in from off-screen. `pb-4` reserves room for the
+          // deepest peek, which is translated below the top card.
+          <div className="w-full max-w-xs pb-4">
+            <div className="relative">
+              {[current, ...upcoming].slice(0, STACK_SIZE).map((cand, depth) =>
+                depth === 0 ? (
+                  <SwipeCard
+                    key={cand.card.id}
+                    card={cand.card}
+                    setName={cand.setName}
+                    depth={0}
+                    drag={drag}
+                    outgoing={outgoing}
+                    interactive
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerEnd}
+                    onPointerCancel={onPointerEnd}
+                    onClick={onCardClick}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        setDetailOpen(true)
+                      }
+                    }}
+                  />
+                ) : (
+                  <SwipeCard
+                    key={cand.card.id}
+                    card={cand.card}
+                    setName={cand.setName}
+                    depth={depth}
+                    drag={null}
+                    outgoing={null}
+                    interactive={false}
+                  />
+                ),
+              )}
+            </div>
           </div>
         )}
 
@@ -246,6 +322,13 @@ export function SwipePanel({ active }: SwipePanelProps) {
             onSave={() => commit('save')}
             onLove={() => commit('love')}
             disabled={!!outgoing}
+          />
+        )}
+
+        {current && showSavedActions && (
+          <OwnershipBadge
+            ownership={lookupOwnership(current.setId, current.card.number)}
+            className="justify-center"
           />
         )}
 
@@ -263,10 +346,6 @@ export function SwipePanel({ active }: SwipePanelProps) {
         <KeyboardHint />
       </div>
 
-      {profile.saved.length > 0 && (
-        <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
-      )}
-
       <CardDetailModal
         rows={detailRows}
         index={detailOpen && current ? 0 : null}
@@ -276,30 +355,200 @@ export function SwipePanel({ active }: SwipePanelProps) {
   )
 }
 
+/** Floor options for the swipe-header control, most → least selective. */
+const RARITY_FLOOR_OPTIONS: { value: RarityFloor; label: string }[] = [
+  { value: 'chase', label: 'Chase cards' },
+  { value: 'rare', label: 'Rare and up' },
+  { value: 'all', label: 'Everything' },
+]
+
 function SwipeHeader({
   savedCount,
   onReset,
+  rarityFloor,
+  onRarityFloorChange,
+  showLibraryToggles,
+  excludeOwned,
+  excludeChasing,
+  onExcludeOwnedChange,
+  onExcludeChasingChange,
 }: {
   savedCount: number
   onReset: () => void
+  rarityFloor: RarityFloor
+  onRarityFloorChange: (floor: RarityFloor) => void
+  /** Library-aware toggles only make sense with a library — hidden when
+   *  signed out (the endpoints would 401). */
+  showLibraryToggles: boolean
+  excludeOwned: boolean
+  excludeChasing: boolean
+  onExcludeOwnedChange: (next: boolean) => void
+  onExcludeChasingChange: (next: boolean) => void
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
-          Swipe
-        </h2>
-        <p className="text-xs text-coconut-400 dark:text-sand-300">
-          One card at a time — right to save, left to pass, up for more like this.
-        </p>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
+            Swipe
+          </h2>
+          <p className="text-xs text-coconut-400 dark:text-sand-300">
+            One card at a time — right to save, left to pass, up for more like this.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-coconut-400 dark:text-sand-300">
+            <span className="sr-only sm:not-sr-only">Show</span>
+            <select
+              aria-label="Rarity floor"
+              value={rarityFloor}
+              onChange={(e) => onRarityFloorChange(e.target.value as RarityFloor)}
+              className="rounded-md border border-sand-300 bg-sand-50 px-2 py-1 text-xs text-coconut-700 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:focus:ring-sun-300"
+            >
+              {RARITY_FLOOR_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs text-coconut-400 underline-offset-2 hover:underline dark:text-sand-300"
+          >
+            {savedCount > 0 ? `${savedCount} saved · reset` : 'Reset profile'}
+          </button>
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={onReset}
-        className="text-xs text-coconut-400 underline-offset-2 hover:underline dark:text-sand-300"
+      {showLibraryToggles && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-coconut-400 dark:text-sand-300">
+          <span className="text-coconut-300 dark:text-sand-400">Hide</span>
+          <LibraryToggle
+            label="owned"
+            title="Don't show cards already in your collections"
+            checked={excludeOwned}
+            onChange={onExcludeOwnedChange}
+          />
+          <LibraryToggle
+            label="chasing"
+            title="Don't show cards already on your want-lists"
+            checked={excludeChasing}
+            onChange={onExcludeChasingChange}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** One library-aware exclusion checkbox in the swipe header (#581). */
+function LibraryToggle({
+  label,
+  title,
+  checked,
+  onChange,
+}: {
+  label: string
+  title: string
+  checked: boolean
+  onChange: (next: boolean) => void
+}) {
+  return (
+    <label className="flex items-center gap-1.5" title={title}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-100 dark:text-sun-300 dark:focus:ring-sun-300"
+      />
+      <span>{label}</span>
+    </label>
+  )
+}
+
+/**
+ * Per-depth positioning for the cards peeking beneath the top card.
+ * Index = stack depth (0 is the top card, styled separately). Each peek
+ * sits slightly lower and smaller, edges showing like a physical deck;
+ * `transition-transform` (on the card) animates the rise as it's promoted.
+ */
+const PEEK_CLASSES = [
+  '',
+  'absolute inset-0 z-10 scale-95 translate-y-2',
+  'absolute inset-0 z-0 scale-90 translate-y-4',
+]
+
+/** Shared card chrome for both the interactive top card and the peeks. */
+const CARD_BASE =
+  'w-full rounded-xl border border-sand-300 bg-sand-50 p-3 shadow-lg shadow-coconut-700/10 dark:border-husk-50 dark:bg-husk-400 dark:shadow-coconut-900/40'
+
+/**
+ * SwipeCard — one card in the stack. The top card (`interactive`) carries
+ * the drag/exit transform and all the gesture handlers; peeks are inert
+ * (`pointer-events-none`, `aria-hidden`) and positioned by their depth.
+ * Both branches return a `<div>` so React keeps the DOM node when a peek
+ * is promoted to the top — that node persistence is what makes the rise
+ * animate instead of snapping.
+ */
+function SwipeCard({
+  card,
+  setName,
+  depth,
+  drag,
+  outgoing,
+  interactive,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+  onClick,
+  onKeyDown,
+}: {
+  card: SetCard
+  setName: string
+  depth: number
+  drag: Drag | null
+  outgoing: SwipeAction | null
+  interactive: boolean
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerUp?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerCancel?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onClick?: () => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void
+}) {
+  if (interactive) {
+    return (
+      <div
+        data-testid="swipe-card"
+        role="button"
+        tabIndex={0}
+        aria-label={`View details for ${card.name}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onClick={onClick}
+        onKeyDown={onKeyDown}
+        style={cardTransformStyle(drag, outgoing)}
+        className={`relative z-20 cursor-pointer touch-none select-none ${CARD_BASE}`}
       >
-        {savedCount > 0 ? `${savedCount} saved · reset` : 'Reset profile'}
-      </button>
+        <CardArtwork card={card} />
+        <CardMeta card={card} setName={setName} />
+        <DragHint drag={drag} outgoing={outgoing} />
+      </div>
+    )
+  }
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none select-none transition-transform duration-200 ease-out ${
+        PEEK_CLASSES[depth] ?? PEEK_CLASSES[PEEK_CLASSES.length - 1]
+      } ${CARD_BASE}`}
+    >
+      <CardArtwork card={card} />
+      <CardMeta card={card} setName={setName} />
     </div>
   )
 }
@@ -550,8 +799,9 @@ function ExhaustedState({ onReset }: { onReset: () => void }) {
 }
 
 /**
- * BuildPrepList — bottom-of-panel CTA. Inline form that creates a new
- * wishlist from the user's saved cards and adds each one in order. On
+ * BuildPrepList — nudge above the card stack, in the swiper's eye line.
+ * Inline form that creates a new wishlist from the user's saved cards and
+ * adds each one in order. Gated on PREP_LIST_NUDGE_THRESHOLD saves. On
  * success it clears the local saved list so the user starts fresh on
  * the next swipe session; the new wishlist is visible immediately in
  * the Library because both surfaces share the

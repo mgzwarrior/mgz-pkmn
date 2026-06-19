@@ -65,28 +65,28 @@ def summarize_ebay_comps(comps: Iterable[Pricing]) -> tuple[float | None, float 
     return median_sold, active_floor
 
 
-def extract_pricing(card: dict[str, Any], variant_hint: str | None) -> Pricing:
+def _pricing_from_pricecharting(card: dict[str, Any]) -> Pricing | None:
     # PriceCharting (when matched via a URL hint) takes priority since the
     # user explicitly chose that page. "Loose" / used is the negotiation tier.
     pc_prices = card.get("_pc_prices") or {}
+    if not pc_prices:
+        return None
     pc_url = card.get("_pc_url")
-    if pc_prices:
-        for label in ("used", "new", "graded"):
-            value = pc_prices.get(label)
-            if value:
-                return Pricing(
-                    market=float(value),
-                    variant=label,
-                    source="pricecharting",
-                    url=pc_url,
-                    currency="USD",
-                )
+    for label in ("used", "new", "graded"):
+        value = pc_prices.get(label)
+        if value:
+            return Pricing(
+                market=float(value),
+                variant=label,
+                source="pricecharting",
+                url=pc_url,
+                currency="USD",
+            )
+    return None
 
-    tcg = card.get("tcgplayer") or {}
-    prices = tcg.get("prices") or {}
-    url = tcg.get("url")
 
-    # Build the variant search order: explicit hint first, then preferences.
+def _tcgplayer_variant_order(prices: dict[str, Any], variant_hint: str | None) -> list[str]:
+    # Explicit hint first, then the preference list, then any remaining variants.
     order: list[str] = []
     if variant_hint and variant_hint in prices:
         order.append(variant_hint)
@@ -96,14 +96,21 @@ def extract_pricing(card: dict[str, Any], variant_hint: str | None) -> Pricing:
     for v in prices:
         if v not in order:
             order.append(v)
+    return order
 
-    for v in order:
+
+def _pricing_from_tcgplayer(tcg: dict[str, Any], variant_hint: str | None) -> Pricing | None:
+    prices = tcg.get("prices") or {}
+    url = tcg.get("url")
+    for v in _tcgplayer_variant_order(prices, variant_hint):
         bucket = prices.get(v) or {}
         market = bucket.get("market") or bucket.get("mid") or bucket.get("low")
         if market:
             return Pricing(market=float(market), variant=v, source="tcgplayer", url=url)
+    return None
 
-    cm = card.get("cardmarket") or {}
+
+def _pricing_from_cardmarket(cm: dict[str, Any], fallback_url: str | None) -> Pricing | None:
     cm_prices = cm.get("prices") or {}
     cm_url = cm.get("url")
     cm_currency = cm.get("_currency", "EUR")
@@ -113,8 +120,23 @@ def extract_pricing(card: dict[str, Any], variant_hint: str | None) -> Pricing:
                 market=float(cm_prices[key]),
                 variant=key,
                 source="cardmarket",
-                url=cm_url or url,
+                url=cm_url or fallback_url,
                 currency=cm_currency,
             )
+    return None
 
-    return Pricing(url=url or cm_url)
+
+def extract_pricing(card: dict[str, Any], variant_hint: str | None) -> Pricing:
+    """Resolve a `Pricing` from a card, walking sources in priority order.
+
+    PriceCharting (explicit URL hint) wins, then TCGPlayer, then Cardmarket;
+    a bare `Pricing` carrying whatever store URL we have is the floor."""
+    tcg = card.get("tcgplayer") or {}
+    cm = card.get("cardmarket") or {}
+    tcg_url = tcg.get("url")
+    return (
+        _pricing_from_pricecharting(card)
+        or _pricing_from_tcgplayer(tcg, variant_hint)
+        or _pricing_from_cardmarket(cm, fallback_url=tcg_url)
+        or Pricing(url=tcg_url or cm.get("url"))
+    )

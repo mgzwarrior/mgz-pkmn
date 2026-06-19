@@ -38,8 +38,10 @@ class PriceChartingClient:
     """Lightweight scraper for pricecharting.com product pages. We trust the
     user picked the right page and just extract image + prices."""
 
-    def __init__(self, verbose: bool = False) -> None:
-        self.session = requests.Session()
+    def __init__(self, verbose: bool = False, session: requests.Session | None = None) -> None:
+        # Injected session keeps the connection pool warm across instances
+        # (#302); `_cache` stays instance-local.
+        self.session = session or requests.Session()
         self.session.headers["User-Agent"] = USER_AGENT
         self.verbose = verbose
         self._cache: dict[str, str] = {}

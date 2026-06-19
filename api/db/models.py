@@ -20,6 +20,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -164,6 +165,50 @@ class Run(Base):
 COLLECTION_KIND_MANUAL = "manual"
 COLLECTION_KIND_SET = "set"
 COLLECTION_KIND_DYNAMIC = "dynamic"
+#: A ``binder`` is a manual bucket with physical-binder identity (#679): a
+#: pocket ``binder_format``, a cover ``binder_color``, a ``binder_type``
+#: storage style, an optional slot ``capacity``, and an ``is_master_set``
+#: target flag. It rides the same ``collection_items`` machinery as
+#: ``manual`` — the extra columns are just identity — so ownership badges,
+#: insights, and the ID-card PDF work as-is. As of #681 the cover/type/
+#: master-set identity is shared with ``dynamic`` (smart binder) collections;
+#: only ``binder_format``/``capacity`` stay physical-only.
+COLLECTION_KIND_BINDER = "binder"
+
+#: Allowed ``Collection.binder_format`` values — the page pocket layout.
+#: Null for non-binder kinds (and binders that haven't chosen one). See #679.
+BINDER_FORMAT_4_POCKET = "4-pocket"
+BINDER_FORMAT_9_POCKET = "9-pocket"
+BINDER_FORMAT_12_POCKET = "12-pocket"
+BINDER_FORMATS = (BINDER_FORMAT_4_POCKET, BINDER_FORMAT_9_POCKET, BINDER_FORMAT_12_POCKET)
+
+#: Allowed ``Collection.binder_type`` values — how the cards are physically
+#: stored (#681). ``regular`` is binder pages; ``toploader`` and ``graded``
+#: cover the rigid-holder / slab cases Cardrake calls out for chase cards.
+BINDER_TYPE_REGULAR = "regular"
+BINDER_TYPE_TOPLOADER = "toploader"
+BINDER_TYPE_GRADED = "graded"
+BINDER_TYPE_OTHER = "other"
+BINDER_TYPES = (
+    BINDER_TYPE_REGULAR,
+    BINDER_TYPE_TOPLOADER,
+    BINDER_TYPE_GRADED,
+    BINDER_TYPE_OTHER,
+)
+
+#: Curated ``Collection.binder_color`` presets — design-token palette stems
+#: (``design/tokens/colors_and_type.css``) the SPA maps to ``bg-<color>-500``.
+#: A binder may also store a freeform ``#rrggbb`` hex (#681, user data — see
+#: ``_validate_binder_color``); both render as the cover swatch.
+BINDER_COLORS = ("palm", "sun", "sky", "ember", "coconut", "sand", "husk")
+
+#: Allowed values for ``Collection.dynamic_scope`` (#631). ``owned`` matches
+#: the rule against the user's own cards — an inventory view (the #630
+#: default). ``catalog`` resolves the full matching set from pokemontcg.io
+#: and overlays ownership — a goal-with-progress target view. A null column
+#: reads as ``owned``.
+DYNAMIC_SCOPE_OWNED = "owned"
+DYNAMIC_SCOPE_CATALOG = "catalog"
 
 #: Allowed values for ``CollectionItem.added_via`` — provenance tag,
 #: used by the insights dashboard to answer "how do users actually get
@@ -199,6 +244,25 @@ class Collection(Base):
     #: (the query DSL from ADR-0022); the membership query is recomputed
     #: lazily and never materialised as ``collection_items`` rows.
     rule_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    #: Only meaningful when ``kind == 'dynamic'`` (#631). One of ``owned`` /
+    #: ``catalog``; null reads as ``owned``. ``catalog`` flips the rule from
+    #: an inventory view into a catalog-backed target view with progress.
+    dynamic_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # ---- #679: physical-binder identity (only meaningful for kind='binder') ----
+    #: Page pocket layout — one of :data:`BINDER_FORMATS`. Null when unset.
+    #: Physical binders only (a smart binder has no fixed slots).
+    binder_format: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: Cover color — a :data:`BINDER_COLORS` token stem or a ``#rrggbb`` hex
+    #: (#681). Shared identity: set on physical and smart binders alike.
+    binder_color: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: Storage style — one of :data:`BINDER_TYPES` (#681). Shared identity.
+    binder_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: Total card slots, so the list can show how full the binder is. Null
+    #: when the collector hasn't pinned a size.
+    capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: Whether the binder targets the *master set* of the set it organizes
+    #: (``source_set_id``). Nullable so rows predating #679 read as not-master.
+    is_master_set: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     items: Mapped[list[CollectionItem]] = relationship(
         back_populates="collection",
@@ -356,6 +420,56 @@ class WishlistItem(Base):
     )
 
     wishlist: Mapped[Wishlist] = relationship(back_populates="items")
+
+
+#: Allowed values for ``SwipeSeen.swipe_dir`` — the decision that retired
+#: the card from the deck. Mirror the SPA's swipe vocabulary (left / right /
+#: up); nullable so a backfill or a future "mark seen without a decision"
+#: path can omit it.
+SWIPE_DIR_PASS = "pass"
+SWIPE_DIR_SAVE = "save"
+SWIPE_DIR_LOVE = "love"
+
+
+class SwipeSeen(Base):
+    """One row per card a user has been shown in swipe mode (#581).
+
+    Promotes the swipe deck's "already seen" memory from the SPA's
+    session-local ``localStorage`` set to durable per-user state, so the
+    same chase card never resurfaces across sessions until the user resets
+    the deck. Keyed on the promoted ``(card_set_id, card_number)`` identity
+    — the same pair indexed on ``collection_items`` / ``wishlist_items`` —
+    so the library-aware exclusion query unions cleanly across all three
+    tables.
+
+    Append-only and idempotent: the unique constraint on
+    ``(user_id, card_set_id, card_number)`` makes re-seeing a card a no-op
+    rather than a duplicate row. Reset clears the user's rows."""
+
+    __tablename__ = "swipe_seen"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "card_set_id",
+            "card_number",
+            name="uq_swipe_seen_user_card",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        default=DEFAULT_USER_ID,
+        nullable=False,
+        index=True,
+    )
+    card_set_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    card_number: Mapped[str] = mapped_column(String(16), nullable=False)
+    seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    #: One of the ``SWIPE_DIR_*`` constants, or null when unknown.
+    swipe_dir: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
 
 class RunRow(Base):
