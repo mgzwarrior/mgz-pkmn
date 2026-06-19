@@ -547,7 +547,8 @@ describe('CardDetailModal', () => {
     expect(ebay).toHaveAttribute('href', expect.stringContaining('Charizard'))
     expect(ebay).toHaveAttribute('rel', 'sponsored noopener')
     expect(ebay).toHaveAttribute('target', '_blank')
-    expect(tcg).toHaveAttribute('href', expect.stringContaining('tcgplayer.com/search'))
+    // Routed through the TCGPlayer Impact tracking redirect (#696).
+    expect(tcg).toHaveAttribute('href', expect.stringContaining('partner.tcgplayer.com/c/'))
     expect(tcg).toHaveAttribute('rel', 'sponsored noopener')
   })
 
