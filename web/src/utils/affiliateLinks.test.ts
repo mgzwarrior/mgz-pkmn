@@ -13,9 +13,9 @@ function card(over: Partial<CardData> = {}): CardData {
 
 const WITH_CODES: AffiliateConfig = {
   ebayCampaignId: '5339000000',
-  tcgplayerAffiliateId: 'mgzpkmn',
+  tcgplayerPartnerLink: 'https://partner.tcgplayer.com/c/123/456/789',
 }
-const NO_CODES: AffiliateConfig = { ebayCampaignId: '', tcgplayerAffiliateId: '' }
+const NO_CODES: AffiliateConfig = { ebayCampaignId: '', tcgplayerPartnerLink: '' }
 
 describe('cardSearchQuery', () => {
   it('joins name + set + number', () => {
@@ -60,17 +60,22 @@ describe('tcgplayerAffiliateUrl', () => {
     expect(tcgplayerAffiliateUrl(null, NO_CODES)).toBeNull()
   })
 
-  it('builds a plain search URL when no affiliate id is set', () => {
+  it('builds a plain search URL when no partner link is set', () => {
     const url = tcgplayerAffiliateUrl(card(), NO_CODES)!
     expect(url).toContain('https://www.tcgplayer.com/search/pokemon/product')
     expect(url).toContain('q=Charizard+Base+Set+4')
     expect(url).toContain('productLineName=pokemon')
-    expect(url).not.toContain('partner')
+    expect(url).not.toContain('partner.tcgplayer.com')
   })
 
-  it('tags the URL with the partner id when set', () => {
-    const url = tcgplayerAffiliateUrl(card(), WITH_CODES)!
-    expect(url).toContain('partner=mgzpkmn')
-    expect(url).toContain('utm_campaign=affiliate')
+  it('wraps the search in the Impact tracking redirect when a partner link is set', () => {
+    const url = new URL(tcgplayerAffiliateUrl(card(), WITH_CODES)!)
+    // The outbound link points at the partner redirect, not tcgplayer.com.
+    expect(url.origin + url.pathname).toBe('https://partner.tcgplayer.com/c/123/456/789')
+    // The destination search rides as a percent-encoded `u` param and round-trips.
+    const dest = new URL(url.searchParams.get('u')!)
+    expect(dest.origin + dest.pathname).toBe('https://www.tcgplayer.com/search/pokemon/product')
+    expect(dest.searchParams.get('q')).toBe('Charizard Base Set 4')
+    expect(dest.searchParams.get('productLineName')).toBe('pokemon')
   })
 })

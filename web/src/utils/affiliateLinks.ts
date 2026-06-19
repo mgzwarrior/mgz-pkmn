@@ -4,8 +4,9 @@
  * Both links are keyword searches built from the card's name + set + number —
  * we don't carry a stable per-card product id for either marketplace, so a
  * search to the exact printing is the closest we get without a resolution
- * layer. When an affiliate code is configured the tracking params are
- * attached; when it's blank the link still works, it just points at a plain
+ * layer. eBay attaches EPN tracking params; TCGPlayer wraps the search in its
+ * Impact tracking redirect. When the code is configured the link carries
+ * credit; when it's blank the link still works, it just points at a plain
  * (uncredited) search. Drop real codes into `AFFILIATE` to start earning.
  */
 import type { CardData } from '../types'
@@ -13,8 +14,12 @@ import type { CardData } from '../types'
 export interface AffiliateConfig {
   /** eBay Partner Network campaign id — the `campid` rover param. */
   ebayCampaignId: string
-  /** TCGPlayer affiliate / Impact partner id. */
-  tcgplayerAffiliateId: string
+  /**
+   * TCGPlayer Impact tracking link base — `partner.tcgplayer.com/c/.../.../...`.
+   * Deep links append the destination as a percent-encoded `u` param. Blank
+   * falls back to a plain (uncredited) search.
+   */
+  tcgplayerPartnerLink: string
 }
 
 /**
@@ -24,9 +29,7 @@ export interface AffiliateConfig {
  */
 export const AFFILIATE: AffiliateConfig = {
   ebayCampaignId: '5339156329',
-  // Empty until the TCGPlayer (Impact) affiliate application is accepted —
-  // links stay plain searches until then.
-  tcgplayerAffiliateId: '',
+  tcgplayerPartnerLink: 'https://partner.tcgplayer.com/c/7402525/1780961/21018',
 }
 
 // eBay Partner Network rover constants for the US marketplace. Stable across
@@ -67,10 +70,13 @@ export function ebayAffiliateUrl(
 }
 
 /**
- * TCGPlayer search URL for a card, tagged with the affiliate partner id when
- * one is configured. The `partner` + utm shape matches TCGPlayer's affiliate
- * program; adjust here if your Impact link uses a different format. Returns
- * null when the card has no name to search on.
+ * TCGPlayer search URL for a card. When a partner link is configured the
+ * search is wrapped in TCGPlayer's Impact tracking redirect — the destination
+ * rides as a percent-encoded `u` param on `partner.tcgplayer.com/c/...`, which
+ * is how Impact deep links carry credit (see
+ * https://help.impact.com/partner — "Param Parameters Explained"). With no
+ * partner link it returns the plain (uncredited) search. Returns null when the
+ * card has no name to search on.
  */
 export function tcgplayerAffiliateUrl(
   card: CardData | null,
@@ -78,14 +84,11 @@ export function tcgplayerAffiliateUrl(
 ): string | null {
   const query = cardSearchQuery(card)
   if (!query) return null
-  const url = new URL('https://www.tcgplayer.com/search/pokemon/product')
-  url.searchParams.set('q', query)
-  url.searchParams.set('productLineName', 'pokemon')
-  if (config.tcgplayerAffiliateId) {
-    url.searchParams.set('partner', config.tcgplayerAffiliateId)
-    url.searchParams.set('utm_campaign', 'affiliate')
-    url.searchParams.set('utm_medium', config.tcgplayerAffiliateId)
-    url.searchParams.set('utm_source', config.tcgplayerAffiliateId)
-  }
-  return url.toString()
+  const search = new URL('https://www.tcgplayer.com/search/pokemon/product')
+  search.searchParams.set('q', query)
+  search.searchParams.set('productLineName', 'pokemon')
+  if (!config.tcgplayerPartnerLink) return search.toString()
+  const tracked = new URL(config.tcgplayerPartnerLink)
+  tracked.searchParams.set('u', search.toString())
+  return tracked.toString()
 }
