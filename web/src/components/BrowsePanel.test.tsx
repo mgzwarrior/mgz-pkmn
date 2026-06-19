@@ -208,6 +208,48 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     ).toBeInTheDocument()
   })
 
+  it('set view: creates a binder pre-anchored to the set you are walking (#682)', async () => {
+    vi.spyOn(client, 'fetchSetCards').mockResolvedValue([])
+    const create = vi.spyOn(client, 'createCollection').mockResolvedValue({
+      id: 42,
+      name: 'New binder',
+      description: null,
+      created_at: '2026-06-16T00:00:00',
+      items: [],
+      kind: 'binder',
+    } as never)
+
+    render(<Harness />)
+
+    // Drill into the first baked set, then open the binder modal from the
+    // contextual "Create binder" action.
+    const setTile = screen
+      .getAllByRole('button')
+      .find((b) => /\bcards$|count unknown/.test(b.textContent ?? ''))!
+    fireEvent.click(setTile)
+    fireEvent.click(await screen.findByRole('button', { name: /create binder/i }))
+
+    // The modal opens pre-seeded with the set's name, and the set anchor shows
+    // that same name in the combobox (resolved from the ID).
+    const dialog = await screen.findByRole('dialog')
+    const setName = within(dialog).getByPlaceholderText<HTMLInputElement>('Trade binder').value
+    expect(setName.length).toBeGreaterThan(0)
+    expect(within(dialog).getByPlaceholderText(/search sets/i)).toHaveValue(setName)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /^create$/i }))
+
+    // Created as a physical binder anchored to the walked set's ID.
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(
+        setName,
+        expect.objectContaining({
+          kind: 'binder',
+          source_set_id: expect.stringMatching(/.+/),
+        }),
+      ),
+    )
+  })
+
   it('swaps a broken printing thumbnail for the placeholder', async () => {
     vi.spyOn(client, 'fetchPokedexCards').mockResolvedValue([
       { ...CHARIZARD_PRINTINGS[0], thumb: 'https://img/base1-4.png' },
