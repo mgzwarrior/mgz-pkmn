@@ -24,8 +24,9 @@ export interface AffiliateConfig {
 
 /**
  * Affiliate codes. These are public values (they ride in every outbound URL),
- * so they live in source rather than a secret store. Both default empty so the
- * links degrade to plain searches until the real codes are filled in.
+ * so they live in source rather than a secret store. Both are live; blank
+ * either one and that marketplace's links degrade to plain (uncredited)
+ * searches.
  */
 export const AFFILIATE: AffiliateConfig = {
   ebayCampaignId: '5339156329',
