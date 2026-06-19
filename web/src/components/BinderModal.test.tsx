@@ -163,4 +163,36 @@ describe('BinderModal', () => {
       ),
     )
   })
+
+  it('seeds a fresh binder from a prefill (e.g. opened from Browse)', async () => {
+    mockCreate.mockResolvedValue({
+      id: 9,
+      name: 'Jungle binder',
+      description: null,
+      created_at: '2026-06-15T00:00:00',
+      items: [],
+      kind: 'binder',
+      source_set_id: 'base2',
+    } as never)
+    render(
+      <BinderModal
+        open
+        onOpenChange={() => {}}
+        prefill={{ name: 'Jungle binder', sourceSetId: 'base2' }}
+      />,
+    )
+
+    // Name + set anchor arrive prefilled, and the details are auto-expanded so
+    // the set shows its name ('Jungle' for base2) rather than the bare ID.
+    expect(screen.getByDisplayValue('Jungle binder')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Jungle')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith(
+        'Jungle binder',
+        expect.objectContaining({ kind: 'binder', source_set_id: 'base2' }),
+      ),
+    )
+  })
 })
