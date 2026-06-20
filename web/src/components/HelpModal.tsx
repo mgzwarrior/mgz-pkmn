@@ -329,7 +329,7 @@ export function HelpModal({ onStartTour }: Props) {
               />
             </Section>
 
-            <Section title="Library">
+            <Section title="Backpack">
               <Definitions
                 rows={[
                   ['Searches', 'Lookups you have saved with a name. Click one to reload its cards, sort, and filters.'],

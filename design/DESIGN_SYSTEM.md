@@ -294,7 +294,7 @@ The library surfaces (saved searches, want-lists, collections, binders) each car
 
 | Meaning | Icon | Where it shows |
 |---|---|---|
-| Library panel (your saved stuff) | `Backpack` | Library panel header + collapsed strip |
+| Backpack panel (your saved stuff) | `Backpack` | Backpack panel header + collapsed strip |
 | Binder | `Library` | Binders tab, binder rows/headers |
 | Smart binder | `Sparkles` | Smart-binder toggle + rows |
 | Collection (save a card you own) | `Book` | Result-row "save to collection", bulk "add as owned" |
@@ -305,7 +305,7 @@ The library surfaces (saved searches, want-lists, collections, binders) each car
 | Delete | `Trash2` | Any destructive row action |
 | Browse a set ("walk a set") | `GalleryHorizontalEnd` | Browse mode tab + panel header |
 
-`Heart` means *favorite*, never *wishlist* — chasing is `Footprints`. `Library` means *binder*, not the Library panel (that's `Backpack`) and not Browse (that's `GalleryHorizontalEnd`). When empty-state or help copy names an icon ("click the book icon…"), keep it in sync with this table.
+`Heart` means *favorite*, never *wishlist* — chasing is `Footprints`. `Library` means *binder*, not the Backpack panel (your saved-stuff hub, which uses `Backpack`) and not Browse (that's `GalleryHorizontalEnd`). When empty-state or help copy names an icon ("click the book icon…"), keep it in sync with this table.
 
 **This design system continues to use Lucide** — load via CDN:
 
