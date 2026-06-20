@@ -83,17 +83,17 @@ describe('LibraryPanel', () => {
       expect(screen.getByText(/No saved searches yet/i)).toBeInTheDocument(),
     )
 
-    const collapseBtn = screen.getByRole('button', { name: /Collapse Library/i })
+    const collapseBtn = screen.getByRole('button', { name: /Collapse Backpack/i })
     expect(collapseBtn).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(collapseBtn)
 
-    const expandBtn = screen.getByRole('button', { name: /Expand Library/i })
+    const expandBtn = screen.getByRole('button', { name: /Expand Backpack/i })
     expect(expandBtn).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('accordion variant is collapsed by default and tabs are hidden until expanded', async () => {
     render(<LibraryPanel variant="accordion" onRun={vi.fn()} />)
-    const trigger = screen.getByRole('button', { name: /Library/i })
+    const trigger = screen.getByRole('button', { name: /Backpack/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('tab', { name: /Searches/i })).not.toBeInTheDocument()
 
@@ -168,7 +168,7 @@ describe('LibraryPanel', () => {
       ],
     })
     render(<LibraryPanel variant="accordion" onRun={vi.fn()} />)
-    const trigger = await screen.findByRole('button', { name: /Library/i })
+    const trigger = await screen.findByRole('button', { name: /Backpack/i })
     // Accordion header — no "(2)" badge for the signed-out visitor.
     expect(trigger.textContent ?? '').not.toMatch(/\(2\)/)
   })

@@ -201,7 +201,7 @@ describe('HelpModal', () => {
     // have a matching help section.
     expect(await screen.findByText('Finding cards')).toBeInTheDocument()
     expect(screen.getByText('Results & card details')).toBeInTheDocument()
-    expect(screen.getByText('Library')).toBeInTheDocument()
+    expect(screen.getByText('Backpack')).toBeInTheDocument()
     expect(screen.getByText('Binders')).toBeInTheDocument()
   })
 

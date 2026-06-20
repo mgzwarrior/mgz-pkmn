@@ -76,13 +76,13 @@ export function LibraryPanel({ variant, onRun }: Props) {
     if (sidebarCollapsed) {
       return (
         <aside
-          aria-label="Library (collapsed)"
+          aria-label="Backpack (collapsed)"
           className="sticky top-20 flex h-fit w-9 flex-col items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-1 py-2"
         >
           <button
             type="button"
             onClick={() => setSidebarCollapsed(false)}
-            aria-label="Expand Library"
+            aria-label="Expand Backpack"
             aria-expanded={false}
             className="flex h-7 w-7 items-center justify-center rounded text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
           >
@@ -100,18 +100,18 @@ export function LibraryPanel({ variant, onRun }: Props) {
 
     return (
       <aside
-        aria-label="Library"
+        aria-label="Backpack"
         className="sticky top-20 flex h-fit max-h-[calc(100vh-6rem)] w-72 flex-col gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40 px-3 py-2"
       >
         <header className="flex items-center justify-between">
           <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
             <Backpack size={12} aria-hidden />
-            Library
+            Backpack
           </h2>
           <button
             type="button"
             onClick={() => setSidebarCollapsed(true)}
-            aria-label="Collapse Library"
+            aria-label="Collapse Backpack"
             aria-expanded={true}
             className="rounded p-1 text-coconut-400 dark:text-sand-400 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
           >
@@ -133,7 +133,7 @@ export function LibraryPanel({ variant, onRun }: Props) {
   // Mobile accordion above the editor: collapsed by default so the
   // editor stays the hero on small viewports.
   return (
-    <section aria-label="Library" className="rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40">
+    <section aria-label="Backpack" className="rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40">
       <button
         type="button"
         onClick={() => setAccordionOpen((o) => !o)}
@@ -142,7 +142,7 @@ export function LibraryPanel({ variant, onRun }: Props) {
       >
         <span className="flex items-center gap-2">
           <Backpack size={14} aria-hidden />
-          Library
+          Backpack
           {showUserScoped && (
             <span className="text-coconut-400 dark:text-sand-400">({savedSearchCount})</span>
           )}
@@ -201,7 +201,7 @@ function TabStrip({
   return (
     <div
       role="tablist"
-      aria-label="Library sections"
+      aria-label="Backpack sections"
       className="grid grid-cols-2 gap-1 rounded border border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200 p-0.5"
     >
       {tabs.map((t, i) => {
