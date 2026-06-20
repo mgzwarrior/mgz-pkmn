@@ -39,6 +39,13 @@ interface Props {
   onChangeIndex: (next: number | null) => void
 }
 
+function shouldIgnoreModalArrowKey(e: KeyboardEvent) {
+  const target = e.target
+  if (!(target instanceof Element)) return false
+  if (target instanceof HTMLElement && target.isContentEditable) return true
+  return target.closest('input, textarea, select, [contenteditable="true"], [role="menu"]') !== null
+}
+
 export function CardDetailModal({ rows, index, onChangeIndex }: Props) {
   const isOpen = index !== null && index >= 0 && index < rows.length
   const row = isOpen ? rows[index] : null
@@ -88,6 +95,7 @@ export function CardDetailModal({ rows, index, onChangeIndex }: Props) {
   useEffect(() => {
     if (!isOpen) return
     function handleKey(e: KeyboardEvent) {
+      if (shouldIgnoreModalArrowKey(e)) return
       if (e.key === 'ArrowLeft' && index! > 0) {
         e.preventDefault()
         onChangeIndex(index! - 1)

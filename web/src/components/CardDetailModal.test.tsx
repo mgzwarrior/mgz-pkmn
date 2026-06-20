@@ -603,6 +603,27 @@ describe('CardDetailModal — library actions (#699)', () => {
     expect(screen.getByRole('button', { name: /Save to wishlist/i })).toBeInTheDocument()
   })
 
+  it('does not navigate when arrowing through save-action inputs', async () => {
+    const rows = [
+      identifiedRow(),
+      buildRow({ card: { name: 'Blastoise', id: 'b', set: { name: 'Base' } } }),
+    ]
+    const onChange = vi.fn()
+    render(<CardDetailModal rows={rows} index={0} onChangeIndex={onChange} />)
+
+    const trigger = await screen.findByRole('button', { name: /Save to collection/i })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+    fireEvent.click(
+      (await screen.findByText(/New collection/i)).closest('[role="menuitem"]')!,
+    )
+
+    const input = await screen.findByRole('textbox', { name: /New collection name/i })
+    fireEvent.keyDown(input, { key: 'ArrowRight' })
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('hides the save actions when signed out', async () => {
     vi.spyOn(client, 'fetchMe').mockRejectedValue(new Error('401'))
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
