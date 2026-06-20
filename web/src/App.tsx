@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Heart, Library, Search } from 'lucide-react'
+import { GalleryHorizontalEnd, Heart, Search } from 'lucide-react'
 import { bulkLookup, listRuns, lookupLine, saveRun } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { SaveSearchNameDialog } from './components/SaveSearchNameDialog'
@@ -40,7 +40,7 @@ type DiscoveryMode = 'search' | 'browse' | 'swipe'
 
 const MODES: { value: DiscoveryMode; label: string; icon: typeof Search; hint: string }[] = [
   { value: 'search', label: 'Search', icon: Search, hint: 'Paste a want-list' },
-  { value: 'browse', label: 'Browse', icon: Library, hint: 'Walk a set' },
+  { value: 'browse', label: 'Browse', icon: GalleryHorizontalEnd, hint: 'Walk a set' },
   { value: 'swipe', label: 'Swipe', icon: Heart, hint: 'Card-at-a-time' },
 ]
 

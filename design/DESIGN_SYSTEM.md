@@ -288,6 +288,25 @@ The web app uses **[Lucide](https://lucide.dev)** (`lucide-react@latest`) at
 | `History`, `X` | Recent searches |
 | `Loader2` (with `animate-spin`) | Indeterminate loading |
 
+### Library symbol system
+
+The library surfaces (saved searches, want-lists, collections, binders) each carry a distinct, fixed glyph so the three "save" actions and the durable-inventory views never read as the same thing. This mapping is canonical — reuse the listed icon for that meaning everywhere (result-row actions, bulk actions, detail headers, tab strips, empty-state copy) and don't borrow it for an unrelated concept.
+
+| Meaning | Icon | Where it shows |
+|---|---|---|
+| Library panel (your saved stuff) | `Backpack` | Library panel header + collapsed strip |
+| Binder | `Library` | Binders tab, binder rows/headers |
+| Smart binder | `Sparkles` | Smart-binder toggle + rows |
+| Collection (save a card you own) | `Book` | Result-row "save to collection", bulk "add as owned" |
+| Chasing / want-list (save a card you're after) | `Footprints` | Result-row "save to wishlist", bulk "add as chasing", want-list header |
+| Favorite (cards you like best) | `Heart` | Swipe mode (the right-swipe "save") |
+| Saved search | `Bookmark` | Searches tab, "save search" action |
+| Insights | `BarChart3` | Collection insights |
+| Delete | `Trash2` | Any destructive row action |
+| Browse a set ("walk a set") | `GalleryHorizontalEnd` | Browse mode tab + panel header |
+
+`Heart` means *favorite*, never *wishlist* — chasing is `Footprints`. `Library` means *binder*, not the Library panel (that's `Backpack`) and not Browse (that's `GalleryHorizontalEnd`). When empty-state or help copy names an icon ("click the book icon…"), keep it in sync with this table.
+
 **This design system continues to use Lucide** — load via CDN:
 
 ```html

@@ -10,7 +10,7 @@
  */
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Check, Heart, ImageOff, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { Check, Footprints, ImageOff, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
   deleteWishlistItem,
@@ -318,7 +318,7 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[min(560px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200">
           <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
             <div className="flex min-w-0 items-center gap-2">
-              <Heart size={18} className="shrink-0 text-coconut-600 dark:text-sand-200" />
+              <Footprints size={18} className="shrink-0 text-coconut-600 dark:text-sand-200" />
               <Dialog.Title className="truncate text-lg font-semibold text-coconut-700 dark:text-sand-50">
                 {wishlist?.name ?? 'Wishlist'}
               </Dialog.Title>
@@ -349,7 +349,7 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
               </div>
             ) : items.length === 0 ? (
               <p className="text-xs text-coconut-500 dark:text-sand-300">
-                This want-list is empty. Click the heart icon on a matched row to add a
+                This want-list is empty. Click the footprints icon on a matched row to add a
                 chase.
               </p>
             ) : (
