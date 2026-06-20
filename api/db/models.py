@@ -220,6 +220,41 @@ ADDED_VIA_DYNAMIC_MATCH = "dynamic_match"
 ADDED_VIA_SWIPE = "swipe"
 
 
+class Binder(Base):
+    """A physical binder the collector owns (#702).
+
+    Inventory-level container: a binder is a real binder you own (its
+    ``binder_format`` / ``binder_color`` / ``binder_type`` / ``capacity``
+    identity from #679/#681 lives here, not on the collection), and it holds
+    zero or more :class:`Collection` rows via ``Collection.binder_id``. An
+    empty binder is a binder with no collections filed in it yet — the "own a
+    binder before you fill it" case the inventory view needs.
+    """
+
+    __tablename__ = "binders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), default=DEFAULT_USER_ID, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    #: Physical identity — same vocabulary as the collection-level columns
+    #: (:data:`BINDER_FORMATS` / :data:`BINDER_COLORS` / :data:`BINDER_TYPES`),
+    #: now owned by the binder itself. All nullable until the collector pins them.
+    binder_format: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    binder_color: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    binder_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    collections: Mapped[list[Collection]] = relationship(
+        back_populates="binder",
+        order_by="Collection.created_at",
+    )
+
+
 class Collection(Base):
     __tablename__ = "collections"
 
@@ -263,6 +298,14 @@ class Collection(Base):
     #: Whether the binder targets the *master set* of the set it organizes
     #: (``source_set_id``). Nullable so rows predating #679 read as not-master.
     is_master_set: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # ---- #702: parent physical binder ----
+    #: The :class:`Binder` this collection is filed in, or null for a loose
+    #: collection not in any binder. A binder holds many collections; deleting
+    #: a binder detaches (``SET NULL``) its collections rather than removing them.
+    binder_id: Mapped[int | None] = mapped_column(
+        ForeignKey("binders.id", ondelete="SET NULL"), nullable=True
+    )
+    binder: Mapped[Binder | None] = relationship(back_populates="collections")
 
     items: Mapped[list[CollectionItem]] = relationship(
         back_populates="collection",
