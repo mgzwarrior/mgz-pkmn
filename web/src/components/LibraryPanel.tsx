@@ -19,7 +19,7 @@
  * lookup against the current settings.
  */
 import { useState } from 'react'
-import { BookOpen, Bookmark, ChevronDown, ChevronLeft, ChevronRight, History, Library, Search } from 'lucide-react'
+import { Backpack, Bookmark, ChevronDown, ChevronLeft, ChevronRight, History, Library, Search } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import { LibrarySearchesTab } from './LibrarySearchesTab'
@@ -31,7 +31,7 @@ type LibraryTab = 'searches' | 'recent' | 'binders'
 const ALL_TABS: { value: LibraryTab; label: string; icon: typeof Search }[] = [
   { value: 'searches', label: 'Searches', icon: Bookmark },
   { value: 'recent', label: 'Recent', icon: History },
-  { value: 'binders', label: 'Binders', icon: BookOpen },
+  { value: 'binders', label: 'Binders', icon: Library },
 ]
 
 // Binders (collections + want-lists) are a user-scoped surface. On
@@ -88,7 +88,7 @@ export function LibraryPanel({ variant, onRun }: Props) {
           >
             <ChevronRight size={16} />
           </button>
-          <Library size={14} className="text-coconut-400 dark:text-sand-400" aria-hidden />
+          <Backpack size={14} className="text-coconut-400 dark:text-sand-400" aria-hidden />
           {showUserScoped && (
             <span className="text-[10px] font-medium text-coconut-400 dark:text-sand-400 tabular-nums">
               {savedSearchCount}
@@ -105,7 +105,7 @@ export function LibraryPanel({ variant, onRun }: Props) {
       >
         <header className="flex items-center justify-between">
           <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-            <Library size={12} aria-hidden />
+            <Backpack size={12} aria-hidden />
             Library
           </h2>
           <button
@@ -141,7 +141,7 @@ export function LibraryPanel({ variant, onRun }: Props) {
         className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-xs font-medium text-coconut-500 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
       >
         <span className="flex items-center gap-2">
-          <Library size={14} aria-hidden />
+          <Backpack size={14} aria-hidden />
           Library
           {showUserScoped && (
             <span className="text-coconut-400 dark:text-sand-400">({savedSearchCount})</span>

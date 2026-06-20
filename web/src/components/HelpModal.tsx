@@ -334,7 +334,7 @@ export function HelpModal({ onStartTour }: Props) {
                 rows={[
                   ['Searches', 'Lookups you have saved with a name. Click one to reload its cards, sort, and filters.'],
                   ['Recent', 'Your last few lookups, kept on this device. One tap re-runs them.'],
-                  ['Binders', 'Your collections (cards you own) and want-lists (cards you are chasing) in one place. Filter by Owned or Chasing; build them with the save and heart buttons on any result row.'],
+                  ['Binders', 'Your collections (cards you own) and want-lists (cards you are chasing) in one place. Filter by Owned or Chasing; build them with the book and footprints buttons on any result row.'],
                 ]}
               />
               <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">
