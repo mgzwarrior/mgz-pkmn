@@ -1,7 +1,12 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { CardDetailModal } from './CardDetailModal'
 import type { Row } from '../types'
+import * as client from '../api/client'
+import { _resetAuthStoreForTests } from '../hooks/useAuth'
+import { _resetCardOwnershipForTests } from './useCardOwnership'
+import { _resetCollectionsCacheForTests } from './useCollections'
+import { _resetWishlistsCacheForTests } from './useWishlists'
 
 // Fabricate a minimal Row with the slots the modal reads. Tests shallow-merge
 // (via spread) additional fields onto the underlying card so each one only
@@ -557,5 +562,64 @@ describe('CardDetailModal', () => {
       <CardDetailModal rows={[buildRow({ card: null })]} index={0} onChangeIndex={() => {}} />,
     )
     expect(screen.queryByText('Buy')).toBeNull()
+  })
+})
+
+describe('CardDetailModal — library actions (#699)', () => {
+  // A card carrying a set id so the ownership lookup (keyed by set::number)
+  // resolves; the default fixture only has a set name.
+  function identifiedRow() {
+    return buildRow({
+      card: {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        rarity: 'Rare Holo',
+        set: { id: 'base1', name: 'Base Set', series: 'Base' },
+        images: { large: 'https://example.com/charizard-large.png' },
+      },
+    })
+  }
+
+  beforeEach(() => {
+    _resetAuthStoreForTests()
+    _resetCardOwnershipForTests()
+    _resetCollectionsCacheForTests()
+    _resetWishlistsCacheForTests()
+    vi.spyOn(client, 'fetchMe').mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+    vi.spyOn(client, 'fetchCollections').mockResolvedValue([])
+    vi.spyOn(client, 'fetchWishlists').mockResolvedValue([])
+    vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({})
+  })
+
+  it('renders the save-to-collection and save-to-wishlist actions when signed in', async () => {
+    render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+    expect(
+      await screen.findByRole('button', { name: /Save to collection/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save to wishlist/i })).toBeInTheDocument()
+  })
+
+  it('hides the save actions when signed out', async () => {
+    vi.spyOn(client, 'fetchMe').mockRejectedValue(new Error('401'))
+    render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+    // Let the auth probe settle, then assert the actions never mounted.
+    await waitFor(() => expect(client.fetchMe).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /Save to collection/i })).toBeNull()
+  })
+
+  it('shows owned (with quantity) and chasing badges from the ownership lookup', async () => {
+    vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
+      'base1::4': {
+        collections: [{ id: 1, name: 'Show binder', quantity: 2 }],
+        wishlists: [{ id: 1, name: 'Chase list' }],
+      },
+    })
+    render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+    expect(await screen.findByText(/owned ×2/i)).toBeInTheDocument()
+    expect(screen.getByText(/chasing/i)).toBeInTheDocument()
   })
 })

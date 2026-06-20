@@ -17,13 +17,18 @@
  */
 import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react'
-import { useEffect } from 'react'
-import type { CardData, EbaySoldComp, Pricing, Row } from '../types'
+import { useEffect, useMemo } from 'react'
+import type { CardOwnership } from '../api/client'
+import { useAuth } from '../hooks/useAuth'
+import type { CardData, CardSet, EbaySoldComp, Pricing, Row } from '../types'
 import { ebayAffiliateUrl, tcgplayerAffiliateUrl } from '../utils/affiliateLinks'
 import { formatComp, formatMoney } from '../utils/format'
 import { AffiliateLinks } from './AffiliateLinks'
 import { EbaySparkline } from './EbaySparkline'
 import { hasEbayData, soldPriceSeries } from './ebayComps'
+import { OwnershipBadge } from './OwnershipBadge'
+import { SaveCardActions } from './SaveCardActions'
+import { useCardOwnership } from './useCardOwnership'
 
 interface Props {
   /** The already filtered + sorted row set the parent table is showing. */
@@ -37,6 +42,33 @@ interface Props {
 export function CardDetailModal({ rows, index, onChangeIndex }: Props) {
   const isOpen = index !== null && index >= 0 && index < rows.length
   const row = isOpen ? rows[index] : null
+
+  // Collection-aware actions + owned/chasing badges, gated on a signed-in
+  // user (matching the result-row save column). Warm the ownership cache for
+  // the whole row set the modal can page through, so ←/→ navigation is
+  // instant; the lookup is keyed by (set id, number) like every other surface.
+  const { user } = useAuth()
+  const showActions = user !== null
+  const ownershipIds = useMemo(
+    () =>
+      showActions
+        ? rows
+            .map((r) => ({
+              setId: (r.card?.set as CardSet | undefined)?.id ?? '',
+              number: (r.card?.number as string | undefined) ?? '',
+            }))
+            .filter((idt) => idt.setId && idt.number)
+        : [],
+    [rows, showActions],
+  )
+  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
+
+  const currentSetId = (row?.card?.set as CardSet | undefined)?.id
+  const currentNumber = row?.card?.number as string | undefined
+  const ownership: CardOwnership | null | undefined =
+    showActions && currentSetId && currentNumber
+      ? lookupOwnership(currentSetId, currentNumber)
+      : null
 
   // Reset to null when the parent's row set shifts so the modal no longer
   // points at a valid entry — e.g. a filter is applied while the modal is
@@ -85,6 +117,8 @@ export function CardDetailModal({ rows, index, onChangeIndex }: Props) {
               row={row}
               index={index!}
               total={rows.length}
+              showActions={showActions}
+              ownership={ownership}
               onPrev={
                 index! > 0 ? () => onChangeIndex(index! - 1) : undefined
               }
@@ -109,12 +143,16 @@ function CardDetailBody({
   row,
   index,
   total,
+  showActions,
+  ownership,
   onPrev,
   onNext,
 }: {
   row: Row
   index: number
   total: number
+  showActions: boolean
+  ownership: CardOwnership | null | undefined
   onPrev?: () => void
   onNext?: () => void
 }) {
@@ -190,6 +228,19 @@ function CardDetailBody({
 
           {/* Identity + pricing two-column */}
           <div className="space-y-5">
+            {/* Library actions — owned/chasing at a glance + save buttons.
+                Signed-in + matched cards only; both pieces self-hide when
+                there's nothing to show. */}
+            {showActions && card && (
+              <div className="flex items-center gap-3">
+                <OwnershipBadge ownership={ownership} />
+                <SaveCardActions
+                  card={card as unknown as Record<string, unknown>}
+                  show={showActions}
+                  className="ml-auto"
+                />
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <DefinitionList
                 rows={[
@@ -244,10 +295,11 @@ function CardDetailBody({
                     View on {source.label} <ExternalLink size={11} />
                   </a>
                 )}
+                {/* eBay / TCGplayer buy links sit directly under the price —
+                    the "go buy this" path next to what it costs (#699). */}
+                <BuyBlock card={card} />
               </div>
             </div>
-
-            <BuyBlock card={card} />
 
             <EbayCompsBlock pricing={pricing} />
 
@@ -272,7 +324,7 @@ function BuyBlock({ card }: { card: CardData | null }) {
   if (!ebayAffiliateUrl(card) && !tcgplayerAffiliateUrl(card)) return null
 
   return (
-    <div>
+    <div className="mt-3 border-t border-sand-200 dark:border-husk-100 pt-3">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300 mb-2">
         Buy
       </h3>
