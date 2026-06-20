@@ -23,6 +23,7 @@ import { downloadCollectionIdCardPdf } from '../api/client'
 import type { CollectionSummary, WishlistSummary } from '../api/client'
 import { useAppStore } from '../store'
 import { BinderModal } from './BinderModal'
+import { BinderInventory } from './BinderInventory'
 import { BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
 import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
@@ -133,9 +134,13 @@ export function LibraryBindersTab() {
 
   return (
     <div className="space-y-3">
+      <BinderInventory />
+
+      <div className="border-t border-sand-200 pt-3 dark:border-husk-100" />
+
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
-          Binders
+          Collections &amp; want-lists
         </span>
         <div className="flex items-center gap-0.5">
           <button
