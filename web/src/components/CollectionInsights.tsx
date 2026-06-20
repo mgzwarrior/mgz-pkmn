@@ -236,7 +236,7 @@ export function CollectionInsights({ open, onOpenChange }: Props) {
               </div>
             ) : empty ? (
               <p className="text-xs text-coconut-500 dark:text-sand-300">
-                No collection data yet. Add cards to a collection — click the bookmark icon on a
+                No collection data yet. Add cards to a collection — click the book icon on a
                 matched row — and your stats will show up here.
               </p>
             ) : data ? (

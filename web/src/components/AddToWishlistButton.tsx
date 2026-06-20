@@ -9,7 +9,7 @@
  */
 import { useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Check, Heart, Loader2, Plus } from 'lucide-react'
+import { Check, Footprints, Loader2, Plus } from 'lucide-react'
 import { useWishlists } from './useWishlists'
 
 interface Props {
@@ -82,7 +82,7 @@ export function AddToWishlistButton({ card }: Props) {
           title="Save to wishlist"
           className="rounded p-1 text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
         >
-          <Heart size={13} />
+          <Footprints size={13} />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

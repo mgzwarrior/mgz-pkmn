@@ -9,7 +9,7 @@
  */
 import { useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Bookmark, Check, Loader2, Plus } from 'lucide-react'
+import { Book, Check, Loader2, Plus } from 'lucide-react'
 import { useCollections } from './useCollections'
 
 interface Props {
@@ -73,7 +73,7 @@ export function AddToCollectionButton({ card }: Props) {
           title="Save to collection"
           className="rounded p-1 text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
         >
-          <Bookmark size={13} />
+          <Book size={13} aria-hidden />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

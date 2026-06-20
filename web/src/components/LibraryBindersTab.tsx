@@ -63,10 +63,10 @@ function isCatalogTarget(c: CollectionSummary): boolean {
 /** Empty-state copy keyed off the active filter. */
 function emptyMessage(filter: BinderFilter): string {
   if (filter === 'owned')
-    return "No owned binders yet. Hit New binder to make one, or click the bookmark icon on a matched row to start a collection."
+    return "No owned binders yet. Hit New binder to make one, or click the book icon on a matched row to start a collection."
   if (filter === 'chasing')
-    return "No want-lists yet. Run a lookup, then click the heart icon on a matched row to start chasing a card."
-  return "You don't have any binders yet. Hit New binder to make one, or run a lookup and click the bookmark icon to save a card or the heart icon to start a want-list."
+    return "No want-lists yet. Run a lookup, then click the footprints icon on a matched row to start chasing a card."
+  return "You don't have any binders yet. Hit New binder to make one, or run a lookup and click the book icon to save a card or the footprints icon to start a want-list."
 }
 
 export function LibraryBindersTab() {

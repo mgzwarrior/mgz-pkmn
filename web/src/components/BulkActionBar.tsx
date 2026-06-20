@@ -17,10 +17,10 @@
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
-  BookOpen,
+  Book,
   Check,
   Download,
-  Heart,
+  Footprints,
   Loader2,
   Plus,
   RotateCcw,
@@ -331,7 +331,7 @@ function BinderPicker({
               : 'text-husk-500 hover:bg-sun-400/15 dark:text-sun-200'
           }`}
         >
-          {owned ? <BookOpen size={13} /> : <Heart size={13} />}
+          {owned ? <Book size={13} /> : <Footprints size={13} />}
           {owned ? 'Add as owned' : 'Add as chasing'}
         </button>
       </DropdownMenu.Trigger>

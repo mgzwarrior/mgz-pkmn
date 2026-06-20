@@ -6,7 +6,7 @@
  * Pokémon across every set). State + effects live in
  * [useBrowseController](./useBrowseController.ts).
  */
-import { ArrowLeft, ImageOff, Library, Loader2, Search, Wallet } from 'lucide-react'
+import { ArrowLeft, GalleryHorizontalEnd, ImageOff, Loader2, Search, Wallet } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
@@ -113,7 +113,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
               <ArrowLeft size={16} />
             </button>
           )}
-          <Library size={18} className="text-coconut-600 dark:text-sand-200" />
+          <GalleryHorizontalEnd size={18} className="text-coconut-600 dark:text-sand-200" />
           <h2 className="truncate text-lg font-semibold text-coconut-700 dark:text-sand-50">
             {headerTitle}
           </h2>
