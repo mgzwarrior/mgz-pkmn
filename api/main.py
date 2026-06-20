@@ -43,9 +43,7 @@ from .auth import routes as auth_routes
 from .db import migrate
 from .db.session import get_engine
 from .routes import (
-    cache as cache_route,
-)
-from .routes import (
+    binders,
     cards,
     changelog,
     collections,
@@ -61,6 +59,9 @@ from .routes import (
     sets,
     swipe,
     wishlists,
+)
+from .routes import (
+    cache as cache_route,
 )
 
 # Configure logging so our `_log.info(...)` calls actually reach
@@ -541,6 +542,7 @@ app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])
 app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
 app.include_router(collections.router, prefix="/api/v1", tags=["collections"])
+app.include_router(binders.router, prefix="/api/v1", tags=["binders"])
 app.include_router(wishlists.router, prefix="/api/v1", tags=["wishlists"])
 app.include_router(swipe.router, prefix="/api/v1", tags=["swipe"])
 app.include_router(ownership.router, prefix="/api/v1", tags=["ownership"])

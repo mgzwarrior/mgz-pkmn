@@ -795,6 +795,83 @@ export async function deleteCollection(collectionId: number): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Binders (#702) — physical binders that hold collections.
+// ---------------------------------------------------------------------------
+
+export interface BinderCollection {
+  id: number
+  name: string
+  item_count: number
+  total_quantity: number
+}
+
+export interface BinderSummary {
+  id: number
+  name: string
+  created_at: string
+  binder_format: BinderFormat | null
+  binder_color: string | null
+  binder_type: BinderType | null
+  capacity: number | null
+  collection_count: number
+  is_empty: boolean
+}
+
+export interface Binder extends BinderSummary {
+  collections: BinderCollection[]
+}
+
+export interface BinderInput {
+  binder_format?: BinderFormat | null
+  binder_color?: string | null
+  binder_type?: BinderType | null
+  capacity?: number | null
+}
+
+export async function fetchBinders(): Promise<BinderSummary[]> {
+  const res = await fetch(`${BASE}/binders`)
+  if (!res.ok) throw new Error(`binders failed: ${res.status}`)
+  const data = await res.json()
+  return data.binders as BinderSummary[]
+}
+
+export async function createBinder(name: string, input?: BinderInput): Promise<Binder> {
+  const res = await fetch(`${BASE}/binders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      binder_format: input?.binder_format ?? null,
+      binder_color: input?.binder_color ?? null,
+      binder_type: input?.binder_type ?? null,
+      capacity: input?.capacity ?? null,
+    }),
+  })
+  if (!res.ok) throw new Error(`create binder failed: ${res.status}`)
+  return (await res.json()) as Binder
+}
+
+export async function updateBinder(
+  binderId: number,
+  patch: { name?: string } & BinderInput,
+): Promise<Binder> {
+  const res = await fetch(`${BASE}/binders/${binderId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`update binder failed: ${res.status}`)
+  return (await res.json()) as Binder
+}
+
+export async function deleteBinder(binderId: number): Promise<void> {
+  const res = await fetch(`${BASE}/binders/${binderId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete binder failed: ${res.status}`)
+  }
+}
+
 /**
  * Download the printable collection ID card PDF (#507) — the cover cutout for
  * the top-left binder pocket (title, a representative card photo, owned/total).

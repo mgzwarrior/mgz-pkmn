@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { LibraryBindersTab } from './LibraryBindersTab'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { _resetWishlistsCacheForTests } from './useWishlists'
+import { _resetBindersCacheForTests } from './useBinders'
 import {
   fetchCollections,
   createCollection,
@@ -12,6 +13,7 @@ import {
   fetchWishlist,
   deleteWishlist,
   fetchCollectionTarget,
+  fetchBinders,
 } from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -29,10 +31,15 @@ vi.mock('../api/client', () => ({
   promoteWishlistItem: vi.fn(),
   fetchCollectionTarget: vi.fn(),
   chaseCollection: vi.fn(),
+  fetchBinders: vi.fn(),
+  createBinder: vi.fn(),
+  updateBinder: vi.fn(),
+  deleteBinder: vi.fn(),
 }))
 
 const mockCollections = vi.mocked(fetchCollections)
 const mockWishlists = vi.mocked(fetchWishlists)
+const mockBinders = vi.mocked(fetchBinders)
 const mockCreate = vi.mocked(createCollection)
 const mockDeleteCollection = vi.mocked(deleteCollection)
 const mockDeleteWishlist = vi.mocked(deleteWishlist)
@@ -44,6 +51,9 @@ describe('LibraryBindersTab', () => {
   beforeEach(() => {
     _resetCollectionsCacheForTests()
     _resetWishlistsCacheForTests()
+    _resetBindersCacheForTests()
+    mockBinders.mockReset()
+    mockBinders.mockResolvedValue([])
     mockCollections.mockReset()
     mockWishlists.mockReset()
     mockCreate.mockReset()
