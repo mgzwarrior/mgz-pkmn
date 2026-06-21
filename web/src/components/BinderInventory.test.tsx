@@ -2,18 +2,45 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { BinderInventory } from './BinderInventory'
 import { _resetBindersCacheForTests } from './useBinders'
-import { fetchBinders, createBinder, deleteBinder } from '../api/client'
+import { _resetCollectionsCacheForTests } from './useCollections'
+import {
+  fetchBinders,
+  createBinder,
+  deleteBinder,
+  fetchCollections,
+  createCollection,
+} from '../api/client'
 
 vi.mock('../api/client', () => ({
   fetchBinders: vi.fn(),
   createBinder: vi.fn(),
   deleteBinder: vi.fn(),
   updateBinder: vi.fn(),
+  fetchCollections: vi.fn(),
+  createCollection: vi.fn(),
+  updateCollection: vi.fn(),
+  deleteCollection: vi.fn(),
+  addCardToCollection: vi.fn(),
 }))
 
 const mockFetch = vi.mocked(fetchBinders)
 const mockCreate = vi.mocked(createBinder)
 const mockDelete = vi.mocked(deleteBinder)
+const mockCollections = vi.mocked(fetchCollections)
+const mockCreateCollection = vi.mocked(createCollection)
+
+/** A filed collection summary (only the fields BinderInventory reads). */
+function filed(id: number, name: string, binderId: number) {
+  return {
+    id,
+    name,
+    description: null,
+    created_at: '2026-06-20T00:00:00Z',
+    item_count: 0,
+    kind: 'manual' as const,
+    binder_id: binderId,
+  }
+}
 
 function binder(over: Partial<Record<string, unknown>> = {}) {
   return {
@@ -33,9 +60,13 @@ function binder(over: Partial<Record<string, unknown>> = {}) {
 describe('BinderInventory', () => {
   beforeEach(() => {
     _resetBindersCacheForTests()
+    _resetCollectionsCacheForTests()
     mockFetch.mockReset()
     mockCreate.mockReset()
     mockDelete.mockReset()
+    mockCollections.mockReset()
+    mockCollections.mockResolvedValue([])
+    mockCreateCollection.mockReset()
   })
 
   it('shows the empty state when there are no binders', async () => {
@@ -51,12 +82,43 @@ describe('BinderInventory', () => {
     expect(screen.getByText(/Empty · 9-pocket · 360 slots/i)).toBeInTheDocument()
   })
 
-  it('shows a collection count when the binder is filled', async () => {
+  it('shows the filed collections and a live count under a binder', async () => {
     mockFetch.mockResolvedValue([
-      binder({ is_empty: false, collection_count: 2, capacity: null, binder_format: null }),
+      binder({ id: 1, is_empty: false, collection_count: 2, capacity: null, binder_format: null }),
+    ] as never)
+    mockCollections.mockResolvedValue([
+      filed(10, 'Base holos', 1),
+      filed(11, 'Trainers', 1),
     ] as never)
     render(<BinderInventory />)
     expect(await screen.findByText(/2 collections/i)).toBeInTheDocument()
+    expect(screen.getByText('Base holos')).toBeInTheDocument()
+    expect(screen.getByText('Trainers')).toBeInTheDocument()
+  })
+
+  it('files a new collection straight into a binder', async () => {
+    mockFetch.mockResolvedValue([binder({ id: 3, name: 'Show binder' })] as never)
+    mockCreateCollection.mockResolvedValue({
+      id: 20,
+      name: 'Holos',
+      description: null,
+      created_at: '2026-06-20T00:00:00Z',
+      items: [],
+      kind: 'manual',
+      binder_id: 3,
+    } as never)
+    render(<BinderInventory />)
+    await screen.findByText('Show binder')
+
+    fireEvent.click(screen.getByRole('button', { name: /Add a collection to Show binder/i }))
+    fireEvent.change(screen.getByPlaceholderText('Base Set holos'), {
+      target: { value: 'Holos' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Create$/i }))
+
+    await waitFor(() =>
+      expect(mockCreateCollection).toHaveBeenCalledWith('Holos', { binder_id: 3 }),
+    )
   })
 
   it('creates an empty binder', async () => {

@@ -4,18 +4,23 @@
  * fill it, and (via #3) hold one or more collections. Reads/writes the
  * `/api/v1/binders` resource through [useBinders](./useBinders.ts).
  *
- * Scoped to inventory CRUD: listing binders, adding an empty one, and
- * removing one (which detaches — never deletes — any collections filed in
- * it). Filing collections into a binder is #3.
+ * Scoped to inventory CRUD: listing binders, adding an empty one, removing
+ * one (which detaches — never deletes — any collections filed in it), and
+ * filing collections into a binder (#703): each binder lists the
+ * collections filed in it and offers an "Add collection" that creates one
+ * straight into the binder.
  */
-import { Check, Library, Loader2, Plus, Trash2, X } from 'lucide-react'
-import { useState } from 'react'
-import type { BinderFormat } from '../api/client'
+import { Check, FolderPlus, Library, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import type { BinderFormat, BinderSummary, CollectionSummary } from '../api/client'
 import { BINDER_FORMAT_OPTIONS, coverSwatch } from './binderIdentity'
+import { NameCreateDialog } from './NameCreateDialog'
 import { useBinders } from './useBinders'
+import { useCollections } from './useCollections'
 
 export function BinderInventory() {
-  const { binders, loading, error, create, remove } = useBinders()
+  const { binders, loading, error, create, remove, refresh } = useBinders()
+  const { collections, create: createCollection } = useCollections()
 
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
@@ -24,6 +29,21 @@ export function BinderInventory() {
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  // The binder a new collection is being filed into (#703).
+  const [filingBinder, setFilingBinder] = useState<BinderSummary | null>(null)
+
+  // Collections filed into each binder, keyed by binder id, derived live from
+  // the collections store so a filed collection shows up without a refetch.
+  const collectionsByBinder = useMemo(() => {
+    const map = new Map<number, CollectionSummary[]>()
+    for (const c of collections) {
+      if (c.binder_id == null) continue
+      const list = map.get(c.binder_id)
+      if (list) list.push(c)
+      else map.set(c.binder_id, [c])
+    }
+    return map
+  }, [collections])
 
   function resetForm() {
     setName('')
@@ -161,60 +181,102 @@ export function BinderInventory() {
         <ul className="space-y-1">
           {binders.map((b) => {
             const swatch = coverSwatch(b.binder_color)
+            const filed = collectionsByBinder.get(b.id) ?? []
             return (
               <li
                 key={b.id}
-                className="flex items-center gap-2 rounded border border-sand-200 px-2 py-1.5 dark:border-husk-100"
+                className="rounded border border-sand-200 px-2 py-1.5 dark:border-husk-100"
               >
-                <span
-                  className={`h-6 w-5 shrink-0 rounded-sm ${swatch.className}`}
-                  style={swatch.style}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-coconut-700 dark:text-sand-50">{b.name}</p>
-                  <p className="text-[11px] text-coconut-400 dark:text-sand-300">
-                    {b.is_empty
-                      ? 'Empty'
-                      : `${b.collection_count} ${b.collection_count === 1 ? 'collection' : 'collections'}`}
-                    {b.binder_format ? ` · ${b.binder_format}` : ''}
-                    {b.capacity ? ` · ${b.capacity} slots` : ''}
-                  </p>
-                </div>
-                {confirmingId === b.id ? (
-                  <span className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(b.id)}
-                      aria-label={`Confirm delete ${b.name}`}
-                      className="rounded p-1 text-sun-600 hover:bg-sun-50 dark:text-sun-300 dark:hover:bg-husk-100"
-                    >
-                      <Check size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingId(null)}
-                      aria-label="Cancel delete"
-                      className="rounded p-1 text-coconut-400 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
-                    >
-                      <X size={13} />
-                    </button>
-                  </span>
-                ) : (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-6 w-5 shrink-0 rounded-sm ${swatch.className}`}
+                    style={swatch.style}
+                    aria-hidden
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-coconut-700 dark:text-sand-50">{b.name}</p>
+                    <p className="text-[11px] text-coconut-400 dark:text-sand-300">
+                      {filed.length === 0
+                        ? 'Empty'
+                        : `${filed.length} ${filed.length === 1 ? 'collection' : 'collections'}`}
+                      {b.binder_format ? ` · ${b.binder_format}` : ''}
+                      {b.capacity ? ` · ${b.capacity} slots` : ''}
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setConfirmingId(b.id)}
-                    aria-label={`Delete ${b.name}`}
-                    className="rounded p-1 text-coconut-400 hover:text-sun-600 dark:text-sand-300 dark:hover:text-sun-300"
+                    onClick={() => setFilingBinder(b)}
+                    aria-label={`Add a collection to ${b.name}`}
+                    title="Add collection"
+                    className="rounded p-1 text-coconut-400 hover:text-palm-600 dark:text-sand-300 dark:hover:text-palm-300"
                   >
-                    <Trash2 size={13} />
+                    <FolderPlus size={13} />
                   </button>
+                  {confirmingId === b.id ? (
+                    <span className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(b.id)}
+                        aria-label={`Confirm delete ${b.name}`}
+                        className="rounded p-1 text-sun-600 hover:bg-sun-50 dark:text-sun-300 dark:hover:bg-husk-100"
+                      >
+                        <Check size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingId(null)}
+                        aria-label="Cancel delete"
+                        className="rounded p-1 text-coconut-400 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
+                      >
+                        <X size={13} />
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingId(b.id)}
+                      aria-label={`Delete ${b.name}`}
+                      className="rounded p-1 text-coconut-400 hover:text-sun-600 dark:text-sand-300 dark:hover:text-sun-300"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+                {filed.length > 0 && (
+                  <ul className="ml-7 mt-1 space-y-0.5">
+                    {filed.map((c) => (
+                      <li
+                        key={c.id}
+                        className="truncate text-[11px] text-coconut-500 dark:text-sand-300"
+                      >
+                        {c.name}
+                        <span className="text-coconut-400 dark:text-sand-400">
+                          {' '}
+                          · {c.item_count} {c.item_count === 1 ? 'card' : 'cards'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </li>
             )
           })}
         </ul>
       )}
+
+      <NameCreateDialog
+        open={filingBinder !== null}
+        onOpenChange={(o) => !o && setFilingBinder(null)}
+        title={filingBinder ? `Add a collection to ${filingBinder.name}` : 'Add a collection'}
+        placeholder="Base Set holos"
+        submitLabel="Create"
+        onSubmit={async (collectionName) => {
+          if (!filingBinder) return
+          await createCollection(collectionName, { binder_id: filingBinder.id })
+          // Keep the binder summary's own counts in sync across surfaces.
+          await refresh()
+        }}
+      />
     </section>
   )
 }
