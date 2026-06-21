@@ -39,6 +39,7 @@ import { useAppStore } from '../store'
 import { BinderModal } from './BinderModal'
 import { BinderInventory } from './BinderInventory'
 import { CollectionCreateDialog } from './CollectionCreateDialog'
+import { CollectionDetail } from './CollectionDetail'
 import { NameCreateDialog } from './NameCreateDialog'
 import { BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
 import { CollectionInsights } from './CollectionInsights'
@@ -118,6 +119,8 @@ export function LibraryBindersTab() {
   const [modalKey, setModalKey] = useState(0)
   // The catalog-scope target collection whose detail modal is open.
   const [targetCollection, setTargetCollection] = useState<CollectionSummary | null>(null)
+  // The (non-target) collection whose card-list detail modal is open.
+  const [openCollection, setOpenCollection] = useState<CollectionSummary | null>(null)
   // The want-list whose detail modal is open.
   const [openWishlist, setOpenWishlist] = useState<WishlistSummary | null>(null)
   // The aggregate insights dashboard.
@@ -264,6 +267,7 @@ export function LibraryBindersTab() {
                 collection={row.collection}
                 binders={binders}
                 onOpenTarget={setTargetCollection}
+                onOpenCollection={setOpenCollection}
                 onEdit={openEdit}
                 onDelete={removeCollection}
                 onFile={fileCollection}
@@ -285,6 +289,13 @@ export function LibraryBindersTab() {
         open={targetCollection !== null}
         onOpenChange={(o) => {
           if (!o) setTargetCollection(null)
+        }}
+      />
+      <CollectionDetail
+        collection={openCollection}
+        open={openCollection !== null}
+        onOpenChange={(o) => {
+          if (!o) setOpenCollection(null)
         }}
       />
       <WishlistDetail
@@ -431,6 +442,7 @@ function CollectionRow({
   collection: c,
   binders,
   onOpenTarget,
+  onOpenCollection,
   onEdit,
   onDelete,
   onFile,
@@ -438,6 +450,7 @@ function CollectionRow({
   collection: CollectionSummary
   binders: BinderSummary[]
   onOpenTarget: (c: CollectionSummary) => void
+  onOpenCollection: (c: CollectionSummary) => void
   onEdit: (c: CollectionSummary) => void
   onDelete: (id: number) => Promise<void>
   onFile: (collectionId: number, binderId: number | null) => Promise<void>
@@ -446,9 +459,10 @@ function CollectionRow({
   const isBinder = c.kind === 'binder'
   const identity = hasBinderIdentity(c)
   const cover = coverSwatch(c.binder_color)
-  // A catalog-scope target opens its progress detail; everything else is
-  // a static row.
-  const openable = isCatalogTarget(c)
+  // A catalog-scope target opens its progress detail; every other collection
+  // opens its card-list detail — both are clickable so a row is never a dead
+  // end (#723).
+  const isTarget = isCatalogTarget(c)
   const body = (
     <>
       <div className="min-w-0">
@@ -489,17 +503,13 @@ function CollectionRow({
   )
   return (
     <li className="group flex items-center gap-1">
-      {openable ? (
-        <button
-          type="button"
-          onClick={() => onOpenTarget(c)}
-          className="flex flex-1 items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
-        >
-          {body}
-        </button>
-      ) : (
-        <div className="flex flex-1 items-center justify-between py-2">{body}</div>
-      )}
+      <button
+        type="button"
+        onClick={() => (isTarget ? onOpenTarget(c) : onOpenCollection(c))}
+        className="flex flex-1 items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+      >
+        {body}
+      </button>
       {identity && (
         <button
           type="button"

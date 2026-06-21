@@ -600,6 +600,16 @@ export interface CollectionItem {
   card: Record<string, unknown>
   notes: string | null
   added_at: string
+  // Promoted identity + snapshot fields (#574). Optional so partial fixtures
+  // stay valid — the wire always carries them (null when absent).
+  quantity?: number
+  card_set_id?: string | null
+  card_number?: string | null
+  card_name?: string | null
+  card_rarity?: string | null
+  card_types?: string[] | null
+  card_image_url?: string | null
+  price_snapshot?: number | null
 }
 
 export interface Collection {
@@ -620,6 +630,12 @@ export interface Collection {
   binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
+}
+
+export async function fetchCollection(collectionId: number): Promise<Collection> {
+  const res = await fetch(`${BASE}/collections/${collectionId}`)
+  if (!res.ok) throw new Error(`collection failed: ${res.status}`)
+  return (await res.json()) as Collection
 }
 
 export async function fetchCollections(): Promise<CollectionSummary[]> {

@@ -6,6 +6,7 @@ import { _resetWishlistsCacheForTests } from './useWishlists'
 import { _resetBindersCacheForTests } from './useBinders'
 import {
   fetchCollections,
+  fetchCollection,
   createCollection,
   deleteCollection,
   downloadCollectionIdCardPdf,
@@ -20,6 +21,7 @@ import {
 
 vi.mock('../api/client', () => ({
   fetchCollections: vi.fn(),
+  fetchCollection: vi.fn(),
   createCollection: vi.fn(),
   updateCollection: vi.fn(),
   addCardToCollection: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock('../api/client', () => ({
 }))
 
 const mockCollections = vi.mocked(fetchCollections)
+const mockFetchCollection = vi.mocked(fetchCollection)
 const mockWishlists = vi.mocked(fetchWishlists)
 const mockBinders = vi.mocked(fetchBinders)
 const mockCreate = vi.mocked(createCollection)
@@ -75,6 +78,7 @@ describe('LibraryBindersTab', () => {
     mockBinders.mockReset()
     mockBinders.mockResolvedValue([])
     mockCollections.mockReset()
+    mockFetchCollection.mockReset()
     mockWishlists.mockReset()
     mockCreate.mockReset()
     mockDeleteCollection.mockReset()
@@ -331,6 +335,49 @@ describe('LibraryBindersTab', () => {
     expect(
       screen.getByRole('button', { name: /add 2 missing to want-list/i }),
     ).toBeInTheDocument()
+  })
+
+  it('opens a plain collection card-list detail when its row is clicked (#723)', async () => {
+    mockCollections.mockResolvedValue([
+      {
+        id: 4,
+        name: 'Base holos',
+        description: null,
+        created_at: '2026-06-06T00:00:00',
+        item_count: 1,
+        kind: 'manual',
+      },
+    ])
+    mockFetchCollection.mockResolvedValue({
+      id: 4,
+      name: 'Base holos',
+      description: null,
+      created_at: '2026-06-06T00:00:00',
+      kind: 'manual',
+      items: [
+        {
+          id: 1,
+          card: { name: 'Charizard' },
+          notes: null,
+          added_at: '2026-06-06T00:00:00',
+          card_set_id: 'base1',
+          card_number: '4',
+          card_name: 'Charizard',
+          card_rarity: 'Rare Holo',
+          price_snapshot: 250,
+        },
+      ],
+    })
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Base holos')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('Base holos'))
+
+    await waitFor(() => expect(mockFetchCollection).toHaveBeenCalledWith(4))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Charizard')).toBeInTheDocument()
+    // $250.00 shows for the item and the snapshot total.
+    expect(within(dialog).getAllByText('$250.00').length).toBeGreaterThanOrEqual(1)
   })
 
   it('opens the detail modal when a want-list row is clicked', async () => {
