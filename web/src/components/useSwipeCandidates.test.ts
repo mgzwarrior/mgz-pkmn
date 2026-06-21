@@ -5,6 +5,8 @@ import {
   DEFAULT_WEIGHT,
   rarityWeight,
   weightedSample,
+  weightedShuffle,
+  profileMultiplier,
   rarityTier,
   chaseTierForSet,
   isEligible,
@@ -77,6 +79,44 @@ describe('weightedSample', () => {
     // picks index 0, rng→1 picks the last index.
     expect(weightedSample([0, 0, 0], () => 0)).toBe(0)
     expect(weightedSample([0, 0, 0], () => 0.99)).toBe(2)
+  })
+})
+
+describe('profileMultiplier (#713)', () => {
+  it('is neutral (1×) at score 0', () => {
+    expect(profileMultiplier(0)).toBe(1)
+  })
+
+  it('grows with a positive lean but is capped', () => {
+    expect(profileMultiplier(2)).toBeCloseTo(1.3)
+    expect(profileMultiplier(1000)).toBe(4) // PROFILE_MULT_MAX
+  })
+
+  it('shrinks with a negative lean but never reaches zero', () => {
+    expect(profileMultiplier(-2)).toBeCloseTo(0.7)
+    expect(profileMultiplier(-1000)).toBe(0.25) // PROFILE_MULT_MIN floor
+  })
+})
+
+describe('weightedShuffle (#713)', () => {
+  it('keeps every item — output is a permutation of the input', () => {
+    const items = ['a', 'b', 'c', 'd']
+    const out = weightedShuffle(items, [1, 5, 2, 9], Math.random)
+    expect(out.length).toBe(items.length)
+    expect(new Set(out)).toEqual(new Set(items))
+  })
+
+  it('degrades to input order under rng=0 with equal weights', () => {
+    expect(weightedShuffle(['a', 'b', 'c'], [1, 1, 1], () => 0)).toEqual([
+      'a',
+      'b',
+      'c',
+    ])
+  })
+
+  it('floats a heavily-weighted item toward the front', () => {
+    // rng=0.5 over weights [1, 100] lands in the high-weight bucket first.
+    expect(weightedShuffle(['a', 'b'], [1, 100], () => 0.5)).toEqual(['b', 'a'])
   })
 })
 
@@ -246,6 +286,80 @@ describe('useSwipeCandidates — prefetched stack', () => {
     act(() => result.current.advance())
     await waitFor(() => expect(result.current.exhausted).toBe(true))
     expect(result.current.current).toBeNull()
+  })
+})
+
+describe('useSwipeCandidates — profile weighting (#713)', () => {
+  const TWO_SETS = [
+    { id: 'sv1', name: 'Set One', series: 'SV', total: 1, releaseDate: '2023/03/31' },
+    { id: 'sv2', name: 'Set Two', series: 'SV', total: 1, releaseDate: '2023/06/30' },
+  ]
+
+  beforeEach(() => {
+    mockFetchSets.mockReset()
+    mockFetchSetCards.mockReset()
+    mockFetchSets.mockResolvedValue(TWO_SETS)
+    mockFetchSetCards.mockImplementation(async (setId: string) =>
+      setId === 'sv1' ? [card('a1', 'Rare Holo')] : [card('b1', 'Rare Holo')],
+    )
+  })
+
+  it('walks a leaned-toward set first via setScore', async () => {
+    // sv2 is strongly favoured; under rng=0.5 the weighted shuffle puts it
+    // ahead of sv1, so its card tops the stack.
+    const seenSet = new Set<string>()
+    const { result } = renderHook(() =>
+      useSwipeCandidates({
+        active: true,
+        seenSet,
+        rng: () => 0.5,
+        setScore: (id) => (id === 'sv2' ? 1000 : 0),
+      }),
+    )
+    await waitFor(() => expect(result.current.current).not.toBeNull())
+    expect(result.current.current!.setId).toBe('sv2')
+    expect(result.current.current!.card.id).toBe('b1')
+  })
+
+  it('favours a leaned-toward card within a set via cardScore', async () => {
+    // One set, two equal-rarity cards; cardScore lifts 'y' so it's sampled
+    // ahead of 'x' despite identical rarity weights.
+    mockFetchSets.mockResolvedValue([TWO_SETS[0]])
+    mockFetchSetCards.mockResolvedValue([
+      card('x', 'Rare Holo'),
+      card('y', 'Rare Holo'),
+    ])
+    const seenSet = new Set<string>()
+    const { result } = renderHook(() =>
+      useSwipeCandidates({
+        active: true,
+        seenSet,
+        rng: () => 0.5,
+        cardScore: (c) => (c.id === 'y' ? 1000 : 0),
+      }),
+    )
+    await waitFor(() => expect(result.current.current).not.toBeNull())
+    expect(result.current.current!.card.id).toBe('y')
+  })
+
+  it('still reaches a downweighted set (exploration preserved)', async () => {
+    // sv1 is heavily downweighted but not excluded; walking the deck still
+    // surfaces its card alongside sv2's.
+    const seenSet = new Set<string>()
+    const { result } = renderHook(() =>
+      useSwipeCandidates({
+        active: true,
+        seenSet,
+        rng: () => 0.5,
+        setScore: (id) => (id === 'sv1' ? -1000 : 0),
+      }),
+    )
+    await waitFor(() => expect(result.current.upcoming.length).toBe(1))
+    const setIds = [
+      result.current.current!.setId,
+      ...result.current.upcoming.map((c) => c.setId),
+    ]
+    expect(new Set(setIds)).toEqual(new Set(['sv1', 'sv2']))
   })
 })
 

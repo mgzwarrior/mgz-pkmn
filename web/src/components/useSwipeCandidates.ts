@@ -21,11 +21,15 @@
  * background; because the next card is already fetched there's no loader
  * flash between swipes.
  *
- * The taste profile (rarity / set / supertype counters) tracked by
- * `useSwipeProfile` is intentionally *not* fed back into selection
- * here — it's saved for the prep-list output. The user wanted simple
- * rarity-weighted random across the whole catalog, not a recency-
- * or profile-shaped walk.
+ * Profile weighting ([#713](https://github.com/mgzwarrior/mgz-pkmn/issues/713)):
+ * the learned taste profile now *softly* biases the walk via two optional,
+ * injected scorers — `setScore(setId)` shapes which set is walked next, and
+ * `cardScore(card, setId)` shapes which card within it. Each score is mapped
+ * to a bounded multiplier ({@link profileMultiplier}) so a lean nudges the
+ * odds without ever zeroing a set out — exploration is preserved and a
+ * disliked set still surfaces occasionally. With no scorers passed (the
+ * default) the walk is the original uniform-set / rarity-weighted-card
+ * sample, so the hook stays usable without a profile.
  *
  * The hook returns `{ current, upcoming, advance, loading, exhausted,
  * error }`. The consumer calls `advance()` after each swipe; profile
@@ -85,6 +89,17 @@ interface UseSwipeCandidatesOpts {
    * (defaults to `Math.random`); tests inject a deterministic source.
    */
   rng?: () => number
+  /**
+   * Profile lean for a whole set — biases which set is walked next (#713).
+   * Higher favours the set; negative downweights it. Pinned favorite sets
+   * and the swipe `set` counter feed this. Defaults to a flat `0` (no bias).
+   */
+  setScore?: (setId: string) => number
+  /**
+   * Profile lean for a single card within its set — biases which card is
+   * sampled (#713). Fed by `useSwipeProfile.scoreCard`. Defaults to `0`.
+   */
+  cardScore?: (card: SetCard, setId: string) => number
 }
 
 /**
@@ -221,12 +236,43 @@ function isEligible(
   return rarityTier(rarity) >= setMaxTier
 }
 
-/** In-place-free Fisher–Yates shuffle driven by the injected rng. */
-function shuffled<T>(items: T[], rng: () => number): T[] {
-  const out = items.slice()
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1))
-    ;[out[i], out[j]] = [out[j], out[i]]
+/**
+ * Map a profile score (any sign) to a bounded sampling multiplier (#713).
+ * A score of 0 is neutral (1×); positive leans favour, negative downweight.
+ * Clamped to `[PROFILE_MULT_MIN, PROFILE_MULT_MAX]` so a strong lean only
+ * ever *nudges* the odds — the floor keeps a disliked set/card reachable
+ * (exploration), the ceiling stops a loved one from collapsing the feed.
+ */
+const PROFILE_SENSITIVITY = 0.15
+const PROFILE_MULT_MIN = 0.25
+const PROFILE_MULT_MAX = 4
+
+function profileMultiplier(score: number): number {
+  return Math.min(
+    PROFILE_MULT_MAX,
+    Math.max(PROFILE_MULT_MIN, 1 + score * PROFILE_SENSITIVITY),
+  )
+}
+
+/**
+ * Weighted shuffle — a random permutation where higher-weight items tend
+ * to come first (weighted sampling without replacement). With equal
+ * weights it degrades to a uniform shuffle. Non-positive weights still
+ * participate (they just sort toward the back), so no item is dropped.
+ */
+function weightedShuffle<T>(
+  items: T[],
+  weights: number[],
+  rng: () => number,
+): T[] {
+  const remainingItems = items.slice()
+  const remainingWeights = weights.slice()
+  const out: T[] = []
+  while (remainingItems.length > 0) {
+    const k = weightedSample(remainingWeights, rng)
+    out.push(remainingItems[k])
+    remainingItems.splice(k, 1)
+    remainingWeights.splice(k, 1)
   }
   return out
 }
@@ -247,6 +293,10 @@ function weightedSample(weights: number[], rng: () => number): number {
 }
 
 const EMPTY_KEYS: Set<string> = new Set()
+/** Default scorers — a flat 0 lean, i.e. the original unbiased walk. The
+ *  args are unused, so they're elided (still assignable to the scorer types). */
+const ZERO_SCORE = (): number => 0
+const ZERO_CARD_SCORE = (): number => 0
 
 export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
   const {
@@ -255,6 +305,8 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     excludedKeys = EMPTY_KEYS,
     rarityFloor = 'chase',
     rng = Math.random,
+    setScore = ZERO_SCORE,
+    cardScore = ZERO_CARD_SCORE,
   } = opts
   // Read the live exclusion set at sample time (like `rngRef`) so an
   // incremental `recordSeen` is honored on the next pick without churning
@@ -271,6 +323,15 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
   const rngRef = useRef(rng)
   useEffect(() => {
     rngRef.current = rng
+  })
+  // Profile scorers (#713) behind refs for the same reason — the consumer
+  // passes fresh closures each render as the profile updates, but we read
+  // them at sample time so `sampleOne` / `fill` identities stay stable.
+  const setScoreRef = useRef(setScore)
+  const cardScoreRef = useRef(cardScore)
+  useEffect(() => {
+    setScoreRef.current = setScore
+    cardScoreRef.current = cardScore
   })
 
   const [state, setState] = useState<State>({
@@ -332,8 +393,15 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
     async (exclude: Set<string>, floor: RarityFloor): Promise<SampleResult> => {
       if (allSets.length === 0) return { kind: 'exhausted' }
 
-      const available = shuffled(
-        allSets.filter((s) => !exhaustedSetsRef.current.has(s.id)),
+      // Walk the un-retired sets in a *profile-weighted* random order so a
+      // leaned-toward (or pinned) set tends to be tried first, while every
+      // set stays reachable. Equal scores ⇒ a plain uniform shuffle.
+      const candidates = allSets.filter(
+        (s) => !exhaustedSetsRef.current.has(s.id),
+      )
+      const available = weightedShuffle(
+        candidates,
+        candidates.map((s) => profileMultiplier(setScoreRef.current(s.id))),
         rngRef.current,
       )
 
@@ -374,7 +442,14 @@ export function useSwipeCandidates(opts: UseSwipeCandidatesOpts) {
         // exclusion off — or a lower floor — brings the set back).
         if (eligible.length === 0) continue
 
-        const weights = eligible.map((c) => rarityWeight(c.rarity))
+        // Rarity weight (the chase-card bias) scaled by the card's profile
+        // lean (#713) — favours the rarities / types the user leans toward
+        // without overriding the rarity floor or the chase-reel feel.
+        const weights = eligible.map(
+          (c) =>
+            rarityWeight(c.rarity) *
+            profileMultiplier(cardScoreRef.current(c, set.id)),
+        )
         const idx = weightedSample(weights, rngRef.current)
         return {
           kind: 'card',
@@ -516,6 +591,8 @@ export {
   DEFAULT_WEIGHT,
   rarityWeight,
   weightedSample,
+  weightedShuffle,
+  profileMultiplier,
   rarityTier,
   chaseTierForSet,
   isEligible,

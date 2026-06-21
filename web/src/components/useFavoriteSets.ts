@@ -60,12 +60,19 @@ async function refresh(): Promise<void> {
   return inflight
 }
 
-export function useFavoriteSets() {
+/**
+ * @param enabled When false, skip the auto-fetch on mount — favorite sets
+ *   are per-user, so a signed-out consumer (e.g. the candidate-weighting in
+ *   `SwipePanel`) reads an empty list instead of hitting the endpoint as the
+ *   default user. Defaults to true.
+ */
+export function useFavoriteSets({ enabled = true }: { enabled?: boolean } = {}) {
   const [snapshot, setSnapshot] = useState<State>(state)
 
   useEffect(() => {
     listeners.add(setSnapshot)
     if (
+      enabled &&
       state.favorites.length === 0 &&
       state.suggestions.length === 0 &&
       !state.loading
@@ -75,7 +82,7 @@ export function useFavoriteSets() {
     return () => {
       listeners.delete(setSnapshot)
     }
-  }, [])
+  }, [enabled])
 
   const pin = useCallback(async (setId: string) => {
     if (state.favorites.some((f) => f.set_id === setId)) return
