@@ -338,6 +338,7 @@ function CategoryBadges({ card }: { card: CardData | null }) {
     id: card.id as string | undefined,
     name: card.name as string | undefined,
     rarity: card.rarity as string | undefined,
+    supertype: card.supertype as string | undefined,
     subtypes: card.subtypes as string[] | undefined,
   })
   if (categories.length === 0) return null

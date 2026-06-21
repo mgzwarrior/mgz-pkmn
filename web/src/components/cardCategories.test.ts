@@ -19,23 +19,36 @@ describe('cardCategories', () => {
   })
 
   it("flags any \"<owner>'s <Pokémon>\" name as an owner card", () => {
-    expect(cardCategories({ name: "Cynthia's Garchomp" })).toContain('owner')
-    expect(cardCategories({ name: "Team Rocket's Mewtwo" })).toContain('owner')
+    expect(cardCategories({ name: "Cynthia's Garchomp", supertype: 'Pokémon' })).toContain('owner')
+    expect(cardCategories({ name: "Team Rocket's Mewtwo", supertype: 'Pokémon' })).toContain('owner')
   })
 
   it('flags a Gym Leader owner as both gym-leader and owner', () => {
-    const cats = cardCategories({ name: "Blaine's Charizard" })
+    const cats = cardCategories({ name: "Blaine's Charizard", supertype: 'Pokémon' })
     expect(cats).toContain('gym-leader')
     expect(cats).toContain('owner')
   })
 
   it('handles multi-word owner names like "Lt. Surge"', () => {
-    expect(cardCategories({ name: "Lt. Surge's Fearow" })).toContain('gym-leader')
+    expect(
+      cardCategories({ name: "Lt. Surge's Fearow", supertype: 'Pokémon' }),
+    ).toContain('gym-leader')
   })
 
   it("does not mistake Farfetch'd (apostrophe-d) for an owner card", () => {
-    expect(cardCategories({ name: "Farfetch'd" })).not.toContain('owner')
-    expect(cardCategories({ name: "Sirfetch'd V" })).not.toContain('owner')
+    expect(cardCategories({ name: "Farfetch'd", supertype: 'Pokémon' })).not.toContain('owner')
+    expect(cardCategories({ name: "Sirfetch'd V", supertype: 'Pokémon' })).not.toContain('owner')
+  })
+
+  it('does not flag a possessive-named Trainer card as an owner card', () => {
+    // Supporter cards like "Misty's Determination" / "Brock's Grit" carry a
+    // possessive name but supertype: Trainer — they are not a Pokémon.
+    expect(
+      cardCategories({ name: "Misty's Determination", supertype: 'Trainer' }),
+    ).not.toContain('owner')
+    expect(
+      cardCategories({ name: "Brock's Grit", supertype: 'Trainer' }),
+    ).not.toContain('gym-leader')
   })
 
   it('flags Special Illustration Rare and Illustration Rare alike', () => {
@@ -70,6 +83,7 @@ describe('cardCategories', () => {
     const cats = cardCategories({
       id: 'swsh5-86',
       name: "Blaine's Charizard",
+      supertype: 'Pokémon',
       subtypes: ['TAG TEAM'],
       rarity: 'Illustration Rare',
     })

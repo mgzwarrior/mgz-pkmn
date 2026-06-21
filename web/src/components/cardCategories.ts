@@ -60,6 +60,7 @@ export interface CategorizableCard {
   id?: string | null
   name?: string | null
   rarity?: string | null
+  supertype?: string | null
   subtypes?: string[] | null
 }
 
@@ -212,10 +213,15 @@ export function cardCategories(card: CategorizableCard): CardCategory[] {
 
   if (card.id && CONNECTING_SCENE_IDS.has(card.id)) out.push('connecting-scene')
 
-  const owner = ownerName(name)
-  if (owner) {
-    if (GYM_LEADERS.has(owner)) out.push('gym-leader')
-    out.push('owner')
+  // Owner / Gym Leader cards are a Pokémon archetype — gate on the supertype
+  // so possessive-named Trainer cards (e.g. "Misty's Determination",
+  // "Brock's Grit") aren't mislabeled as a Trainer's Pokémon.
+  if ((card.supertype ?? '').toLowerCase() === 'pokémon') {
+    const owner = ownerName(name)
+    if (owner) {
+      if (GYM_LEADERS.has(owner)) out.push('gym-leader')
+      out.push('owner')
+    }
   }
 
   if (subtypes.includes('tag team')) out.push('tag-team')
