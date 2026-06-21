@@ -51,7 +51,12 @@ function freeSlots(binder: BinderSummary, usedByBinder: Map<number, number>): nu
 
 function CreateForm({ onClose }: { onClose: () => void }) {
   const { collections, create: createCollection } = useCollections()
-  const { binders, create: createBinder, refresh: refreshBinders } = useBinders()
+  const {
+    binders,
+    loading: bindersLoading,
+    create: createBinder,
+    refresh: refreshBinders,
+  } = useBinders()
 
   const [name, setName] = useState('')
   // Existing-binder target: a binder id, or null for "don't file".
@@ -64,6 +69,12 @@ function CreateForm({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Until the binder list resolves, neither branch is safe to show: an empty
+  // `binders` during the in-flight fetch would falsely read as "no binders
+  // yet" and offer the inline-create / loose-collection path even though
+  // existing binders are about to appear (#724 review). Gate on the settled
+  // state instead.
+  const bindersSettled = !bindersLoading
   const hasBinders = binders.length > 0
 
   // Cards already filed into each binder — the sum of its collections' pocket
@@ -77,7 +88,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
     return map
   }, [collections])
 
-  const canSubmit = name.trim().length > 0 && !submitting
+  const canSubmit = name.trim().length > 0 && !submitting && bindersSettled
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -144,7 +155,12 @@ function CreateForm({ onClose }: { onClose: () => void }) {
           />
         </label>
 
-        {hasBinders ? (
+        {!bindersSettled ? (
+          <div className="flex items-center gap-2 text-[11px] text-coconut-400 dark:text-sand-300">
+            <Loader2 size={12} className="animate-spin" />
+            Loading your binders…
+          </div>
+        ) : hasBinders ? (
           <fieldset className="space-y-1.5">
             <legend className="mb-1 text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
               File into a binder (optional)

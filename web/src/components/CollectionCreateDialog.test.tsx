@@ -41,6 +41,8 @@ beforeEach(() => {
 describe('CollectionCreateDialog', () => {
   it('creates a loose collection when no binder is chosen', async () => {
     render(<CollectionCreateDialog open onOpenChange={() => {}} />)
+    // Wait for the binder fetch to settle before deciding "no binders" (#724).
+    await waitFor(() => expect(screen.getByLabelText('New binder name')).toBeInTheDocument())
     fireEvent.change(screen.getByPlaceholderText('Base Set holos'), {
       target: { value: 'Trade pile' },
     })
@@ -103,7 +105,8 @@ describe('CollectionCreateDialog', () => {
     } as never)
 
     render(<CollectionCreateDialog open onOpenChange={() => {}} />)
-    // No binders → the inline binder form is shown.
+    // No binders → the inline binder form is shown once the fetch settles.
+    await waitFor(() => expect(screen.getByLabelText('New binder name')).toBeInTheDocument())
     fireEvent.change(screen.getByPlaceholderText('Base Set holos'), {
       target: { value: 'Base holos' },
     })
