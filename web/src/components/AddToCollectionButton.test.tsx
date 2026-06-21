@@ -82,6 +82,34 @@ describe('AddToCollectionButton', () => {
     await waitFor(() => expect(mockAdd).toHaveBeenCalledWith(7, SAMPLE_CARD, undefined))
   })
 
+  it('excludes dynamic (smart) collections from the picker — they 409 on add', async () => {
+    mockFetch.mockResolvedValue([
+      {
+        id: 7,
+        name: 'Binder candidates',
+        description: null,
+        created_at: '2026-06-06T00:00:00',
+        item_count: 0,
+        kind: 'manual',
+      },
+      {
+        id: 8,
+        name: 'SmExeggs',
+        description: null,
+        created_at: '2026-06-06T00:00:00',
+        item_count: 0,
+        kind: 'dynamic',
+        dynamic_scope: 'owned',
+        rule: { name: 'Exeggutor' },
+      },
+    ])
+    render(<AddToCollectionButton card={SAMPLE_CARD} />)
+    await waitFor(() => expect(mockFetch).toHaveBeenCalled())
+    openMenu()
+    expect(await screen.findByText('Binder candidates')).toBeInTheDocument()
+    expect(screen.queryByText('SmExeggs')).not.toBeInTheDocument()
+  })
+
   it('creates a new collection and adds the card in one flow', async () => {
     mockFetch.mockResolvedValue([])
     mockCreate.mockResolvedValue({

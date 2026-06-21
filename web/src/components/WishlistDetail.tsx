@@ -53,6 +53,9 @@ function GotItPicker({
   busy: boolean
 }) {
   const { collections, loading, error, create } = useCollections()
+  // Promote can't target a dynamic (smart) collection — its membership is
+  // rule-resolved, so the items API 409s. Offer only hand-curated kinds.
+  const addable = collections.filter((c) => c.kind !== 'dynamic')
   const [open, setOpen] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
   const [newName, setNewName] = useState('')
@@ -102,12 +105,12 @@ function GotItPicker({
           {error && (
             <div className="px-2 py-2 text-xs text-sun-600 dark:text-sun-300">{error}</div>
           )}
-          {!loading && !error && collections.length === 0 && (
+          {!loading && !error && addable.length === 0 && (
             <div className="px-2 py-2 text-xs text-coconut-400 dark:text-sand-300">
               No collections yet.
             </div>
           )}
-          {collections.map((c) => (
+          {addable.map((c) => (
             <DropdownMenu.Item
               key={c.id}
               onSelect={(e) => {
