@@ -872,6 +872,55 @@ export async function deleteBinder(binderId: number): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Favorite sets (#712) — durable per-user pinned sets for personalization.
+// ---------------------------------------------------------------------------
+
+export interface FavoriteSet {
+  set_id: string
+  pinned_at: string
+}
+
+/** A set the user might want to pin, with the owned-card count behind it. */
+export interface FavoriteSetSuggestion {
+  set_id: string
+  owned_count: number
+}
+
+export async function fetchFavoriteSets(): Promise<FavoriteSet[]> {
+  const res = await fetch(`${BASE}/favorite-sets`)
+  if (!res.ok) throw new Error(`favorite sets failed: ${res.status}`)
+  const data = await res.json()
+  return data.sets as FavoriteSet[]
+}
+
+export async function pinFavoriteSet(setId: string): Promise<void> {
+  const res = await fetch(`${BASE}/favorite-sets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ set_id: setId }),
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`pin favorite set failed: ${res.status}`)
+  }
+}
+
+export async function unpinFavoriteSet(setId: string): Promise<void> {
+  const res = await fetch(`${BASE}/favorite-sets/${encodeURIComponent(setId)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`unpin favorite set failed: ${res.status}`)
+  }
+}
+
+export async function fetchFavoriteSetSuggestions(): Promise<FavoriteSetSuggestion[]> {
+  const res = await fetch(`${BASE}/favorite-sets/suggestions`)
+  if (!res.ok) throw new Error(`favorite set suggestions failed: ${res.status}`)
+  const data = await res.json()
+  return data.suggestions as FavoriteSetSuggestion[]
+}
+
 /**
  * Download the printable collection ID card PDF (#507) — the cover cutout for
  * the top-left binder pocket (title, a representative card photo, owned/total).

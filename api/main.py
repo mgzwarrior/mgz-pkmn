@@ -49,6 +49,7 @@ from .routes import (
     collections,
     ebay,
     export,
+    favorite_sets,
     lookup,
     overrides,
     ownership,
@@ -545,6 +546,7 @@ app.include_router(collections.router, prefix="/api/v1", tags=["collections"])
 app.include_router(binders.router, prefix="/api/v1", tags=["binders"])
 app.include_router(wishlists.router, prefix="/api/v1", tags=["wishlists"])
 app.include_router(swipe.router, prefix="/api/v1", tags=["swipe"])
+app.include_router(favorite_sets.router, prefix="/api/v1", tags=["favorite-sets"])
 app.include_router(ownership.router, prefix="/api/v1", tags=["ownership"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
 app.include_router(ebay.router, prefix="/api/v1", tags=["ebay"])

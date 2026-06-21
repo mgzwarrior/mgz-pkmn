@@ -32,6 +32,7 @@ import { useAppStore } from '../store'
 import type { RarityFloor, Row, SetCard } from '../types'
 import { browseCardToPayload, browseCardToRow } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
+import { FavoriteSetsPanel } from './FavoriteSetsPanel'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
@@ -248,6 +249,13 @@ export function SwipePanel({ active }: SwipePanelProps) {
           updateSettings({ swipeExcludeChasing })
         }
       />
+
+      {/* Favorite sets are durable + per-user, so gate the panel on a
+          signed-in user like the other user-scoped Swipe controls — an
+          anonymous mount would otherwise read/write the default user's
+          favorites. The taste profile below is browser-local, so it shows
+          for everyone. */}
+      {showSavedActions && <FavoriteSetsPanel />}
 
       <SwipeProfilePanel />
 

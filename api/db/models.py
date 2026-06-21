@@ -515,6 +515,36 @@ class SwipeSeen(Base):
     swipe_dir: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
 
+class FavoriteSet(Base):
+    """One set a user has pinned as a favorite (#712).
+
+    Durable, per-user, server-side — unlike the localStorage swipe taste
+    profile — so other surfaces (search defaults, set ID cards, swipe
+    candidate weighting) can read an explicit "I love this set" signal that
+    survives a device change. The set is referenced by its catalog id
+    (``base1``, ``sv4pt5``); the friendly name is resolved client-side from
+    the baked set catalog, so it isn't denormalised here.
+
+    Append-only and idempotent: the unique constraint on
+    ``(user_id, set_id)`` makes re-pinning a no-op rather than a duplicate
+    row, mirroring :class:`SwipeSeen`."""
+
+    __tablename__ = "favorite_sets"
+    __table_args__ = (UniqueConstraint("user_id", "set_id", name="uq_favorite_set_user_set"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        default=DEFAULT_USER_ID,
+        nullable=False,
+        index=True,
+    )
+    set_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    pinned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
 class RunRow(Base):
     __tablename__ = "run_rows"
 
