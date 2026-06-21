@@ -137,6 +137,27 @@ describe('BinderInventory', () => {
     expect(await screen.findByText('Jungle')).toBeInTheDocument()
   })
 
+  it('creates a binder with the chosen cover color', async () => {
+    mockFetch.mockResolvedValue([])
+    mockCreate.mockResolvedValue(
+      binder({ id: 5, name: 'Sun binder', capacity: null, binder_format: null, binder_color: 'sun' }) as never,
+    )
+    render(<BinderInventory />)
+    await screen.findByText(/Add an empty binder/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /Add binder/i }))
+    fireEvent.change(screen.getByLabelText(/Binder name/i), { target: { value: 'Sun binder' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sun' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Add$/i }))
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith(
+        'Sun binder',
+        expect.objectContaining({ binder_color: 'sun' }),
+      ),
+    )
+  })
+
   it('deletes a binder after confirmation', async () => {
     mockFetch.mockResolvedValue([binder({ id: 9, name: 'Old binder' })] as never)
     mockDelete.mockResolvedValue(undefined)

@@ -14,6 +14,7 @@ import { Check, FolderPlus, Library, Loader2, Plus, Trash2, X } from 'lucide-rea
 import { useMemo, useState } from 'react'
 import type { BinderFormat, BinderSummary, CollectionSummary } from '../api/client'
 import { BINDER_FORMAT_OPTIONS, coverSwatch } from './binderIdentity'
+import { BinderColorPicker } from './BinderColorPicker'
 import { NameCreateDialog } from './NameCreateDialog'
 import { useBinders } from './useBinders'
 import { useCollections } from './useCollections'
@@ -26,6 +27,7 @@ export function BinderInventory() {
   const [name, setName] = useState('')
   const [format, setFormat] = useState<BinderFormat | ''>('')
   const [capacity, setCapacity] = useState('')
+  const [color, setColor] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
@@ -49,6 +51,7 @@ export function BinderInventory() {
     setName('')
     setFormat('')
     setCapacity('')
+    setColor(null)
     setSubmitError(null)
   }
 
@@ -61,6 +64,7 @@ export function BinderInventory() {
       const cap = capacity.trim() ? Number(capacity) : null
       await create(trimmed, {
         binder_format: format || null,
+        binder_color: color,
         capacity: cap && cap > 0 ? cap : null,
       })
       resetForm()
@@ -120,6 +124,7 @@ export function BinderInventory() {
             aria-label="Binder name"
             className="w-full rounded border border-sand-300 bg-sand-50 px-2 py-1 text-xs text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-coconut-500 dark:bg-husk-100 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
           />
+          <BinderColorPicker value={color} onChange={setColor} label="Cover color" />
           <div className="flex items-center gap-1">
             <select
               value={format}
