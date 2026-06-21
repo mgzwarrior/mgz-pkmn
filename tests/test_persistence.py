@@ -317,6 +317,36 @@ class SavedSearchesTests(_IsolatedDbMixin):
             resp = c.patch("/api/v1/runs/99999", json={"name": "ignored"})
             self.assertEqual(resp.status_code, 404)
 
+    def test_delete_removes_a_saved_run_and_its_rows(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run(name="Show prep, June")
+            self.assertEqual(c.get("/api/v1/runs").json()["total"], 1)
+
+            self.assertEqual(c.delete(f"/api/v1/runs/{run_id}").status_code, 204)
+
+            # Gone from the list and individually 404s after delete.
+            self.assertEqual(c.get("/api/v1/runs").json()["total"], 0)
+            self.assertEqual(c.get(f"/api/v1/runs/{run_id}").status_code, 404)
+
+    def test_delete_404s_on_missing_id(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            self.assertEqual(c.delete("/api/v1/runs/99999").status_code, 404)
+
+    def test_delete_404s_on_another_users_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            # A run owned by a different user must not be deletable; it 404s
+            # and survives.
+            other_id = self._seed_run(user_id=999, name="Not yours")
+            self.assertEqual(c.delete(f"/api/v1/runs/{other_id}").status_code, 404)
+            with session_mod.get_session_factory()() as s:
+                self.assertIsNotNone(s.get(Run, other_id))
+
 
 class SavedSearchesAuthGateTests(_IsolatedDbMixin):
     """Hosted-demo auth-on saved searches are scoped to the session user.

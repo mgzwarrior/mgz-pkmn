@@ -9,7 +9,8 @@
  * recent *inputs* stored client-side for one-tap re-runs.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getRun, listRuns } from '../api/client'
+import { Check, Trash2, X } from 'lucide-react'
+import { deleteRun, getRun, listRuns } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { formatMoney, formatRelativeTime } from '../utils/format'
@@ -55,6 +56,7 @@ export function LibrarySearchesTab() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null)
+  const [deletingRunId, setDeletingRunId] = useState<number | null>(null)
   // Synchronous guard against rapid-fire concurrent loads — see
   // SavedSearchesSidebar history; a ref updates synchronously where a
   // useState value would be stale across consecutive native click events
@@ -138,6 +140,30 @@ export function LibrarySearchesTab() {
     ],
   )
 
+  // Optimistic delete: drop the row immediately, restore it (and surface the
+  // error) if the request fails. Mirrors the collection / wishlist list
+  // mutation pattern. `setRuns` is a wholesale replace, so we snapshot and
+  // restore the full list.
+  const handleDelete = useCallback(
+    async (run: RunSummary) => {
+      if (deletingRunId !== null) return
+      const previous = runs
+      setDeletingRunId(run.id)
+      setError(null)
+      setRuns(runs.filter((r) => r.id !== run.id))
+      if (run.id === currentRunId) setCurrentRunId(null)
+      try {
+        await deleteRun(run.id)
+      } catch (err) {
+        setRuns(previous)
+        setError(err instanceof Error ? err.message : `Failed to delete run ${run.id}`)
+      } finally {
+        setDeletingRunId(null)
+      }
+    },
+    [deletingRunId, runs, currentRunId, setRuns, setCurrentRunId],
+  )
+
   if (auth.loading) {
     return <p className="text-xs text-coconut-400 dark:text-sand-400">Loading...</p>
   }
@@ -177,7 +203,9 @@ export function LibrarySearchesTab() {
               run={run}
               isCurrent={run.id === currentRunId}
               disabled={isRunning || loadingRunId !== null}
+              deleting={deletingRunId === run.id}
               onLoad={() => handleLoad(run)}
+              onDelete={() => handleDelete(run)}
             />
           ))}
         </ul>
@@ -190,13 +218,21 @@ function SavedSearchRow({
   run,
   isCurrent,
   disabled,
+  deleting,
   onLoad,
+  onDelete,
 }: {
   run: RunSummary
   isCurrent: boolean
   disabled: boolean
+  deleting: boolean
   onLoad: () => void
+  onDelete: () => void
 }) {
+  // Two-step inline confirm — a saved search can be real iterative work, so
+  // the trash icon flips to confirm/cancel rather than deleting on first
+  // click. Mirrors the BinderInventory delete affordance.
+  const [confirming, setConfirming] = useState(false)
   const total = summaryTotal(run)
   const createdAt = Date.parse(run.created_at)
   const tagEntries = Object.entries(run.summary.tag_counts ?? {})
@@ -214,24 +250,60 @@ function SavedSearchRow({
           : 'border-transparent hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-200 dark:hover:bg-husk-100/60'
       }`}
     >
-      <button
-        type="button"
-        onClick={onLoad}
-        disabled={disabled}
-        aria-label={`Load saved search ${label}: ${summaryLabel}`}
-        aria-current={isCurrent ? 'true' : undefined}
-        className="flex w-full flex-col items-start gap-0.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span className="w-full truncate font-medium text-coconut-700 dark:text-sand-100">
-          {label}
-        </span>
-        <span className="flex w-full items-baseline justify-between gap-2 font-mono text-[11px]">
-          <span className="tabular-nums text-coconut-400 dark:text-sand-300">
-            {formatRelativeTime(createdAt)}
+      <div className="flex items-start gap-1">
+        <button
+          type="button"
+          onClick={onLoad}
+          disabled={disabled}
+          aria-label={`Load saved search ${label}: ${summaryLabel}`}
+          aria-current={isCurrent ? 'true' : undefined}
+          className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className="w-full truncate font-medium text-coconut-700 dark:text-sand-100">
+            {label}
           </span>
-          <span className="truncate text-coconut-500 dark:text-sand-300">{summaryLabel}</span>
-        </span>
-      </button>
+          <span className="flex w-full items-baseline justify-between gap-2 font-mono text-[11px]">
+            <span className="tabular-nums text-coconut-400 dark:text-sand-300">
+              {formatRelativeTime(createdAt)}
+            </span>
+            <span className="truncate text-coconut-500 dark:text-sand-300">{summaryLabel}</span>
+          </span>
+        </button>
+        {confirming ? (
+          <span className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirming(false)
+                onDelete()
+              }}
+              disabled={deleting}
+              aria-label={`Confirm delete saved search ${label}`}
+              className="rounded p-1 text-sun-600 hover:bg-sun-50 disabled:opacity-50 dark:text-sun-300 dark:hover:bg-husk-100"
+            >
+              <Check size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              aria-label="Cancel delete"
+              className="rounded p-1 text-coconut-400 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
+            >
+              <X size={13} />
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            disabled={deleting}
+            aria-label={`Delete saved search ${label}`}
+            className="shrink-0 rounded p-1 text-coconut-400 hover:text-sun-600 disabled:opacity-50 dark:text-sand-300 dark:hover:text-sun-300"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
       {tagEntries.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {tagEntries.map(([tag, count]) => (

@@ -419,6 +419,14 @@ export async function saveRun(
   return (await res.json()) as RunSummary
 }
 
+/** Delete a saved search (run) and its rows (#698). Owner-only server-side. */
+export async function deleteRun(runId: number): Promise<void> {
+  const res = await fetch(`${BASE}/runs/${runId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete run ${runId} failed: ${res.status}`)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // cache
 // ---------------------------------------------------------------------------

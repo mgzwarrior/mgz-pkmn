@@ -17,6 +17,8 @@ Endpoints:
 - `PATCH /runs/{id}` — save / rename a run. Sets ``name`` and stores the
   current ResultsTable view state (sort + filters) so a future
   click-to-load can restore the exact view.
+- `DELETE /runs/{id}` — delete a run (and its rows). Owner-only; prunes a
+  saved search the user no longer wants (#698).
 """
 
 from __future__ import annotations
@@ -219,3 +221,18 @@ def save_run(run_id: int, req: SaveRunRequest, db: DbSession, current_user: Curr
         name=run.name,
         view_state=run.view_state,
     ).model_dump()
+
+
+@router.delete("/runs/{run_id}", status_code=204)
+def delete_run(run_id: int, db: DbSession, current_user: CurrentUser) -> None:
+    """Delete a run and its rows. Owner-only — a missing or not-owned id 404s.
+
+    Hard delete, matching the collections / wishlists routes: the run row and
+    its cascaded ``run_rows`` are removed outright (no soft-delete column).
+    Unlike ``GET`` / ``PATCH`` there's no anonymous-unnamed carve-out — you
+    only delete saved searches, which are named and already yours."""
+    run = db.scalar(select(Run).where(Run.id == run_id))
+    if run is None or run.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    db.delete(run)
+    db.commit()
