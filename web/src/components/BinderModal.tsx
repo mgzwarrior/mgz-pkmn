@@ -27,12 +27,8 @@ import type {
   CollectionSummary,
   DynamicScope,
 } from '../api/client'
-import {
-  BINDER_COLOR_OPTIONS,
-  BINDER_FORMAT_OPTIONS,
-  BINDER_TYPE_OPTIONS,
-  SWATCH_BG,
-} from './binderIdentity'
+import { BINDER_FORMAT_OPTIONS, BINDER_TYPE_OPTIONS } from './binderIdentity'
+import { BinderColorPicker } from './BinderColorPicker'
 import { SetCombobox } from './SetCombobox'
 import { useCollections } from './useCollections'
 
@@ -65,10 +61,6 @@ type BinderMode = 'binder' | 'smart'
 
 //: Cardrake's master-set guide — credited source for the explainer (#681).
 const CARDRAKE_MASTER_SET_URL = 'https://www.cardrake.com/guides/master-set'
-
-//: Seed value for the native color picker before a hex is chosen — a neutral
-//: gray, not a brand color, so it stays clear of the no-hex theme rule.
-const CUSTOM_COLOR_SEED = '#8a8a8a'
 
 function buildRule(field: RuleField, value: string): CollectionRule {
   const v = value.trim()
@@ -198,7 +190,6 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
 
   const inputClass =
     'w-full rounded border border-sand-300 bg-coconut-50 px-2.5 py-1.5 text-sm text-coconut-700 placeholder:text-coconut-400 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-100 dark:bg-husk-100 dark:text-sand-50 dark:focus:ring-sun-300'
-  const customActive = Boolean(color?.startsWith('#'))
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -261,49 +252,7 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
             </label>
 
             {/* Cover color — shared identity, presets + a custom hex picker. */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
-                Cover color
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                {BINDER_COLOR_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    aria-label={opt.label}
-                    aria-pressed={color === opt.value}
-                    title={opt.label}
-                    onClick={() => setColor(color === opt.value ? null : opt.value)}
-                    className={`h-7 w-7 rounded-full ${SWATCH_BG[opt.value]} ring-offset-1 ring-offset-sand-50 transition dark:ring-offset-husk-200 ${
-                      color === opt.value
-                        ? 'ring-2 ring-coconut-600 dark:ring-sand-50'
-                        : 'ring-1 ring-sand-300 dark:ring-husk-100'
-                    }`}
-                  />
-                ))}
-                {/* Custom hex — a native color input styled as a swatch. */}
-                <label
-                  title="Custom color"
-                  className={`relative h-7 w-7 cursor-pointer overflow-hidden rounded-full ring-offset-1 ring-offset-sand-50 transition dark:ring-offset-husk-200 ${
-                    customActive
-                      ? 'ring-2 ring-coconut-600 dark:ring-sand-50'
-                      : 'ring-1 ring-sand-300 dark:ring-husk-100'
-                  }`}
-                  style={customActive && color ? { backgroundColor: color } : undefined}
-                >
-                  {!customActive && (
-                    <span className="absolute inset-0 bg-[conic-gradient(red,orange,yellow,lime,aqua,blue,magenta,red)] opacity-70" />
-                  )}
-                  <input
-                    type="color"
-                    aria-label="Custom cover color"
-                    value={customActive && color ? color : CUSTOM_COLOR_SEED}
-                    onChange={(e) => setColor(e.target.value)}
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                  />
-                </label>
-              </div>
-            </div>
+            <BinderColorPicker value={color} onChange={setColor} label="Cover color" />
 
             {editingRule && (
               <div className="space-y-3">
