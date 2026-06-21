@@ -38,6 +38,7 @@ import type { BinderSummary, CollectionSummary, WishlistSummary } from '../api/c
 import { useAppStore } from '../store'
 import { BinderModal } from './BinderModal'
 import { BinderInventory } from './BinderInventory'
+import { CollectionCreateDialog } from './CollectionCreateDialog'
 import { NameCreateDialog } from './NameCreateDialog'
 import { BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
 import { CollectionInsights } from './CollectionInsights'
@@ -92,7 +93,6 @@ export function LibraryBindersTab() {
     error: cError,
     refresh: refreshCollections,
     remove: removeCollection,
-    create: createCollection,
     update: updateCollection,
   } = useCollections()
   const { binders, refresh: refreshBinders } = useBinders()
@@ -305,15 +305,9 @@ export function LibraryBindersTab() {
         // binder's real mode.
         smartOnly={editingBinder === null}
       />
-      <NameCreateDialog
+      <CollectionCreateDialog
         open={createDialog === 'collection'}
         onOpenChange={(o) => !o && setCreateDialog(null)}
-        title="New collection"
-        placeholder="Trade binder"
-        submitLabel="Create"
-        onSubmit={async (name) => {
-          await createCollection(name)
-        }}
       />
       <NameCreateDialog
         open={createDialog === 'wishlist'}
