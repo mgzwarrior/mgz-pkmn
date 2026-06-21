@@ -72,6 +72,7 @@ from ..db.models import (
     COLLECTION_KIND_SET,
     DYNAMIC_SCOPE_CATALOG,
     DYNAMIC_SCOPE_OWNED,
+    Binder,
     Collection,
     CollectionItem,
     User,
@@ -132,6 +133,9 @@ class CollectionSummaryOut(BaseModel):
     rule: dict[str, Any] | None
     #: #631 — ``owned`` / ``catalog`` for dynamic collections, else null.
     dynamic_scope: str | None
+    #: #703 — the binder this collection is filed into (``binders.id``), or
+    #: null when unfiled.
+    binder_id: int | None
     # ---- #679/#681: binder identity. format/capacity are physical-only;
     # color/type/master-set are shared across binder + smart binder. ----
     binder_format: str | None
@@ -175,6 +179,9 @@ class CollectionOut(BaseModel):
     rule: dict[str, Any] | None
     #: #631 — ``owned`` / ``catalog`` for dynamic collections, else null.
     dynamic_scope: str | None
+    #: #703 — the binder this collection is filed into (``binders.id``), or
+    #: null when unfiled.
+    binder_id: int | None
     # ---- #679/#681: binder identity. format/capacity are physical-only;
     # color/type/master-set are shared across binder + smart binder. ----
     binder_format: str | None
@@ -196,6 +203,9 @@ class CollectionCreate(BaseModel):
     #: #631 — only read for ``kind == 'dynamic'``. ``owned`` (default) is the
     #: inventory view; ``catalog`` is the catalog-backed target view.
     dynamic_scope: str | None = None
+    #: #703 — file the new collection into a physical binder (``binders.id``).
+    #: Validated as owned; null leaves the collection unfiled.
+    binder_id: int | None = None
     # ---- #679/#681: binder identity. format/capacity persist for binders;
     # color/type/master-set for binder + smart binder; dropped otherwise. ----
     binder_format: str | None = None
@@ -211,6 +221,9 @@ class CollectionPatch(BaseModel):
     #: Editing a dynamic collection's rule re-points its membership. Only
     #: meaningful on ``kind == 'dynamic'`` collections.
     rule: dict[str, Any] | None = None
+    #: #703 — move the collection into a binder, or clear it (``null``) to
+    #: unfile. Patched only when the key is present in the request body.
+    binder_id: int | None = None
     # ---- #679/#681: editable binder identity. Each patched only when its key
     # is present in the request body, so a partial PATCH leaves the rest
     # intact; rejected with a 409 on kinds that don't carry the field. ----
@@ -421,6 +434,7 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
                 source_set_id=c.source_set_id,
                 rule=c.rule_json,
                 dynamic_scope=c.dynamic_scope,
+                binder_id=c.binder_id,
                 binder_format=c.binder_format,
                 binder_color=c.binder_color,
                 binder_type=c.binder_type,
@@ -627,6 +641,7 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
             )
     if physical:
         _validate_binder_format(req.binder_format)
+    _require_owned_binder(db, req.binder_id, current_user.id)
     collection = Collection(
         user_id=current_user.id,
         name=req.name.strip(),
@@ -635,6 +650,7 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
         source_set_id=source_set_id,
         rule_json=rule_json,
         dynamic_scope=dynamic_scope,
+        binder_id=req.binder_id,
         binder_format=req.binder_format if physical else None,
         binder_color=req.binder_color if has_identity else None,
         binder_type=req.binder_type if has_identity else None,
@@ -675,6 +691,11 @@ def patch_collection(
                 detail="only dynamic collections have a rule",
             )
         collection.rule_json = _normalize_rule_or_422(req.rule)
+    # File into a binder, or clear it (explicit null) to unfile. Only touched
+    # when the key is present so a partial PATCH leaves the filing intact.
+    if "binder_id" in req.model_fields_set:
+        _require_owned_binder(db, req.binder_id, current_user.id)
+        collection.binder_id = req.binder_id
     _patch_binder_fields(collection, req)
     db.commit()
     db.refresh(collection)
@@ -1077,6 +1098,19 @@ def _validate_binder_format(value: str | None) -> None:
         )
 
 
+def _require_owned_binder(db: Session, binder_id: int | None, user_id: int) -> None:
+    """Reject a ``binder_id`` that isn't an existing binder the user owns (#703).
+
+    A null id is a no-op (the collection is left unfiled / detached). 404 —
+    not 422 — so a stale or someone else's binder id reads the same as a
+    missing one, matching how the rest of the route hides unowned rows."""
+    if binder_id is None:
+        return
+    owned = db.scalar(select(Binder.id).where(Binder.id == binder_id, Binder.user_id == user_id))
+    if owned is None:
+        raise HTTPException(status_code=404, detail=f"binder {binder_id} not found")
+
+
 def _validate_binder_color(value: str | None) -> None:
     # A preset token stem, or a freeform #rrggbb hex (#681, user data).
     if value is None or value in BINDER_COLORS or _HEX_COLOR_RE.match(value):
@@ -1220,6 +1254,7 @@ def _serialize_collection(db: Session, collection: Collection, user_id: int) -> 
         source_set_id=collection.source_set_id,
         rule=collection.rule_json,
         dynamic_scope=collection.dynamic_scope,
+        binder_id=collection.binder_id,
         binder_format=collection.binder_format,
         binder_color=collection.binder_color,
         binder_type=collection.binder_type,

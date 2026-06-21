@@ -14,6 +14,8 @@ import {
   deleteWishlist,
   fetchCollectionTarget,
   fetchBinders,
+  createWishlist,
+  updateCollection,
 } from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -46,6 +48,24 @@ const mockDeleteWishlist = vi.mocked(deleteWishlist)
 const mockPrintIdCard = vi.mocked(downloadCollectionIdCardPdf)
 const mockFetchWishlist = vi.mocked(fetchWishlist)
 const mockTarget = vi.mocked(fetchCollectionTarget)
+const mockCreateWishlist = vi.mocked(createWishlist)
+const mockUpdate = vi.mocked(updateCollection)
+
+/** Open the New ▾ menu (radix opens on keyboard) and pick a menu item. */
+async function openNewMenu(itemName: RegExp) {
+  const trigger = screen.getByRole('button', { name: 'New' })
+  trigger.focus()
+  // Radix DropdownMenu.Trigger opens on Enter/Space/ArrowDown; jsdom doesn't
+  // synthesize the pointer sequence a plain click would need.
+  fireEvent.keyDown(trigger, { key: 'Enter' })
+  const item = await screen.findByRole('menuitem', { name: itemName })
+  fireEvent.click(item)
+}
+
+/** Open the New ▾ menu and pick "Smart binder" (the modal opens smart-only). */
+async function openSmartBinder() {
+  await openNewMenu(/smart binder/i)
+}
 
 describe('LibraryBindersTab', () => {
   beforeEach(() => {
@@ -215,8 +235,7 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
-    fireEvent.click(screen.getByRole('button', { name: /new binder/i }))
-    fireEvent.click(screen.getByRole('radio', { name: /smart binder/i }))
+    await openSmartBinder()
     fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
@@ -252,8 +271,7 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
-    fireEvent.click(screen.getByRole('button', { name: /new binder/i }))
-    fireEvent.click(screen.getByRole('radio', { name: /smart binder/i }))
+    await openSmartBinder()
     fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
@@ -423,5 +441,94 @@ describe('LibraryBindersTab', () => {
 
     expect(mockDeleteCollection).not.toHaveBeenCalled()
     expect(screen.getByText('Charizard masters')).toBeInTheDocument()
+  })
+
+  // ---- #703: New ▾ menu + file-into-binder -------------------------------
+
+  it('New ▾ lists Collection / Want-list / Smart binder and no plain binder', async () => {
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(mockCollections).toHaveBeenCalled())
+
+    const trigger = screen.getByRole('button', { name: 'New' })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+
+    expect(await screen.findByRole('menuitem', { name: /collection/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /want-list/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /smart binder/i })).toBeInTheDocument()
+    // No standalone "binder" create — physical binders come from "Add binder".
+    expect(screen.queryByRole('menuitem', { name: /^binder$/i })).not.toBeInTheDocument()
+  })
+
+  it('creates a plain collection from the New ▾ menu', async () => {
+    mockCreate.mockResolvedValue({
+      id: 5,
+      name: 'Trade pile',
+      description: null,
+      created_at: '2026-06-11T00:00:00',
+      items: [],
+      kind: 'manual',
+    })
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(mockCollections).toHaveBeenCalled())
+
+    await openNewMenu(/collection/i)
+    fireEvent.change(screen.getByPlaceholderText('Trade binder'), {
+      target: { value: 'Trade pile' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('Trade pile', undefined))
+  })
+
+  it('creates a want-list from the New ▾ menu', async () => {
+    mockCreateWishlist.mockResolvedValue({
+      id: 7,
+      name: 'Chase list',
+      description: null,
+      created_at: '2026-06-11T00:00:00',
+      items: [],
+    })
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(mockCollections).toHaveBeenCalled())
+
+    await openNewMenu(/want-list/i)
+    fireEvent.change(screen.getByPlaceholderText('Chase cards'), {
+      target: { value: 'Chase list' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
+
+    await waitFor(() => expect(mockCreateWishlist).toHaveBeenCalledWith('Chase list', undefined))
+  })
+
+  it('the smart-binder create has no physical/smart selector', async () => {
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(mockCollections).toHaveBeenCalled())
+
+    await openSmartBinder()
+    // smartOnly hides the binder-type radiogroup; the rule builder is shown.
+    expect(screen.queryByRole('radiogroup', { name: /binder type/i })).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('All Eevees')).toBeInTheDocument()
+  })
+
+  it('files an existing collection into a binder via the row control', async () => {
+    mockCollections.mockResolvedValue([
+      { id: 1, name: 'Trade pile', description: null, created_at: '2026-06-04T00:00:00', item_count: 4, kind: 'manual', binder_id: null },
+    ])
+    mockBinders.mockResolvedValue([
+      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: null, collection_count: 0, is_empty: true },
+    ])
+    mockUpdate.mockResolvedValue({
+      id: 1, name: 'Trade pile', description: null, created_at: '2026-06-04T00:00:00', items: [], kind: 'manual', binder_id: 3,
+    })
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Trade pile')).toBeInTheDocument())
+
+    const fileBtn = screen.getByRole('button', { name: /file collection "Trade pile" into a binder/i })
+    fileBtn.focus()
+    fireEvent.keyDown(fileBtn, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: /show binder/i }))
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(1, { binder_id: 3 }))
   })
 })

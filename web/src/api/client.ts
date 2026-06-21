@@ -584,6 +584,8 @@ export interface CollectionSummary {
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
+  // #703 — the binder this collection is filed into, or null when unfiled.
+  binder_id?: number | null
   // #679/#681 — binder identity. format/capacity are physical-only;
   // color (preset stem or #rrggbb hex) / type / master-set are shared.
   binder_format?: BinderFormat | null
@@ -610,6 +612,8 @@ export interface Collection {
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
+  // #703 — the binder this collection is filed into, or null when unfiled.
+  binder_id?: number | null
   // #679/#681 — binder identity (see CollectionSummary).
   binder_format?: BinderFormat | null
   binder_color?: string | null
@@ -631,6 +635,8 @@ export interface CreateCollectionOptions {
   source_set_id?: string | null
   rule?: CollectionRule | null
   dynamic_scope?: DynamicScope | null
+  // #703 — file the new collection into this binder (binders.id).
+  binder_id?: number | null
   // #679/#681 — server keeps the fields each kind carries, drops the rest.
   binder_format?: BinderFormat | null
   binder_color?: string | null
@@ -653,6 +659,7 @@ export async function createCollection(
       source_set_id: options?.source_set_id ?? null,
       rule: options?.rule ?? null,
       dynamic_scope: options?.dynamic_scope ?? null,
+      binder_id: options?.binder_id ?? null,
       binder_format: options?.binder_format ?? null,
       binder_color: options?.binder_color ?? null,
       binder_type: options?.binder_type ?? null,
@@ -672,6 +679,9 @@ export async function createCollection(
 export interface UpdateCollectionOptions {
   name?: string
   description?: string | null
+  // #703 — move into a binder, or pass null to unfile. Only sent when the
+  // key is present, so an identity-only PATCH leaves the filing intact.
+  binder_id?: number | null
   binder_format?: BinderFormat | null
   binder_color?: string | null
   binder_type?: BinderType | null

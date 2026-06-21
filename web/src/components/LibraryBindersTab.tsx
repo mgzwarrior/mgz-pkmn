@@ -17,17 +17,33 @@
  * [OwnershipBadge](./OwnershipBadge.tsx) chip (#576): palm for owned,
  * sun for chasing.
  */
-import { BarChart3, Loader2, Pencil, Plus, Printer, Trash2 } from 'lucide-react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import {
+  BarChart3,
+  Check,
+  ChevronDown,
+  FolderInput,
+  FolderPlus,
+  Loader2,
+  Pencil,
+  Plus,
+  Printer,
+  Sparkles,
+  Star,
+  Trash2,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { downloadCollectionIdCardPdf } from '../api/client'
-import type { CollectionSummary, WishlistSummary } from '../api/client'
+import type { BinderSummary, CollectionSummary, WishlistSummary } from '../api/client'
 import { useAppStore } from '../store'
 import { BinderModal } from './BinderModal'
 import { BinderInventory } from './BinderInventory'
+import { NameCreateDialog } from './NameCreateDialog'
 import { BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
 import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
 import { WishlistDetail } from './WishlistDetail'
+import { useBinders } from './useBinders'
 import { useCollections } from './useCollections'
 import { useWishlists } from './useWishlists'
 
@@ -76,16 +92,22 @@ export function LibraryBindersTab() {
     error: cError,
     refresh: refreshCollections,
     remove: removeCollection,
+    create: createCollection,
+    update: updateCollection,
   } = useCollections()
+  const { binders, refresh: refreshBinders } = useBinders()
   const {
     wishlists,
     loading: wLoading,
     error: wError,
     refresh: refreshWishlists,
     remove: removeWishlist,
+    create: createWishlist,
   } = useWishlists()
 
   const [filter, setFilter] = useState<BinderFilter>('all')
+  // Which name-only create dialog (New ▾ → Collection / Want-list) is open.
+  const [createDialog, setCreateDialog] = useState<'collection' | 'wishlist' | null>(null)
   // The binder create/edit modal. `null` editing means create; a binder
   // means edit. `modalOpen` drives the dialog independently so a fresh
   // create starts from a clean slate.
@@ -121,6 +143,13 @@ export function LibraryBindersTab() {
     setModalOpen(true)
   }
 
+  // File a collection into a binder (or pass null to unfile), then refresh
+  // the binder summaries so their counts stay in sync across surfaces.
+  async function fileCollection(collectionId: number, binderId: number | null) {
+    await updateCollection(collectionId, { binder_id: binderId })
+    await refreshBinders()
+  }
+
   // Interleave both kinds newest-first, then scope to the active filter.
   const rows: BinderRow[] = [
     ...collections.map(
@@ -151,14 +180,44 @@ export function LibraryBindersTab() {
             <BarChart3 size={12} />
             Insights
           </button>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center gap-1 rounded bg-palm-500 px-2 py-1 text-[11px] font-medium text-coconut-50 hover:bg-palm-600 dark:text-husk-300"
-          >
-            <Plus size={12} />
-            New binder
-          </button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded bg-palm-500 px-2 py-1 text-[11px] font-medium text-coconut-50 hover:bg-palm-600 dark:text-husk-300"
+              >
+                <Plus size={12} />
+                New
+                <ChevronDown size={12} />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={4}
+                className="z-50 min-w-[180px] rounded-md border border-sand-300 bg-sand-50 p-1 shadow-xl dark:border-husk-50 dark:bg-husk-200"
+              >
+                <NewMenuItem
+                  icon={<FolderPlus size={13} />}
+                  label="Collection"
+                  blurb="A plain list of cards you own."
+                  onSelect={() => setCreateDialog('collection')}
+                />
+                <NewMenuItem
+                  icon={<Star size={13} />}
+                  label="Want-list"
+                  blurb="Cards you're chasing."
+                  onSelect={() => setCreateDialog('wishlist')}
+                />
+                <NewMenuItem
+                  icon={<Sparkles size={13} />}
+                  label="Smart binder"
+                  blurb="A saved rule over your cards."
+                  onSelect={openCreate}
+                />
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
       </div>
 
@@ -203,9 +262,11 @@ export function LibraryBindersTab() {
               <CollectionRow
                 key={row.key}
                 collection={row.collection}
+                binders={binders}
                 onOpenTarget={setTargetCollection}
                 onEdit={openEdit}
                 onDelete={removeCollection}
+                onFile={fileCollection}
               />
             ) : (
               <WishlistRow
@@ -239,8 +300,60 @@ export function LibraryBindersTab() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         editing={editingBinder}
+        // Create from the Binders tab is smart-binder-only now (#703);
+        // physical binders come from "Add binder" above. Edit keeps the
+        // binder's real mode.
+        smartOnly={editingBinder === null}
+      />
+      <NameCreateDialog
+        open={createDialog === 'collection'}
+        onOpenChange={(o) => !o && setCreateDialog(null)}
+        title="New collection"
+        placeholder="Trade binder"
+        submitLabel="Create"
+        onSubmit={async (name) => {
+          await createCollection(name)
+        }}
+      />
+      <NameCreateDialog
+        open={createDialog === 'wishlist'}
+        onOpenChange={(o) => !o && setCreateDialog(null)}
+        title="New want-list"
+        placeholder="Chase cards"
+        submitLabel="Create"
+        onSubmit={async (name) => {
+          await createWishlist(name)
+        }}
       />
     </div>
+  )
+}
+
+/** One item in the New ▾ menu — icon, label, and a one-line blurb. */
+function NewMenuItem({
+  icon,
+  label,
+  blurb,
+  onSelect,
+}: {
+  icon: React.ReactNode
+  label: string
+  blurb: string
+  onSelect: () => void
+}) {
+  return (
+    <DropdownMenu.Item
+      onSelect={onSelect}
+      className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-left outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100"
+    >
+      <span className="mt-0.5 text-palm-600 dark:text-palm-300">{icon}</span>
+      <span className="min-w-0">
+        <span className="block text-xs font-medium text-coconut-700 dark:text-sand-50">
+          {label}
+        </span>
+        <span className="block text-[10px] text-coconut-400 dark:text-sand-300">{blurb}</span>
+      </span>
+    </DropdownMenu.Item>
   )
 }
 
@@ -322,14 +435,18 @@ function BinderIdentity({ c }: { c: CollectionSummary }) {
 
 function CollectionRow({
   collection: c,
+  binders,
   onOpenTarget,
   onEdit,
   onDelete,
+  onFile,
 }: {
   collection: CollectionSummary
+  binders: BinderSummary[]
   onOpenTarget: (c: CollectionSummary) => void
   onEdit: (c: CollectionSummary) => void
   onDelete: (id: number) => Promise<void>
+  onFile: (collectionId: number, binderId: number | null) => Promise<void>
 }) {
   const pill = kindPill(c)
   const isBinder = c.kind === 'binder'
@@ -399,6 +516,9 @@ function CollectionRow({
         >
           <Pencil size={14} />
         </button>
+      )}
+      {c.kind !== 'dynamic' && binders.length > 0 && (
+        <FileIntoBinderControl collection={c} binders={binders} onFile={onFile} />
       )}
       <PrintIdCardControl collectionId={c.id} label={`collection "${c.name}"`} />
       <DeleteBinderControl label={`collection "${c.name}"`} onDelete={() => onDelete(c.id)} />
@@ -480,6 +600,88 @@ function WishlistRow({
       </button>
       <DeleteBinderControl label={`want-list "${w.name}"`} onDelete={() => onDelete(w.id)} />
     </li>
+  )
+}
+
+/**
+ * Per-row "file into binder" control (#703) — a dropdown listing the user's
+ * physical binders. Picking one moves the collection into it; "Remove from
+ * binder" unfiles it. The current binder is checked. Reveals on hover/focus
+ * like the other row controls.
+ */
+function FileIntoBinderControl({
+  collection: c,
+  binders,
+  onFile,
+}: {
+  collection: CollectionSummary
+  binders: BinderSummary[]
+  onFile: (collectionId: number, binderId: number | null) => Promise<void>
+}) {
+  const [failed, setFailed] = useState(false)
+
+  async function file(binderId: number | null) {
+    setFailed(false)
+    try {
+      await onFile(c.id, binderId)
+    } catch {
+      setFailed(true)
+    }
+  }
+
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {failed && (
+        <span role="alert" className="text-[10px] text-ember-500 dark:text-ember-300">
+          Couldn&apos;t file
+        </span>
+      )}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            type="button"
+            aria-label={`File collection "${c.name}" into a binder`}
+            title="File into binder"
+            className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-palm-600 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-palm-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+          >
+            <FolderInput size={14} />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={4}
+            className="z-50 min-w-[160px] rounded-md border border-sand-300 bg-sand-50 p-1 shadow-xl dark:border-husk-50 dark:bg-husk-200"
+          >
+            <DropdownMenu.Label className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-400">
+              File into binder
+            </DropdownMenu.Label>
+            {binders.map((b) => (
+              <DropdownMenu.CheckboxItem
+                key={b.id}
+                checked={c.binder_id === b.id}
+                onSelect={() => void file(b.id)}
+                className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1 text-xs text-coconut-700 outline-none data-[highlighted]:bg-sand-200 dark:text-sand-50 dark:data-[highlighted]:bg-husk-100"
+              >
+                <span className="truncate">{b.name}</span>
+                {c.binder_id === b.id && <Check size={12} className="shrink-0 text-palm-600" />}
+              </DropdownMenu.CheckboxItem>
+            ))}
+            {c.binder_id != null && (
+              <>
+                <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
+                <DropdownMenu.Item
+                  onSelect={() => void file(null)}
+                  className="cursor-pointer rounded px-2 py-1 text-xs text-ember-600 outline-none data-[highlighted]:bg-sand-200 dark:text-ember-300 dark:data-[highlighted]:bg-husk-100"
+                >
+                  Remove from binder
+                </DropdownMenu.Item>
+              </>
+            )}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </span>
   )
 }
 

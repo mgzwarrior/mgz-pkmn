@@ -1404,5 +1404,71 @@ class SmartBinderIdentityTests(_IsolatedDbMixin):
             self.assertEqual(body["binder_color"], "ember")
 
 
+class CollectionBinderFilingTests(_IsolatedDbMixin):
+    """Filing a collection into a binder via ``binder_id`` (#703)."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def _binder(self, c: TestClient, name: str = "Show binder") -> int:
+        return c.post("/api/v1/binders", json={"name": name}).json()["id"]
+
+    def test_create_files_collection_into_a_binder(self) -> None:
+        with self._client() as c:
+            bid = self._binder(c)
+            body = c.post(
+                "/api/v1/collections", json={"name": "Base holos", "binder_id": bid}
+            ).json()
+            self.assertEqual(body["binder_id"], bid)
+            # The binder now reports the filed collection.
+            detail = c.get(f"/api/v1/binders/{bid}").json()
+            self.assertEqual(detail["collection_count"], 1)
+            self.assertFalse(detail["is_empty"])
+            # And the list view carries binder_id so the SPA can group by it.
+            listed = c.get("/api/v1/collections").json()["items"][0]
+            self.assertEqual(listed["binder_id"], bid)
+
+    def test_create_unfiled_collection_has_null_binder_id(self) -> None:
+        with self._client() as c:
+            body = c.post("/api/v1/collections", json={"name": "Loose"}).json()
+            self.assertIsNone(body["binder_id"])
+
+    def test_create_404s_on_unknown_binder(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/collections", json={"name": "X", "binder_id": 9999})
+            self.assertEqual(resp.status_code, 404)
+
+    def test_patch_files_then_clears(self) -> None:
+        with self._client() as c:
+            bid = self._binder(c)
+            cid = c.post("/api/v1/collections", json={"name": "Movable"}).json()["id"]
+
+            filed = c.patch(f"/api/v1/collections/{cid}", json={"binder_id": bid}).json()
+            self.assertEqual(filed["binder_id"], bid)
+            self.assertEqual(c.get(f"/api/v1/binders/{bid}").json()["collection_count"], 1)
+
+            cleared = c.patch(f"/api/v1/collections/{cid}", json={"binder_id": None}).json()
+            self.assertIsNone(cleared["binder_id"])
+            self.assertTrue(c.get(f"/api/v1/binders/{bid}").json()["is_empty"])
+
+    def test_patch_without_binder_id_key_leaves_filing_intact(self) -> None:
+        with self._client() as c:
+            bid = self._binder(c)
+            cid = c.post("/api/v1/collections", json={"name": "Filed", "binder_id": bid}).json()[
+                "id"
+            ]
+            # A rename PATCH that omits binder_id must not unfile it.
+            body = c.patch(f"/api/v1/collections/{cid}", json={"name": "Renamed"}).json()
+            self.assertEqual(body["binder_id"], bid)
+
+    def test_patch_404s_on_unknown_binder(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "X"}).json()["id"]
+            resp = c.patch(f"/api/v1/collections/{cid}", json={"binder_id": 9999})
+            self.assertEqual(resp.status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()

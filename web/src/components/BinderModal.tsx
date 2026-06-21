@@ -82,9 +82,17 @@ interface Props {
   editing?: CollectionSummary | null
   /** Seed a fresh binder's fields (create only) — e.g. opened from Browse. */
   prefill?: BinderPrefill
+  /**
+   * Smart-binder-only create (#703). The Binders tab's New ▾ → Smart binder
+   * opens the modal here: the physical/smart selector is hidden and the form
+   * builds a `kind='dynamic'` rule. Physical binders are created from "Add
+   * binder" (#702) now; the set-anchored Browse path (#682) still opens this
+   * modal without `smartOnly` for its physical create.
+   */
+  smartOnly?: boolean
 }
 
-export function BinderModal({ open, onOpenChange, editing, prefill }: Props) {
+export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }: Props) {
   const { create, update } = useCollections()
   const isEdit = editing != null
   // A dynamic collection edits as a smart binder; everything else as physical.
@@ -93,7 +101,9 @@ export function BinderModal({ open, onOpenChange, editing, prefill }: Props) {
   // State is seeded once at mount from the binder being edited (or blank for
   // a create). The parent remounts this modal with a fresh `key` on each
   // open, so these lazy initializers stand in for a reset-on-open effect.
-  const [mode, setMode] = useState<BinderMode>(editMode)
+  const [mode, setMode] = useState<BinderMode>(
+    isEdit ? editMode : smartOnly ? 'smart' : 'binder',
+  )
   const [name, setName] = useState(() => editing?.name ?? prefill?.name ?? '')
   const [color, setColor] = useState<string | null>(
     () => editing?.binder_color ?? (editing ? null : 'palm'),
@@ -197,7 +207,7 @@ export function BinderModal({ open, onOpenChange, editing, prefill }: Props) {
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(460px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200">
           <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
             <Dialog.Title className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
-              {isEdit ? 'Edit binder' : 'New binder'}
+              {isEdit ? 'Edit binder' : smartOnly ? 'New smart binder' : 'New binder'}
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
@@ -214,9 +224,10 @@ export function BinderModal({ open, onOpenChange, editing, prefill }: Props) {
           </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-            {/* Mode — physical vs. smart binder. Hidden when editing, since a
-                binder's kind is fixed. */}
-            {!isEdit && (
+            {/* Mode — physical vs. smart binder. Hidden when editing (a
+                binder's kind is fixed) and in smartOnly create (#703), where
+                the Binders tab routes straight to the smart-binder builder. */}
+            {!isEdit && !smartOnly && (
               <div role="radiogroup" aria-label="Binder type" className="grid grid-cols-2 gap-2">
                 <TypeCard
                   active={mode === 'binder'}
