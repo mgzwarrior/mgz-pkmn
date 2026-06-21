@@ -84,6 +84,35 @@ describe('useSwipeProfile', () => {
     expect(result.current.profile.set['sv1']).toBe(1)
   })
 
+  it('adjustWeight nudges an entry and drops it when it lands on 0', () => {
+    const { result } = renderHook(() => useSwipeProfile())
+    act(() => {
+      result.current.act(card(), 'sv1', 'save') // set sv1 = +1
+    })
+    act(() => {
+      result.current.adjustWeight('set', 'sv1', 1) // +1 → +2
+    })
+    expect(result.current.profile.set['sv1']).toBe(2)
+    act(() => {
+      result.current.adjustWeight('set', 'sv1', -2) // +2 → 0 → dropped
+    })
+    expect('sv1' in result.current.profile.set).toBe(false)
+  })
+
+  it('clearWeight removes a single entry without touching others', () => {
+    const { result } = renderHook(() => useSwipeProfile())
+    act(() => {
+      result.current.act(card({ rarity: 'Rare Holo' }), 'sv1', 'love')
+    })
+    expect(result.current.profile.rarity['Rare Holo']).toBe(2)
+    expect(result.current.profile.set['sv1']).toBe(2)
+    act(() => {
+      result.current.clearWeight('rarity', 'Rare Holo')
+    })
+    expect('Rare Holo' in result.current.profile.rarity).toBe(false)
+    expect(result.current.profile.set['sv1']).toBe(2) // untouched
+  })
+
   it('reset clears everything', () => {
     const { result } = renderHook(() => useSwipeProfile())
     act(() => {
