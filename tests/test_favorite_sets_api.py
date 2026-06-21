@@ -137,10 +137,13 @@ class FavoriteSetsCrudTests(_IsolatedDbMixin):
 
 
 class FavoriteSetSuggestionTests(_IsolatedDbMixin):
-    def _own(self, c: TestClient, cards: list[dict]) -> None:
+    def _own(self, c: TestClient, cards: list[dict], quantity: int = 1) -> None:
         cid = c.post("/api/v1/collections", json={"name": "Owned"}).json()["id"]
         for card in cards:
-            c.post(f"/api/v1/collections/{cid}/items", json={"card": card})
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": card, "quantity": quantity},
+            )
 
     def test_suggestions_rank_sets_by_owned_count(self) -> None:
         with self._client() as c:
@@ -157,6 +160,17 @@ class FavoriteSetSuggestionTests(_IsolatedDbMixin):
             c.post("/api/v1/favorite-sets", json={"set_id": "base1"})
             body = c.get("/api/v1/favorite-sets/suggestions").json()["suggestions"]
             self.assertEqual([s["set_id"] for s in body], ["sv4pt5"])
+
+    def test_suggestions_count_owned_copies_not_rows(self) -> None:
+        # One sv4pt5 row with quantity 5 must out-rank two base1 rows of 1.
+        with self._client() as c:
+            self._own(c, [CHARIZARD, BLASTOISE])  # base1: 2 copies across 2 rows
+            self._own(c, [MEW_EX], quantity=5)  # sv4pt5: 5 copies in 1 row
+            body = c.get("/api/v1/favorite-sets/suggestions").json()["suggestions"]
+            self.assertEqual(
+                [(s["set_id"], s["owned_count"]) for s in body],
+                [("sv4pt5", 5), ("base1", 2)],
+            )
 
     def test_suggestions_empty_without_a_collection(self) -> None:
         with self._client() as c:

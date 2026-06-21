@@ -79,7 +79,12 @@ export function useFavoriteSets() {
 
   const pin = useCallback(async (setId: string) => {
     if (state.favorites.some((f) => f.set_id === setId)) return
-    // Optimistic: add the pin and drop it from the suggestion list.
+    // Optimistic: add the pin and drop it from the suggestion list. Keep
+    // both snapshots so a failed request restores the suggestion too —
+    // otherwise a transient error would strand the set, pinned nowhere and
+    // no longer suggested.
+    const previousFavorites = state.favorites
+    const previousSuggestions = state.suggestions
     set({
       favorites: [
         { set_id: setId, pinned_at: new Date().toISOString() },
@@ -91,7 +96,8 @@ export function useFavoriteSets() {
       await pinFavoriteSet(setId)
     } catch (e) {
       set({
-        favorites: state.favorites.filter((f) => f.set_id !== setId),
+        favorites: previousFavorites,
+        suggestions: previousSuggestions,
         error: e instanceof Error ? e.message : String(e),
       })
     }

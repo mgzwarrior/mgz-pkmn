@@ -146,28 +146,30 @@ def list_suggestions(
     Tallies the user's ``collection_items`` by ``card_set_id`` — the sets
     they've already invested a collection in are the strongest owned signal
     for a favorite — and drops any set they've already pinned. The SPA folds
-    its own swipe ``set`` counter into this before rendering."""
+    its own swipe ``set`` counter into this before rendering.
+
+    Counts owned *copies* (``sum(quantity)``), not rows, so the rest of the
+    collections model's quantity semantics hold — a single ``quantity: 10``
+    row is ten owned, not one."""
     pinned = set(
         db.scalars(select(FavoriteSet.set_id).where(FavoriteSet.user_id == current_user.id)).all()
     )
 
+    owned = func.coalesce(func.sum(CollectionItem.quantity), 0).label("owned")
     rows = db.execute(
-        select(
-            CollectionItem.card_set_id,
-            func.count().label("owned"),
-        )
+        select(CollectionItem.card_set_id, owned)
         .join(Collection, CollectionItem.collection_id == Collection.id)
         .where(
             Collection.user_id == current_user.id,
             CollectionItem.card_set_id.is_not(None),
         )
         .group_by(CollectionItem.card_set_id)
-        .order_by(func.count().desc())
+        .order_by(owned.desc())
     ).all()
 
     suggestions = [
-        SuggestionOut(set_id=set_id, owned_count=owned)
-        for set_id, owned in rows
+        SuggestionOut(set_id=set_id, owned_count=int(count))
+        for set_id, count in rows
         if set_id not in pinned
     ][:limit]
     return SuggestionsOut(suggestions=suggestions).model_dump()

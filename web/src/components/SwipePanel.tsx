@@ -250,7 +250,12 @@ export function SwipePanel({ active }: SwipePanelProps) {
         }
       />
 
-      <FavoriteSetsPanel />
+      {/* Favorite sets are durable + per-user, so gate the panel on a
+          signed-in user like the other user-scoped Swipe controls — an
+          anonymous mount would otherwise read/write the default user's
+          favorites. The taste profile below is browser-local, so it shows
+          for everyone. */}
+      {showSavedActions && <FavoriteSetsPanel />}
 
       <SwipeProfilePanel />
 

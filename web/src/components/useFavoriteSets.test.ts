@@ -55,16 +55,19 @@ describe('useFavoriteSets', () => {
     expect(mockPin).toHaveBeenCalledWith('neo1')
   })
 
-  it('rolls back a pin when the request fails', async () => {
+  it('rolls back a pin — and restores the suggestion — when the request fails', async () => {
+    mockSuggestions.mockResolvedValue([{ set_id: 'base1', owned_count: 3 }])
     mockPin.mockRejectedValue(new Error('boom'))
     const { result } = renderHook(() => useFavoriteSets())
-    await waitFor(() => expect(result.current.loading).toBe(false))
+    await waitFor(() => expect(result.current.suggestions.length).toBe(1))
 
     await act(async () => {
       await result.current.pin('base1')
     })
     expect(result.current.isPinned('base1')).toBe(false)
     expect(result.current.error).toBe('boom')
+    // The set returns to the suggestion list so the user can retry.
+    expect(result.current.suggestions.some((s) => s.set_id === 'base1')).toBe(true)
   })
 
   it('unpins a set', async () => {
