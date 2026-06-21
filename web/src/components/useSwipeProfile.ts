@@ -52,6 +52,9 @@ export interface SavedCard {
 
 export type SwipeAction = 'pass' | 'save' | 'love'
 
+/** The three editable counters that make up the visible taste profile. */
+export type ProfileBucket = 'rarity' | 'set' | 'tag'
+
 const EMPTY_PROFILE: SwipeProfile = {
   rarity: {},
   set: {},
@@ -103,6 +106,23 @@ function bump(
 ): Record<string, number> {
   if (!key) return counter
   return { ...counter, [key]: (counter[key] ?? 0) + weight }
+}
+
+/**
+ * Set one bucket entry to an explicit weight (manual edit, not a swipe).
+ * A weight of 0 drops the key entirely so a neutralised attribute leaves
+ * no trace in the profile or in `scoreCard`.
+ */
+function setWeight(
+  profile: SwipeProfile,
+  bucket: ProfileBucket,
+  key: string,
+  weight: number,
+): SwipeProfile {
+  const next = { ...profile[bucket] }
+  if (weight === 0) delete next[key]
+  else next[key] = weight
+  return { ...profile, [bucket]: next }
 }
 
 function bumpTags(
@@ -176,6 +196,20 @@ export function useSwipeProfile() {
     publish({ ...EMPTY_PROFILE })
   }, [])
 
+  // Manual edits to the visible profile (#711). `adjustWeight` nudges one
+  // entry by a delta; `clearWeight` neutralises it. Both drop the key when
+  // the weight lands on 0 so the profile only carries live signal.
+  const adjustWeight = useCallback(
+    (bucket: ProfileBucket, key: string, delta: number) => {
+      publish(setWeight(state, bucket, key, (state[bucket][key] ?? 0) + delta))
+    },
+    [],
+  )
+
+  const clearWeight = useCallback((bucket: ProfileBucket, key: string) => {
+    publish(setWeight(state, bucket, key, 0))
+  }, [])
+
   /** Score a candidate by current profile weights. Higher = better match. */
   const scoreCard = useCallback((card: SetCard, setId: string): number => {
     let score = 0
@@ -198,6 +232,8 @@ export function useSwipeProfile() {
     clearSaved,
     reset,
     scoreCard,
+    adjustWeight,
+    clearWeight,
   }
 }
 

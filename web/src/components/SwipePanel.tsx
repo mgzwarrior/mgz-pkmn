@@ -40,6 +40,7 @@ import {
   type SavedCard,
   type SwipeAction,
 } from './useSwipeProfile'
+import { SwipeProfilePanel } from './SwipeProfilePanel'
 import { STACK_SIZE, useSwipeCandidates } from './useSwipeCandidates'
 import { useSwipeExclusions } from './useSwipeExclusions'
 import { useWishlists } from './useWishlists'
@@ -247,6 +248,8 @@ export function SwipePanel({ active }: SwipePanelProps) {
           updateSettings({ swipeExcludeChasing })
         }
       />
+
+      <SwipeProfilePanel />
 
       {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
         <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
