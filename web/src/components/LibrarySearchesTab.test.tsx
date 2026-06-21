@@ -225,4 +225,67 @@ describe('LibrarySearchesTab', () => {
     render(<LibrarySearchesTab />)
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
   })
+
+  it('deletes a saved search after a two-step confirm and optimistically removes it', async () => {
+    vi.spyOn(client, 'listRuns').mockResolvedValue({
+      items: [makeRun(1, { name: 'Keep me' }), makeRun(2, { name: 'Trash me' })],
+      total: 2,
+    })
+    const deleteSpy = vi.spyOn(client, 'deleteRun').mockResolvedValue(undefined)
+    render(<LibrarySearchesTab />)
+    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(2))
+
+    // First click reveals confirm rather than deleting.
+    fireEvent.click(screen.getByRole('button', { name: /Delete saved search Trash me/i }))
+    expect(deleteSpy).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Confirm delete saved search Trash me/i }),
+    )
+    await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith(2))
+    await waitFor(() => expect(useAppStore.getState().runs.map((r) => r.id)).toEqual([1]))
+    expect(screen.queryByText('Trash me')).not.toBeInTheDocument()
+  })
+
+  it('cancelling the confirm leaves the saved search in place', async () => {
+    vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(1, { name: 'Keep me' })], total: 1 })
+    const deleteSpy = vi.spyOn(client, 'deleteRun').mockResolvedValue(undefined)
+    render(<LibrarySearchesTab />)
+    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete saved search Keep me/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Cancel delete/i }))
+
+    expect(deleteSpy).not.toHaveBeenCalled()
+    expect(screen.getByText('Keep me')).toBeInTheDocument()
+  })
+
+  it('restores the row and surfaces an error when delete fails', async () => {
+    vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(3, { name: 'Oops' })], total: 1 })
+    vi.spyOn(client, 'deleteRun').mockRejectedValue(new Error('nope'))
+    render(<LibrarySearchesTab />)
+    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete saved search Oops/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Confirm delete saved search Oops/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('nope')
+    // Rolled back — the run is still listed.
+    await waitFor(() => expect(useAppStore.getState().runs.map((r) => r.id)).toEqual([3]))
+  })
+
+  it('clears currentRunId when the deleted run was loaded', async () => {
+    vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(5, { name: 'Active' })], total: 1 })
+    vi.spyOn(client, 'deleteRun').mockResolvedValue(undefined)
+    render(<LibrarySearchesTab />)
+    await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
+    act(() => {
+      useAppStore.setState({ currentRunId: 5 })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete saved search Active/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Confirm delete saved search Active/i }))
+
+    await waitFor(() => expect(useAppStore.getState().currentRunId).toBeNull())
+  })
 })
