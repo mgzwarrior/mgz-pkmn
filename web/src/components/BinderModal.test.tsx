@@ -27,7 +27,7 @@ describe('BinderModal', () => {
     mockFetch.mockResolvedValue([])
   })
 
-  it('creates a binder with cover color, format, and capacity', async () => {
+  it('creates a binder with format and capacity (no cover color — that lives on the binder unit)', async () => {
     mockCreate.mockResolvedValue({
       id: 5,
       name: 'Trade binder',
@@ -35,7 +35,6 @@ describe('BinderModal', () => {
       created_at: '2026-06-15T00:00:00',
       items: [],
       kind: 'binder',
-      binder_color: 'sky',
       binder_format: '9-pocket',
       binder_type: 'toploader',
       capacity: 360,
@@ -45,8 +44,8 @@ describe('BinderModal', () => {
     fireEvent.change(screen.getByPlaceholderText('Trade binder'), {
       target: { value: 'Trade binder' },
     })
-    // Default cover color is palm; switch to sky.
-    fireEvent.click(screen.getByRole('button', { name: 'Sky' }))
+    // The cover-color picker no longer lives here (#723).
+    expect(screen.queryByRole('button', { name: 'Sky' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /more details/i }))
     fireEvent.change(screen.getByPlaceholderText('360'), { target: { value: '360' } })
     fireEvent.change(screen.getByRole('combobox', { name: /storage type/i }), {
@@ -61,16 +60,18 @@ describe('BinderModal', () => {
       expect(mockCreate).toHaveBeenCalledWith('Trade binder', {
         kind: 'binder',
         binder_format: '9-pocket',
-        binder_color: 'sky',
         binder_type: 'toploader',
         capacity: 360,
         source_set_id: null,
         is_master_set: false,
       }),
     )
+    // Cover color isn't part of the create payload anymore.
+    const [, opts] = mockCreate.mock.calls[0]
+    expect(opts).not.toHaveProperty('binder_color')
   })
 
-  it('creates a smart binder carrying shared identity but no physical fields', async () => {
+  it('creates a smart binder carrying shared identity but no physical fields or color', async () => {
     mockCreate.mockResolvedValue({
       id: 6,
       name: 'All Eevees',
@@ -79,7 +80,6 @@ describe('BinderModal', () => {
       items: [],
       kind: 'dynamic',
       rule: { name: 'Eevee' },
-      binder_color: 'ember',
     })
     render(<BinderModal open onOpenChange={() => {}} />)
 
@@ -88,15 +88,15 @@ describe('BinderModal', () => {
       target: { value: 'All Eevees' },
     })
     fireEvent.change(screen.getByPlaceholderText('Eevee'), { target: { value: 'Eevee' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Ember' }))
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled())
     const [, opts] = mockCreate.mock.calls[0]
-    expect(opts).toMatchObject({ kind: 'dynamic', binder_color: 'ember', dynamic_scope: 'owned' })
-    // A smart binder has no fixed slots — physical fields aren't sent.
+    expect(opts).toMatchObject({ kind: 'dynamic', dynamic_scope: 'owned' })
+    // A smart binder has no fixed slots and no cover color.
     expect(opts).not.toHaveProperty('binder_format')
     expect(opts).not.toHaveProperty('capacity')
+    expect(opts).not.toHaveProperty('binder_color')
   })
 
   it('lets you save identity edits to an existing smart binder without a rule', async () => {
@@ -110,23 +110,24 @@ describe('BinderModal', () => {
       source_set_id: null,
       rule: { name: 'eevee' },
       dynamic_scope: 'owned',
-      binder_color: 'palm',
     }
-    mockUpdate.mockResolvedValue({ ...smart, items: [], binder_color: 'sky' } as never)
+    mockUpdate.mockResolvedValue({ ...smart, items: [] } as never)
     render(<BinderModal open onOpenChange={() => {}} editing={smart} />)
 
     // Save is enabled immediately — no throwaway rule value required.
     const save = screen.getByRole('button', { name: /^save$/i })
     expect(save).not.toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Sky' }))
     fireEvent.click(save)
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         8,
-        expect.objectContaining({ name: 'All Eevees', binder_color: 'sky' }),
+        expect.objectContaining({ name: 'All Eevees' }),
       ),
     )
+    // The edit no longer touches cover color.
+    const [, patch] = mockUpdate.mock.calls[0]
+    expect(patch).not.toHaveProperty('binder_color')
   })
 
   it('prefills and PATCHes an existing binder', async () => {
@@ -139,7 +140,6 @@ describe('BinderModal', () => {
       kind: 'binder',
       source_set_id: null,
       rule: null,
-      binder_color: 'palm',
       binder_format: '9-pocket',
       capacity: 180,
       is_master_set: false,
@@ -147,19 +147,20 @@ describe('BinderModal', () => {
     mockUpdate.mockResolvedValue({
       ...binder,
       items: [],
-      binder_color: 'ember',
     } as never)
     render(<BinderModal open onOpenChange={() => {}} editing={binder} />)
 
     // Name is prefilled from the binder being edited.
     expect(screen.getByDisplayValue('Show binder')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Ember' }))
+    fireEvent.change(screen.getByDisplayValue('Show binder'), {
+      target: { value: 'Show binder 2' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         7,
-        expect.objectContaining({ name: 'Show binder', binder_color: 'ember' }),
+        expect.objectContaining({ name: 'Show binder 2' }),
       ),
     )
   })

@@ -473,7 +473,9 @@ describe('LibraryBindersTab', () => {
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
     await openNewMenu(/collection/i)
-    fireEvent.change(screen.getByPlaceholderText('Trade binder'), {
+    // The new collection dialog (#723) uses a richer placeholder; with no
+    // binders yet and no inline binder named, it creates a loose collection.
+    fireEvent.change(screen.getByPlaceholderText('Base Set holos'), {
       target: { value: 'Trade pile' },
     })
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
