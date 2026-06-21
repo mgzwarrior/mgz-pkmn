@@ -4,11 +4,12 @@
  * Everything in the Binders tab is a binder: a **physical binder** (a bucket
  * of cards with a cover, storage style, pocket format, and capacity) or a
  * **smart binder** (a saved rule whose membership is your matching cards).
- * The two share cover/storage-type/master-set identity; pocket format and
- * capacity are physical-only, since a rule-based set has no fixed slots.
+ * The two share storage-type/master-set identity; pocket format and capacity
+ * are physical-only, since a rule-based set has no fixed slots. Cover color
+ * lives on the binder inventory unit (#702), not here (#723).
  *
- * - **Novice path:** name it, pick a cover color, done. The rest is tucked
- *   behind a "More details" disclosure so the simple case stays one decision.
+ * - **Novice path:** name it, done. The rest is tucked behind a "More
+ *   details" disclosure so the simple case stays one decision.
  * - **Vendor path:** open the details to set storage type, pocket format,
  *   capacity, the set it organizes, and a master-set target.
  *
@@ -28,7 +29,6 @@ import type {
   DynamicScope,
 } from '../api/client'
 import { BINDER_FORMAT_OPTIONS, BINDER_TYPE_OPTIONS } from './binderIdentity'
-import { BinderColorPicker } from './BinderColorPicker'
 import { SetCombobox } from './SetCombobox'
 import { useCollections } from './useCollections'
 
@@ -97,9 +97,6 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
     isEdit ? editMode : smartOnly ? 'smart' : 'binder',
   )
   const [name, setName] = useState(() => editing?.name ?? prefill?.name ?? '')
-  const [color, setColor] = useState<string | null>(
-    () => editing?.binder_color ?? (editing ? null : 'palm'),
-  )
   const [binderType, setBinderType] = useState<BinderType | ''>(() => editing?.binder_type ?? '')
   const [format, setFormat] = useState<BinderFormat | ''>(() => editing?.binder_format ?? '')
   const [capacity, setCapacity] = useState(() =>
@@ -144,8 +141,9 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
     setError(null)
     const cap = capacity.trim() ? Number(capacity.trim()) : null
     // Shared identity rides both kinds; physical fields ride binders only.
+    // Cover color is owned by the binder inventory unit (#702), not a
+    // collection/rule, so it isn't set here anymore (#723).
     const shared = {
-      binder_color: color,
       binder_type: binderType || null,
     }
     try {
@@ -210,8 +208,8 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
             </Dialog.Close>
           </header>
           <Dialog.Description className="sr-only">
-            Name your binder, pick a cover color, and optionally set its storage
-            type, pocket format, capacity, and the set it organizes.
+            Name your binder and optionally set its storage type, pocket format,
+            capacity, and the set it organizes.
           </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -250,9 +248,6 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
                 className={inputClass}
               />
             </label>
-
-            {/* Cover color — shared identity, presets + a custom hex picker. */}
-            <BinderColorPicker value={color} onChange={setColor} label="Cover color" />
 
             {editingRule && (
               <div className="space-y-3">
