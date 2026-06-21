@@ -186,6 +186,62 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     expect(screen.getByText('Browse sets')).toBeInTheDocument()
   })
 
+  it('set view: filters by card category and badges the card in the modal (#700)', async () => {
+    const SET_CARDS: SetCard[] = [
+      {
+        id: 'sv8-203',
+        name: 'Latios',
+        number: '203',
+        rarity: 'Illustration Rare',
+        supertype: 'Pokémon',
+        subtypes: ['Basic'],
+        thumb: null,
+        market: 40,
+      },
+      {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        rarity: 'Rare Holo',
+        supertype: 'Pokémon',
+        subtypes: ['Stage 2'],
+        thumb: null,
+        market: 250,
+      },
+    ]
+    vi.spyOn(client, 'fetchSetCards').mockResolvedValue(SET_CARDS)
+
+    render(<Harness />)
+
+    const setTile = screen
+      .getAllByRole('button')
+      .find((b) => /\bcards$|count unknown/.test(b.textContent ?? ''))!
+    fireEvent.click(setTile)
+
+    expect(await screen.findByText('2 of 2 cards')).toBeInTheDocument()
+
+    // Narrow to connecting-scene: only the seeded Latois (sv8-203) survives.
+    fireEvent.change(screen.getByLabelText('Filter by card category'), {
+      target: { value: 'connecting-scene' },
+    })
+    expect(await screen.findByText('1 of 2 cards')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /View details for Charizard/ }),
+    ).not.toBeInTheDocument()
+
+    // The detail modal badges every archetype, with a learn-more link for the
+    // art-driven connecting-scene category.
+    fireEvent.click(
+      screen.getByRole('button', { name: /View details for Latios/ }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Connecting scene')).toBeInTheDocument()
+    expect(within(dialog).getByText('Illustration rare')).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('link', { name: /Connecting scene/ }),
+    ).toHaveAttribute('href', expect.stringContaining('bulbapedia'))
+  })
+
   it('shows the collection / wishlist save buttons on a printing when signed in', async () => {
     vi.spyOn(client, 'fetchPokedexCards').mockResolvedValue(CHARIZARD_PRINTINGS)
 
