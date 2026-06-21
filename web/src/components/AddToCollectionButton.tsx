@@ -18,6 +18,10 @@ interface Props {
 
 export function AddToCollectionButton({ card }: Props) {
   const { collections, loading, error, create, addCard } = useCollections()
+  // Dynamic (smart) collections are rule-defined — membership is resolved,
+  // not hand-curated — so the API rejects manual adds with a 409. Keep them
+  // out of the save picker (mirrors BulkActionBar's filter).
+  const addable = collections.filter((c) => c.kind !== 'dynamic')
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [justAdded, setJustAdded] = useState<number | null>(null)
@@ -95,12 +99,12 @@ export function AddToCollectionButton({ card }: Props) {
               {error}
             </div>
           )}
-          {!loading && !error && collections.length === 0 && (
+          {!loading && !error && addable.length === 0 && (
             <div className="px-2 py-2 text-xs text-coconut-400 dark:text-sand-300">
               No collections yet.
             </div>
           )}
-          {collections.map((c) => (
+          {addable.map((c) => (
             <DropdownMenu.Item
               key={c.id}
               onSelect={(e) => {
