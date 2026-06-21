@@ -32,6 +32,7 @@ import { useAppStore } from '../store'
 import type { RarityFloor, Row, SetCard } from '../types'
 import { browseCardToPayload, browseCardToRow } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
+import { FavoriteSetsPanel } from './FavoriteSetsPanel'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
@@ -248,6 +249,8 @@ export function SwipePanel({ active }: SwipePanelProps) {
           updateSettings({ swipeExcludeChasing })
         }
       />
+
+      <FavoriteSetsPanel />
 
       <SwipeProfilePanel />
 
