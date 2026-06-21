@@ -33,6 +33,7 @@ import type { RarityFloor, Row, SetCard } from '../types'
 import { browseCardToPayload, browseCardToRow } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
 import { FavoriteSetsPanel } from './FavoriteSetsPanel'
+import { useFavoriteSets } from './useFavoriteSets'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
@@ -57,6 +58,10 @@ const CLICK_SLOP = 6
  *  appears — casual swipers aren't pestered before they have a haul worth
  *  turning into a wishlist. */
 const PREP_LIST_NUDGE_THRESHOLD = 3
+/** Profile-score bonus a pinned favorite set adds to its walk weight (#713).
+ *  Sized so an explicit pin outweighs an accreted lean and lands a set near
+ *  the multiplier cap, without zeroing out the rest of the catalog. */
+const FAVORITE_SET_BONUS = 12
 
 interface Drag {
   startX: number
@@ -72,8 +77,25 @@ interface SwipePanelProps {
 }
 
 export function SwipePanel({ active }: SwipePanelProps) {
-  const { profile, seenSet, act, clearSaved, reset } = useSwipeProfile()
+  const { profile, seenSet, act, clearSaved, reset, scoreCard } =
+    useSwipeProfile()
   const { settings, updateSettings } = useAppStore()
+  const { user } = useAuth()
+  const showSavedActions = user !== null
+  // Favorite sets feed the candidate weighting; gate the fetch on a signed-in
+  // user (they're per-user) so a signed-out deck isn't biased by — and doesn't
+  // hit the endpoint as — the default user.
+  const { isPinned } = useFavoriteSets({ enabled: showSavedActions })
+
+  // Profile-weighted candidate selection (#713). `setScore` biases which set
+  // is walked next — the learned per-set lean plus a strong bonus for pinned
+  // favorites; `cardScore` biases the card within it via the full taste
+  // profile. Both fall back to a flat 0 (the unbiased walk) before any signal.
+  const setScore = useCallback(
+    (setId: string) =>
+      (profile.set[setId] ?? 0) + (isPinned(setId) ? FAVORITE_SET_BONUS : 0),
+    [profile.set, isPinned],
+  )
   const { excludedKeys, recordSeen, resetDeck } = useSwipeExclusions({
     excludeOwned: settings.swipeExcludeOwned,
     excludeChasing: settings.swipeExcludeChasing,
@@ -84,9 +106,9 @@ export function SwipePanel({ active }: SwipePanelProps) {
       seenSet,
       excludedKeys,
       rarityFloor: settings.swipeRarityFloor,
+      setScore,
+      cardScore: scoreCard,
     })
-  const { user } = useAuth()
-  const showSavedActions = user !== null
 
   // Cross-collection ownership badge (#576). Prefetch the current card plus
   // the peeks beneath it so the badge is ready as each rises to the top.
