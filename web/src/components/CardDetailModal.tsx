@@ -24,6 +24,11 @@ import type { CardData, CardSet, EbaySoldComp, Pricing, Row } from '../types'
 import { ebayAffiliateUrl, tcgplayerAffiliateUrl } from '../utils/affiliateLinks'
 import { formatComp, formatMoney } from '../utils/format'
 import { AffiliateLinks } from './AffiliateLinks'
+import {
+  cardCategories,
+  CATEGORY_LABELS,
+  CATEGORY_REFERENCES,
+} from './cardCategories'
 import { EbaySparkline } from './EbaySparkline'
 import { hasEbayData, soldPriceSeries } from './ebayComps'
 import { OwnershipBadge } from './OwnershipBadge'
@@ -249,6 +254,7 @@ function CardDetailBody({
                 />
               </div>
             )}
+            <CategoryBadges card={card} />
             <div className="grid gap-4 sm:grid-cols-2">
               <DefinitionList
                 rows={[
@@ -316,6 +322,52 @@ function CardDetailBody({
         </div>
       </div>
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// CategoryBadges — collector archetype chips derived client-side from the
+// card's name / rarity / subtypes / id (#700). Art-driven categories carry a
+// "learn more" link out to the canonical reference. Self-hides when a card
+// belongs to no category, so a plain common leaves no empty row behind.
+// ---------------------------------------------------------------------------
+
+function CategoryBadges({ card }: { card: CardData | null }) {
+  if (!card) return null
+  const categories = cardCategories({
+    id: card.id as string | undefined,
+    name: card.name as string | undefined,
+    rarity: card.rarity as string | undefined,
+    subtypes: card.subtypes as string[] | undefined,
+  })
+  if (categories.length === 0) return null
+
+  const chip =
+    'inline-flex items-center gap-1 rounded-full border border-palm-400 dark:border-sun-400 bg-sun-400/15 dark:bg-sun-400/30 px-2 py-0.5 text-[11px] font-medium text-palm-700 dark:text-sun-100'
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-label="Card categories">
+      {categories.map((category) => {
+        const ref = CATEGORY_REFERENCES[category]
+        return ref ? (
+          <a
+            key={category}
+            href={ref.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Learn more — ${ref.label}`}
+            className={`${chip} transition-colors hover:bg-sun-400/30 dark:hover:bg-sun-400/40`}
+          >
+            {CATEGORY_LABELS[category]}
+            <ExternalLink size={9} aria-hidden />
+          </a>
+        ) : (
+          <span key={category} className={chip}>
+            {CATEGORY_LABELS[category]}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 

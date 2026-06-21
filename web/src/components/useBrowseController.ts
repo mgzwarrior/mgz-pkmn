@@ -15,6 +15,10 @@ import { BAKED_POKEDEX, POKEDEX_GENERATIONS } from '../data/pokedex'
 import { BAKED_SETS } from '../data/sets'
 import { useAppStore } from '../store'
 import type { PokedexCard, PokedexEntry, SetCard, SetInfo } from '../types'
+import { inCategory, type CardCategory } from './cardCategories'
+
+/** Browse's category filter value — a single archetype, or 'all'. */
+export type CategoryFilter = CardCategory | 'all'
 
 export interface SeriesGroup {
   series: string
@@ -114,6 +118,8 @@ export interface BrowseController {
   setSearch: (v: string) => void
   bucket: RarityBucket
   setBucket: (b: RarityBucket) => void
+  category: CategoryFilter
+  setCategory: (c: CategoryFilter) => void
   sort: CardSort
   setSort: (s: CardSort) => void
   addedCount: number | null
@@ -146,6 +152,7 @@ export function useBrowseController(active: boolean): BrowseController {
 
   const [search, setSearch] = useState('')
   const [bucket, setBucket] = useState<RarityBucket>('all')
+  const [category, setCategory] = useState<CategoryFilter>('all')
   const [sort, setSort] = useState<CardSort>('number')
   const [addedCount, setAddedCount] = useState<number | null>(null)
 
@@ -168,6 +175,7 @@ export function useBrowseController(active: boolean): BrowseController {
     setCardsError(null)
     setSearch('')
     setBucket('all')
+    setCategory('all')
     setSort('number')
     setAddedCount(null)
     setActivePokemon(null)
@@ -291,6 +299,7 @@ export function useBrowseController(active: boolean): BrowseController {
     const term = search.trim().toLowerCase()
     const out = cards.filter((c) => {
       if (!inBucket(c, bucket)) return false
+      if (category !== 'all' && !inCategory(c, category)) return false
       if (!term) return true
       return (
         (c.name || '').toLowerCase().includes(term) ||
@@ -300,7 +309,7 @@ export function useBrowseController(active: boolean): BrowseController {
     })
     out.sort((a, b) => compareCards(a, b, sort))
     return out
-  }, [cards, search, bucket, sort])
+  }, [cards, search, bucket, category, sort])
 
   function addCards(toAdd: SetCard[]) {
     if (!activeSet || toAdd.length === 0) return
@@ -344,6 +353,8 @@ export function useBrowseController(active: boolean): BrowseController {
     setSearch,
     bucket,
     setBucket,
+    category,
+    setCategory,
     sort,
     setSort,
     addedCount,

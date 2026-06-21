@@ -14,6 +14,7 @@ import { useAuth } from '../hooks/useAuth'
 import type { PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
 import { BinderModal, type BinderPrefill } from './BinderModal'
 import { browseCardToPayload, browseCardToRow, type BrowseSetContext } from './browseCard'
+import { CATEGORY_LABELS, CATEGORY_ORDER } from './cardCategories'
 import { CardDetailModal } from './CardDetailModal'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
@@ -23,6 +24,7 @@ import type {
   BrowseController,
   BrowseViewMode,
   CardSort,
+  CategoryFilter,
   PokedexGroup,
   RarityBucket,
   SeriesGroup,
@@ -52,6 +54,8 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     setSearch,
     bucket,
     setBucket,
+    category,
+    setCategory,
     sort,
     setSort,
     addedCount,
@@ -160,6 +164,8 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             onSearch={setSearch}
             bucket={bucket}
             onBucket={setBucket}
+            category={category}
+            onCategory={setCategory}
             sort={sort}
             onSort={setSort}
             addedCount={addedCount}
@@ -319,6 +325,8 @@ interface SetDetailProps {
   onSearch: (v: string) => void
   bucket: RarityBucket
   onBucket: (b: RarityBucket) => void
+  category: CategoryFilter
+  onCategory: (c: CategoryFilter) => void
   sort: CardSort
   onSort: (s: CardSort) => void
   addedCount: number | null
@@ -332,6 +340,11 @@ const BUCKETS: { value: RarityBucket; label: string }[] = [
   { value: 'rare', label: 'Rares' },
   { value: 'holo', label: 'Holos' },
   { value: 'ultra', label: 'Ultra+' },
+]
+
+const CATEGORY_OPTIONS: { value: CategoryFilter; label: string }[] = [
+  { value: 'all', label: 'All categories' },
+  ...CATEGORY_ORDER.map((c) => ({ value: c, label: CATEGORY_LABELS[c] })),
 ]
 
 const SORT_OPTIONS: { value: CardSort; label: string }[] = [
@@ -351,6 +364,8 @@ function SetDetailView({
   onSearch,
   bucket,
   onBucket,
+  category,
+  onCategory,
   sort,
   onSort,
   addedCount,
@@ -409,6 +424,21 @@ function SetDetailView({
             </Chip>
           ))}
         </div>
+        <label className="flex items-center gap-1 text-xs text-coconut-400 dark:text-sand-300">
+          Category
+          <select
+            value={category}
+            onChange={(e) => onCategory(e.target.value as CategoryFilter)}
+            className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 px-2 py-1 text-sm text-coconut-700 dark:text-sand-50 focus:border-sand-400 dark:focus:border-coconut-400 focus:outline-none"
+            aria-label="Filter by card category"
+          >
+            {CATEGORY_OPTIONS.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex items-center gap-1 text-xs text-coconut-400 dark:text-sand-300">
           Sort
           <select
