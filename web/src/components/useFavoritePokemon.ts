@@ -28,6 +28,9 @@ interface State {
 const listeners = new Set<(s: State) => void>()
 let state: State = { favorites: [], loading: false, error: null }
 let inflight: Promise<void> | null = null
+// Bumped on every optimistic pin/unpin so an in-flight refresh can tell its
+// server snapshot predates a mutation and must not clobber it.
+let mutationRev = 0
 
 function set(next: Partial<State>) {
   state = { ...state, ...next }
@@ -37,10 +40,15 @@ function set(next: Partial<State>) {
 async function refresh(): Promise<void> {
   if (inflight) return inflight
   set({ loading: true, error: null })
+  const revAtStart = mutationRev
   inflight = (async () => {
     try {
       const favorites = await fetchFavoritePokemon()
-      set({ favorites, loading: false })
+      // If a pin/unpin landed while this GET was in flight, its snapshot may
+      // predate that change — keep the optimistic state (the mutation's own
+      // POST already persisted it) and only clear the loading flag.
+      if (mutationRev === revAtStart) set({ favorites, loading: false })
+      else set({ loading: false })
     } catch (e) {
       set({ loading: false, error: e instanceof Error ? e.message : String(e) })
     } finally {
@@ -70,6 +78,7 @@ export function useFavoritePokemon({ enabled = true }: { enabled?: boolean } = {
 
   const pin = useCallback(async (dexNumber: number) => {
     if (state.favorites.some((f) => f.dex_number === dexNumber)) return
+    mutationRev++
     const previous = state.favorites
     set({
       favorites: [
@@ -85,6 +94,7 @@ export function useFavoritePokemon({ enabled = true }: { enabled?: boolean } = {
   }, [])
 
   const unpin = useCallback(async (dexNumber: number) => {
+    mutationRev++
     const previous = state.favorites
     set({ favorites: state.favorites.filter((f) => f.dex_number !== dexNumber) })
     try {
@@ -106,5 +116,6 @@ export function useFavoritePokemon({ enabled = true }: { enabled?: boolean } = {
 export function _resetFavoritePokemonCacheForTests() {
   state = { favorites: [], loading: false, error: null }
   inflight = null
+  mutationRev = 0
   listeners.clear()
 }

@@ -67,6 +67,29 @@ describe('useFavoritePokemon', () => {
     expect(result.current.error).toBe('boom')
   })
 
+  it('keeps an optimistic pin when a slow initial GET resolves afterward', async () => {
+    // The mount GET is still in flight when the user stars a Pokémon; it then
+    // resolves with a snapshot that predates the pin. The optimistic favorite
+    // must survive (the pin's own POST persisted it) — not get clobbered.
+    let resolveGet: (v: never[]) => void = () => {}
+    mockFetch.mockReset().mockImplementation(
+      () => new Promise((res) => { resolveGet = res as (v: never[]) => void }),
+    )
+    const { result } = renderHook(() => useFavoritePokemon())
+
+    await act(async () => {
+      await result.current.pin(6)
+    })
+    expect(result.current.isFavorite(6)).toBe(true)
+
+    // The stale initial GET (empty) lands after the optimistic pin.
+    await act(async () => {
+      resolveGet([])
+      await Promise.resolve()
+    })
+    expect(result.current.isFavorite(6)).toBe(true)
+  })
+
   it('unpins a Pokémon', async () => {
     mockFetch.mockResolvedValue([{ dex_number: 6, pinned_at: '2026-06-22T00:00:00Z' }])
     const { result } = renderHook(() => useFavoritePokemon())
