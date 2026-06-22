@@ -28,6 +28,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -312,6 +313,13 @@ class Collection(Base):
         ForeignKey("binders.id", ondelete="SET NULL"), nullable=True
     )
     binder: Mapped[Binder | None] = relationship(back_populates="collections")
+    # ---- #759: the user's default personal collection for one-tap `Own` (ADR-0027) ----
+    #: Exactly one row per user may be the default (a partial unique index on
+    #: ``user_id WHERE is_default`` enforces it). The flag is the invariant, not
+    #: the row: renaming keeps it, deleting re-establishes one lazily.
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     items: Mapped[list[CollectionItem]] = relationship(
         back_populates="collection",
@@ -420,6 +428,13 @@ class Wishlist(Base):
     #: post-show retrospectives in the insights dashboard. Route plumbing
     #: rides on #504.
     target_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # ---- #759: the user's default wishlist for one-tap `Want` (ADR-0027) ----
+    #: Exactly one row per user may be the default (a partial unique index on
+    #: ``user_id WHERE is_default`` enforces it). The flag is the invariant, not
+    #: the row: renaming keeps it, deleting re-establishes one lazily.
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     items: Mapped[list[WishlistItem]] = relationship(
         back_populates="wishlist",
