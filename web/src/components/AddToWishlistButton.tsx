@@ -14,9 +14,10 @@ import { useWishlists } from './useWishlists'
 
 interface Props {
   card: Record<string, unknown>
+  variant?: 'icon' | 'primary'
 }
 
-export function AddToWishlistButton({ card }: Props) {
+export function AddToWishlistButton({ card, variant = 'icon' }: Props) {
   const { wishlists, loading, error, create, addCard } = useWishlists()
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -25,6 +26,7 @@ export function AddToWishlistButton({ card }: Props) {
   const [newName, setNewName] = useState('')
   const [capInput, setCapInput] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const isPrimary = variant === 'primary'
 
   function parseCap(): number | null {
     const trimmed = capInput.trim()
@@ -78,11 +80,16 @@ export function AddToWishlistButton({ card }: Props) {
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          aria-label="Save to wishlist"
-          title="Save to wishlist"
-          className="rounded p-1 text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
+          aria-label={isPrimary ? 'Add as chasing' : 'Save to wishlist'}
+          title={isPrimary ? 'Add as chasing' : 'Save to wishlist'}
+          className={
+            isPrimary
+              ? 'inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-sun-300 px-3 py-2 text-sm font-semibold text-husk-500 shadow-sm transition-colors hover:bg-sun-200 focus:outline-none focus:ring-2 focus:ring-sun-300 disabled:opacity-50 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200'
+              : 'rounded p-1 text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors'
+          }
         >
-          <Footprints size={13} />
+          <Footprints size={isPrimary ? 16 : 13} aria-hidden />
+          {isPrimary && <span>Add as chasing</span>}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
