@@ -144,6 +144,7 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
       if (isEdit && editing) {
         await update(editing.id, {
           name: name.trim(),
+          binder_type: null,
           ...(editMode === 'binder'
             ? {
                 binder_format: format || null,

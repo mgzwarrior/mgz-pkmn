@@ -203,6 +203,7 @@ export function BinderInventory() {
           {binders.map((b) => {
             const swatch = coverSwatch(b.binder_color)
             const filed = collectionsByBinder.get(b.id) ?? []
+            const storageType = BINDER_TYPE_OPTIONS.find((o) => o.value === b.binder_type)?.label
             return (
               <li
                 key={b.id}
@@ -220,6 +221,7 @@ export function BinderInventory() {
                       {filed.length === 0
                         ? 'Empty'
                         : `${filed.length} ${filed.length === 1 ? 'collection' : 'collections'}`}
+                      {storageType ? ` · ${storageType}` : ''}
                       {b.binder_format ? ` · ${b.binder_format}` : ''}
                       {b.capacity ? ` · ${b.capacity} slots` : ''}
                     </p>

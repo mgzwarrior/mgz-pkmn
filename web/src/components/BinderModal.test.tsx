@@ -120,10 +120,11 @@ describe('BinderModal', () => {
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         8,
-        expect.objectContaining({ name: 'All Eevees' }),
+        expect.objectContaining({ name: 'All Eevees', binder_type: null }),
       ),
     )
-    // The edit no longer touches cover color.
+    // The edit clears legacy collection storage type while leaving cover color
+    // on the binder inventory unit.
     const [, patch] = mockUpdate.mock.calls[0]
     expect(patch).not.toHaveProperty('binder_color')
   })
@@ -158,7 +159,7 @@ describe('BinderModal', () => {
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         7,
-        expect.objectContaining({ name: 'Show binder 2' }),
+        expect.objectContaining({ name: 'Show binder 2', binder_type: null }),
       ),
     )
   })

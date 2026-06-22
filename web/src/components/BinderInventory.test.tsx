@@ -82,6 +82,15 @@ describe('BinderInventory', () => {
     expect(screen.getByText(/Empty · 9-pocket · 360 slots/i)).toBeInTheDocument()
   })
 
+  it('shows the saved storage type in the binder metadata', async () => {
+    mockFetch.mockResolvedValue([
+      binder({ binder_type: 'graded', capacity: null, binder_format: null }),
+    ] as never)
+    render(<BinderInventory />)
+    expect(await screen.findByText('Base Set binder')).toBeInTheDocument()
+    expect(screen.getByText(/Empty · Graded slabs/i)).toBeInTheDocument()
+  })
+
   it('shows the filed collections and a live count under a binder', async () => {
     mockFetch.mockResolvedValue([
       binder({ id: 1, is_empty: false, collection_count: 2, capacity: null, binder_format: null }),
