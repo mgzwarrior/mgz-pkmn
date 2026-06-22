@@ -647,4 +647,25 @@ describe('CardDetailModal — library actions (#699)', () => {
     expect(await screen.findByText(/owned ×2/i)).toBeInTheDocument()
     expect(screen.getByTitle(/Chasing on Chase list/i)).toBeInTheDocument()
   })
+
+  it('surfaces the named collections and want-lists a card belongs to', async () => {
+    vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
+      'base1::4': {
+        collections: [
+          { id: 1, name: 'Base Set masters', quantity: 1 },
+          { id: 2, name: 'Trade binder', quantity: 3 },
+        ],
+        wishlists: [{ id: 3, name: 'Allentown chase list' }],
+      },
+    })
+
+    render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+
+    const locations = await screen.findByLabelText(/Library locations/i)
+    expect(within(locations).getByText('In:')).toBeInTheDocument()
+    expect(within(locations).getByText('Base Set masters')).toBeInTheDocument()
+    expect(within(locations).getByText('Trade binder ×3')).toBeInTheDocument()
+    expect(within(locations).getByText('Want:')).toBeInTheDocument()
+    expect(within(locations).getByText('Allentown chase list')).toBeInTheDocument()
+  })
 })

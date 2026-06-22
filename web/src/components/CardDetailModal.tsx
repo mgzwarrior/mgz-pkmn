@@ -255,6 +255,7 @@ function CardDetailBody({
                   </h3>
                   <OwnershipBadge ownership={ownership} />
                 </div>
+                <LibraryLocations ownership={ownership} />
                 <SaveCardActions
                   card={card as unknown as Record<string, unknown>}
                   show={showActions}
@@ -330,6 +331,51 @@ function CardDetailBody({
         </div>
       </div>
     </>
+  )
+}
+
+function LibraryLocations({
+  ownership,
+}: {
+  ownership: CardOwnership | null | undefined
+}) {
+  if (!ownership) return null
+  const { collections, wishlists } = ownership
+  if (collections.length === 0 && wishlists.length === 0) return null
+
+  return (
+    <div
+      aria-label="Library locations"
+      className="mb-3 space-y-1.5 rounded-md bg-sand-100 px-2.5 py-2 text-xs text-coconut-500 dark:bg-husk-300 dark:text-sand-200"
+    >
+      {collections.length > 0 && (
+        <LocationLine
+          label="In:"
+          names={collections.map((c) =>
+            c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name,
+          )}
+        />
+      )}
+      {wishlists.length > 0 && (
+        <LocationLine label="Want:" names={wishlists.map((w) => w.name)} />
+      )}
+    </div>
+  )
+}
+
+function LocationLine({ label, names }: { label: string; names: string[] }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="font-semibold text-coconut-600 dark:text-sand-100">{label}</span>
+      {names.map((name) => (
+        <span
+          key={name}
+          className="rounded-full bg-sand-200 px-1.5 py-0.5 text-coconut-600 dark:bg-husk-100 dark:text-sand-100"
+        >
+          {name}
+        </span>
+      ))}
+    </div>
   )
 }
 
