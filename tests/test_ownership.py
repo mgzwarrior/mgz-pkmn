@@ -190,5 +190,98 @@ class OwnershipEndpointTests(_IsolatedDbMixin):
             self.assertEqual(set(body.keys()), {"base1::4"})
 
 
+class QuickActionTests(_IsolatedDbMixin):
+    """One-tap want / own against the user's defaults (#760, ADR-0027)."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def test_want_adds_to_default_wishlist_and_is_idempotent(self) -> None:
+        from sqlalchemy import select
+
+        from api.db.models import Wishlist
+
+        with self._client() as c:
+            first = c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            self.assertEqual(first.status_code, 200)
+            body = first.json()
+            self.assertTrue(body["wanted"])
+            self.assertFalse(body["owned"])
+            self.assertEqual(len(body["wishlists"]), 1)
+
+            # Re-tapping is a no-op — still exactly one wishlist, one item.
+            again = c.post("/api/v1/cards/want", json={"card": CHARIZARD}).json()
+            self.assertEqual(len(again["wishlists"]), 1)
+            self.assertEqual(len(c.get("/api/v1/wishlists").json()["items"]), 1)
+
+        sf = session_mod.get_session_factory()
+        with sf() as db:
+            lists = db.scalars(select(Wishlist)).all()
+            self.assertEqual(len(lists), 1)
+            self.assertTrue(lists[0].is_default)
+
+    def test_unwant_removes_from_default_wishlist(self) -> None:
+        with self._client() as c:
+            c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            body = c.post("/api/v1/cards/unwant", json={"card": CHARIZARD}).json()
+            self.assertFalse(body["wanted"])
+            self.assertEqual(body["wishlists"], [])
+
+    def test_own_adds_to_default_collection_and_is_idempotent(self) -> None:
+        with self._client() as c:
+            body = c.post("/api/v1/cards/own", json={"card": CHARIZARD}).json()
+            self.assertTrue(body["owned"])
+            self.assertEqual(len(body["collections"]), 1)
+            self.assertEqual(body["collections"][0]["quantity"], 1)
+
+            again = c.post("/api/v1/cards/own", json={"card": CHARIZARD}).json()
+            # Idempotent — one row, quantity unchanged (quantity flows are #762).
+            self.assertEqual(len(again["collections"]), 1)
+            self.assertEqual(again["collections"][0]["quantity"], 1)
+
+    def test_unown_removes_from_default_collection(self) -> None:
+        with self._client() as c:
+            c.post("/api/v1/cards/own", json={"card": CHARIZARD})
+            body = c.post("/api/v1/cards/unown", json={"card": CHARIZARD}).json()
+            self.assertFalse(body["owned"])
+            self.assertEqual(body["collections"], [])
+
+    def test_owning_a_wanted_card_stamps_the_chase_complete(self) -> None:
+        from sqlalchemy import select
+
+        from api.db.models import WishlistItem
+
+        with self._client() as c:
+            c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            body = c.post("/api/v1/cards/own", json={"card": CHARIZARD}).json()
+            # A card can be both wanted (history preserved) and owned.
+            self.assertTrue(body["owned"])
+            self.assertTrue(body["wanted"])
+
+        sf = session_mod.get_session_factory()
+        with sf() as db:
+            item = db.scalar(select(WishlistItem))
+            self.assertIsNotNone(item.acquired_at)
+            self.assertIsNotNone(item.acquired_collection_item_id)
+
+    def test_unowning_clears_the_chase_stamp(self) -> None:
+        from sqlalchemy import select
+
+        from api.db.models import WishlistItem
+
+        with self._client() as c:
+            c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            c.post("/api/v1/cards/own", json={"card": CHARIZARD})
+            c.post("/api/v1/cards/unown", json={"card": CHARIZARD})
+
+        sf = session_mod.get_session_factory()
+        with sf() as db:
+            item = db.scalar(select(WishlistItem))
+            self.assertIsNone(item.acquired_at)
+            self.assertIsNone(item.acquired_collection_item_id)
+
+
 if __name__ == "__main__":
     unittest.main()

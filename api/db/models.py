@@ -225,6 +225,8 @@ ADDED_VIA_WISHLIST_PROMOTE = "wishlist_promote"
 ADDED_VIA_HAUL = "haul"
 ADDED_VIA_DYNAMIC_MATCH = "dynamic_match"
 ADDED_VIA_SWIPE = "swipe"
+#: One-tap `Own` quick action against the user's default collection (#760).
+ADDED_VIA_QUICK = "quick"
 
 
 class Binder(Base):
