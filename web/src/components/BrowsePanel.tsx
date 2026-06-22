@@ -19,6 +19,7 @@ import { CardDetailModal } from './CardDetailModal'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
+import { SetIdCardsButton } from './SetIdCardsButton'
 import type { CardOwnership } from '../api/client'
 import type {
   BrowseController,
@@ -143,6 +144,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
               Create binder
             </button>
           )}
+          <SetIdCardsButton />
           <ViewModeToggle value={viewMode} onChange={setViewMode} />
         </div>
       </header>

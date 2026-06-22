@@ -303,7 +303,15 @@ function App() {
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
           </button>
           <div className="flex items-center gap-2">
-            <HelpModal onStartTour={() => setTourOpen(true)} />
+            <HelpModal
+              onStartTour={() => {
+                // The tour seeds the card list and runs a lookup, and several
+                // of its steps (input, results, exports) target Search-only
+                // nodes — start it from Search so every target is mounted.
+                setMode('search')
+                setTourOpen(true)
+              }}
+            />
             <div data-tour="settings">
               <SettingsDrawer />
             </div>
