@@ -381,6 +381,18 @@ describe('App: discovery mode switcher', () => {
     ).toBeInTheDocument()
   })
 
+  it('surfaces Export in Search mode but not in Browse or Swipe', () => {
+    render(<App />)
+    // Search is the default mode — Export lives in the Results section.
+    expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument()
+
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
+    expect(screen.queryByRole('button', { name: /Export/i })).not.toBeInTheDocument()
+
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Swipe/ }))
+    expect(screen.queryByRole('button', { name: /Export/i })).not.toBeInTheDocument()
+  })
+
   it('switching back to Search restores the editor without losing input', () => {
     useAppStore.setState({ inputText: 'Charizard | Base Set | 4' })
     render(<App />)
