@@ -343,6 +343,9 @@ describe('App: discovery mode switcher', () => {
     resetStore()
     _resetAuthStoreForTests()
     mockBulkLookup.mockReset()
+    // jsdom doesn't implement scrollIntoView; the Tour highlights its target
+    // with it on mount, so stub it for the take-the-tour path.
+    Element.prototype.scrollIntoView = vi.fn()
   })
 
   // The Library panel's tablist now also lives in App, so scope every
@@ -379,6 +382,35 @@ describe('App: discovery mode switcher', () => {
     expect(
       screen.getByText(/One card at a time — right to save/i),
     ).toBeInTheDocument()
+  })
+
+  it('surfaces Export in Search mode but not in Browse or Swipe', () => {
+    render(<App />)
+    // Search is the default mode — Export lives in the Results section.
+    expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument()
+
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
+    expect(screen.queryByRole('button', { name: /Export/i })).not.toBeInTheDocument()
+
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Swipe/ }))
+    expect(screen.queryByRole('button', { name: /Export/i })).not.toBeInTheDocument()
+  })
+
+  it('starting the tour from Browse switches back to Search so its targets mount', async () => {
+    render(<App />)
+    fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
+    expect(discoveryTabs().getByRole('tab', { name: /Browse/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Help/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /Take the tour/i }))
+
+    expect(discoveryTabs().getByRole('tab', { name: /Search/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   })
 
   it('switching back to Search restores the editor without losing input', () => {

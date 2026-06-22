@@ -3,12 +3,15 @@
  *
  * Layout:
  *   ┌──────────────────────────────────┐
- *   │  Header (logo · settings · export)│
+ *   │  Header (logo · settings)         │
  *   ├──────────────────────────────────┤
  *   │  InputEditor (card list textarea) │
  *   ├──────────────────────────────────┤
- *   │  ResultsTable (streaming rows)    │
+ *   │  Results (export · streaming rows)│
  *   └──────────────────────────────────┘
+ *
+ * Export lives in the Search-mode Results section — it only applies to
+ * matched rows, so Browse and Swipe don't surface it.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -300,10 +303,15 @@ function App() {
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
           </button>
           <div className="flex items-center gap-2">
-            <div data-tour="exports">
-              <ExportBar />
-            </div>
-            <HelpModal onStartTour={() => setTourOpen(true)} />
+            <HelpModal
+              onStartTour={() => {
+                // The tour seeds the card list and runs a lookup, and several
+                // of its steps (input, results, exports) target Search-only
+                // nodes — start it from Search so every target is mounted.
+                setMode('search')
+                setTourOpen(true)
+              }}
+            />
             <div data-tour="settings">
               <SettingsDrawer />
             </div>
@@ -365,9 +373,14 @@ function App() {
                 </section>
 
                 <section data-tour="results">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-                    Results
-                  </h2>
+                  <div className="mb-2 flex items-end justify-between gap-2">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                      Results
+                    </h2>
+                    <div data-tour="exports">
+                      <ExportBar />
+                    </div>
+                  </div>
                   <div className="flex flex-col gap-3">
                     <ProcessingQueue />
                     <ResultsTable onRerunLine={handleRerunLine} />
