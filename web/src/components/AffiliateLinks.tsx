@@ -23,6 +23,26 @@ const INLINE_CLASS =
 const PILL_CLASS =
   'inline-flex items-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 px-2.5 py-1 text-xs font-semibold text-palm-600 hover:border-palm-400 hover:text-palm-500 dark:text-sun-300 dark:hover:border-sun-300/60 dark:hover:text-sun-200 transition-colors'
 
+function MarketplaceLogo({ marketplace }: { marketplace: 'ebay' | 'tcgplayer' }) {
+  if (marketplace === 'ebay') {
+    return (
+      <span aria-hidden="true" className="inline-flex items-baseline text-sm font-semibold tracking-normal">
+        <span className="text-[#e53238]">e</span>
+        <span className="text-[#0064d2]">B</span>
+        <span className="text-[#f5af02]">a</span>
+        <span className="text-[#86b817]">y</span>
+      </span>
+    )
+  }
+
+  return (
+    <span aria-hidden="true" className="inline-flex items-baseline text-sm font-semibold tracking-normal">
+      <span className="text-[#0073cf]">TCG</span>
+      <span className="text-coconut-500 dark:text-sand-200">player</span>
+    </span>
+  )
+}
+
 export function AffiliateLinks({
   card,
   variant = 'inline',
@@ -41,8 +61,15 @@ export function AffiliateLinks({
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       {ebay && (
-        <a href={ebay} target="_blank" rel={REL} className={linkClass} title="Find on eBay">
-          eBay
+        <a
+          href={ebay}
+          target="_blank"
+          rel={REL}
+          className={linkClass}
+          title="Find on eBay"
+          aria-label="Find on eBay"
+        >
+          <MarketplaceLogo marketplace="ebay" />
           <ExternalLink size={11} />
         </a>
       )}
@@ -53,8 +80,9 @@ export function AffiliateLinks({
           rel={REL}
           className={linkClass}
           title="Find on TCGPlayer"
+          aria-label="Find on TCGPlayer"
         >
-          TCGPlayer
+          <MarketplaceLogo marketplace="tcgplayer" />
           <ExternalLink size={11} />
         </a>
       )}
