@@ -319,6 +319,25 @@ describe('App: bulk-run timestamp lifecycle', () => {
   })
 })
 
+describe('App: footer disclosures', () => {
+  beforeEach(() => {
+    resetStore()
+    _resetAuthStoreForTests()
+    mockBulkLookup.mockReset()
+    mockLookupLine.mockReset()
+    mockParseLine.mockReset()
+  })
+
+  it('discloses the marketplace affiliate relationship in the app footer', () => {
+    render(<App />)
+    expect(
+      screen.getByText(
+        /Affiliate disclosure: mgz-pkmn may earn from qualifying purchases through eBay and TCGplayer links\./,
+      ),
+    ).toBeInTheDocument()
+  })
+})
+
 describe('App: discovery mode switcher', () => {
   beforeEach(() => {
     resetStore()

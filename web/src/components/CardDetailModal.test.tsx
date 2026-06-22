@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { CardDetailModal } from './CardDetailModal'
 import type { Row } from '../types'
 import * as client from '../api/client'
@@ -552,9 +552,11 @@ describe('CardDetailModal', () => {
     expect(ebay).toHaveAttribute('href', expect.stringContaining('Charizard'))
     expect(ebay).toHaveAttribute('rel', 'sponsored noopener')
     expect(ebay).toHaveAttribute('target', '_blank')
+    expect(within(ebay).getByAltText('eBay')).toHaveAttribute('src', expect.stringContaining('svg'))
     // Routed through the TCGPlayer Impact tracking redirect (#696).
     expect(tcg).toHaveAttribute('href', expect.stringContaining('partner.tcgplayer.com/c/'))
     expect(tcg).toHaveAttribute('rel', 'sponsored noopener')
+    expect(within(tcg).getByAltText('TCGplayer')).toHaveAttribute('src', expect.stringContaining('svg'))
   })
 
   it('omits the Buy block when the card has no name to search on', () => {

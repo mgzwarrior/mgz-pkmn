@@ -198,9 +198,11 @@ describe('ResultsTable', () => {
     const tcg = screen.getByTitle('Find on TCGPlayer')
     expect(ebay).toHaveAttribute('href', expect.stringContaining('ebay.com/sch'))
     expect(ebay).toHaveAttribute('rel', 'sponsored noopener')
+    expect(within(ebay).getByAltText('eBay')).toHaveAttribute('src', expect.stringContaining('svg'))
     // Routed through the TCGPlayer Impact tracking redirect (#696).
     expect(tcg).toHaveAttribute('href', expect.stringContaining('partner.tcgplayer.com/c/'))
     expect(tcg).toHaveAttribute('rel', 'sponsored noopener')
+    expect(within(tcg).getByAltText('TCGplayer')).toHaveAttribute('src', expect.stringContaining('svg'))
     useAppStore.setState({ rows: [] })
   })
 

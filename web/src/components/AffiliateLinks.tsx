@@ -11,17 +11,35 @@
  *   - `inline` (default) — compact text links for the results-table row.
  *   - `pill` — bordered buttons for the card detail modal's "Buy" block.
  */
-import { ExternalLink } from 'lucide-react'
 import type { CardData } from '../types'
 import { ebayAffiliateUrl, tcgplayerAffiliateUrl } from '../utils/affiliateLinks'
+import ebayLogoUrl from '../../../assets/marketplaces/ebay.svg'
+import tcgplayerLogoUrl from '../../../assets/marketplaces/tcgplayer.svg'
 
 const REL = 'sponsored noopener'
 
-const INLINE_CLASS =
-  'inline-flex items-center gap-0.5 text-xs font-medium text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors'
+// The marketplace wordmarks are full-color and TCGplayer's is near-black, so
+// each chip keeps a warm off-white plate (--sand-50) in both themes — the
+// logos need a light backing to stay legible on the dark husk surface. Using
+// the page tone (not pure white) plus a hairline border and soft shadow lets
+// the chip read as part of the tropical UI rather than a pasted sticker.
+const CHIP_CLASS =
+  'inline-flex items-center rounded-md bg-sand-50 border border-sand-200 shadow-sm transition-all hover:border-palm-400 hover:shadow'
 
-const PILL_CLASS =
-  'inline-flex items-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 px-2.5 py-1 text-xs font-semibold text-palm-600 hover:border-palm-400 hover:text-palm-500 dark:text-sun-300 dark:hover:border-sun-300/60 dark:hover:text-sun-200 transition-colors'
+const INLINE_CLASS = `${CHIP_CLASS} px-1.5 py-1`
+const PILL_CLASS = `${CHIP_CLASS} px-2.5 py-1.5`
+
+function MarketplaceLogo({ marketplace }: { marketplace: 'ebay' | 'tcgplayer' }) {
+  const isEbay = marketplace === 'ebay'
+  const src = isEbay ? ebayLogoUrl : tcgplayerLogoUrl
+  const alt = isEbay ? 'eBay' : 'TCGplayer'
+
+  // Optically match the two marks: eBay is square-ish, TCGplayer's wordmark is
+  // wider, so we pin a shared cap-height and let width follow.
+  const sizeClass = isEbay ? 'h-3 w-auto' : 'h-3.5 w-auto'
+
+  return <img src={src} alt={alt} className={sizeClass} loading="lazy" />
+}
 
 export function AffiliateLinks({
   card,
@@ -41,9 +59,15 @@ export function AffiliateLinks({
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       {ebay && (
-        <a href={ebay} target="_blank" rel={REL} className={linkClass} title="Find on eBay">
-          eBay
-          <ExternalLink size={11} />
+        <a
+          href={ebay}
+          target="_blank"
+          rel={REL}
+          className={linkClass}
+          title="Find on eBay"
+          aria-label="Find on eBay"
+        >
+          <MarketplaceLogo marketplace="ebay" />
         </a>
       )}
       {tcg && (
@@ -53,9 +77,9 @@ export function AffiliateLinks({
           rel={REL}
           className={linkClass}
           title="Find on TCGPlayer"
+          aria-label="Find on TCGPlayer"
         >
-          TCGPlayer
-          <ExternalLink size={11} />
+          <MarketplaceLogo marketplace="tcgplayer" />
         </a>
       )}
     </div>
