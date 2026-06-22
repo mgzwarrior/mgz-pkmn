@@ -75,7 +75,10 @@ class FavoriteSpeciesMigrationTests(_IsolatedDbMixin):
         from alembic.config import Config
 
         cfg = Config(str(Path(__file__).resolve().parents[1] / "api" / "alembic.ini"))
-        downgrade(cfg, "-1")
+        # Downgrade to favorite_species' parent so this stays valid as later
+        # migrations stack on top — a relative "-1" only drops favorite_species
+        # while it's the head, which it no longer is (#759 added one above it).
+        downgrade(cfg, "c8b4e1f6a2d7")
         insp = inspect(session_mod.get_engine())
         self.assertNotIn("favorite_species", insp.get_table_names())
         self.assertNotIn(
