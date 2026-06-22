@@ -404,6 +404,7 @@ def collection_insights(db: DbSession, current_user: CurrentUser) -> dict:
             CollectionItem.card_types_json,
             CollectionItem.quantity,
             CollectionItem.price_snapshot,
+            Collection.id,
             Collection.name,
         )
         .join(Collection, CollectionItem.collection_id == Collection.id)

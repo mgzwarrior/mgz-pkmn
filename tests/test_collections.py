@@ -1057,6 +1057,36 @@ class CollectionInsightsTests(_IsolatedDbMixin):
             colls = {b["label"]: b["value"] for b in body["value_by_collection"]}
             self.assertEqual(colls, {"Owned": 510.0, "Trade Stock": 30.0})
 
+    def test_insights_value_by_collection_keys_by_id_not_name(self) -> None:
+        # Two binders share a display name; their values must stay separate.
+        priced = {**SAMPLE_CARD, "market_price": 100.0}
+        with self._client() as c:
+            a = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]
+            b = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]
+            c.post(f"/api/v1/collections/{a}/items", json={"card": priced})
+            c.post(f"/api/v1/collections/{b}/items", json={"card": priced, "quantity": 2})
+
+            bars = c.get("/api/v1/collections/insights").json()["value_by_collection"]
+            # Two bars, not one merged $300 bar.
+            self.assertEqual(len(bars), 2)
+            self.assertEqual(sorted(b["value"] for b in bars), [100.0, 200.0])
+            self.assertEqual({b["label"] for b in bars}, {"Trade Stock"})
+
+    def test_insights_crown_jewels_include_identity_less_priced_rows(self) -> None:
+        # A pricey card with no promoted (set, number) identity still counts.
+        custom = {"name": "Custom Slab", "market_price": 999.0}
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Owned"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": custom})
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": {**SAMPLE_CARD, "market_price": 50.0}},
+            )
+
+            jewels = c.get("/api/v1/collections/insights").json()["top_value_cards"]
+            self.assertEqual(jewels[0]["card_name"], "Custom Slab")
+            self.assertEqual(jewels[0]["price"], 999.0)
+
     def test_insights_flags_vendor_multiples(self) -> None:
         with self._client() as c:
             cid = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]

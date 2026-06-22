@@ -128,11 +128,13 @@ def _top_labels(buckets: dict[str, set]) -> list[LabeledCount]:
     return [LabeledCount(label=label, count=len(cards)) for label, cards in ranked[:_TOP_N]]
 
 
-def _top_values(buckets: dict[str, float]) -> list[LabeledValue]:
-    """Top-N labels by summed value, ties broken alphabetically. Empty
-    (zero-value) buckets are dropped so the breakdown only shows priced rows."""
+def _top_values(pairs: list[tuple[str, float]]) -> list[LabeledValue]:
+    """Top-N (label, value) pairs by summed value, ties broken alphabetically.
+    Empty (zero-value) entries are dropped so the breakdown only shows priced
+    rows. Callers pass pre-labelled pairs so a value aggregated by a stable key
+    (e.g. collection id) can still display a non-unique name."""
     ranked = sorted(
-        ((label, value) for label, value in buckets.items() if value > 0),
+        ((label, value) for label, value in pairs if value > 0),
         key=lambda kv: (-kv[1], kv[0]),
     )
     return [LabeledValue(label=label, value=round(value, 2)) for label, value in ranked[:_TOP_N]]
@@ -149,25 +151,39 @@ def aggregate_items(rows: list) -> dict[str, Any]:
     rarity_cards: dict[str, set] = defaultdict(set)
     set_cards: dict[str, set] = defaultdict(set)
     set_value: dict[str, float] = defaultdict(float)
-    collection_value: dict[str, float] = defaultdict(float)
+    # Keyed by collection id, not name — names aren't unique, so two binders
+    # sharing a display name must stay separate bars (Codex review on #741).
+    collection_value: dict[int, float] = defaultdict(float)
+    collection_label: dict[int, str] = {}
     owned_collections: dict[tuple, set] = defaultdict(set)
     owned_quantity: dict[tuple, int] = defaultdict(int)
     owned_price: dict[tuple, float] = {}  # best per-copy snapshot per identity
     owned_meta: dict[tuple, dict] = {}
+    # Priced rows with no promoted identity can't be grouped, but they still
+    # contribute to estimated value — keep them as standalone crown-jewel
+    # candidates so an expensive legacy/custom card isn't silently dropped.
+    extra_value_cards: list[ValueCard] = []
     multiples: list[DuplicateCard] = []
 
-    for set_id, number, name, rarity, types, quantity, price, coll_name in rows:
+    for set_id, number, name, rarity, types, quantity, price, coll_id, coll_name in rows:
         qty = quantity or 0
         total_quantity += qty
+        collection_label[coll_id] = coll_name
         if price is not None:
             unit = float(price)
             estimated_value += unit * qty
-            collection_value[coll_name] += unit * qty
+            collection_value[coll_id] += unit * qty
             if set_id:
                 set_value[set_id] += unit * qty
         ident = _identity(set_id, number)
         if ident is None:
             unique_extra += 1
+            if price is not None:
+                extra_value_cards.append(
+                    ValueCard(
+                        card_name=name, card_set_id=set_id, card_number=number, price=float(price)
+                    )
+                )
         else:
             owned_collections[ident].add(coll_name)
             owned_quantity[ident] += qty
@@ -203,12 +219,11 @@ def aggregate_items(rows: list) -> dict[str, Any]:
     ]
     cross.sort(key=lambda c: (-len(c.collections), -c.total_quantity, c.card_name or ""))
 
-    top_value_cards = [
-        ValueCard(price=round(owned_price[ident], 2), **owned_meta[ident])
-        for ident in sorted(
-            owned_price, key=lambda i: (-owned_price[i], owned_meta[i]["card_name"] or "")
-        )[:_TOP_N]
-    ]
+    value_cards = [
+        ValueCard(price=round(owned_price[ident], 2), **owned_meta[ident]) for ident in owned_price
+    ] + extra_value_cards
+    value_cards.sort(key=lambda c: (-c.price, c.card_name or ""))
+    top_value_cards = value_cards[:_TOP_N]
 
     return {
         "total_quantity": total_quantity,
@@ -218,8 +233,10 @@ def aggregate_items(rows: list) -> dict[str, Any]:
         "top_rarities": _top_labels(rarity_cards),
         "top_sets": _top_labels(set_cards),
         "top_value_cards": top_value_cards,
-        "value_by_set": _top_values(set_value),
-        "value_by_collection": _top_values(collection_value),
+        "value_by_set": _top_values(list(set_value.items())),
+        "value_by_collection": _top_values(
+            [(collection_label[cid], v) for cid, v in collection_value.items()]
+        ),
         "duplicate_multiples": multiples[:_LIST_CAP],
         "cross_collection": cross[:_LIST_CAP],
         "owned_collections": owned_collections,
