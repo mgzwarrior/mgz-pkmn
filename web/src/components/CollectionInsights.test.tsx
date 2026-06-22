@@ -18,6 +18,9 @@ function insights(overrides: Partial<Insights> = {}): Insights {
     ],
     top_rarities: [{ label: 'Rare Holo', count: 1 }],
     top_sets: [{ label: 'base1', count: 2 }],
+    top_value_cards: [],
+    value_by_set: [],
+    value_by_collection: [],
     duplicate_multiples: [],
     cross_collection: [],
     already_owned_chasing: [],
@@ -96,6 +99,27 @@ describe('CollectionInsights', () => {
     const nudge = screen.getByText('Already in a binder').closest('section')!
     expect(within(nudge).getByText('Blastoise')).toBeInTheDocument()
     expect(within(nudge).getByText('Chase')).toBeInTheDocument()
+  })
+
+  it('renders the most-valuable cards and value breakdowns (#741)', async () => {
+    mockFetch.mockResolvedValue(
+      insights({
+        top_value_cards: [
+          { card_name: 'Charizard', card_set_id: 'base1', card_number: '4', price: 250 },
+          { card_name: 'Blastoise', card_set_id: 'base1', card_number: '2', price: 80 },
+        ],
+        value_by_set: [{ label: 'base1', value: 330 }],
+        value_by_collection: [{ label: 'Show Binder', value: 330 }],
+      }),
+    )
+    render(<CollectionInsights open onOpenChange={() => {}} />)
+
+    await waitFor(() => expect(screen.getByText('Most valuable cards')).toBeInTheDocument())
+    const jewels = screen.getByText('Most valuable cards').closest('section')!
+    expect(within(jewels).getByText('Charizard')).toBeInTheDocument()
+    expect(within(jewels).getByText('$250.00')).toBeInTheDocument()
+    expect(screen.getByText('Value by set')).toBeInTheDocument()
+    expect(screen.getByText('Value by binder')).toBeInTheDocument()
   })
 
   it('does not fetch while closed', () => {

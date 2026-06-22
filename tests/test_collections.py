@@ -997,6 +997,9 @@ class CollectionInsightsTests(_IsolatedDbMixin):
                 {"collections": 0, "unique_cards": 0, "total_quantity": 0, "estimated_value": 0.0},
             )
             self.assertEqual(body["top_types"], [])
+            self.assertEqual(body["top_value_cards"], [])
+            self.assertEqual(body["value_by_set"], [])
+            self.assertEqual(body["value_by_collection"], [])
             self.assertEqual(body["duplicate_multiples"], [])
             self.assertEqual(body["cross_collection"], [])
             self.assertEqual(body["already_owned_chasing"], [])
@@ -1027,6 +1030,62 @@ class CollectionInsightsTests(_IsolatedDbMixin):
             self.assertEqual(types, {"Fire": 1, "Colorless": 1, "Water": 1})
             rarities = {b["label"]: b["count"] for b in body["top_rarities"]}
             self.assertEqual(rarities["Rare Holo"], 1)
+
+    def test_insights_value_breakdowns(self) -> None:
+        charizard = {**SAMPLE_CARD, "market_price": 250.0}  # base1, Charizard
+        eevee = {**EEVEE_CARD, "market_price": 10.0}  # sv1
+        with self._client() as c:
+            owned = c.post("/api/v1/collections", json={"name": "Owned"}).json()["id"]
+            trade = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]
+            c.post(f"/api/v1/collections/{owned}/items", json={"card": charizard, "quantity": 2})
+            c.post(f"/api/v1/collections/{owned}/items", json={"card": eevee})
+            c.post(f"/api/v1/collections/{trade}/items", json={"card": eevee, "quantity": 3})
+
+            body = c.get("/api/v1/collections/insights").json()
+
+            # Crown jewels ranked by per-copy snapshot, not summed value.
+            jewels = body["top_value_cards"]
+            self.assertEqual(jewels[0]["card_name"], "Charizard")
+            self.assertEqual(jewels[0]["price"], 250.0)
+            self.assertEqual(jewels[1]["price"], 10.0)
+
+            # Value by set: base1 = 250*2 = 500; sv1 = 10*1 + 10*3 = 40.
+            sets = {b["label"]: b["value"] for b in body["value_by_set"]}
+            self.assertEqual(sets, {"base1": 500.0, "sv1": 40.0})
+
+            # Value by collection: Owned = 500 + 10 = 510; Trade Stock = 30.
+            colls = {b["label"]: b["value"] for b in body["value_by_collection"]}
+            self.assertEqual(colls, {"Owned": 510.0, "Trade Stock": 30.0})
+
+    def test_insights_value_by_collection_keys_by_id_not_name(self) -> None:
+        # Two binders share a display name; their values must stay separate.
+        priced = {**SAMPLE_CARD, "market_price": 100.0}
+        with self._client() as c:
+            a = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]
+            b = c.post("/api/v1/collections", json={"name": "Trade Stock"}).json()["id"]
+            c.post(f"/api/v1/collections/{a}/items", json={"card": priced})
+            c.post(f"/api/v1/collections/{b}/items", json={"card": priced, "quantity": 2})
+
+            bars = c.get("/api/v1/collections/insights").json()["value_by_collection"]
+            # Two bars, not one merged $300 bar.
+            self.assertEqual(len(bars), 2)
+            self.assertEqual(sorted(b["value"] for b in bars), [100.0, 200.0])
+            self.assertEqual({b["label"] for b in bars}, {"Trade Stock"})
+
+    def test_insights_crown_jewels_include_identity_less_priced_rows(self) -> None:
+        # A pricey card with no promoted (set, number) identity still counts.
+        custom = {"name": "Custom Slab", "market_price": 999.0}
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Owned"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": custom})
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": {**SAMPLE_CARD, "market_price": 50.0}},
+            )
+
+            jewels = c.get("/api/v1/collections/insights").json()["top_value_cards"]
+            self.assertEqual(jewels[0]["card_name"], "Custom Slab")
+            self.assertEqual(jewels[0]["price"], 999.0)
 
     def test_insights_flags_vendor_multiples(self) -> None:
         with self._client() as c:

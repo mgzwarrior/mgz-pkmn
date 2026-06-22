@@ -27,6 +27,7 @@ import { LibraryPanel } from './components/LibraryPanel'
 import { ResultsTable } from './components/ResultsTable'
 import { consumePendingSaveSearch, type PendingSaveSearch } from './components/pendingSaveSearch'
 import { ExportBar } from './components/ExportBar'
+import { InsightsNavButton } from './components/InsightsNavButton'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { HelpModal } from './components/HelpModal'
@@ -303,6 +304,7 @@ function App() {
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
           </button>
           <div className="flex items-center gap-2">
+            <InsightsNavButton />
             <HelpModal
               onStartTour={() => {
                 // The tour seeds the card list and runs a lookup, and several
