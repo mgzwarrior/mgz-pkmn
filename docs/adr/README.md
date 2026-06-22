@@ -37,6 +37,7 @@ not just the shape.
 | [0024](0024-claude-review-github-action.md) | Wire up `anthropics/claude-code-action` for `@claude` PR review | Accepted | 2026-06-08 |
 | [0025](0025-collections-data-model-rework.md) | Collections data model rework — separate-but-linked wishlists, promoted card identity, lifecycle as data, first-class snapshots | Accepted | 2026-06-09 |
 | [0026](0026-tropical-export-palette.md) | Source export colors from a parity-tested tropical palette module (light only) | Accepted | 2026-06-09 |
+| [0027](0027-default-card-quick-actions.md) | Default card quick actions for wanted and owned cards | Proposed | 2026-06-22 |
 
 ## Adding a new ADR
 
