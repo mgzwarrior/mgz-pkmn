@@ -10,17 +10,21 @@ import { AddToWishlistButton } from './AddToWishlistButton'
 export function SaveCardActions({
   card,
   show,
+  variant = 'icon',
   className = '',
 }: {
   card: Record<string, unknown>
   show: boolean
+  variant?: 'icon' | 'primary'
   className?: string
 }) {
   if (!show) return null
+  const layout =
+    variant === 'primary' ? 'grid grid-cols-1 gap-2 sm:grid-cols-2' : 'flex items-center gap-1'
   return (
-    <div className={`flex items-center gap-1 ${className}`}>
-      <AddToCollectionButton card={card} />
-      <AddToWishlistButton card={card} />
+    <div className={`${layout} ${className}`}>
+      <AddToCollectionButton card={card} variant={variant} />
+      <AddToWishlistButton card={card} variant={variant} />
     </div>
   )
 }

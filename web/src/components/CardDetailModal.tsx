@@ -245,14 +245,22 @@ function CardDetailBody({
                 Signed-in + matched cards only; both pieces self-hide when
                 there's nothing to show. */}
             {showActions && card && (
-              <div className="flex items-center gap-3">
-                <OwnershipBadge ownership={ownership} />
+              <section
+                aria-label="Library actions"
+                className="rounded-md border border-sand-300 bg-sand-50 p-3 shadow-sm dark:border-husk-50 dark:bg-husk-400"
+              >
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                    Library actions
+                  </h3>
+                  <OwnershipBadge ownership={ownership} />
+                </div>
                 <SaveCardActions
                   card={card as unknown as Record<string, unknown>}
                   show={showActions}
-                  className="ml-auto"
+                  variant="primary"
                 />
-              </div>
+              </section>
             )}
             <CategoryBadges card={card} />
             <div className="grid gap-4 sm:grid-cols-2">

@@ -595,12 +595,13 @@ describe('CardDetailModal — library actions (#699)', () => {
     vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({})
   })
 
-  it('renders the save-to-collection and save-to-wishlist actions when signed in', async () => {
+  it('renders prominent owned/chasing actions when signed in', async () => {
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+    expect(await screen.findByRole('region', { name: /Library actions/i })).toBeInTheDocument()
     expect(
-      await screen.findByRole('button', { name: /Save to collection/i }),
+      screen.getByRole('button', { name: /Add as owned/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Save to wishlist/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Add as chasing/i })).toBeInTheDocument()
   })
 
   it('does not navigate when arrowing through save-action inputs', async () => {
@@ -611,7 +612,7 @@ describe('CardDetailModal — library actions (#699)', () => {
     const onChange = vi.fn()
     render(<CardDetailModal rows={rows} index={0} onChangeIndex={onChange} />)
 
-    const trigger = await screen.findByRole('button', { name: /Save to collection/i })
+    const trigger = await screen.findByRole('button', { name: /Add as owned/i })
     trigger.focus()
     fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
     fireEvent.click(
@@ -629,7 +630,8 @@ describe('CardDetailModal — library actions (#699)', () => {
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
     // Let the auth probe settle, then assert the actions never mounted.
     await waitFor(() => expect(client.fetchMe).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: /Save to collection/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Add as owned/i })).toBeNull()
+    expect(screen.queryByRole('region', { name: /Library actions/i })).toBeNull()
   })
 
   it('shows owned (with quantity) and chasing badges from the ownership lookup', async () => {
@@ -641,6 +643,6 @@ describe('CardDetailModal — library actions (#699)', () => {
     })
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
     expect(await screen.findByText(/owned ×2/i)).toBeInTheDocument()
-    expect(screen.getByText(/chasing/i)).toBeInTheDocument()
+    expect(screen.getByTitle(/Chasing on Chase list/i)).toBeInTheDocument()
   })
 })

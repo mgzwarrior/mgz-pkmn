@@ -14,9 +14,10 @@ import { useCollections } from './useCollections'
 
 interface Props {
   card: Record<string, unknown>
+  variant?: 'icon' | 'primary'
 }
 
-export function AddToCollectionButton({ card }: Props) {
+export function AddToCollectionButton({ card, variant = 'icon' }: Props) {
   const { collections, loading, error, create, addCard } = useCollections()
   // Dynamic (smart) collections are rule-defined — membership is resolved,
   // not hand-curated — so the API rejects manual adds with a 409. Keep them
@@ -28,6 +29,7 @@ export function AddToCollectionButton({ card }: Props) {
   const [newOpen, setNewOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const isPrimary = variant === 'primary'
 
   async function handleAdd(collectionId: number) {
     setBusyId(collectionId)
@@ -73,11 +75,16 @@ export function AddToCollectionButton({ card }: Props) {
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          aria-label="Save to collection"
-          title="Save to collection"
-          className="rounded p-1 text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors"
+          aria-label={isPrimary ? 'Add as owned' : 'Save to collection'}
+          title={isPrimary ? 'Add as owned' : 'Save to collection'}
+          className={
+            isPrimary
+              ? 'inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-palm-500 px-3 py-2 text-sm font-semibold text-coconut-50 shadow-sm transition-colors hover:bg-palm-600 focus:outline-none focus:ring-2 focus:ring-palm-400 disabled:opacity-50 dark:bg-palm-400 dark:text-husk-500 dark:hover:bg-palm-300'
+              : 'rounded p-1 text-coconut-400 hover:text-palm-500 dark:text-sand-300 dark:hover:text-sun-300 transition-colors'
+          }
         >
-          <Book size={13} aria-hidden />
+          <Book size={isPrimary ? 16 : 13} aria-hidden />
+          {isPrimary && <span>Add as owned</span>}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
