@@ -10,8 +10,8 @@
  *
  * - **Novice path:** name it, done. The rest is tucked behind a "More
  *   details" disclosure so the simple case stays one decision.
- * - **Vendor path:** open the details to set storage type, pocket format,
- *   capacity, the set it organizes, and a master-set target.
+ * - **Vendor path:** open the details to set pocket format, capacity, the
+ *   set it organizes, and a master-set target.
  *
  * Create writes a `kind='binder'` (or `kind='dynamic'`) collection; edit
  * PATCHes an existing binder's identity. Both go through
@@ -23,12 +23,11 @@ import { ChevronDown, Loader2, Sparkles, Wallet, X } from 'lucide-react'
 import { useState } from 'react'
 import type {
   BinderFormat,
-  BinderType,
   CollectionRule,
   CollectionSummary,
   DynamicScope,
 } from '../api/client'
-import { BINDER_FORMAT_OPTIONS, BINDER_TYPE_OPTIONS } from './binderIdentity'
+import { BINDER_FORMAT_OPTIONS } from './binderIdentity'
 import { SetCombobox } from './SetCombobox'
 import { useCollections } from './useCollections'
 
@@ -97,7 +96,6 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
     isEdit ? editMode : smartOnly ? 'smart' : 'binder',
   )
   const [name, setName] = useState(() => editing?.name ?? prefill?.name ?? '')
-  const [binderType, setBinderType] = useState<BinderType | ''>(() => editing?.binder_type ?? '')
   const [format, setFormat] = useState<BinderFormat | ''>(() => editing?.binder_format ?? '')
   const [capacity, setCapacity] = useState(() =>
     editing?.capacity != null ? String(editing.capacity) : '',
@@ -113,7 +111,6 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
       editing?.binder_format ||
         editing?.capacity ||
         editing?.source_set_id ||
-        editing?.binder_type ||
         editing?.is_master_set ||
         prefill?.sourceSetId ||
         prefill?.isMasterSet,
@@ -140,17 +137,14 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
     setSubmitting(true)
     setError(null)
     const cap = capacity.trim() ? Number(capacity.trim()) : null
-    // Shared identity rides both kinds; physical fields ride binders only.
-    // Cover color is owned by the binder inventory unit (#702), not a
-    // collection/rule, so it isn't set here anymore (#723).
-    const shared = {
-      binder_type: binderType || null,
-    }
+    // Physical identity (cover color #723, storage type #726) lives on the
+    // binder inventory unit (#702) now, not on a collection/rule — so the
+    // only physical fields set here are the binder-kind's own format/capacity.
     try {
       if (isEdit && editing) {
         await update(editing.id, {
           name: name.trim(),
-          ...shared,
+          binder_type: null,
           ...(editMode === 'binder'
             ? {
                 binder_format: format || null,
@@ -164,14 +158,12 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
           kind: 'dynamic',
           rule: buildRule(field, value),
           dynamic_scope: scope,
-          ...shared,
           is_master_set: isMasterSet,
         })
       } else {
         const set = sourceSetId.trim()
         await create(name.trim(), {
           kind: 'binder',
-          ...shared,
           binder_format: format || null,
           capacity: cap,
           source_set_id: set || null,
@@ -208,8 +200,8 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
             </Dialog.Close>
           </header>
           <Dialog.Description className="sr-only">
-            Name your binder and optionally set its storage type, pocket format,
-            capacity, and the set it organizes.
+            Name your binder and optionally set its pocket format, capacity, and
+            the set it organizes.
           </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -318,25 +310,6 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
 
               {detailsOpen && (
                 <div className="mt-3 space-y-3 rounded-md border border-sand-200 bg-coconut-50 p-3 dark:border-husk-100 dark:bg-husk-100">
-                  {/* Storage type — shared identity. */}
-                  <label className="block space-y-1">
-                    <span className="text-[11px] font-medium text-coconut-500 dark:text-sand-300">
-                      Storage type
-                    </span>
-                    <select
-                      value={binderType}
-                      onChange={(e) => setBinderType(e.target.value as BinderType | '')}
-                      className={inputClass}
-                    >
-                      <option value="">Not set</option>
-                      {BINDER_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
                   {/* Pocket format + capacity — physical binders only. */}
                   {!isSmart && (
                     <>

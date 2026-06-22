@@ -82,6 +82,15 @@ describe('BinderInventory', () => {
     expect(screen.getByText(/Empty · 9-pocket · 360 slots/i)).toBeInTheDocument()
   })
 
+  it('shows the saved storage type in the binder metadata', async () => {
+    mockFetch.mockResolvedValue([
+      binder({ binder_type: 'graded', capacity: null, binder_format: null }),
+    ] as never)
+    render(<BinderInventory />)
+    expect(await screen.findByText('Base Set binder')).toBeInTheDocument()
+    expect(screen.getByText(/Empty · Graded slabs/i)).toBeInTheDocument()
+  })
+
   it('shows the filed collections and a live count under a binder', async () => {
     mockFetch.mockResolvedValue([
       binder({ id: 1, is_empty: false, collection_count: 2, capacity: null, binder_format: null }),
@@ -154,6 +163,27 @@ describe('BinderInventory', () => {
       expect(mockCreate).toHaveBeenCalledWith(
         'Sun binder',
         expect.objectContaining({ binder_color: 'sun' }),
+      ),
+    )
+  })
+
+  it('creates a binder with the chosen storage type (#726)', async () => {
+    mockFetch.mockResolvedValue([])
+    mockCreate.mockResolvedValue(
+      binder({ id: 6, name: 'Slabs', capacity: null, binder_format: null, binder_type: 'graded' }) as never,
+    )
+    render(<BinderInventory />)
+    await screen.findByText(/Add an empty binder/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /Add binder/i }))
+    fireEvent.change(screen.getByLabelText(/Binder name/i), { target: { value: 'Slabs' } })
+    fireEvent.change(screen.getByLabelText(/Storage type/i), { target: { value: 'graded' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Add$/i }))
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith(
+        'Slabs',
+        expect.objectContaining({ binder_type: 'graded' }),
       ),
     )
   })

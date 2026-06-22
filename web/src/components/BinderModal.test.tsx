@@ -27,7 +27,7 @@ describe('BinderModal', () => {
     mockFetch.mockResolvedValue([])
   })
 
-  it('creates a binder with format and capacity (no cover color — that lives on the binder unit)', async () => {
+  it('creates a binder with format and capacity (no cover color / storage type — those live on the binder unit)', async () => {
     mockCreate.mockResolvedValue({
       id: 5,
       name: 'Trade binder',
@@ -36,7 +36,6 @@ describe('BinderModal', () => {
       items: [],
       kind: 'binder',
       binder_format: '9-pocket',
-      binder_type: 'toploader',
       capacity: 360,
     })
     render(<BinderModal open onOpenChange={() => {}} />)
@@ -44,13 +43,12 @@ describe('BinderModal', () => {
     fireEvent.change(screen.getByPlaceholderText('Trade binder'), {
       target: { value: 'Trade binder' },
     })
-    // The cover-color picker no longer lives here (#723).
+    // The cover-color picker (#723) and storage-type select (#726) no longer
+    // live here — they belong to the binder inventory unit.
     expect(screen.queryByRole('button', { name: 'Sky' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /more details/i }))
+    expect(screen.queryByRole('combobox', { name: /storage type/i })).not.toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText('360'), { target: { value: '360' } })
-    fireEvent.change(screen.getByRole('combobox', { name: /storage type/i }), {
-      target: { value: 'toploader' },
-    })
     fireEvent.change(screen.getByRole('combobox', { name: /pocket format/i }), {
       target: { value: '9-pocket' },
     })
@@ -60,15 +58,15 @@ describe('BinderModal', () => {
       expect(mockCreate).toHaveBeenCalledWith('Trade binder', {
         kind: 'binder',
         binder_format: '9-pocket',
-        binder_type: 'toploader',
         capacity: 360,
         source_set_id: null,
         is_master_set: false,
       }),
     )
-    // Cover color isn't part of the create payload anymore.
+    // Cover color and storage type aren't part of the create payload anymore.
     const [, opts] = mockCreate.mock.calls[0]
     expect(opts).not.toHaveProperty('binder_color')
+    expect(opts).not.toHaveProperty('binder_type')
   })
 
   it('creates a smart binder carrying shared identity but no physical fields or color', async () => {
@@ -122,10 +120,11 @@ describe('BinderModal', () => {
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         8,
-        expect.objectContaining({ name: 'All Eevees' }),
+        expect.objectContaining({ name: 'All Eevees', binder_type: null }),
       ),
     )
-    // The edit no longer touches cover color.
+    // The edit clears legacy collection storage type while leaving cover color
+    // on the binder inventory unit.
     const [, patch] = mockUpdate.mock.calls[0]
     expect(patch).not.toHaveProperty('binder_color')
   })
@@ -160,7 +159,7 @@ describe('BinderModal', () => {
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         7,
-        expect.objectContaining({ name: 'Show binder 2' }),
+        expect.objectContaining({ name: 'Show binder 2', binder_type: null }),
       ),
     )
   })
