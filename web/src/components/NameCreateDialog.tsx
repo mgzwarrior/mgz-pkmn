@@ -19,6 +19,8 @@ interface Props {
   title: string
   placeholder: string
   submitLabel: string
+  /** Seed the name field (e.g. opened from Browse for a set/species, #737). */
+  initialName?: string
   /** Create with the trimmed name. Throw to surface an inline error. */
   onSubmit: (name: string) => Promise<void>
 }
@@ -42,10 +44,11 @@ function CreateForm({
   title,
   placeholder,
   submitLabel,
+  initialName,
   onSubmit,
   onClose,
 }: Omit<Props, 'open' | 'onOpenChange'> & { onClose: () => void }) {
-  const [name, setName] = useState('')
+  const [name, setName] = useState(initialName ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

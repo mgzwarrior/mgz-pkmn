@@ -18,6 +18,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Library, Loader2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { BinderSummary } from '../api/client'
+import type { CardData } from '../types'
 import { BinderColorPicker } from './BinderColorPicker'
 import { coverSwatch } from './binderIdentity'
 import { useBinders } from './useBinders'
@@ -26,16 +27,27 @@ import { useCollections } from './useCollections'
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Seed the name field (e.g. opened from Browse for a set/species). */
+  prefillName?: string
+  /** When set, bulk-add these cards into the new collection on create — the
+   *  Browse "create a collection of this set/species" path (#737). */
+  seedCards?: CardData[]
 }
 
-export function CollectionCreateDialog({ open, onOpenChange }: Props) {
+export function CollectionCreateDialog({ open, onOpenChange, prefillName, seedCards }: Props) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 backdrop-blur-sm dark:bg-husk-500/70" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(420px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200">
         {/* Form state only mounts while open, so each open starts fresh. */}
-        {open && <CreateForm onClose={() => onOpenChange(false)} />}
+        {open && (
+          <CreateForm
+            onClose={() => onOpenChange(false)}
+            prefillName={prefillName}
+            seedCards={seedCards}
+          />
+        )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -49,8 +61,16 @@ function freeSlots(binder: BinderSummary, usedByBinder: Map<number, number>): nu
   return Math.max(0, binder.capacity - (usedByBinder.get(binder.id) ?? 0))
 }
 
-function CreateForm({ onClose }: { onClose: () => void }) {
-  const { collections, create: createCollection } = useCollections()
+function CreateForm({
+  onClose,
+  prefillName,
+  seedCards,
+}: {
+  onClose: () => void
+  prefillName?: string
+  seedCards?: CardData[]
+}) {
+  const { collections, create: createCollection, bulkAdd: bulkAddCollection } = useCollections()
   const {
     binders,
     loading: bindersLoading,
@@ -58,7 +78,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
     refresh: refreshBinders,
   } = useBinders()
 
-  const [name, setName] = useState('')
+  const [name, setName] = useState(prefillName ?? '')
   // Existing-binder target: a binder id, or null for "don't file".
   const [binderId, setBinderId] = useState<number | null>(null)
   // Inline-binder fields (only used when no binders exist yet).
@@ -108,7 +128,16 @@ function CreateForm({ onClose }: { onClose: () => void }) {
         })
         target = binder.id
       }
-      await createCollection(name.trim(), target != null ? { binder_id: target } : undefined)
+      const created = await createCollection(
+        name.trim(),
+        target != null ? { binder_id: target } : undefined,
+      )
+      // Seeded from Browse (#737): drop the set's cards / species' printings
+      // straight in. The hook's bulkAdd updates the count and busts the shared
+      // ownership cache (#576) so the badges/chips reflect the new cards.
+      if (seedCards && seedCards.length > 0) {
+        await bulkAddCollection(created.id, seedCards, { addedVia: 'browse' })
+      }
       if (target != null) await refreshBinders()
       onClose()
     } catch (err) {
