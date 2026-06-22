@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { bulkAddToWishlist, pokemonSpriteUrl, setLogoUrl } from '../api/client'
+import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
 import { BAKED_POKEDEX } from '../data/pokedex'
 import { useAuth } from '../hooks/useAuth'
 import { useFavoritePokemon } from './useFavoritePokemon'
@@ -136,9 +136,15 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   // Create-from-Browse flow (#737): the New ▾ menu opens one of the three
   // canonical create dialogs (owned Collection / chasing Want-list / Smart
   // binder), seeded from the active set or species. Non-null mounts a dialog;
-  // closing clears it. Want-list seeding bulk-adds through this hook.
-  const { create: createWishlist, refresh: refreshWishlists } = useWishlists()
+  // closing clears it. Want-list seeding goes through the hook's bulkAdd so the
+  // shared ownership cache (#576) is busted and the badges/chips refresh.
+  const { create: createWishlist, bulkAdd: bulkAddWishlist } = useWishlists()
   const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null)
+
+  // Collection / want-list creates snapshot the loaded cards as their seed, so
+  // they're only offered once the drill-in's cards have landed — otherwise we'd
+  // seed an empty list. A smart binder needs no cards, so it's always available.
+  const seedLoading = viewMode === 'set' ? cardsLoading : pokedexCardsLoading
 
   // Build the seed for the current drill-in: the list name, the cards to
   // pre-populate (the whole set / all printings), and the rule a smart binder
@@ -170,6 +176,9 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   }
 
   function openCreate(kind: CreateKind) {
+    // Guard the seeded kinds against an in-flight load (the menu also disables
+    // them, this is the belt-and-braces against a stale click).
+    if ((kind === 'collection' || kind === 'wishlist') && seedLoading) return
     const seed = buildSeed()
     if (seed) setPendingCreate({ kind, ...seed })
   }
@@ -231,7 +240,11 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             />
           )}
           {drilledIn && showSavedActions && (
-            <BrowseCreateMenu kind={viewMode} onCreate={openCreate} />
+            <BrowseCreateMenu
+              kind={viewMode}
+              seedLoading={seedLoading}
+              onCreate={openCreate}
+            />
           )}
           <SetIdCardsButton />
           <ViewModeToggle value={viewMode} onChange={setViewMode} />
@@ -314,9 +327,8 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
           onSubmit={async (name) => {
             const created = await createWishlist(name)
             if (pendingCreate.seedCards.length > 0) {
-              await bulkAddToWishlist(created.id, pendingCreate.seedCards)
+              await bulkAddWishlist(created.id, pendingCreate.seedCards)
             }
-            await refreshWishlists()
           }}
         />
       )}
@@ -342,9 +354,11 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
  *  the Library's owned / chasing / smart create model (#737). */
 function BrowseCreateMenu({
   kind,
+  seedLoading,
   onCreate,
 }: {
   kind: BrowseViewMode
+  seedLoading: boolean
   onCreate: (kind: CreateKind) => void
 }) {
   const noun = kind === 'set' ? 'set' : 'Pokémon'
@@ -369,13 +383,15 @@ function BrowseCreateMenu({
           <BrowseCreateItem
             icon={<FolderPlus size={13} />}
             label="Collection"
-            blurb={`The ${noun}'s cards you own.`}
+            blurb={seedLoading ? 'Loading cards…' : `The ${noun}'s cards you own.`}
+            disabled={seedLoading}
             onSelect={() => onCreate('collection')}
           />
           <BrowseCreateItem
             icon={<Star size={13} />}
             label="Want-list"
-            blurb={`The ${noun}'s cards you're chasing.`}
+            blurb={seedLoading ? 'Loading cards…' : `The ${noun}'s cards you're chasing.`}
+            disabled={seedLoading}
             onSelect={() => onCreate('wishlist')}
           />
           <BrowseCreateItem
@@ -394,17 +410,20 @@ function BrowseCreateItem({
   icon,
   label,
   blurb,
+  disabled,
   onSelect,
 }: {
   icon: ReactNode
   label: string
   blurb: string
+  disabled?: boolean
   onSelect: () => void
 }) {
   return (
     <DropdownMenu.Item
+      disabled={disabled}
       onSelect={onSelect}
-      className="flex cursor-pointer flex-col gap-0.5 rounded px-2.5 py-1.5 text-left outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100"
+      className="flex cursor-pointer flex-col gap-0.5 rounded px-2.5 py-1.5 text-left outline-none data-[highlighted]:bg-sand-200 data-[disabled]:cursor-default data-[disabled]:opacity-50 dark:data-[highlighted]:bg-husk-100"
     >
       <span className="flex items-center gap-1.5 text-xs font-medium text-coconut-700 dark:text-sand-50">
         {icon}

@@ -17,7 +17,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Library, Loader2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { bulkAddToCollection, type BinderSummary } from '../api/client'
+import type { BinderSummary } from '../api/client'
 import type { CardData } from '../types'
 import { BinderColorPicker } from './BinderColorPicker'
 import { coverSwatch } from './binderIdentity'
@@ -70,7 +70,7 @@ function CreateForm({
   prefillName?: string
   seedCards?: CardData[]
 }) {
-  const { collections, create: createCollection, refresh: refreshCollections } = useCollections()
+  const { collections, create: createCollection, bulkAdd: bulkAddCollection } = useCollections()
   const {
     binders,
     loading: bindersLoading,
@@ -133,10 +133,10 @@ function CreateForm({
         target != null ? { binder_id: target } : undefined,
       )
       // Seeded from Browse (#737): drop the set's cards / species' printings
-      // straight in, then refresh so the new collection's count is accurate.
+      // straight in. The hook's bulkAdd updates the count and busts the shared
+      // ownership cache (#576) so the badges/chips reflect the new cards.
       if (seedCards && seedCards.length > 0) {
-        await bulkAddToCollection(created.id, seedCards, { addedVia: 'browse' })
-        await refreshCollections()
+        await bulkAddCollection(created.id, seedCards, { addedVia: 'browse' })
       }
       if (target != null) await refreshBinders()
       onClose()

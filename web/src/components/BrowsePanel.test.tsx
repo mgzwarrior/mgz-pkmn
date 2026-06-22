@@ -385,6 +385,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
       expect(bulkAdd).toHaveBeenCalledWith(
         9,
         expect.arrayContaining([expect.objectContaining({ id: 'base1-4' })]),
+        undefined,
       ),
     )
   })
