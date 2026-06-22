@@ -1,6 +1,8 @@
 ---
 import logoLightUrl from "../../../assets/logo.svg?url";
 import logoDarkUrl from "../../../assets/logo-dark.svg?url";
+import ebayLogoUrl from "../../../assets/marketplaces/ebay.svg?url";
+import tcgplayerLogoUrl from "../../../assets/marketplaces/tcgplayer.svg?url";
 
 const year = new Date().getFullYear();
 const links = {
@@ -98,15 +100,11 @@ const links = {
         TCGplayer links.
       </p>
       <div class="flex items-center gap-3" aria-label="Affiliate marketplaces">
-        <span class="inline-flex items-baseline text-sm font-semibold tracking-normal" aria-label="eBay logo">
-          <span class="text-[#e53238]">e</span>
-          <span class="text-[#0064d2]">B</span>
-          <span class="text-[#f5af02]">a</span>
-          <span class="text-[#86b817]">y</span>
+        <span class="inline-flex h-7 items-center rounded-sm bg-white px-2 ring-1 ring-sand-200/70">
+          <img src={ebayLogoUrl} alt="eBay" width="1000" height="401" class="h-4 w-auto" loading="lazy" />
         </span>
-        <span class="inline-flex items-baseline text-sm font-semibold tracking-normal" aria-label="TCGplayer logo">
-          <span class="text-[#0073cf]">TCG</span>
-          <span class="text-coconut-500 dark:text-sand-200">player</span>
+        <span class="inline-flex h-7 items-center rounded-sm bg-white px-2 ring-1 ring-sand-200/70">
+          <img src={tcgplayerLogoUrl} alt="TCGplayer" width="801" height="337" class="h-4 w-auto" loading="lazy" />
         </span>
       </div>
     </div>

@@ -20,6 +20,6 @@ test("footer includes marketplace affiliate disclosure", () => {
 });
 
 test("footer includes eBay and TCGplayer brand cues", () => {
-  assert.match(footerSource, /aria-label="eBay logo"/);
-  assert.match(footerSource, /aria-label="TCGplayer logo"/);
+  assert.match(footerSource, /marketplaces\/ebay\.svg\?url/);
+  assert.match(footerSource, /marketplaces\/tcgplayer\.svg\?url/);
 });
