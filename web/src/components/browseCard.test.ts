@@ -11,6 +11,7 @@ const POKEDEX_CARD: PokedexCard = {
   subtypes: ['Stage 2'],
   thumb: 'https://img/base1-4.png',
   market: 250,
+  dexNumbers: [6],
   setId: 'base1',
   setName: 'Base',
   releaseDate: '1999/01/09',
@@ -27,6 +28,7 @@ const BARE_SET_CARD: SetCard = {
   subtypes: [],
   thumb: null,
   market: null,
+  dexNumbers: [],
 }
 
 describe('browseCard adapters', () => {

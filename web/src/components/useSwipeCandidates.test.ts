@@ -141,6 +141,7 @@ function card(id: string, rarity: string | null = 'Common'): SetCard {
     subtypes: ['Basic'],
     thumb: null,
     market: 1,
+    dexNumbers: [],
   }
 }
 

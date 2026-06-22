@@ -40,6 +40,11 @@ vi.mock('../api/client', () => ({
   resetSwipeSeen: vi.fn(),
   // Cross-collection ownership badge (#576): default to "nothing owned".
   fetchCardOwnership: vi.fn(async () => ({})),
+  // Favorite-Pokémon candidate weighting (#742): signed-in only; default to
+  // an empty pin list so the deck isn't biased and no real request fires.
+  fetchFavoritePokemon: vi.fn(async () => []),
+  pinFavoritePokemon: vi.fn(),
+  unpinFavoritePokemon: vi.fn(),
 }))
 
 const mockFetchSets = vi.mocked(fetchSets)
@@ -63,6 +68,7 @@ function card(overrides: Partial<SetCard> = {}): SetCard {
     subtypes: ['Basic'],
     thumb: null,
     market: 5,
+    dexNumbers: [],
     ...overrides,
   }
 }

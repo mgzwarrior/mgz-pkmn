@@ -690,9 +690,11 @@ class SetCardsRouteTests(unittest.TestCase):
             "images": {"small": "https://example/c.png", "large": "x"},
             "tcgplayer": {"prices": {"holofoil": {"market": 42.5}}},
             "attacks": [{"name": "Fire Spin"}],
+            "nationalPokedexNumbers": [6],
         }
         slim = _trim_card(raw)
         self.assertEqual(slim["id"], "sv8-99")
+        self.assertEqual(slim["dexNumbers"], [6])
         self.assertEqual(slim["name"], "Charizard")
         self.assertEqual(slim["number"], "99")
         self.assertEqual(slim["rarity"], "Rare Holo")
@@ -714,6 +716,7 @@ class SetCardsRouteTests(unittest.TestCase):
         self.assertIsNone(slim["market"])
         self.assertIsNone(slim["thumb"])
         self.assertEqual(slim["subtypes"], [])
+        self.assertEqual(slim["dexNumbers"], [])
 
     def test_404_when_set_has_no_cards(self) -> None:
         with patch("api.routes.sets._fetch_set_cards", return_value=([], "MISS")):

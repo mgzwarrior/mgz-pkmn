@@ -91,7 +91,10 @@ class FavoriteSetsMigrationTests(_IsolatedDbMixin):
         from alembic.config import Config
 
         cfg = Config(str(Path(__file__).resolve().parents[1] / "api" / "alembic.ini"))
-        downgrade(cfg, "-1")
+        # Downgrade to favorite_sets' parent so this stays valid as later
+        # migrations stack on top — a relative "-1" only drops favorite_sets
+        # while it's the head, which it no longer is (#742 added one above it).
+        downgrade(cfg, "a7d3f1e0c2b5")
         self.assertNotIn("favorite_sets", inspect(session_mod.get_engine()).get_table_names())
 
 

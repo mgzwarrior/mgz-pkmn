@@ -6,11 +6,21 @@
  * Pokémon across every set). State + effects live in
  * [useBrowseController](./useBrowseController.ts).
  */
-import { ArrowLeft, GalleryHorizontalEnd, ImageOff, Loader2, Search, Wallet } from 'lucide-react'
+import {
+  ArrowLeft,
+  GalleryHorizontalEnd,
+  ImageOff,
+  Loader2,
+  Search,
+  Star,
+  Wallet,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
+import { BAKED_POKEDEX } from '../data/pokedex'
 import { useAuth } from '../hooks/useAuth'
+import { useFavoritePokemon } from './useFavoritePokemon'
 import type { PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
 import { BinderModal, type BinderPrefill } from './BinderModal'
 import { browseCardToPayload, browseCardToRow, type BrowseSetContext } from './browseCard'
@@ -35,6 +45,10 @@ function releaseYear(date: string): string | null {
   const match = /^(\d{4})/.exec(date || '')
   return match ? match[1] : null
 }
+
+/** dex number → species, resolved once so favorited numbers (#742) render as
+ *  the same tiles as the generation groups. */
+const DEX_BY_NUMBER = new Map(BAKED_POKEDEX.map((e) => [e.number, e]))
 
 interface BrowsePanelProps {
   controller: BrowseController
@@ -79,6 +93,22 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   // render save buttons", matching ResultsTable's row pattern.
   const { user } = useAuth()
   const showSavedActions = user !== null
+
+  // Favorite Pokémon (#742) — the inline star toggle on the pokedex tiles and
+  // the pinned "Your favorites" group. Signed-in only; a signed-out visitor
+  // reads an empty list without hitting the per-user endpoint.
+  const { favorites, pin, unpin, isFavorite } = useFavoritePokemon({
+    enabled: showSavedActions,
+  })
+  const favoriteEntries = useMemo<PokedexEntry[]>(
+    () =>
+      favorites
+        .map((f) => DEX_BY_NUMBER.get(f.dex_number))
+        .filter((e): e is PokedexEntry => e !== undefined),
+    [favorites],
+  )
+  const toggleFavorite = (number: number) =>
+    isFavorite(number) ? void unpin(number) : void pin(number)
 
   // A fresh binder pre-anchored to the set you're walking (#682). Non-null
   // mounts the modal; closing clears it so the next open re-seeds cleanly.
@@ -132,6 +162,14 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
           )}
         </div>
         <div className="flex flex-none items-center gap-2">
+          {viewMode === 'pokedex' && activePokemon && showSavedActions && (
+            <FavoriteToggle
+              favorited={isFavorite(activePokemon.number)}
+              name={activePokemon.name}
+              onToggle={() => toggleFavorite(activePokemon.number)}
+              withLabel
+            />
+          )}
           {viewMode === 'set' && activeSet && showSavedActions && (
             <button
               type="button"
@@ -193,6 +231,10 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
           filter={pokedexFilter}
           onFilter={setPokedexFilter}
           onPick={(p) => setActivePokemon(p)}
+          favoriteEntries={favoriteEntries}
+          showFavoriteControls={showSavedActions}
+          isFavorite={isFavorite}
+          onToggleFavorite={toggleFavorite}
         />
       )}
 
@@ -514,9 +556,30 @@ interface PokedexListProps {
   filter: string
   onFilter: (v: string) => void
   onPick: (species: PokedexEntry) => void
+  /** Favorited species, newest first — pinned in a "Your favorites" group at
+   *  the top while no search filter is active (#742). */
+  favoriteEntries: PokedexEntry[]
+  /** Whether to render the favorite star toggle (signed-in only). */
+  showFavoriteControls: boolean
+  isFavorite: (number: number) => boolean
+  onToggleFavorite: (number: number) => void
 }
 
-function PokedexListView({ groups, filter, onFilter, onPick }: PokedexListProps) {
+function PokedexListView({
+  groups,
+  filter,
+  onFilter,
+  onPick,
+  favoriteEntries,
+  showFavoriteControls,
+  isFavorite,
+  onToggleFavorite,
+}: PokedexListProps) {
+  // The pinned favorites group only makes sense as a "jump to what I love"
+  // shortcut on the unfiltered list — once you're searching, the matching
+  // generation groups already surface the species.
+  const showFavorites =
+    showFavoriteControls && favoriteEntries.length > 0 && filter.trim() === ''
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
@@ -537,26 +600,32 @@ function PokedexListView({ groups, filter, onFilter, onPick }: PokedexListProps)
         </label>
       </div>
       <div className="flex-1 overflow-y-auto px-5 py-3">
-        {groups.length === 0 ? (
+        {groups.length === 0 && !showFavorites ? (
           <p className="text-sm text-coconut-400 dark:text-sand-400">
             No Pokémon match “{filter}”.
           </p>
         ) : (
           <ul className="space-y-4">
+            {showFavorites && (
+              <PokedexGroupSection
+                label="Your favorites"
+                species={favoriteEntries}
+                onPick={onPick}
+                showFavoriteControls={showFavoriteControls}
+                isFavorite={isFavorite}
+                onToggleFavorite={onToggleFavorite}
+              />
+            )}
             {groups.map((group) => (
-              <li key={group.label}>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200">
-                  {group.label}
-                  <span className="ml-1 font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
-                    ({group.species.length})
-                  </span>
-                </div>
-                <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
-                  {group.species.map((s) => (
-                    <SpeciesTile key={s.number} species={s} onPick={() => onPick(s)} />
-                  ))}
-                </ul>
-              </li>
+              <PokedexGroupSection
+                key={group.label}
+                label={group.label}
+                species={group.species}
+                onPick={onPick}
+                showFavoriteControls={showFavoriteControls}
+                isFavorite={isFavorite}
+                onToggleFavorite={onToggleFavorite}
+              />
             ))}
           </ul>
         )}
@@ -565,20 +634,67 @@ function PokedexListView({ groups, filter, onFilter, onPick }: PokedexListProps)
   )
 }
 
+function PokedexGroupSection({
+  label,
+  species,
+  onPick,
+  showFavoriteControls,
+  isFavorite,
+  onToggleFavorite,
+}: {
+  label: string
+  species: PokedexEntry[]
+  onPick: (species: PokedexEntry) => void
+  showFavoriteControls: boolean
+  isFavorite: (number: number) => boolean
+  onToggleFavorite: (number: number) => void
+}) {
+  return (
+    <li>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200">
+        {label}
+        <span className="ml-1 font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
+          ({species.length})
+        </span>
+      </div>
+      <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
+        {species.map((s) => (
+          <SpeciesTile
+            key={s.number}
+            species={s}
+            onPick={() => onPick(s)}
+            showFavoriteControl={showFavoriteControls}
+            favorited={isFavorite(s.number)}
+            onToggleFavorite={() => onToggleFavorite(s.number)}
+          />
+        ))}
+      </ul>
+    </li>
+  )
+}
+
 function SpeciesTile({
   species,
   onPick,
+  showFavoriteControl,
+  favorited,
+  onToggleFavorite,
 }: {
   species: PokedexEntry
   onPick: () => void
+  showFavoriteControl: boolean
+  favorited: boolean
+  onToggleFavorite: () => void
 }) {
   const [spriteFailed, setSpriteFailed] = useState(false)
   return (
-    <li>
+    <li className="relative">
       <button
         type="button"
         onClick={onPick}
-        className="flex w-full items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 px-3 py-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+        className={`flex w-full items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 py-2 pl-3 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50 ${
+          showFavoriteControl ? 'pr-9' : 'pr-3'
+        }`}
       >
         <span className="flex h-9 w-9 flex-none items-center justify-center rounded bg-sand-50 dark:bg-husk-400">
           {spriteFailed ? (
@@ -600,7 +716,68 @@ function SpeciesTile({
           {species.name}
         </span>
       </button>
+      {showFavoriteControl && (
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+          <FavoriteToggle
+            favorited={favorited}
+            name={species.name}
+            onToggle={onToggleFavorite}
+          />
+        </div>
+      )}
     </li>
+  )
+}
+
+/** Star toggle for pinning a favorite Pokémon (#742). `withLabel` renders the
+ *  bordered header variant; bare is the icon-only tile overlay. */
+function FavoriteToggle({
+  favorited,
+  name,
+  onToggle,
+  withLabel = false,
+}: {
+  favorited: boolean
+  name: string
+  onToggle: () => void
+  withLabel?: boolean
+}) {
+  const label = favorited ? `Remove ${name} from favorites` : `Add ${name} to favorites`
+  const star = (
+    <Star
+      size={withLabel ? 14 : 16}
+      className={
+        favorited
+          ? 'fill-sun-400 text-sun-500 dark:fill-sun-300 dark:text-sun-300'
+          : 'text-coconut-400 dark:text-sand-300'
+      }
+      aria-hidden
+    />
+  )
+  if (withLabel) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={favorited}
+        aria-label={label}
+        className="inline-flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:bg-sand-50 dark:hover:bg-husk-200"
+      >
+        {star}
+        {favorited ? 'Favorited' : 'Favorite'}
+      </button>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={favorited}
+      aria-label={label}
+      className="rounded-full p-1 hover:bg-sand-200 dark:hover:bg-husk-100 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+    >
+      {star}
+    </button>
   )
 }
 

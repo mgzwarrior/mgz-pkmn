@@ -33,6 +33,8 @@ import type { RarityFloor, Row, SetCard } from '../types'
 import { browseCardToPayload, browseCardToRow } from './browseCard'
 import { CardDetailModal } from './CardDetailModal'
 import { FavoriteSetsPanel } from './FavoriteSetsPanel'
+import { favoriteSpeciesBoost } from './favoriteSpeciesBoost'
+import { useFavoritePokemon } from './useFavoritePokemon'
 import { useFavoriteSets } from './useFavoriteSets'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
@@ -86,15 +88,24 @@ export function SwipePanel({ active }: SwipePanelProps) {
   // user (they're per-user) so a signed-out deck isn't biased by — and doesn't
   // hit the endpoint as — the default user.
   const { isPinned } = useFavoriteSets({ enabled: showSavedActions })
+  // Favorite Pokémon (#742) feed the card weighting the same way pinned sets
+  // feed the set weighting; same signed-in gate.
+  const { isFavorite } = useFavoritePokemon({ enabled: showSavedActions })
 
   // Profile-weighted candidate selection (#713). `setScore` biases which set
   // is walked next — the learned per-set lean plus a strong bonus for pinned
   // favorites; `cardScore` biases the card within it via the full taste
-  // profile. Both fall back to a flat 0 (the unbiased walk) before any signal.
+  // profile plus a bonus when the card is a favorite Pokémon (#742). Both fall
+  // back to a flat 0 (the unbiased walk) before any signal.
   const setScore = useCallback(
     (setId: string) =>
       (profile.set[setId] ?? 0) + (isPinned(setId) ? FAVORITE_SET_BONUS : 0),
     [profile.set, isPinned],
+  )
+  const cardScore = useCallback(
+    (card: SetCard, setId: string) =>
+      scoreCard(card, setId) + favoriteSpeciesBoost(card, isFavorite),
+    [scoreCard, isFavorite],
   )
   const { excludedKeys, recordSeen, resetDeck } = useSwipeExclusions({
     excludeOwned: settings.swipeExcludeOwned,
@@ -107,7 +118,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
       excludedKeys,
       rarityFloor: settings.swipeRarityFloor,
       setScore,
-      cardScore: scoreCard,
+      cardScore,
     })
 
   // Cross-collection ownership badge (#576). Prefetch the current card plus

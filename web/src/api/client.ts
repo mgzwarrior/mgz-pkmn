@@ -463,6 +463,10 @@ export interface Me {
   email: string | null
   display_name: string | null
   identities?: MeIdentity[]
+  /** Whether the user has finished (or skipped) the first-login onboarding
+   *  survey (#742). Falsy (incl. absent) opens the favorite-Pokémon pop-up;
+   *  `fetchMe` always populates it from the `/me` envelope. */
+  onboardingCompleted?: boolean
 }
 
 /**
@@ -477,11 +481,33 @@ export interface MeEnvelope {
   authEnabled: boolean
 }
 
+interface RawMe {
+  id: number
+  email: string | null
+  display_name: string | null
+  identities?: MeIdentity[]
+  onboarding_completed: boolean
+}
+
 export async function fetchMe(): Promise<MeEnvelope> {
   const res = await fetch(`${BASE}/me`, { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`me failed: ${res.status}`)
-  const body = (await res.json()) as { user: Me | null; auth_enabled: boolean }
-  return { user: body.user, authEnabled: body.auth_enabled }
+  const body = (await res.json()) as { user: RawMe | null; auth_enabled: boolean }
+  const user: Me | null = body.user
+    ? { ...body.user, onboardingCompleted: body.user.onboarding_completed }
+    : null
+  return { user, authEnabled: body.auth_enabled }
+}
+
+/** Mark the first-login onboarding survey done (#742) so it never re-opens. */
+export async function completeOnboarding(): Promise<void> {
+  const res = await fetch(`${BASE}/me/onboarding/complete`, {
+    method: 'POST',
+    credentials: 'same-origin',
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`complete onboarding failed: ${res.status}`)
+  }
 }
 
 export async function logout(): Promise<void> {
@@ -953,6 +979,43 @@ export async function fetchFavoriteSetSuggestions(): Promise<FavoriteSetSuggesti
   if (!res.ok) throw new Error(`favorite set suggestions failed: ${res.status}`)
   const data = await res.json()
   return data.suggestions as FavoriteSetSuggestion[]
+}
+
+// ---------------------------------------------------------------------------
+// Favorite Pokémon (#742) — durable per-user pinned species, keyed by national
+// Pokédex number. The species-level sibling of favorite sets.
+// ---------------------------------------------------------------------------
+
+export interface FavoritePokemon {
+  dex_number: number
+  pinned_at: string
+}
+
+export async function fetchFavoritePokemon(): Promise<FavoritePokemon[]> {
+  const res = await fetch(`${BASE}/favorite-pokemon`)
+  if (!res.ok) throw new Error(`favorite pokemon failed: ${res.status}`)
+  const data = await res.json()
+  return data.pokemon as FavoritePokemon[]
+}
+
+export async function pinFavoritePokemon(dexNumber: number): Promise<void> {
+  const res = await fetch(`${BASE}/favorite-pokemon`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dex_number: dexNumber }),
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`pin favorite pokemon failed: ${res.status}`)
+  }
+}
+
+export async function unpinFavoritePokemon(dexNumber: number): Promise<void> {
+  const res = await fetch(`${BASE}/favorite-pokemon/${dexNumber}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`unpin favorite pokemon failed: ${res.status}`)
+  }
 }
 
 /**

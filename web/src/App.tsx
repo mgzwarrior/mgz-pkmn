@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GalleryHorizontalEnd, Heart, Search } from 'lucide-react'
-import { bulkLookup, listRuns, lookupLine, saveRun } from './api/client'
+import { bulkLookup, completeOnboarding, listRuns, lookupLine, saveRun } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { SaveSearchNameDialog } from './components/SaveSearchNameDialog'
 import { BrowsePanel } from './components/BrowsePanel'
@@ -30,6 +30,7 @@ import { ExportBar } from './components/ExportBar'
 import { InsightsNavButton } from './components/InsightsNavButton'
 import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
+import { FavoritePokemonOnboarding } from './components/FavoritePokemonOnboarding'
 import { HelpModal } from './components/HelpModal'
 import { SignInChip } from './components/SignInChip'
 import { ThemeToggle } from './components/ThemeToggle'
@@ -72,7 +73,23 @@ function App() {
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('search')
-  const { user: authedUser } = useAuth()
+  const { user: authedUser, refresh: refreshAuth } = useAuth()
+
+  // First-login onboarding survey (#742): the favorite-Pokémon pop-up shows
+  // once per account, gated server-side via `onboardingCompleted`. Dismissing
+  // (Done or Skip) marks it complete and re-polls `/me` so it never re-nags;
+  // the local flag hides it immediately, ahead of the round-trip.
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+  const showOnboarding =
+    authedUser != null && authedUser.onboardingCompleted === false && !onboardingDismissed
+  const closeOnboarding = useCallback(() => {
+    setOnboardingDismissed(true)
+    void completeOnboarding()
+      .then(() => refreshAuth())
+      .catch(() => {
+        // Best-effort — the local flag already hid the pop-up for this session.
+      })
+  }, [refreshAuth])
   // `active` flips when the user switches into browse mode so the
   // controller's reset effect fires.
   const browseController = useBrowseController(mode === 'browse')
@@ -409,6 +426,8 @@ function App() {
       {tourOpen && (
         <Tour onClose={() => setTourOpen(false)} onRun={handleRun} onStop={handleStop} />
       )}
+
+      <FavoritePokemonOnboarding open={showOnboarding} onClose={closeOnboarding} />
 
       <SaveSearchNameDialog
         open={pendingSave !== null}
