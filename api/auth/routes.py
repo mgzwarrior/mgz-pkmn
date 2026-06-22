@@ -7,7 +7,7 @@ routes once they land."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -15,7 +15,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from ..db.models import DEFAULT_USER_ID, User, UserIdentity
-from .session import CurrentUserRequired, DbSession, auth_enabled, get_current_user
+from .session import (
+    CurrentUserRequired,
+    DbSession,
+    auth_enabled,
+    current_user_or_default,
+    get_current_user,
+)
+
+CurrentUserOrDefault = Annotated[User, Depends(current_user_or_default)]
 
 router = APIRouter()
 
@@ -47,6 +55,9 @@ class MeUser(BaseModel):
     email: str | None
     display_name: str | None
     identities: list[MeIdentity] = Field(default_factory=list)
+    #: Whether the user has finished (or skipped) the first-login onboarding
+    #: survey (#742) — the SPA shows the favorite-Pokémon pop-up when false.
+    onboarding_completed: bool = False
 
 
 class MeOut(BaseModel):
@@ -91,6 +102,7 @@ def me(user: CurrentUser, db: DbSession) -> MeOut:
                     email=default.email,
                     display_name=default.display_name,
                     identities=[],
+                    onboarding_completed=default.onboarding_completed_at is not None,
                 ),
                 auth_enabled=False,
             )
@@ -117,12 +129,26 @@ def me(user: CurrentUser, db: DbSession) -> MeOut:
                 email=user.email,
                 display_name=user.display_name,
                 identities=identities,
+                onboarding_completed=user.onboarding_completed_at is not None,
             )
             if user is not None
             else None
         ),
         auth_enabled=enabled,
     )
+
+
+@router.post("/me/onboarding/complete", status_code=204)
+def complete_onboarding(db: DbSession, user: CurrentUserOrDefault) -> Response:
+    """Mark the first-login onboarding survey done (#742).
+
+    Idempotent — re-completing leaves the original timestamp in place, so a
+    double-submit (or a "Skip" after a "Done") never re-opens the pop-up. Works
+    in self-host mode too: the sentinel default user can finish onboarding."""
+    if user.onboarding_completed_at is None:
+        user.onboarding_completed_at = datetime.now(UTC)
+        db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/auth/logout", status_code=204)

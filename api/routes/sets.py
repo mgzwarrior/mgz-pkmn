@@ -186,6 +186,12 @@ def _trim_card(card: dict[str, Any]) -> dict[str, Any]:
         "subtypes": card.get("subtypes") or [],
         "thumb": thumb,
         "market": pricing.market,
+        # National Pokédex numbers (usually one; a couple for multi-species
+        # cards). Lets the SPA match a card to a favorite species (#742) for
+        # swipe weighting without re-deriving the species from the name.
+        # camelCase to match the rest of the SPA-facing card shape (the SPA
+        # casts the JSON straight to `SetCard`, no key remap).
+        "dexNumbers": card.get("nationalPokedexNumbers") or [],
     }
 
 

@@ -26,7 +26,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import func, inspect, select
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 
 from api.auth.identity import resolve_or_link_identity
@@ -126,37 +126,41 @@ class UserIdentitiesBackfillTests(_IsolatedDbMixin):
         cfg = migrate_mod._alembic_config()
         cfg.set_main_option("sqlalchemy.url", str(engine.url))
         command.upgrade(cfg, "4a1c7b1e9b22")
-        with session_mod.get_session_factory()() as s:
-            # The `default` sentinel is seeded by the initial migration;
-            # it should NOT get an identity row.
-            s.add(
-                User(
-                    name="gh:alice",
-                    email="alice@example.com",
-                    email_verified_at=datetime.now(UTC),
-                    display_name="Alice",
+        # Seed via raw SQL listing only the columns that exist at this old
+        # revision — the live ``User`` model carries columns added by later
+        # migrations (e.g. #742's ``onboarding_completed_at``) that aren't in
+        # this schema yet, so an ORM insert would reference a missing column.
+        now = datetime.now(UTC)
+        rows = [
+            # The `default` sentinel is seeded by the initial migration; it
+            # should NOT get an identity row.
+            ("gh:alice", "alice@example.com", now, "Alice"),
+            ("google:11223344", "bob@example.com", now, "Bob"),
+            # Magic-link's stored name is a sha256(email) prefix; the backfill
+            # recovers the subject from ``users.email``, not the name suffix.
+            (
+                "magic:abcdef0123456789abcdef0123456789abcdef0123456789",
+                "carol@example.com",
+                now,
+                None,
+            ),
+        ]
+        with engine.begin() as conn:
+            for name, email, verified_at, display_name in rows:
+                conn.execute(
+                    text(
+                        "INSERT INTO users (name, created_at, email, email_verified_at,"
+                        " display_name) VALUES (:name, :created_at, :email,"
+                        " :email_verified_at, :display_name)"
+                    ),
+                    {
+                        "name": name,
+                        "created_at": now,
+                        "email": email,
+                        "email_verified_at": verified_at,
+                        "display_name": display_name,
+                    },
                 )
-            )
-            s.add(
-                User(
-                    name="google:11223344",
-                    email="bob@example.com",
-                    email_verified_at=datetime.now(UTC),
-                    display_name="Bob",
-                )
-            )
-            # Magic-link's stored name is a sha256(email) prefix; the
-            # backfill recovers the subject from ``users.email``, not
-            # from the name suffix.
-            s.add(
-                User(
-                    name="magic:abcdef0123456789abcdef0123456789abcdef0123456789",
-                    email="carol@example.com",
-                    email_verified_at=datetime.now(UTC),
-                    display_name=None,
-                )
-            )
-            s.commit()
 
     def test_backfill_mints_one_identity_per_prefixed_user(self) -> None:
         self._seed_at_pre_491_schema()

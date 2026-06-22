@@ -74,6 +74,12 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
     display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: When the user finished (or skipped) the first-login onboarding survey
+    #: (#742). Null = never seen it, so the SPA shows the favorite-Pokémon
+    #: pop-up; a timestamp suppresses it across devices.
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     runs: Mapped[list[Run]] = relationship(back_populates="user")
     identities: Mapped[list[UserIdentity]] = relationship(
@@ -540,6 +546,37 @@ class FavoriteSet(Base):
         index=True,
     )
     set_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    pinned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
+class FavoriteSpecies(Base):
+    """One Pokémon species a user has pinned as a favorite (#742).
+
+    The species-level sibling of :class:`FavoriteSet`: a durable, per-user,
+    server-side "I love this Pokémon" signal that Swipe / Browse lean toward.
+    Keyed by national Pokédex number — the same key Browse's pokedex view and
+    ``GET /pokedex/{number}/cards`` use — so a card's
+    ``nationalPokedexNumbers`` matches it directly.
+
+    Append-only and idempotent: the unique constraint on
+    ``(user_id, dex_number)`` makes re-pinning a no-op rather than a duplicate
+    row, mirroring :class:`FavoriteSet`."""
+
+    __tablename__ = "favorite_species"
+    __table_args__ = (
+        UniqueConstraint("user_id", "dex_number", name="uq_favorite_species_user_dex"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        default=DEFAULT_USER_ID,
+        nullable=False,
+        index=True,
+    )
+    dex_number: Mapped[int] = mapped_column(Integer, nullable=False)
     pinned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )

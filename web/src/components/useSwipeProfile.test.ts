@@ -16,6 +16,7 @@ function card(overrides: Partial<SetCard> = {}): SetCard {
     subtypes: ['Basic'],
     thumb: null,
     market: 5,
+    dexNumbers: [],
     ...overrides,
   }
 }

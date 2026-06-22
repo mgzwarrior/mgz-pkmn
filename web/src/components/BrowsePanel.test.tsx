@@ -6,6 +6,7 @@ import { useAppStore } from '../store'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { _resetWishlistsCacheForTests } from './useWishlists'
+import { _resetFavoritePokemonCacheForTests } from './useFavoritePokemon'
 import * as client from '../api/client'
 import type { PokedexCard, SetCard } from '../types'
 
@@ -24,6 +25,7 @@ const CHARIZARD_PRINTINGS: PokedexCard[] = [
     subtypes: ['Stage 2'],
     thumb: null,
     market: 250,
+    dexNumbers: [6],
     setId: 'base1',
     setName: 'Base',
     releaseDate: '1999/01/09',
@@ -48,9 +50,15 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     })
     vi.spyOn(client, 'fetchCollections').mockResolvedValue([])
     vi.spyOn(client, 'fetchWishlists').mockResolvedValue([])
+    // Favorite-Pokémon star toggles (#742) read the per-user pin list; keep it
+    // empty + inert so the stars render unfilled without a real request.
+    vi.spyOn(client, 'fetchFavoritePokemon').mockResolvedValue([])
+    vi.spyOn(client, 'pinFavoritePokemon').mockResolvedValue(undefined)
+    vi.spyOn(client, 'unpinFavoritePokemon').mockResolvedValue(undefined)
     _resetAuthStoreForTests()
     _resetCollectionsCacheForTests()
     _resetWishlistsCacheForTests()
+    _resetFavoritePokemonCacheForTests()
   })
 
   it('toggles to pokedex view and lists species from the national dex', async () => {
@@ -78,6 +86,23 @@ describe('BrowsePanel — pokedex view (#577)', () => {
 
     expect(await screen.findByText('Charizard')).toBeInTheDocument()
     expect(screen.queryByText('Bulbasaur')).not.toBeInTheDocument()
+  })
+
+  it('favorites a species from its pokedex tile (#742)', async () => {
+    const pin = vi.spyOn(client, 'pinFavoritePokemon').mockResolvedValue(undefined)
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
+    // Filter to a single species first so the grid renders one tile, not the
+    // whole 1025-entry dex — the star click re-renders the list, and re-running
+    // that over every tile blows the test timeout under CI contention.
+    fireEvent.change(screen.getByLabelText('Find a Pokémon'), {
+      target: { value: 'bulbasaur' },
+    })
+
+    // Bulbasaur is national dex #1 — its star toggle pins that number.
+    const star = await screen.findByRole('button', { name: 'Add Bulbasaur to favorites' })
+    fireEvent.click(star)
+    await waitFor(() => expect(pin).toHaveBeenCalledWith(1))
   })
 
   it('drills into a species, fetches every printing, and opens the card detail modal', async () => {
@@ -121,6 +146,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
         subtypes: ['Stage 2'],
         thumb: 'https://img/base1-4.png',
         market: 250,
+        dexNumbers: [6],
       },
     ]
     const fetchCards = vi
@@ -197,6 +223,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
         subtypes: ['Basic'],
         thumb: null,
         market: 40,
+        dexNumbers: [380],
       },
       {
         id: 'base1-4',
@@ -207,6 +234,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
         subtypes: ['Stage 2'],
         thumb: null,
         market: 250,
+        dexNumbers: [6],
       },
     ]
     vi.spyOn(client, 'fetchSetCards').mockResolvedValue(SET_CARDS)

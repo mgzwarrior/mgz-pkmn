@@ -44,6 +44,7 @@ function card(setId: string): SetCard {
     subtypes: ['Basic'],
     thumb: null,
     market: 1,
+    dexNumbers: [],
   }
 }
 

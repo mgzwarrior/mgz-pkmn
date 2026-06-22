@@ -241,6 +241,9 @@ export interface SetCard {
   subtypes: string[]
   thumb: string | null
   market: number | null
+  /** National Pokédex numbers this card prints (usually one; a couple for
+   *  multi-species cards). Drives favorite-species swipe weighting (#742). */
+  dexNumbers: number[]
 }
 
 /**

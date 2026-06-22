@@ -193,6 +193,28 @@ class MeEndpointAnonymousTests(_IsolatedDbMixin):
             self.assertEqual(body["user"]["id"], 1)
 
 
+class OnboardingTests(_IsolatedDbMixin):
+    """First-login onboarding gate (#742): ``/me`` reports completion and
+    ``POST /me/onboarding/complete`` flips it, idempotently. Exercised in
+    self-host mode against the sentinel default user."""
+
+    def test_onboarding_starts_incomplete_then_completes(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            self.assertFalse(c.get("/api/v1/me").json()["user"]["onboarding_completed"])
+            self.assertEqual(c.post("/api/v1/me/onboarding/complete").status_code, 204)
+            self.assertTrue(c.get("/api/v1/me").json()["user"]["onboarding_completed"])
+
+    def test_completing_onboarding_is_idempotent(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            self.assertEqual(c.post("/api/v1/me/onboarding/complete").status_code, 204)
+            self.assertEqual(c.post("/api/v1/me/onboarding/complete").status_code, 204)
+            self.assertTrue(c.get("/api/v1/me").json()["user"]["onboarding_completed"])
+
+
 class MeEndpointAuthOnTests(_IsolatedDbMixin):
     """End-to-end cookie sign-in is covered by the provider sub-issues
     (#408 GitHub / #409 magic-link / #410 Google) — those wire the routes
