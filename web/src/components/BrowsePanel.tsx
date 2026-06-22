@@ -6,14 +6,18 @@
  * Pokémon across every set). State + effects live in
  * [useBrowseController](./useBrowseController.ts).
  */
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
   ArrowLeft,
+  ChevronDown,
+  FolderPlus,
   GalleryHorizontalEnd,
   ImageOff,
   Loader2,
+  Plus,
   Search,
+  Sparkles,
   Star,
-  Wallet,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -21,11 +25,14 @@ import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
 import { BAKED_POKEDEX } from '../data/pokedex'
 import { useAuth } from '../hooks/useAuth'
 import { useFavoritePokemon } from './useFavoritePokemon'
-import type { PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
-import { BinderModal, type BinderPrefill } from './BinderModal'
+import { useWishlists } from './useWishlists'
+import type { CardData, PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
+import { BinderModal } from './BinderModal'
 import { browseCardToPayload, browseCardToRow, type BrowseSetContext } from './browseCard'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from './cardCategories'
 import { CardDetailModal } from './CardDetailModal'
+import { CollectionCreateDialog } from './CollectionCreateDialog'
+import { NameCreateDialog } from './NameCreateDialog'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
@@ -53,6 +60,22 @@ const DEX_BY_NUMBER = new Map(BAKED_POKEDEX.map((e) => [e.number, e]))
 interface BrowsePanelProps {
   controller: BrowseController
 }
+
+/** The three modern create kinds the Browse New ▾ menu offers (#737),
+ *  matching the Library's owned / chasing / smart model. */
+type CreateKind = 'collection' | 'wishlist' | 'smart'
+
+/** What a create dialog is seeded with, derived from the active set/species. */
+interface PendingSeed {
+  name: string
+  /** The set's cards / species' printings to pre-populate a collection or
+   *  want-list. A smart binder ignores these — its rule is its membership. */
+  seedCards: CardData[]
+  ruleField: 'set_id' | 'name'
+  ruleValue: string
+}
+
+type PendingCreate = PendingSeed & { kind: CreateKind }
 
 export function BrowsePanel({ controller }: BrowsePanelProps) {
   const {
@@ -110,9 +133,55 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   const toggleFavorite = (number: number) =>
     isFavorite(number) ? void unpin(number) : void pin(number)
 
-  // A fresh binder pre-anchored to the set you're walking (#682). Non-null
-  // mounts the modal; closing clears it so the next open re-seeds cleanly.
-  const [binderPrefill, setBinderPrefill] = useState<BinderPrefill | null>(null)
+  // Create-from-Browse flow (#737): the New ▾ menu opens one of the three
+  // canonical create dialogs (owned Collection / chasing Want-list / Smart
+  // binder), seeded from the active set or species. Non-null mounts a dialog;
+  // closing clears it. Want-list seeding goes through the hook's bulkAdd so the
+  // shared ownership cache (#576) is busted and the badges/chips refresh.
+  const { create: createWishlist, bulkAdd: bulkAddWishlist } = useWishlists()
+  const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null)
+
+  // Collection / want-list creates snapshot the loaded cards as their seed, so
+  // they're only offered once the drill-in's cards have landed — otherwise we'd
+  // seed an empty list. A smart binder needs no cards, so it's always available.
+  const seedLoading = viewMode === 'set' ? cardsLoading : pokedexCardsLoading
+
+  // Build the seed for the current drill-in: the list name, the cards to
+  // pre-populate (the whole set / all printings), and the rule a smart binder
+  // would use. Returns null when there's nothing to seed from yet.
+  function buildSeed(): PendingSeed | null {
+    if (viewMode === 'set' && activeSet) {
+      const setCtx: BrowseSetContext = {
+        id: activeSet.id,
+        name: activeSet.name,
+        series: activeSet.series,
+        releaseDate: activeSet.releaseDate,
+      }
+      return {
+        name: activeSet.name,
+        seedCards: (cards ?? []).map((c) => browseCardToPayload(c, setCtx)),
+        ruleField: 'set_id',
+        ruleValue: activeSet.id,
+      }
+    }
+    if (viewMode === 'pokedex' && activePokemon) {
+      return {
+        name: activePokemon.name,
+        seedCards: (pokedexCards ?? []).map((c) => browseCardToPayload(c)),
+        ruleField: 'name',
+        ruleValue: activePokemon.name,
+      }
+    }
+    return null
+  }
+
+  function openCreate(kind: CreateKind) {
+    // Guard the seeded kinds against an in-flight load (the menu also disables
+    // them, this is the belt-and-braces against a stale click).
+    if ((kind === 'collection' || kind === 'wishlist') && seedLoading) return
+    const seed = buildSeed()
+    if (seed) setPendingCreate({ kind, ...seed })
+  }
 
   const drilledIn = viewMode === 'set' ? !!activeSet : !!activePokemon
   const onBack = () =>
@@ -170,17 +239,12 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
               withLabel
             />
           )}
-          {viewMode === 'set' && activeSet && showSavedActions && (
-            <button
-              type="button"
-              onClick={() =>
-                setBinderPrefill({ name: activeSet.name, sourceSetId: activeSet.id })
-              }
-              className="inline-flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:bg-sand-50 dark:hover:bg-husk-200"
-            >
-              <Wallet size={14} />
-              Create binder
-            </button>
+          {drilledIn && showSavedActions && (
+            <BrowseCreateMenu
+              kind={viewMode}
+              seedLoading={seedLoading}
+              onCreate={openCreate}
+            />
           )}
           <SetIdCardsButton />
           <ViewModeToggle value={viewMode} onChange={setViewMode} />
@@ -238,18 +302,135 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
         />
       )}
 
-      {/* Mounted only while a prefill is set, so each open re-seeds the form
-          from the current set via the modal's lazy initializers (#682). */}
-      {binderPrefill && (
-        <BinderModal
+      {/* Create-from-Browse dialogs (#737), seeded from the active set/species.
+          Mounted only while a create is pending so each re-seeds cleanly. */}
+      {pendingCreate?.kind === 'collection' && (
+        <CollectionCreateDialog
           open
           onOpenChange={(o) => {
-            if (!o) setBinderPrefill(null)
+            if (!o) setPendingCreate(null)
           }}
-          prefill={binderPrefill}
+          prefillName={pendingCreate.name}
+          seedCards={pendingCreate.seedCards}
+        />
+      )}
+      {pendingCreate?.kind === 'wishlist' && (
+        <NameCreateDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setPendingCreate(null)
+          }}
+          title="New want-list"
+          placeholder="Cards you're chasing"
+          submitLabel="Create"
+          initialName={pendingCreate.name}
+          onSubmit={async (name) => {
+            const created = await createWishlist(name)
+            if (pendingCreate.seedCards.length > 0) {
+              await bulkAddWishlist(created.id, pendingCreate.seedCards)
+            }
+          }}
+        />
+      )}
+      {pendingCreate?.kind === 'smart' && (
+        <BinderModal
+          open
+          smartOnly
+          onOpenChange={(o) => {
+            if (!o) setPendingCreate(null)
+          }}
+          prefill={{
+            name: pendingCreate.name,
+            ruleField: pendingCreate.ruleField,
+            ruleValue: pendingCreate.ruleValue,
+          }}
         />
       )}
     </div>
+  )
+}
+
+/** The New ▾ menu in the Browse header (set-detail + pokedex-detail). Mirrors
+ *  the Library's owned / chasing / smart create model (#737). */
+function BrowseCreateMenu({
+  kind,
+  seedLoading,
+  onCreate,
+}: {
+  kind: BrowseViewMode
+  seedLoading: boolean
+  onCreate: (kind: CreateKind) => void
+}) {
+  const noun = kind === 'set' ? 'set' : 'Pokémon'
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:bg-sand-50 dark:hover:bg-husk-200"
+        >
+          <Plus size={13} />
+          New
+          <ChevronDown size={13} />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={4}
+          className="z-50 min-w-[200px] rounded-md border border-sand-300 bg-sand-50 p-1 shadow-xl dark:border-husk-50 dark:bg-husk-200"
+        >
+          <BrowseCreateItem
+            icon={<FolderPlus size={13} />}
+            label="Collection"
+            blurb={seedLoading ? 'Loading cards…' : `The ${noun}'s cards you own.`}
+            disabled={seedLoading}
+            onSelect={() => onCreate('collection')}
+          />
+          <BrowseCreateItem
+            icon={<Star size={13} />}
+            label="Want-list"
+            blurb={seedLoading ? 'Loading cards…' : `The ${noun}'s cards you're chasing.`}
+            disabled={seedLoading}
+            onSelect={() => onCreate('wishlist')}
+          />
+          <BrowseCreateItem
+            icon={<Sparkles size={13} />}
+            label="Smart binder"
+            blurb={`A saved rule for this ${noun}.`}
+            onSelect={() => onCreate('smart')}
+          />
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
+function BrowseCreateItem({
+  icon,
+  label,
+  blurb,
+  disabled,
+  onSelect,
+}: {
+  icon: ReactNode
+  label: string
+  blurb: string
+  disabled?: boolean
+  onSelect: () => void
+}) {
+  return (
+    <DropdownMenu.Item
+      disabled={disabled}
+      onSelect={onSelect}
+      className="flex cursor-pointer flex-col gap-0.5 rounded px-2.5 py-1.5 text-left outline-none data-[highlighted]:bg-sand-200 data-[disabled]:cursor-default data-[disabled]:opacity-50 dark:data-[highlighted]:bg-husk-100"
+    >
+      <span className="flex items-center gap-1.5 text-xs font-medium text-coconut-700 dark:text-sand-50">
+        {icon}
+        {label}
+      </span>
+      <span className="pl-[18px] text-[10px] text-coconut-400 dark:text-sand-300">{blurb}</span>
+    </DropdownMenu.Item>
   )
 }
 

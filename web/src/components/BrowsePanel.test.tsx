@@ -292,44 +292,100 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     ).toBeInTheDocument()
   })
 
-  it('set view: creates a binder pre-anchored to the set you are walking (#682)', async () => {
-    vi.spyOn(client, 'fetchSetCards').mockResolvedValue([])
-    const create = vi.spyOn(client, 'createCollection').mockResolvedValue({
-      id: 42,
-      name: 'New binder',
-      description: null,
-      created_at: '2026-06-16T00:00:00',
-      items: [],
-      kind: 'binder',
-    } as never)
+  // A single set card to seed a create from, returned by fetchSetCards once
+  // we drill into a set. Shape matches SetCard.
+  const SEED_SET_CARD = {
+    id: 'base1-4',
+    name: 'Charizard',
+    number: '4',
+    rarity: 'Rare Holo',
+    supertype: 'Pokémon',
+    subtypes: ['Stage 2'],
+    thumb: null,
+    market: 250,
+    dexNumbers: [6],
+  }
 
-    render(<Harness />)
-
-    // Drill into the first baked set, then open the binder modal from the
-    // contextual "Create binder" action.
+  // Drill into the first baked set and open one kind from the New ▾ menu.
+  // Radix opens on the keyboard activation path, which is reliable under jsdom.
+  async function openSetCreate(kind: RegExp) {
     const setTile = screen
       .getAllByRole('button')
       .find((b) => /\bcards$|count unknown/.test(b.textContent ?? ''))!
     fireEvent.click(setTile)
-    fireEvent.click(await screen.findByRole('button', { name: /create binder/i }))
+    // Wait for the set's cards to land so the create is seeded from them.
+    await screen.findByText('Charizard')
+    const newTrigger = await screen.findByRole('button', { name: /^new$/i })
+    newTrigger.focus()
+    fireEvent.keyDown(newTrigger, { key: 'Enter', code: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: kind }))
+  }
 
-    // The modal opens pre-seeded with the set's name, and the set anchor shows
-    // that same name in the combobox (resolved from the ID).
+  it('set view: New ▾ creates an owned collection seeded from the set (#737)', async () => {
+    vi.spyOn(client, 'fetchSetCards').mockResolvedValue([SEED_SET_CARD] as never)
+    vi.spyOn(client, 'fetchBinders').mockResolvedValue([])
+    const create = vi.spyOn(client, 'createCollection').mockResolvedValue({
+      id: 42,
+      name: 'Base',
+      description: null,
+      created_at: '2026-06-16T00:00:00',
+      items: [],
+      kind: 'manual',
+    } as never)
+    const bulkAdd = vi
+      .spyOn(client, 'bulkAddToCollection')
+      .mockResolvedValue({ added: [], skipped: [] } as never)
+
+    render(<Harness />)
+    await openSetCreate(/collection/i)
+
+    // The collection dialog opens pre-seeded with the set's name; create it.
     const dialog = await screen.findByRole('dialog')
-    const setName = within(dialog).getByPlaceholderText<HTMLInputElement>('Trade binder').value
-    expect(setName.length).toBeGreaterThan(0)
-    expect(within(dialog).getByPlaceholderText(/search sets/i)).toHaveValue(setName)
-
+    const name = within(dialog).getByPlaceholderText<HTMLInputElement>('Base Set holos').value
+    expect(name.length).toBeGreaterThan(0)
     fireEvent.click(within(dialog).getByRole('button', { name: /^create$/i }))
 
-    // Created as a physical binder anchored to the walked set's ID.
+    // Lands as an owned collection (not a physical binder), then the set's
+    // cards are dropped in via the browse bulk-add path.
+    await waitFor(() => expect(create).toHaveBeenCalledWith(name, undefined))
     await waitFor(() =>
-      expect(create).toHaveBeenCalledWith(
-        setName,
-        expect.objectContaining({
-          kind: 'binder',
-          source_set_id: expect.stringMatching(/.+/),
-        }),
+      expect(bulkAdd).toHaveBeenCalledWith(
+        42,
+        expect.arrayContaining([expect.objectContaining({ id: 'base1-4' })]),
+        { addedVia: 'browse' },
+      ),
+    )
+  })
+
+  it('set view: New ▾ creates a chasing want-list seeded from the set (#737)', async () => {
+    vi.spyOn(client, 'fetchSetCards').mockResolvedValue([SEED_SET_CARD] as never)
+    const create = vi.spyOn(client, 'createWishlist').mockResolvedValue({
+      id: 9,
+      name: 'Base',
+      description: null,
+      created_at: '2026-06-16T00:00:00',
+      items: [],
+    } as never)
+    const bulkAdd = vi
+      .spyOn(client, 'bulkAddToWishlist')
+      .mockResolvedValue({ added: [], skipped: [] } as never)
+
+    render(<Harness />)
+    await openSetCreate(/want-list/i)
+
+    // The want-list dialog opens pre-seeded with the set's name; create it.
+    const dialog = await screen.findByRole('dialog')
+    const name = within(dialog).getByPlaceholderText<HTMLInputElement>(/chasing/i).value
+    expect(name.length).toBeGreaterThan(0)
+    fireEvent.click(within(dialog).getByRole('button', { name: /^create$/i }))
+
+    // Lands as a chasing want-list, seeded with the set's cards.
+    await waitFor(() => expect(create).toHaveBeenCalledWith(name, undefined))
+    await waitFor(() =>
+      expect(bulkAdd).toHaveBeenCalledWith(
+        9,
+        expect.arrayContaining([expect.objectContaining({ id: 'base1-4' })]),
+        undefined,
       ),
     )
   })
