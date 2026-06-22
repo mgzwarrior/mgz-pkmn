@@ -1107,6 +1107,7 @@ function CardTile({
       <SaveCardActions
         show={showSavedActions}
         card={browseCardToPayload(card, setCtx)}
+        ownership={ownership}
         className="mt-2 justify-center"
       />
     </li>
@@ -1171,6 +1172,7 @@ function PokedexCardTile({
       <SaveCardActions
         show={showSavedActions}
         card={browseCardToPayload(card)}
+        ownership={ownership}
         className="mt-2 justify-center"
       />
     </li>

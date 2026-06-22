@@ -19,8 +19,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import type { ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
-import { AddToCollectionButton } from './AddToCollectionButton'
-import { AddToWishlistButton } from './AddToWishlistButton'
+import { QuickActions } from './QuickActions'
 import { AffiliateLinks } from './AffiliateLinks'
 import { CardDetailModal } from './CardDetailModal'
 import { useCardOwnership } from './useCardOwnership'
@@ -768,10 +767,12 @@ function ResultRow({
           <td className="px-3 py-1.5 w-20">
             <div className="flex items-center gap-1">
               {row.matched && card && (
-                <>
-                  <AddToCollectionButton card={card as Record<string, unknown>} />
-                  <AddToWishlistButton card={card as Record<string, unknown>} />
-                </>
+                <QuickActions
+                  card={card as Record<string, unknown>}
+                  ownership={ownership}
+                  show
+                  variant="icon"
+                />
               )}
             </div>
           </td>

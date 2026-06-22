@@ -165,16 +165,12 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     await waitFor(() => expect(fetchCards).toHaveBeenCalled())
     expect(await screen.findByText('1 of 1 card')).toBeInTheDocument()
 
-    // Signed-in, so each tile carries the collection + wishlist save pair.
+    // Signed-in, so each tile carries the one-tap want / own quick actions.
     // Assert these before opening the modal — the dialog makes the grid inert.
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /save to collection/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /^want$/i })).toBeInTheDocument(),
     )
-    expect(
-      screen.getByRole('button', { name: /save to wishlist/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^own$/i })).toBeInTheDocument()
 
     // A broken thumbnail falls back to the placeholder.
     fireEvent.error(screen.getByAltText('Charizard'))
@@ -270,7 +266,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     ).toHaveAttribute('href', expect.stringContaining('bulbapedia'))
   })
 
-  it('shows the collection / wishlist save buttons on a printing when signed in', async () => {
+  it('shows the one-tap want / own quick actions on a printing when signed in (#761)', async () => {
     vi.spyOn(client, 'fetchPokedexCards').mockResolvedValue(CHARIZARD_PRINTINGS)
 
     render(<Harness />)
@@ -281,15 +277,11 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     fireEvent.click(await screen.findByText('Charizard'))
     expect(await screen.findByText('Base')).toBeInTheDocument()
 
-    // useAuth resolves async — wait for the per-card save buttons to mount.
+    // useAuth resolves async — wait for the per-card quick actions to mount.
     await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: /save to collection/i }),
-      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^want$/i })).toBeInTheDocument()
     })
-    expect(
-      screen.getByRole('button', { name: /save to wishlist/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^own$/i })).toBeInTheDocument()
   })
 
   // A single set card to seed a create from, returned by fetchSetCards once

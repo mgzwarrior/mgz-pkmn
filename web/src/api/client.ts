@@ -1377,3 +1377,34 @@ export async function fetchCardOwnership(
   const data = await res.json()
   return data.ownership as Record<string, CardOwnership>
 }
+
+/**
+ * A card's derived library state after a quick action (#760) — the `wanted` /
+ * `owned` view flags plus the named lists/collections it sits in.
+ */
+export interface CardState {
+  set_id: string | null
+  number: string | null
+  wanted: boolean
+  owned: boolean
+  collections: CollectionOccupancy[]
+  wishlists: WishlistOccupancy[]
+}
+
+/** One-tap quick actions against the user's default wishlist / collection
+ *  (#761, ADR-0027). Each writes to the default and returns the card's derived
+ *  state; all are idempotent server-side. */
+async function cardAction(path: string, card: Record<string, unknown>): Promise<CardState> {
+  const res = await fetch(`${BASE}/cards/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card }),
+  })
+  if (!res.ok) throw new Error(`card ${path} failed: ${res.status}`)
+  return (await res.json()) as CardState
+}
+
+export const wantCard = (card: Record<string, unknown>) => cardAction('want', card)
+export const unwantCard = (card: Record<string, unknown>) => cardAction('unwant', card)
+export const ownCard = (card: Record<string, unknown>) => cardAction('own', card)
+export const unownCard = (card: Record<string, unknown>) => cardAction('unown', card)
