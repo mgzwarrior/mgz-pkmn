@@ -92,6 +92,12 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     const pin = vi.spyOn(client, 'pinFavoritePokemon').mockResolvedValue(undefined)
     render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
+    // Filter to a single species first so the grid renders one tile, not the
+    // whole 1025-entry dex — the star click re-renders the list, and re-running
+    // that over every tile blows the test timeout under CI contention.
+    fireEvent.change(screen.getByLabelText('Find a Pokémon'), {
+      target: { value: 'bulbasaur' },
+    })
 
     // Bulbasaur is national dex #1 — its star toggle pins that number.
     const star = await screen.findByRole('button', { name: 'Add Bulbasaur to favorites' })
