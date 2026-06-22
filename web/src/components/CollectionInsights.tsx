@@ -4,19 +4,21 @@
  * [LibraryBindersTab](./LibraryBindersTab.tsx).
  *
  * Reads one rollup from `GET /collections/insights`: headline totals, the
- * top types / rarities / sets as bars, a vendor-facing duplicates view
+ * top types / rarities / sets as bars, the most valuable cards plus value
+ * broken down by set and by binder (#741), a vendor-facing duplicates view
  * (multiples + cards spanning more than one binder), and a quiet cleanup
  * nudge for want-list cards you already own. Value-over-time is deliberately
  * out — that chart needs the `collection_snapshots` writer (#508), which
  * hasn't landed.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { BarChart3, Copy, Loader2, Sparkles, X } from 'lucide-react'
+import { BarChart3, Copy, Gem, Loader2, Sparkles, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
   fetchCollectionInsights,
   type CollectionInsights as Insights,
   type LabeledCount,
+  type LabeledValue,
 } from '../api/client'
 import { formatMoney } from '../utils/format'
 
@@ -68,6 +70,69 @@ function BarList({ title, items }: { title: string; items: LabeledCount[] }) {
             </div>
             <span className="text-right tabular-nums text-coconut-400 dark:text-sand-300">
               {i.count}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** A top-N value breakdown as horizontal bars, widths relative to the group
+ * max. Mirrors {@link BarList} but the trailing figure is money, not a count. */
+function ValueBarList({ title, items }: { title: string; items: LabeledValue[] }) {
+  if (items.length === 0) return null
+  const max = Math.max(...items.map((i) => i.value))
+  return (
+    <section>
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
+        {title}
+      </h3>
+      <ul className="space-y-1.5">
+        {items.map((i) => (
+          <li
+            key={i.label}
+            className="grid grid-cols-[5.5rem_1fr_3.5rem] items-center gap-2 text-xs"
+          >
+            <span className="truncate text-coconut-600 dark:text-sand-200" title={i.label}>
+              {i.label}
+            </span>
+            <div className="h-2 overflow-hidden rounded-full bg-sand-200 dark:bg-husk-200">
+              <div
+                className="h-full rounded-full bg-sun-500"
+                style={{ width: `${Math.max((i.value / max) * 100, 4)}%` }}
+              />
+            </div>
+            <span className="text-right tabular-nums text-coconut-400 dark:text-sand-300">
+              {formatMoney(i.value)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** The collection's "crown jewels" — owned cards ranked by per-copy price. */
+function TopValueCards({ data }: { data: Insights }) {
+  const cards = data.top_value_cards
+  if (cards.length === 0) return null
+  return (
+    <section>
+      <h3 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
+        <Gem size={12} /> Most valuable cards
+      </h3>
+      <ul className="mt-2 divide-y divide-sand-200 dark:divide-husk-100">
+        {cards.map((c, idx) => (
+          <li
+            key={`${c.card_set_id}-${c.card_number}-${idx}`}
+            className="flex items-center justify-between gap-2 py-1.5 text-xs"
+          >
+            <span className="min-w-0 truncate text-coconut-700 dark:text-sand-50">
+              {c.card_name ?? cardRef(c.card_set_id, c.card_number)}
+            </span>
+            <span className="shrink-0 tabular-nums font-medium text-coconut-600 dark:text-sand-200">
+              {formatMoney(c.price)}
             </span>
           </li>
         ))}
@@ -220,8 +285,9 @@ export function CollectionInsights({ open, onOpenChange }: Props) {
             </Dialog.Close>
           </header>
           <Dialog.Description className="sr-only">
-            Headline totals, top types, rarities and sets, duplicates, and want-list cards you
-            already own, across all your collections.
+            Headline totals, top types, rarities and sets, your most valuable cards, value by set
+            and binder, duplicates, and want-list cards you already own, across all your
+            collections.
           </Dialog.Description>
 
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
@@ -252,6 +318,13 @@ export function CollectionInsights({ open, onOpenChange }: Props) {
                   <BarList title="Top types" items={data.top_types} />
                   <BarList title="Top rarities" items={data.top_rarities} />
                   <BarList title="Top sets" items={data.top_sets} />
+                </div>
+
+                <TopValueCards data={data} />
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <ValueBarList title="Value by set" items={data.value_by_set} />
+                  <ValueBarList title="Value by binder" items={data.value_by_collection} />
                 </div>
 
                 <DuplicatesSection data={data} />

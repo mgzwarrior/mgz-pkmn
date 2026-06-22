@@ -44,6 +44,9 @@ vi.mock('./api/client', () => ({
   // SwipePanel's "Build prep list" CTA depends on `useWishlists`, which
   // mounts its own GET on the first hook subscriber.
   fetchWishlists: vi.fn(() => Promise.resolve([])),
+  // InsightsNavButton mounts in the header and reads useCollections on its
+  // first subscriber; stub the list so the gate resolves to 0 (button hidden).
+  fetchCollections: vi.fn(() => Promise.resolve([])),
   createWishlist: vi.fn(),
   addCardToWishlist: vi.fn(),
   setLogoUrl: vi.fn(() => ''),

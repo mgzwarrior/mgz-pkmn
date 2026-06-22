@@ -1027,6 +1027,20 @@ export interface AlreadyOwnedChase {
   collections: string[]
 }
 
+/** One owned card identity ranked by its per-copy price snapshot. */
+export interface ValueCard {
+  card_name: string | null
+  card_set_id: string | null
+  card_number: string | null
+  price: number
+}
+
+/** One bar in a value breakdown — a label and its summed estimated value. */
+export interface LabeledValue {
+  label: string
+  value: number
+}
+
 /** Aggregate "your collection at a glance" across all of the user's
  * collections (#575). */
 export interface CollectionInsights {
@@ -1034,6 +1048,9 @@ export interface CollectionInsights {
   top_types: LabeledCount[]
   top_rarities: LabeledCount[]
   top_sets: LabeledCount[]
+  top_value_cards: ValueCard[]
+  value_by_set: LabeledValue[]
+  value_by_collection: LabeledValue[]
   duplicate_multiples: DuplicateCard[]
   cross_collection: CrossCollectionCard[]
   already_owned_chasing: AlreadyOwnedChase[]
