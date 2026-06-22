@@ -31,14 +31,6 @@ import { BINDER_FORMAT_OPTIONS } from './binderIdentity'
 import { SetCombobox } from './SetCombobox'
 import { useCollections } from './useCollections'
 
-/** Seed values for a fresh binder created from another surface (e.g. the
- * Browse set view, #682). Applied only on create, not when editing. */
-export interface BinderPrefill {
-  name?: string
-  sourceSetId?: string
-  isMasterSet?: boolean
-}
-
 /** The single-predicate fields the smart-binder rule builder offers. */
 const RULE_FIELDS = [
   { key: 'name', label: 'Name contains' },
@@ -49,6 +41,18 @@ const RULE_FIELDS = [
 ] as const
 
 type RuleField = (typeof RULE_FIELDS)[number]['key']
+
+/** Seed values for a fresh binder created from another surface (e.g. the
+ * Browse set/pokedex view, #682/#737). Applied only on create, not editing.
+ * `ruleField`/`ruleValue` seed the smart-binder rule builder (a set-anchored
+ * `set_id` rule from set view, a species `name` rule from pokedex view). */
+export interface BinderPrefill {
+  name?: string
+  sourceSetId?: string
+  isMasterSet?: boolean
+  ruleField?: RuleField
+  ruleValue?: string
+}
 
 const SCOPE_OPTIONS: { key: DynamicScope; label: string }[] = [
   { key: 'owned', label: 'My cards' },
@@ -116,9 +120,10 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
         prefill?.isMasterSet,
     ),
   )
-  // Smart-binder rule state.
-  const [field, setField] = useState<RuleField>('name')
-  const [value, setValue] = useState('')
+  // Smart-binder rule state — seeded from a Browse prefill (#737) so a
+  // set-anchored / species-anchored smart binder lands with its rule filled.
+  const [field, setField] = useState<RuleField>(() => prefill?.ruleField ?? 'name')
+  const [value, setValue] = useState(() => prefill?.ruleValue ?? '')
   const [scope, setScope] = useState<DynamicScope>('owned')
 
   const [submitting, setSubmitting] = useState(false)
