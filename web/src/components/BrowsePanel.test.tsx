@@ -306,6 +306,13 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     )
   })
 
+  it('offers the row-independent Set ID cards export in Browse (#736)', async () => {
+    render(<Harness />)
+    // Set ID cards is reachable while browsing even with no matched rows;
+    // the rest of the export menu stays in Search mode.
+    expect(await screen.findByRole('button', { name: /Set ID cards/i })).toBeInTheDocument()
+  })
+
   it('swaps a broken printing thumbnail for the placeholder', async () => {
     vi.spyOn(client, 'fetchPokedexCards').mockResolvedValue([
       { ...CHARIZARD_PRINTINGS[0], thumb: 'https://img/base1-4.png' },
