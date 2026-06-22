@@ -1,6 +1,6 @@
 # ADR 0027: Default card quick actions for wanted and owned cards
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-22
 - **Tags:** web, product, collections, wishlists, binders
 
@@ -33,7 +33,11 @@ Adopt a default-target quick-action model:
 - The UI presents derived card state such as `Wanted` and `Owned`, but the
   canonical data remains `wishlist_items` and `collection_items`.
 - Binders organize and present owned cards from collections. A binder is never
-  required before a card can be owned.
+  required before a card can be owned. This sits alongside the existing
+  set-based *target* collections ([#631](https://github.com/mgzwarrior/mgz-pkmn/issues/631)),
+  whose `/chase` action seeds a wishlist with the cards you still need —
+  targets drive chasing, binders present ownership, and neither is a gate in
+  front of the quick action.
 - Named wishlists, named collections, collection purpose, and binders remain
   available for later organization and power-user workflows.
 
@@ -41,6 +45,13 @@ The default rows should be ordinary wishlist and collection records, not a new
 parallel storage model. Implementations may create them eagerly during user
 provisioning or lazily on the first quick action, but writes must be idempotent
 and deterministic for the acting user.
+
+Default-row lifecycle: the default flag is the invariant, not the row. A user
+may rename their default wishlist or collection freely and it stays the default.
+Deleting a default is allowed, but the app immediately re-establishes one (the
+next quick action recreates it lazily, or provisioning does), so a user is never
+left without a write target. Promoting another list to default reassigns the
+flag rather than duplicating storage.
 
 The expected common-case UX is:
 
@@ -73,7 +84,8 @@ Positive:
 Negative:
 
 - The backend needs a reliable way to find or create each user's defaults.
-- Default rows need product rules for rename, deletion, and replacement.
+- The default-row lifecycle rules above need clear UI affordances so a user
+  understands that renaming keeps the default and deleting re-establishes one.
 - Quick actions can hide the destination unless the UI gives clear feedback
   and a visible "organize" affordance.
 - Duplicate ownership, quantity, and condition flows still need follow-up
@@ -89,6 +101,29 @@ Neutral but worth noting:
   as the one-default-per-user invariant is preserved.
 - Existing named lists and collections remain valid. The quick-action defaults
   are a starting place, not the only place a card can live.
+
+## Follow-up work
+
+This ADR sets direction; the implementation is split into focused issues under
+the library epic, tracked against the [#754](https://github.com/mgzwarrior/mgz-pkmn/issues/754)
+RFC:
+
+- [#759](https://github.com/mgzwarrior/mgz-pkmn/issues/759) — backend: provision
+  a default wishlist and default collection per user, idempotently, with the
+  one-default-per-user invariant and the lifecycle rules above.
+- [#760](https://github.com/mgzwarrior/mgz-pkmn/issues/760) — API: card
+  quick-action endpoints that write to the defaults and return derived
+  `Wanted` / `Owned` state.
+- [#761](https://github.com/mgzwarrior/mgz-pkmn/issues/761) — web: one-tap
+  `Want` / `Own` quick actions on search, browse, and swipe.
+- [#762](https://github.com/mgzwarrior/mgz-pkmn/issues/762) — web: the
+  post-capture organize flow (change target, quantity, condition, move to a
+  binder). This is the "smoother operating model" pass — the secondary organize
+  step must stay light and optional so the old up-front friction never returns.
+
+The primary want/own user journeys are also covered end-to-end by the Playwright
+E2E epic ([#757](https://github.com/mgzwarrior/mgz-pkmn/issues/757)) so these
+flows stay green across the SPA and API.
 
 ## Alternatives considered
 
