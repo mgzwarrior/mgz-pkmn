@@ -248,7 +248,7 @@ class QuickActionTests(_IsolatedDbMixin):
             self.assertFalse(body["owned"])
             self.assertEqual(body["collections"], [])
 
-    def test_owning_a_wanted_card_stamps_the_chase_complete(self) -> None:
+    def test_owning_a_wanted_card_clears_the_active_want(self) -> None:
         from sqlalchemy import select
 
         from api.db.models import WishlistItem
@@ -256,17 +256,30 @@ class QuickActionTests(_IsolatedDbMixin):
         with self._client() as c:
             c.post("/api/v1/cards/want", json={"card": CHARIZARD})
             body = c.post("/api/v1/cards/own", json={"card": CHARIZARD}).json()
-            # A card can be both wanted (history preserved) and owned.
+            # Owning clears the active chase by default (#768): owned, no longer
+            # an active want.
             self.assertTrue(body["owned"])
-            self.assertTrue(body["wanted"])
+            self.assertFalse(body["wanted"])
 
         sf = session_mod.get_session_factory()
         with sf() as db:
+            # The wishlist row survives as history, stamped acquired (ADR-0025).
             item = db.scalar(select(WishlistItem))
             self.assertIsNotNone(item.acquired_at)
             self.assertIsNotNone(item.acquired_collection_item_id)
 
-    def test_unowning_clears_the_chase_stamp(self) -> None:
+    def test_wanting_again_after_owning_reactivates_the_chase(self) -> None:
+        with self._client() as c:
+            c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            c.post("/api/v1/cards/own", json={"card": CHARIZARD})
+            # Explicitly wanting again (own one, chase another) reactivates the
+            # row rather than minting a duplicate.
+            body = c.post("/api/v1/cards/want", json={"card": CHARIZARD}).json()
+            self.assertTrue(body["owned"])
+            self.assertTrue(body["wanted"])
+            self.assertEqual(len(body["wishlists"]), 1)
+
+    def test_unowning_restores_the_chase(self) -> None:
         from sqlalchemy import select
 
         from api.db.models import WishlistItem
@@ -274,13 +287,44 @@ class QuickActionTests(_IsolatedDbMixin):
         with self._client() as c:
             c.post("/api/v1/cards/want", json={"card": CHARIZARD})
             c.post("/api/v1/cards/own", json={"card": CHARIZARD})
-            c.post("/api/v1/cards/unown", json={"card": CHARIZARD})
+            body = c.post("/api/v1/cards/unown", json={"card": CHARIZARD}).json()
+            # Reversing the acquisition resumes the chase.
+            self.assertFalse(body["owned"])
+            self.assertTrue(body["wanted"])
 
         sf = session_mod.get_session_factory()
         with sf() as db:
             item = db.scalar(select(WishlistItem))
             self.assertIsNone(item.acquired_at)
             self.assertIsNone(item.acquired_collection_item_id)
+
+    def test_want_does_not_reactivate_history_when_an_active_duplicate_exists(self) -> None:
+        # With both an acquired (history) row and a separate active duplicate
+        # for the same card, re-wanting must no-op rather than clearing the
+        # acquired row — that would dup the active want and lose history (#768).
+        from sqlalchemy import select
+
+        from api.db.models import Wishlist, WishlistItem
+
+        sf = session_mod.get_session_factory()
+        with self._client() as c:
+            c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            c.post("/api/v1/cards/own", json={"card": CHARIZARD})  # acquired row
+            with sf() as db:
+                wl_id = db.scalar(select(Wishlist).where(Wishlist.is_default)).id
+            # A separate active duplicate via the generic items endpoint.
+            c.post(f"/api/v1/wishlists/{wl_id}/items", json={"card": CHARIZARD})
+
+            body = c.post("/api/v1/cards/want", json={"card": CHARIZARD}).json()
+            self.assertTrue(body["wanted"])
+
+        with sf() as db:
+            items = db.scalars(select(WishlistItem)).all()
+            acquired = [i for i in items if i.acquired_at is not None]
+            active = [i for i in items if i.acquired_at is None]
+            # History intact, exactly one active want — no reactivation, no dup.
+            self.assertEqual(len(acquired), 1)
+            self.assertEqual(len(active), 1)
 
 
 if __name__ == "__main__":
