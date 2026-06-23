@@ -329,7 +329,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
       .mockResolvedValue({ added: [], skipped: [] } as never)
 
     render(<Harness />)
-    await openSetCreate(/collection/i)
+    await openSetCreate(/^collection/i)
 
     // The collection dialog opens pre-seeded with the set's name; create it.
     const dialog = await screen.findByRole('dialog')

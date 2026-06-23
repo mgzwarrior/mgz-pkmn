@@ -1,9 +1,9 @@
 /**
  * BinderModal — the single create-and-edit surface for binders (#679, #681).
  *
- * Everything in the Binders tab is a binder: a **physical binder** (a bucket
+ * The Binders tab creates two things here: a **physical binder** (a bucket
  * of cards with a cover, storage style, pocket format, and capacity) or a
- * **smart binder** (a saved rule whose membership is your matching cards).
+ * **smart collection** (a saved rule whose membership is your matching cards).
  * The two share storage-type/master-set identity; pocket format and capacity
  * are physical-only, since a rule-based set has no fixed slots. Cover color
  * lives on the binder inventory unit (#702), not here (#723).
@@ -27,11 +27,13 @@ import type {
   CollectionSummary,
   DynamicScope,
 } from '../api/client'
+import { BinderFilePicker } from './BinderFilePicker'
+import { useBinderFiling } from './useBinderFiling'
 import { BINDER_FORMAT_OPTIONS } from './binderIdentity'
 import { SetCombobox } from './SetCombobox'
 import { useCollections } from './useCollections'
 
-/** The single-predicate fields the smart-binder rule builder offers. */
+/** The single-predicate fields the smart-collection rule builder offers. */
 const RULE_FIELDS = [
   { key: 'name', label: 'Name contains' },
   { key: 'types', label: 'Type is' },
@@ -44,7 +46,7 @@ type RuleField = (typeof RULE_FIELDS)[number]['key']
 
 /** Seed values for a fresh binder created from another surface (e.g. the
  * Browse set/pokedex view, #682/#737). Applied only on create, not editing.
- * `ruleField`/`ruleValue` seed the smart-binder rule builder (a set-anchored
+ * `ruleField`/`ruleValue` seed the smart-collection rule builder (a set-anchored
  * `set_id` rule from set view, a species `name` rule from pokedex view). */
 export interface BinderPrefill {
   name?: string
@@ -78,19 +80,22 @@ interface Props {
   /** Seed a fresh binder's fields (create only) — e.g. opened from Browse. */
   prefill?: BinderPrefill
   /**
-   * Smart-binder-only create (#703). The Binders tab's New ▾ → Smart binder
-   * opens the modal here: the physical/smart selector is hidden and the form
-   * builds a `kind='dynamic'` rule. Physical binders are created from "Add
-   * binder" (#702) now; the set-anchored Browse path (#682) still opens this
-   * modal without `smartOnly` for its physical create.
+   * Smart-collection-only create (#703). The Binders tab's New ▾ → Smart
+   * collection opens the modal here: the physical/smart selector is hidden and
+   * the form builds a `kind='dynamic'` rule. Physical binders are created from
+   * "Add binder" (#702) now; the set-anchored Browse path (#682) still opens
+   * this modal without `smartOnly` for its physical create.
    */
   smartOnly?: boolean
 }
 
 export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }: Props) {
   const { create, update } = useCollections()
+  // A smart collection being created can file into a binder, same as a plain
+  // collection (#726) — shares the picker. Edit touches identity only.
+  const filing = useBinderFiling()
   const isEdit = editing != null
-  // A dynamic collection edits as a smart binder; everything else as physical.
+  // A dynamic collection edits as a smart collection; everything else as physical.
   const editMode: BinderMode = editing?.kind === 'dynamic' ? 'smart' : 'binder'
 
   // State is seeded once at mount from the binder being edited (or blank for
@@ -120,8 +125,8 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
         prefill?.isMasterSet,
     ),
   )
-  // Smart-binder rule state — seeded from a Browse prefill (#737) so a
-  // set-anchored / species-anchored smart binder lands with its rule filled.
+  // Smart-collection rule state — seeded from a Browse prefill (#737) so a
+  // set-anchored / species-anchored smart collection lands with its rule filled.
   const [field, setField] = useState<RuleField>(() => prefill?.ruleField ?? 'name')
   const [value, setValue] = useState(() => prefill?.ruleValue ?? '')
   const [scope, setScope] = useState<DynamicScope>('owned')
@@ -130,11 +135,17 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
   const [error, setError] = useState<string | null>(null)
 
   const isSmart = mode === 'smart'
-  // The rule is only authored on create — editing a smart binder touches just
+  // The rule is only authored on create — editing a smart collection touches just
   // its identity (name/color/type/master-set), so the rule value isn't
   // required (and the rule editor is hidden) in edit mode.
   const editingRule = isSmart && !isEdit
-  const canSubmit = name.trim().length > 0 && (!editingRule || value.trim().length > 0)
+  // Creating a smart collection offers the binder-filing picker; wait for the
+  // binder list before allowing submit so the inline-create path is safe.
+  const smartCreate = isSmart && !isEdit
+  const canSubmit =
+    name.trim().length > 0 &&
+    (!editingRule || value.trim().length > 0) &&
+    (!smartCreate || filing.settled)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -159,12 +170,15 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
             : { is_master_set: isMasterSet }),
         })
       } else if (isSmart) {
+        const target = await filing.resolveTarget()
         await create(name.trim(), {
           kind: 'dynamic',
           rule: buildRule(field, value),
           dynamic_scope: scope,
           is_master_set: isMasterSet,
+          ...(target != null ? { binder_id: target } : {}),
         })
+        if (target != null) await filing.refresh()
       } else {
         const set = sourceSetId.trim()
         await create(name.trim(), {
@@ -193,7 +207,13 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(460px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200">
           <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
             <Dialog.Title className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
-              {isEdit ? 'Edit binder' : smartOnly ? 'New smart binder' : 'New binder'}
+              {isEdit
+                ? editMode === 'smart'
+                  ? 'Edit smart collection'
+                  : 'Edit binder'
+                : smartOnly
+                  ? 'New smart collection'
+                  : 'New binder'}
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
@@ -210,9 +230,9 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
           </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-            {/* Mode — physical vs. smart binder. Hidden when editing (a
+            {/* Mode — physical vs. smart collection. Hidden when editing (a
                 binder's kind is fixed) and in smartOnly create (#703), where
-                the Binders tab routes straight to the smart-binder builder. */}
+                the Binders tab routes straight to the smart-collection builder. */}
             {!isEdit && !smartOnly && (
               <div role="radiogroup" aria-label="Binder type" className="grid grid-cols-2 gap-2">
                 <TypeCard
@@ -226,7 +246,7 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
                   active={mode === 'smart'}
                   onClick={() => setMode('smart')}
                   icon={<Sparkles size={15} />}
-                  title="Smart binder"
+                  title="Smart collection"
                   blurb="A saved rule over the cards you already own."
                 />
               </div>
@@ -300,6 +320,9 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
               </div>
             )}
 
+            {/* A new smart collection can file into a physical binder (#726). */}
+            {smartCreate && <BinderFilePicker filing={filing} />}
+
             <div>
               <button
                 type="button"
@@ -370,7 +393,7 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
                   )}
 
                   {/* Master-set target — shared. A physical binder needs a set
-                      anchor; a smart binder's rule defines membership. */}
+                      anchor; a smart collection's rule defines membership. */}
                   {(isSmart || (isEdit ? editing?.source_set_id : sourceSetId.trim())) && (
                     <div className="space-y-1">
                       <label className="flex items-center gap-2 text-xs text-coconut-600 dark:text-sand-200">

@@ -65,9 +65,9 @@ async function openNewMenu(itemName: RegExp) {
   fireEvent.click(item)
 }
 
-/** Open the New ▾ menu and pick "Smart binder" (the modal opens smart-only). */
+/** Open the New ▾ menu and pick "Smart collection" (the modal opens smart-only). */
 async function openSmartBinder() {
-  await openNewMenu(/smart binder/i)
+  await openNewMenu(/smart collection/i)
 }
 
 describe('LibraryBindersTab', () => {
@@ -492,7 +492,7 @@ describe('LibraryBindersTab', () => {
 
   // ---- #703: New ▾ menu + file-into-binder -------------------------------
 
-  it('New ▾ lists Collection / Want-list / Smart binder and no plain binder', async () => {
+  it('New ▾ lists Collection / Want-list / Smart collection and no plain binder', async () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
@@ -500,9 +500,9 @@ describe('LibraryBindersTab', () => {
     trigger.focus()
     fireEvent.keyDown(trigger, { key: 'Enter' })
 
-    expect(await screen.findByRole('menuitem', { name: /collection/i })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: /^collection/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /want-list/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /smart binder/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /smart collection/i })).toBeInTheDocument()
     // No standalone "binder" create — physical binders come from "Add binder".
     expect(screen.queryByRole('menuitem', { name: /^binder$/i })).not.toBeInTheDocument()
   })
@@ -519,7 +519,7 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
-    await openNewMenu(/collection/i)
+    await openNewMenu(/^collection/i)
     // The new collection dialog (#723) uses a richer placeholder; with no
     // binders yet and no inline binder named, it creates a loose collection.
     fireEvent.change(screen.getByPlaceholderText('Base Set holos'), {
@@ -550,7 +550,7 @@ describe('LibraryBindersTab', () => {
     await waitFor(() => expect(mockCreateWishlist).toHaveBeenCalledWith('Chase list', undefined))
   })
 
-  it('the smart-binder create has no physical/smart selector', async () => {
+  it('the smart-collection create has no physical/smart selector', async () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
@@ -579,5 +579,37 @@ describe('LibraryBindersTab', () => {
     fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: /show binder/i }))
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(1, { binder_id: 3 }))
+  })
+
+  it('lets a filed smart collection be unfiled from the row (#775 review)', async () => {
+    mockCollections.mockResolvedValue([
+      {
+        id: 2,
+        name: 'All Eevees',
+        description: null,
+        created_at: '2026-06-04T00:00:00',
+        item_count: 7,
+        kind: 'dynamic',
+        dynamic_scope: 'owned',
+        rule: { name: 'eevee' },
+        binder_id: 3,
+      },
+    ])
+    mockBinders.mockResolvedValue([
+      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: null, collection_count: 1, is_empty: false },
+    ])
+    mockUpdate.mockResolvedValue({
+      id: 2, name: 'All Eevees', description: null, created_at: '2026-06-04T00:00:00', items: [], kind: 'dynamic', binder_id: null,
+    } as never)
+    render(<LibraryBindersTab />)
+    // The filing control now shows for dynamic (smart) collections too.
+    const fileBtn = await screen.findByRole('button', {
+      name: /file collection "All Eevees" into a binder/i,
+    })
+    fileBtn.focus()
+    fireEvent.keyDown(fileBtn, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: /remove from binder/i }))
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(2, { binder_id: null }))
   })
 })

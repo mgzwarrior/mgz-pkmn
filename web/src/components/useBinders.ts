@@ -20,10 +20,15 @@ interface State {
   binders: BinderSummary[]
   loading: boolean
   error: string | null
+  /** True once the first fetch has resolved (success or error). Distinguishes
+   *  "no binders yet" from "haven't loaded yet" — the list starts empty with
+   *  `loading: false`, so callers that gate on load must check this, not
+   *  `!loading` (#775 review). */
+  fetched: boolean
 }
 
 const listeners = new Set<(s: State) => void>()
-let state: State = { binders: [], loading: false, error: null }
+let state: State = { binders: [], loading: false, error: null, fetched: false }
 let inflight: Promise<void> | null = null
 
 function set(next: Partial<State>) {
@@ -37,9 +42,9 @@ async function refresh(): Promise<void> {
   inflight = (async () => {
     try {
       const binders = await fetchBinders()
-      set({ binders, loading: false })
+      set({ binders, loading: false, fetched: true })
     } catch (e) {
-      set({ loading: false, error: e instanceof Error ? e.message : String(e) })
+      set({ loading: false, error: e instanceof Error ? e.message : String(e), fetched: true })
     } finally {
       inflight = null
     }
@@ -113,7 +118,7 @@ export function useBinders() {
 
 // Test-only: reset the module-level cache between vitest runs.
 export function _resetBindersCacheForTests() {
-  state = { binders: [], loading: false, error: null }
+  state = { binders: [], loading: false, error: null, fetched: false }
   inflight = null
   listeners.clear()
 }
