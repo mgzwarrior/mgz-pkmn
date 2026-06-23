@@ -55,7 +55,7 @@ describe('OwnershipBadge', () => {
     expect(badge).toHaveAttribute('title', 'Chasing on Allentown Show')
   })
 
-  it('shows both badges when owned and chasing', () => {
+  it('owned supersedes chasing — hides the chase chip when also owned (#761)', () => {
     render(
       <OwnershipBadge
         ownership={own({
@@ -65,6 +65,6 @@ describe('OwnershipBadge', () => {
       />,
     )
     expect(screen.getByText('owned')).toBeInTheDocument()
-    expect(screen.getByText('chasing')).toBeInTheDocument()
+    expect(screen.queryByText('chasing')).not.toBeInTheDocument()
   })
 })

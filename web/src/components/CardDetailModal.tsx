@@ -258,6 +258,7 @@ function CardDetailBody({
                 <LibraryLocations ownership={ownership} />
                 <SaveCardActions
                   card={card as unknown as Record<string, unknown>}
+                  ownership={ownership}
                   show={showActions}
                   variant="primary"
                 />
