@@ -27,8 +27,20 @@ import {
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { exportFile } from '../api/client'
 import { useAppStore } from '../store'
-import type { ExportFormat } from '../types'
+import type { ExportFormat, Row } from '../types'
 import { SetPickerModal } from './SetPickerModal'
+
+interface ExportBarProps {
+  /** Rows to export. Omit to use the Search store's current run (the default
+   *  results-header behavior); the collection / want-list detail views pass
+   *  their own items (#773). */
+  rows?: Row[]
+  /** Filename / sheet title. Falls back to the Search tag, then "cards". */
+  title?: string
+  /** Whether to offer the "Set ID cards…" item — search-only, since it pulls a
+   *  whole set catalog rather than the listed rows. Defaults to true. */
+  showSetIdCards?: boolean
+}
 
 const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
   { format: 'xlsx', label: 'Download .xlsx', icon: <FileSpreadsheet size={14} /> },
@@ -37,8 +49,8 @@ const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
   { format: 'checklist', label: 'Checklist', icon: <ListChecks size={14} /> },
 ]
 
-export function ExportBar() {
-  const { rows, settings } = useAppStore()
+export function ExportBar({ rows: rowsProp, title, showSetIdCards = true }: ExportBarProps = {}) {
+  const { rows: storeRows, settings } = useAppStore()
   const [loading, setLoading] = useState<ExportFormat | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Set ID cards now opens the picker modal rather than firing an
@@ -46,7 +58,9 @@ export function ExportBar() {
   // (including the cross-fetch to /api/v1/sets).
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  const matchedRows = rows.filter((r) => r.matched)
+  // Caller-supplied rows (a collection / want-list) win over the Search run.
+  const sourceRows = rowsProp ?? storeRows
+  const matchedRows = sourceRows.filter((r) => r.matched)
   const disabled = matchedRows.length === 0
   const anyLoading = loading !== null
 
@@ -55,9 +69,9 @@ export function ExportBar() {
     setLoading(format)
     setError(null)
     try {
-      await exportFile(rows, format, {
+      await exportFile(sourceRows, format, {
         maxPrice: settings.maxPrice,
-        title: settings.tag || 'cards',
+        title: title ?? (settings.tag || 'cards'),
         sort: settings.sort,
         noImages: settings.noImages,
         dedupe: settings.dedupe,
@@ -100,14 +114,18 @@ export function ExportBar() {
                 {b.label}
               </DropdownMenu.Item>
             ))}
-            <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
-            <DropdownMenu.Item
-              onSelect={() => setPickerOpen(true)}
-              className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-coconut-700 dark:text-sand-50 outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100"
-            >
-              <Tags size={14} />
-              Set ID cards…
-            </DropdownMenu.Item>
+            {showSetIdCards && (
+              <>
+                <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
+                <DropdownMenu.Item
+                  onSelect={() => setPickerOpen(true)}
+                  className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-coconut-700 dark:text-sand-50 outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100"
+                >
+                  <Tags size={14} />
+                  Set ID cards…
+                </DropdownMenu.Item>
+              </>
+            )}
             {matchedRows.length > 0 && (
               <>
                 <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
@@ -122,7 +140,7 @@ export function ExportBar() {
       {/* Errors live outside the dropdown so they stay visible after the
           user picks a format and the menu closes. */}
       {error && <span className="text-xs text-ember-500 dark:text-ember-300">{error}</span>}
-      <SetPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
+      {showSetIdCards && <SetPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />}
     </div>
   )
 }

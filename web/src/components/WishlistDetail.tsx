@@ -11,7 +11,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Check, Footprints, ImageOff, Loader2, Plus, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   deleteWishlistItem,
   fetchWishlist,
@@ -19,6 +19,8 @@ import {
   type WishlistItem,
   type WishlistSummary,
 } from '../api/client'
+import { ExportBar } from './ExportBar'
+import { itemsToExportRows } from './exportRows'
 import { invalidateOwnership } from './useCardOwnership'
 import { useCollections } from './useCollections'
 import { useWishlists } from './useWishlists'
@@ -313,6 +315,7 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
     return aDone - bDone
   })
   const outstanding = items.filter((i) => i.acquired_at == null).length
+  const exportRows = useMemo(() => itemsToExportRows(items), [items])
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -326,14 +329,19 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
                 {wishlist?.name ?? 'Wishlist'}
               </Dialog.Title>
             </div>
-            <Dialog.Close asChild>
-              <button
-                aria-label="Close"
-                className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
-              >
-                <X size={18} />
-              </button>
-            </Dialog.Close>
+            <div className="flex shrink-0 items-center gap-1">
+              {items.length > 0 && (
+                <ExportBar rows={exportRows} title={wishlist?.name} showSetIdCards={false} />
+              )}
+              <Dialog.Close asChild>
+                <button
+                  aria-label="Close"
+                  className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
+                >
+                  <X size={18} />
+                </button>
+              </Dialog.Close>
+            </div>
           </header>
           <Dialog.Description className="sr-only">
             Cards on this want-list. Mark one &ldquo;got it&rdquo; to move it into a

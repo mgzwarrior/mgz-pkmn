@@ -15,9 +15,11 @@
  */
 import * as Dialog from '@radix-ui/react-dialog'
 import { ImageOff, Loader2, Minus, Plus, Wallet, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { fetchCollection, type CollectionItem, type CollectionSummary } from '../api/client'
 import { coverSwatch } from './binderIdentity'
+import { ExportBar } from './ExportBar'
+import { itemsToExportRows } from './exportRows'
 import { useCollections } from './useCollections'
 import { formatMoney } from '../utils/format'
 
@@ -104,6 +106,7 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
   }, [open, collection])
 
   const cover = coverSwatch(collection?.binder_color)
+  const exportRows = useMemo(() => itemsToExportRows(items ?? []), [items])
   const total = (items ?? []).reduce(
     (sum, it) => sum + (it.price_snapshot ?? 0) * (it.quantity ?? 1),
     0,
@@ -129,14 +132,23 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
                 {collection?.name ?? 'Collection'}
               </Dialog.Title>
             </div>
-            <Dialog.Close asChild>
-              <button
-                aria-label="Close"
-                className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
-              >
-                <X size={18} />
-              </button>
-            </Dialog.Close>
+            <div className="flex shrink-0 items-center gap-1">
+              {items && items.length > 0 && (
+                <ExportBar
+                  rows={exportRows}
+                  title={collection?.name}
+                  showSetIdCards={false}
+                />
+              )}
+              <Dialog.Close asChild>
+                <button
+                  aria-label="Close"
+                  className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
+                >
+                  <X size={18} />
+                </button>
+              </Dialog.Close>
+            </div>
           </header>
           <Dialog.Description className="sr-only">
             The cards in this collection, with their snapshot prices.
