@@ -262,6 +262,12 @@ class Binder(Base):
         back_populates="binder",
         order_by="Collection.created_at",
     )
+    #: Want-lists filed into this binder (#774). A binder organizes both owned
+    #: (collections) and chasing (want-lists); deleting it detaches both.
+    wishlists: Mapped[list[Wishlist]] = relationship(
+        back_populates="binder",
+        order_by="Wishlist.created_at",
+    )
 
 
 class Collection(Base):
@@ -437,6 +443,14 @@ class Wishlist(Base):
     is_default: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # ---- #774: parent physical binder ----
+    #: The :class:`Binder` this want-list is filed in, or null for a loose
+    #: want-list not in any binder. Mirrors ``Collection.binder_id`` (#702):
+    #: deleting a binder detaches (``SET NULL``) its want-lists, not removes them.
+    binder_id: Mapped[int | None] = mapped_column(
+        ForeignKey("binders.id", ondelete="SET NULL"), nullable=True
+    )
+    binder: Mapped[Binder | None] = relationship(back_populates="wishlists")
 
     items: Mapped[list[WishlistItem]] = relationship(
         back_populates="wishlist",

@@ -39,6 +39,7 @@ function binder(over: Partial<BinderSummary> = {}): BinderSummary {
     binder_type: null,
     capacity: 360,
     collection_count: 0,
+    wishlist_count: 0,
     is_empty: true,
     ...over,
   }

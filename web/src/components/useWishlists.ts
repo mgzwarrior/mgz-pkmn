@@ -12,6 +12,8 @@ import {
   createWishlist,
   deleteWishlist,
   fetchWishlists,
+  updateWishlist,
+  type CreateWishlistOptions,
   type WishlistSummary,
 } from '../api/client'
 import { invalidateOwnership } from './useCardOwnership'
@@ -63,8 +65,8 @@ export function useWishlists() {
     }
   }, [])
 
-  const create = useCallback(async (name: string, description?: string) => {
-    const created = await createWishlist(name, description)
+  const create = useCallback(async (name: string, options?: CreateWishlistOptions) => {
+    const created = await createWishlist(name, options)
     set({
       wishlists: [
         {
@@ -73,11 +75,23 @@ export function useWishlists() {
           description: created.description,
           created_at: created.created_at,
           item_count: created.items.length,
+          binder_id: created.binder_id,
         },
         ...state.wishlists,
       ],
     })
     return created
+  }, [])
+
+  // File a want-list into a binder (or pass null to unfile) and reflect the
+  // new binder_id locally so the row + binder fill update without a refetch (#774).
+  const file = useCallback(async (wishlistId: number, binderId: number | null) => {
+    await updateWishlist(wishlistId, { binder_id: binderId })
+    set({
+      wishlists: state.wishlists.map((w) =>
+        w.id === wishlistId ? { ...w, binder_id: binderId } : w,
+      ),
+    })
   }, [])
 
   const addCard = useCallback(
@@ -131,6 +145,7 @@ export function useWishlists() {
     ...snapshot,
     refresh,
     create,
+    file,
     addCard,
     bulkAdd,
     remove,

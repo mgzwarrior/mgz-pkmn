@@ -17,6 +17,7 @@ import {
   fetchBinders,
   createWishlist,
   updateCollection,
+  updateWishlist,
 } from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -29,7 +30,9 @@ vi.mock('../api/client', () => ({
   downloadCollectionIdCardPdf: vi.fn(),
   fetchWishlists: vi.fn(),
   createWishlist: vi.fn(),
+  updateWishlist: vi.fn(),
   addCardToWishlist: vi.fn(),
+  bulkAddToWishlist: vi.fn(),
   deleteWishlist: vi.fn(),
   fetchWishlist: vi.fn(),
   promoteWishlistItem: vi.fn(),
@@ -53,6 +56,7 @@ const mockFetchWishlist = vi.mocked(fetchWishlist)
 const mockTarget = vi.mocked(fetchCollectionTarget)
 const mockCreateWishlist = vi.mocked(createWishlist)
 const mockUpdate = vi.mocked(updateCollection)
+const mockUpdateWishlist = vi.mocked(updateWishlist)
 
 /** Open the New ▾ menu (radix opens on keyboard) and pick a menu item. */
 async function openNewMenu(itemName: RegExp) {
@@ -86,6 +90,8 @@ describe('LibraryBindersTab', () => {
     mockPrintIdCard.mockReset()
     mockFetchWishlist.mockReset()
     mockTarget.mockReset()
+    mockCreateWishlist.mockReset()
+    mockUpdateWishlist.mockReset()
     mockCollections.mockResolvedValue([])
     mockWishlists.mockResolvedValue([])
   })
@@ -115,6 +121,7 @@ describe('LibraryBindersTab', () => {
         description: null,
         created_at: '2026-06-06T00:00:00',
         item_count: 3,
+        binder_id: null,
       },
     ])
     render(<LibraryBindersTab />)
@@ -141,7 +148,7 @@ describe('LibraryBindersTab', () => {
       { id: 1, name: 'Charizard masters', description: null, created_at: '2026-06-04T00:00:00', item_count: 4 },
     ])
     mockWishlists.mockResolvedValue([
-      { id: 2, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 3 },
+      { id: 2, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 3, binder_id: null },
     ])
     render(<LibraryBindersTab />)
     await waitFor(() => expect(screen.getByText('Mew hunt')).toBeInTheDocument())
@@ -157,7 +164,7 @@ describe('LibraryBindersTab', () => {
       { id: 1, name: 'Charizard masters', description: null, created_at: '2026-06-04T00:00:00', item_count: 4 },
     ])
     mockWishlists.mockResolvedValue([
-      { id: 2, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 3 },
+      { id: 2, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 3, binder_id: null },
     ])
     render(<LibraryBindersTab />)
     await waitFor(() => expect(screen.getByText('Charizard masters')).toBeInTheDocument())
@@ -388,6 +395,7 @@ describe('LibraryBindersTab', () => {
         description: null,
         created_at: '2026-06-06T00:00:00',
         item_count: 1,
+        binder_id: null,
       },
     ])
     mockFetchWishlist.mockResolvedValue({
@@ -395,6 +403,7 @@ describe('LibraryBindersTab', () => {
       name: 'Mew hunt',
       description: null,
       created_at: '2026-06-06T00:00:00',
+      binder_id: null,
       items: [
         {
           id: 11,
@@ -448,7 +457,7 @@ describe('LibraryBindersTab', () => {
 
   it('deletes a want-list after the inline confirm', async () => {
     mockWishlists.mockResolvedValue([
-      { id: 2, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 3 },
+      { id: 2, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 3, binder_id: null },
     ])
     mockDeleteWishlist.mockResolvedValue(undefined)
     render(<LibraryBindersTab />)
@@ -536,6 +545,7 @@ describe('LibraryBindersTab', () => {
       name: 'Chase list',
       description: null,
       created_at: '2026-06-11T00:00:00',
+      binder_id: null,
       items: [],
     })
     render(<LibraryBindersTab />)
@@ -565,7 +575,7 @@ describe('LibraryBindersTab', () => {
       { id: 1, name: 'Trade pile', description: null, created_at: '2026-06-04T00:00:00', item_count: 4, kind: 'manual', binder_id: null },
     ])
     mockBinders.mockResolvedValue([
-      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: null, collection_count: 0, is_empty: true },
+      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: null, collection_count: 0, wishlist_count: 0, is_empty: true },
     ])
     mockUpdate.mockResolvedValue({
       id: 1, name: 'Trade pile', description: null, created_at: '2026-06-04T00:00:00', items: [], kind: 'manual', binder_id: 3,
@@ -596,7 +606,7 @@ describe('LibraryBindersTab', () => {
       },
     ])
     mockBinders.mockResolvedValue([
-      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: null, collection_count: 1, is_empty: false },
+      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: null, collection_count: 1, wishlist_count: 0, is_empty: false },
     ])
     mockUpdate.mockResolvedValue({
       id: 2, name: 'All Eevees', description: null, created_at: '2026-06-04T00:00:00', items: [], kind: 'dynamic', binder_id: null,
@@ -611,5 +621,52 @@ describe('LibraryBindersTab', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: /remove from binder/i }))
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(2, { binder_id: null }))
+  })
+
+  // ---- #774: want-lists file into binders --------------------------------
+
+  it('files a want-list into a binder via the row control', async () => {
+    mockWishlists.mockResolvedValue([
+      { id: 5, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 2, binder_id: null },
+    ])
+    mockBinders.mockResolvedValue([
+      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: null, collection_count: 0, wishlist_count: 0, is_empty: true },
+    ])
+    mockUpdateWishlist.mockResolvedValue({
+      id: 5, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', binder_id: 3, items: [],
+    })
+    render(<LibraryBindersTab />)
+
+    const fileBtn = await screen.findByRole('button', {
+      name: /file want-list "Mew hunt" into a binder/i,
+    })
+    fileBtn.focus()
+    fireEvent.keyDown(fileBtn, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: /show binder/i }))
+
+    await waitFor(() => expect(mockUpdateWishlist).toHaveBeenCalledWith(5, { binder_id: 3 }))
+  })
+
+  it('creates a want-list filed into a binder from the New ▾ menu', async () => {
+    mockBinders.mockResolvedValue([
+      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: 360, collection_count: 0, wishlist_count: 0, is_empty: true },
+    ])
+    mockCreateWishlist.mockResolvedValue({
+      id: 8, name: 'Chase list', description: null, created_at: '2026-06-11T00:00:00', binder_id: 3, items: [],
+    })
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(mockBinders).toHaveBeenCalled())
+
+    await openNewMenu(/want-list/i)
+    fireEvent.change(screen.getByPlaceholderText('Chase cards'), {
+      target: { value: 'Chase list' },
+    })
+    // The shared binder-file picker is offered; pick the existing binder.
+    fireEvent.click(await screen.findByRole('radio', { name: /show binder/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
+
+    await waitFor(() =>
+      expect(mockCreateWishlist).toHaveBeenCalledWith('Chase list', { binder_id: 3 }),
+    )
   })
 })

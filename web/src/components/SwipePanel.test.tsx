@@ -389,6 +389,7 @@ describe('SwipePanel', () => {
       name: 'Custom prep',
       description: null,
       created_at: '2026-06-06T00:00:00',
+      binder_id: null,
       items: [],
     })
     mockAddCardToWishlist.mockResolvedValue({

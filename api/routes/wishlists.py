@@ -42,7 +42,7 @@ from ..db.models import (
     WishlistItem,
 )
 from ..db.session import get_db
-from .collections import serialize_collection_item
+from .collections import _require_owned_binder, serialize_collection_item
 
 router = APIRouter()
 
@@ -63,6 +63,8 @@ class WishlistSummaryOut(BaseModel):
     description: str | None
     created_at: str
     item_count: int
+    #: The binder this want-list is filed into, or null when loose (#774).
+    binder_id: int | None
 
 
 class WishlistItemOut(BaseModel):
@@ -91,17 +93,25 @@ class WishlistOut(BaseModel):
     name: str
     description: str | None
     created_at: str
+    #: The binder this want-list is filed into, or null when loose (#774).
+    binder_id: int | None
     items: list[WishlistItemOut]
 
 
 class WishlistCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
+    #: File the new want-list into a binder on create (#774). Null leaves it
+    #: loose; an unowned id is a 404 (see :func:`_require_owned_binder`).
+    binder_id: int | None = None
 
 
 class WishlistPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
+    #: Re-file (or, with null, unfile) the want-list (#774). Only applied when
+    #: the key is present, so omitting it leaves the current binder untouched.
+    binder_id: int | None = None
 
 
 class WishlistItemCreate(BaseModel):
@@ -182,6 +192,7 @@ def list_wishlists(db: DbSession, current_user: CurrentUser) -> dict:
             description=w.description,
             created_at=w.created_at.isoformat(),
             item_count=int(item_count),
+            binder_id=w.binder_id,
         )
         for w, item_count in db.execute(stmt).all()
     ]
@@ -190,10 +201,12 @@ def list_wishlists(db: DbSession, current_user: CurrentUser) -> dict:
 
 @router.post("/wishlists", status_code=201)
 def create_wishlist(req: WishlistCreate, db: DbSession, current_user: CurrentUser) -> dict:
+    _require_owned_binder(db, req.binder_id, current_user.id)
     wishlist = Wishlist(
         user_id=current_user.id,
         name=req.name.strip(),
         description=req.description,
+        binder_id=req.binder_id,
     )
     db.add(wishlist)
     db.commit()
@@ -222,6 +235,11 @@ def patch_wishlist(
     # from "explicitly null" since Pydantic collapses both to None.
     if "description" in req.model_fields_set:
         wishlist.description = req.description
+    # File / re-file / unfile only when the caller sends the key (#774);
+    # passing `null` detaches, mirroring the collections patch path.
+    if "binder_id" in req.model_fields_set:
+        _require_owned_binder(db, req.binder_id, current_user.id)
+        wishlist.binder_id = req.binder_id
     db.commit()
     db.refresh(wishlist)
     return _serialize_wishlist(wishlist)
@@ -424,6 +442,7 @@ def _serialize_wishlist(wishlist: Wishlist) -> dict:
         name=wishlist.name,
         description=wishlist.description,
         created_at=wishlist.created_at.isoformat(),
+        binder_id=wishlist.binder_id,
         items=[_item_out(i) for i in wishlist.items],
     ).model_dump()
 

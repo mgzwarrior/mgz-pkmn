@@ -367,7 +367,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
 
     // The want-list dialog opens pre-seeded with the set's name; create it.
     const dialog = await screen.findByRole('dialog')
-    const name = within(dialog).getByPlaceholderText<HTMLInputElement>(/chasing/i).value
+    const name = within(dialog).getByPlaceholderText<HTMLInputElement>(/chase cards/i).value
     expect(name.length).toBeGreaterThan(0)
     fireEvent.click(within(dialog).getByRole('button', { name: /^create$/i }))
 
