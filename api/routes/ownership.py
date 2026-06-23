@@ -271,16 +271,25 @@ def _card_state(db: Session, user_id: int, set_id: str | None, number: str | Non
     )
 
 
-def _default_wishlist_item(
-    db: Session, wishlist_id: int, set_id: str | None, number: str | None
+def _wishlist_item(
+    db: Session,
+    wishlist_id: int,
+    set_id: str | None,
+    number: str | None,
+    *,
+    acquired: bool,
 ) -> WishlistItem | None:
+    """The default-wishlist row for a card, filtered to active chases
+    (``acquired=False``) or completed ones (``acquired=True``)."""
     if set_id is None or number is None:
         return None
+    cond = WishlistItem.acquired_at.is_not(None) if acquired else WishlistItem.acquired_at.is_(None)
     return db.scalar(
         select(WishlistItem).where(
             WishlistItem.wishlist_id == wishlist_id,
             WishlistItem.card_set_id == set_id,
             WishlistItem.card_number == number,
+            cond,
         )
     )
 
@@ -309,21 +318,24 @@ def want_card(req: CardActionRequest, db: DbSession, current_user: CurrentUser) 
     path (#768)."""
     wishlist = get_or_create_default_wishlist(db, current_user.id)
     set_id, number = _identity(req.card)
-    item = _default_wishlist_item(db, wishlist.id, set_id, number)
-    if item is None:
-        price = extract_price_snapshot(req.card)
-        db.add(
-            WishlistItem(
-                wishlist_id=wishlist.id,
-                card_json=req.card,
-                price_snapshot=price,
-                priced_at=datetime.now(UTC) if price is not None else None,
-                **extract_card_identity(req.card),
+    # An active want already covers this card → nothing to do (and don't touch
+    # any acquired history row).
+    if _wishlist_item(db, wishlist.id, set_id, number, acquired=False) is None:
+        acquired = _wishlist_item(db, wishlist.id, set_id, number, acquired=True)
+        if acquired is not None:
+            acquired.acquired_at = None
+            acquired.acquired_collection_item_id = None
+        else:
+            price = extract_price_snapshot(req.card)
+            db.add(
+                WishlistItem(
+                    wishlist_id=wishlist.id,
+                    card_json=req.card,
+                    price_snapshot=price,
+                    priced_at=datetime.now(UTC) if price is not None else None,
+                    **extract_card_identity(req.card),
+                )
             )
-        )
-    elif item.acquired_at is not None:
-        item.acquired_at = None
-        item.acquired_collection_item_id = None
     db.commit()
     return _card_state(db, current_user.id, set_id, number).model_dump()
 
@@ -336,8 +348,8 @@ def unwant_card(req: CardActionRequest, db: DbSession, current_user: CurrentUser
     already completed), so this never erases the "I got it" record (#768)."""
     wishlist = get_or_create_default_wishlist(db, current_user.id)
     set_id, number = _identity(req.card)
-    item = _default_wishlist_item(db, wishlist.id, set_id, number)
-    if item is not None and item.acquired_at is None:
+    item = _wishlist_item(db, wishlist.id, set_id, number, acquired=False)
+    if item is not None:
         db.delete(item)
     db.commit()
     return _card_state(db, current_user.id, set_id, number).model_dump()

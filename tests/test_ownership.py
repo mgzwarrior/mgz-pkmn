@@ -298,6 +298,34 @@ class QuickActionTests(_IsolatedDbMixin):
             self.assertIsNone(item.acquired_at)
             self.assertIsNone(item.acquired_collection_item_id)
 
+    def test_want_does_not_reactivate_history_when_an_active_duplicate_exists(self) -> None:
+        # With both an acquired (history) row and a separate active duplicate
+        # for the same card, re-wanting must no-op rather than clearing the
+        # acquired row — that would dup the active want and lose history (#768).
+        from sqlalchemy import select
+
+        from api.db.models import Wishlist, WishlistItem
+
+        sf = session_mod.get_session_factory()
+        with self._client() as c:
+            c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            c.post("/api/v1/cards/own", json={"card": CHARIZARD})  # acquired row
+            with sf() as db:
+                wl_id = db.scalar(select(Wishlist).where(Wishlist.is_default)).id
+            # A separate active duplicate via the generic items endpoint.
+            c.post(f"/api/v1/wishlists/{wl_id}/items", json={"card": CHARIZARD})
+
+            body = c.post("/api/v1/cards/want", json={"card": CHARIZARD}).json()
+            self.assertTrue(body["wanted"])
+
+        with sf() as db:
+            items = db.scalars(select(WishlistItem)).all()
+            acquired = [i for i in items if i.acquired_at is not None]
+            active = [i for i in items if i.acquired_at is None]
+            # History intact, exactly one active want — no reactivation, no dup.
+            self.assertEqual(len(acquired), 1)
+            self.assertEqual(len(active), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

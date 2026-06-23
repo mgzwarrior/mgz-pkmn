@@ -114,7 +114,12 @@ def list_excluded(
         chasing_rows = db.execute(
             select(WishlistItem.card_set_id, WishlistItem.card_number)
             .join(Wishlist, WishlistItem.wishlist_id == Wishlist.id)
-            .where(Wishlist.user_id == current_user.id)
+            .where(
+                Wishlist.user_id == current_user.id,
+                # Active chases only — an acquired item is owned, not chasing,
+                # so it shouldn't be excluded under chasing alone (#768).
+                WishlistItem.acquired_at.is_(None),
+            )
         ).all()
         pairs.update((s, n) for s, n in chasing_rows if s and n)
 
