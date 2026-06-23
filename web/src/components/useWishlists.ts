@@ -22,10 +22,13 @@ interface State {
   wishlists: WishlistSummary[]
   loading: boolean
   error: string | null
+  // True once the first fetch has resolved or failed. Callers that gate on
+  // load (e.g. binder slot math, #774) must check this, not `!loading`.
+  fetched: boolean
 }
 
 const listeners = new Set<(s: State) => void>()
-let state: State = { wishlists: [], loading: false, error: null }
+let state: State = { wishlists: [], loading: false, error: null, fetched: false }
 let inflight: Promise<void> | null = null
 
 function set(next: Partial<State>) {
@@ -39,11 +42,12 @@ async function refresh(): Promise<void> {
   inflight = (async () => {
     try {
       const wishlists = await fetchWishlists()
-      set({ wishlists, loading: false })
+      set({ wishlists, loading: false, fetched: true })
     } catch (e) {
       set({
         loading: false,
         error: e instanceof Error ? e.message : String(e),
+        fetched: true,
       })
     } finally {
       inflight = null
@@ -154,7 +158,7 @@ export function useWishlists() {
 
 // Test-only: reset the module-level cache between vitest runs.
 export function _resetWishlistsCacheForTests() {
-  state = { wishlists: [], loading: false, error: null }
+  state = { wishlists: [], loading: false, error: null, fetched: false }
   inflight = null
   listeners.clear()
 }

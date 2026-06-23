@@ -23,10 +23,14 @@ interface State {
   collections: CollectionSummary[]
   loading: boolean
   error: string | null
+  // True once the first fetch has resolved or failed. Callers that gate on
+  // load (e.g. binder slot math, #774) must check this, not `!loading`: the
+  // list starts empty with loading=false before the effect kicks off.
+  fetched: boolean
 }
 
 const listeners = new Set<(s: State) => void>()
-let state: State = { collections: [], loading: false, error: null }
+let state: State = { collections: [], loading: false, error: null, fetched: false }
 let inflight: Promise<void> | null = null
 
 function set(next: Partial<State>) {
@@ -40,11 +44,12 @@ async function refresh(): Promise<void> {
   inflight = (async () => {
     try {
       const collections = await fetchCollections()
-      set({ collections, loading: false })
+      set({ collections, loading: false, fetched: true })
     } catch (e) {
       set({
         loading: false,
         error: e instanceof Error ? e.message : String(e),
+        fetched: true,
       })
     } finally {
       inflight = null
@@ -200,7 +205,7 @@ export function useCollections() {
 // Test-only: reset the module-level cache between vitest runs so each
 // test starts with an empty list. Production code should not call this.
 export function _resetCollectionsCacheForTests() {
-  state = { collections: [], loading: false, error: null }
+  state = { collections: [], loading: false, error: null, fetched: false }
   inflight = null
   listeners.clear()
 }

@@ -40,19 +40,21 @@ export interface BinderFiling {
 }
 
 export function useBinderFiling(): BinderFiling {
-  const { collections } = useCollections()
-  const { wishlists } = useWishlists()
-  const { binders, fetched, create: createBinder, refresh } = useBinders()
+  const { collections, fetched: collectionsFetched } = useCollections()
+  const { wishlists, fetched: wishlistsFetched } = useWishlists()
+  const { binders, fetched: bindersFetched, create: createBinder, refresh } = useBinders()
 
   const [target, setTarget] = useState<FileTarget>(null)
   const [newBinderName, setNewBinderName] = useState('')
   const [newBinderColor, setNewBinderColor] = useState<string | null>(null)
   const [newBinderCapacity, setNewBinderCapacity] = useState('')
 
-  // Gate on the first fetch completing, not on `!loading`: the list starts
+  // Gate on the first fetch completing, not on `!loading`: each list starts
   // empty with loading=false, so an un-fetched state would otherwise read as
   // "no binders yet" and let the create submit before binders load (#775).
-  const settled = fetched
+  // Collections *and* want-lists must also be loaded before the slot math is
+  // trusted, since both occupy a binder's slots now (#774 review).
+  const settled = bindersFetched && collectionsFetched && wishlistsFetched
   const hasBinders = binders.length > 0
 
   // Cards already filed into each binder — the sum of its collections' pocket
