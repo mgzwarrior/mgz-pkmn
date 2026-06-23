@@ -27,6 +27,8 @@ import type {
   CollectionSummary,
   DynamicScope,
 } from '../api/client'
+import { BinderFilePicker } from './BinderFilePicker'
+import { useBinderFiling } from './useBinderFiling'
 import { BINDER_FORMAT_OPTIONS } from './binderIdentity'
 import { SetCombobox } from './SetCombobox'
 import { useCollections } from './useCollections'
@@ -89,6 +91,9 @@ interface Props {
 
 export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }: Props) {
   const { create, update } = useCollections()
+  // A smart binder being created can file into a binder, same as a plain
+  // collection (#726) — shares the picker. Edit touches identity only.
+  const filing = useBinderFiling()
   const isEdit = editing != null
   // A dynamic collection edits as a smart binder; everything else as physical.
   const editMode: BinderMode = editing?.kind === 'dynamic' ? 'smart' : 'binder'
@@ -134,7 +139,13 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
   // its identity (name/color/type/master-set), so the rule value isn't
   // required (and the rule editor is hidden) in edit mode.
   const editingRule = isSmart && !isEdit
-  const canSubmit = name.trim().length > 0 && (!editingRule || value.trim().length > 0)
+  // Creating a smart binder offers the binder-filing picker; wait for the
+  // binder list before allowing submit so the inline-create path is safe.
+  const smartCreate = isSmart && !isEdit
+  const canSubmit =
+    name.trim().length > 0 &&
+    (!editingRule || value.trim().length > 0) &&
+    (!smartCreate || filing.settled)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -159,12 +170,15 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
             : { is_master_set: isMasterSet }),
         })
       } else if (isSmart) {
+        const target = await filing.resolveTarget()
         await create(name.trim(), {
           kind: 'dynamic',
           rule: buildRule(field, value),
           dynamic_scope: scope,
           is_master_set: isMasterSet,
+          ...(target != null ? { binder_id: target } : {}),
         })
+        if (target != null) await filing.refresh()
       } else {
         const set = sourceSetId.trim()
         await create(name.trim(), {
@@ -299,6 +313,9 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
                 </div>
               </div>
             )}
+
+            {/* A new smart binder can file into a physical binder (#726). */}
+            {smartCreate && <BinderFilePicker filing={filing} />}
 
             <div>
               <button

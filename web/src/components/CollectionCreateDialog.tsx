@@ -2,26 +2,18 @@
  * CollectionCreateDialog — the New ▾ → Collection create flow (#723).
  *
  * A plain collection lives inside a physical binder (the inventory unit from
- * #702), so this dialog connects the two at create time:
- *
- * - **Binders exist:** pick one to file the new collection into, each shown
- *   with its available slots (capacity minus what's already filed; an empty
- *   binder shows its full capacity). Filing stays optional — "Don't file"
- *   leaves the collection loose.
- * - **No binders yet:** create one inline (name + optional cover color and
- *   capacity) and the collection drops straight into it.
- *
- * Both paths go through [useCollections](./useCollections.ts) /
+ * #702), so this dialog connects the two at create time via the shared
+ * {@link BinderFilePicker} (#726): pick an existing binder (each shown with its
+ * free slots), create one inline when none exist, or leave the collection
+ * loose. Both paths go through [useCollections](./useCollections.ts) /
  * [useBinders](./useBinders.ts) so every surface re-renders without a refetch.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { Library, Loader2, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import type { BinderSummary } from '../api/client'
+import { Loader2, X } from 'lucide-react'
+import { useState } from 'react'
 import type { CardData } from '../types'
-import { BinderColorPicker } from './BinderColorPicker'
-import { coverSwatch } from './binderIdentity'
-import { useBinders } from './useBinders'
+import { BinderFilePicker } from './BinderFilePicker'
+import { useBinderFiling } from './useBinderFiling'
 import { useCollections } from './useCollections'
 
 interface Props {
@@ -54,13 +46,6 @@ export function CollectionCreateDialog({ open, onOpenChange, prefillName, seedCa
   )
 }
 
-/** Slots still free in a binder: capacity minus the cards already filed into
- *  it. Returns null when the binder has no capacity pinned (no slot limit). */
-function freeSlots(binder: BinderSummary, usedByBinder: Map<number, number>): number | null {
-  if (binder.capacity == null) return null
-  return Math.max(0, binder.capacity - (usedByBinder.get(binder.id) ?? 0))
-}
-
 function CreateForm({
   onClose,
   prefillName,
@@ -70,45 +55,14 @@ function CreateForm({
   prefillName?: string
   seedCards?: CardData[]
 }) {
-  const { collections, create: createCollection, bulkAdd: bulkAddCollection } = useCollections()
-  const {
-    binders,
-    loading: bindersLoading,
-    create: createBinder,
-    refresh: refreshBinders,
-  } = useBinders()
+  const { create: createCollection, bulkAdd: bulkAddCollection } = useCollections()
+  const filing = useBinderFiling()
 
   const [name, setName] = useState(prefillName ?? '')
-  // Existing-binder target: a binder id, or null for "don't file".
-  const [binderId, setBinderId] = useState<number | null>(null)
-  // Inline-binder fields (only used when no binders exist yet).
-  const [newBinderName, setNewBinderName] = useState('')
-  const [newBinderColor, setNewBinderColor] = useState<string | null>(null)
-  const [newBinderCapacity, setNewBinderCapacity] = useState('')
-
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Until the binder list resolves, neither branch is safe to show: an empty
-  // `binders` during the in-flight fetch would falsely read as "no binders
-  // yet" and offer the inline-create / loose-collection path even though
-  // existing binders are about to appear (#724 review). Gate on the settled
-  // state instead.
-  const bindersSettled = !bindersLoading
-  const hasBinders = binders.length > 0
-
-  // Cards already filed into each binder — the sum of its collections' pocket
-  // counts (vendor multiples via total_quantity, falling back to row count).
-  const usedByBinder = useMemo(() => {
-    const map = new Map<number, number>()
-    for (const c of collections) {
-      if (c.binder_id == null) continue
-      map.set(c.binder_id, (map.get(c.binder_id) ?? 0) + (c.total_quantity ?? c.item_count))
-    }
-    return map
-  }, [collections])
-
-  const canSubmit = name.trim().length > 0 && !submitting && bindersSettled
+  const canSubmit = name.trim().length > 0 && !submitting && filing.settled
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -116,18 +70,7 @@ function CreateForm({
     setSubmitting(true)
     setError(null)
     try {
-      // No binders yet + the user named one inline → make the binder first,
-      // then drop the collection straight into it.
-      let target = binderId
-      const inlineName = newBinderName.trim()
-      if (!hasBinders && inlineName) {
-        const cap = newBinderCapacity.trim() ? Number(newBinderCapacity.trim()) : null
-        const binder = await createBinder(inlineName, {
-          binder_color: newBinderColor,
-          capacity: cap && cap > 0 ? cap : null,
-        })
-        target = binder.id
-      }
+      const target = await filing.resolveTarget()
       const created = await createCollection(
         name.trim(),
         target != null ? { binder_id: target } : undefined,
@@ -138,7 +81,7 @@ function CreateForm({
       if (seedCards && seedCards.length > 0) {
         await bulkAddCollection(created.id, seedCards, { addedVia: 'browse' })
       }
-      if (target != null) await refreshBinders()
+      if (target != null) await filing.refresh()
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -184,68 +127,7 @@ function CreateForm({
           />
         </label>
 
-        {!bindersSettled ? (
-          <div className="flex items-center gap-2 text-[11px] text-coconut-400 dark:text-sand-300">
-            <Loader2 size={12} className="animate-spin" />
-            Loading your binders…
-          </div>
-        ) : hasBinders ? (
-          <fieldset className="space-y-1.5">
-            <legend className="mb-1 text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
-              File into a binder (optional)
-            </legend>
-            <BinderRadio
-              checked={binderId === null}
-              onSelect={() => setBinderId(null)}
-              label="Don't file"
-              hint="Leave the collection loose."
-            />
-            {binders.map((b) => {
-              const free = freeSlots(b, usedByBinder)
-              const swatch = coverSwatch(b.binder_color)
-              return (
-                <BinderRadio
-                  key={b.id}
-                  checked={binderId === b.id}
-                  onSelect={() => setBinderId(b.id)}
-                  label={b.name}
-                  hint={slotHint(free, b.capacity)}
-                  swatch={swatch}
-                />
-              )
-            })}
-          </fieldset>
-        ) : (
-          <div className="space-y-2 rounded-md border border-sand-200 bg-coconut-50 p-3 dark:border-husk-100 dark:bg-husk-100">
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-coconut-500 dark:text-sand-200">
-              <Library size={12} aria-hidden />
-              No binders yet — create one to file this into (optional)
-            </div>
-            <input
-              type="text"
-              value={newBinderName}
-              onChange={(e) => setNewBinderName(e.target.value)}
-              placeholder="Binder name, e.g. Slot 1"
-              aria-label="New binder name"
-              className={inputClass}
-            />
-            <BinderColorPicker value={newBinderColor} onChange={setNewBinderColor} label="Cover color" />
-            <label className="block space-y-1">
-              <span className="text-[11px] font-medium text-coconut-500 dark:text-sand-300">
-                Capacity (slots)
-              </span>
-              <input
-                type="number"
-                min={1}
-                value={newBinderCapacity}
-                onChange={(e) => setNewBinderCapacity(e.target.value)}
-                placeholder="360"
-                aria-label="New binder capacity (slots)"
-                className={inputClass}
-              />
-            </label>
-          </div>
-        )}
+        <BinderFilePicker filing={filing} />
 
         {error && (
           <div role="alert" className="text-[11px] text-sun-600 dark:text-sun-300">
@@ -273,60 +155,5 @@ function CreateForm({
         </div>
       </form>
     </>
-  )
-}
-
-/** The free/capacity hint under a binder option. Empty binders read "Empty",
- *  capacity-less binders read "No slot limit". */
-function slotHint(free: number | null, capacity: number | null | undefined): string {
-  if (capacity == null) return 'No slot limit'
-  if (free === capacity) return `Empty · ${capacity} slots`
-  return `${free} of ${capacity} slots free`
-}
-
-function BinderRadio({
-  checked,
-  onSelect,
-  label,
-  hint,
-  swatch,
-}: {
-  checked: boolean
-  onSelect: () => void
-  label: string
-  hint: string
-  swatch?: { className: string; style?: { backgroundColor: string } }
-}) {
-  return (
-    <label
-      className={`flex cursor-pointer items-center gap-2 rounded border px-2.5 py-1.5 text-left transition ${
-        checked
-          ? 'border-palm-400 bg-palm-50 dark:border-palm-300 dark:bg-husk-100'
-          : 'border-sand-300 bg-coconut-50 hover:border-sand-400 dark:border-husk-100 dark:bg-husk-100'
-      }`}
-    >
-      <input
-        type="radio"
-        name="collection-binder"
-        checked={checked}
-        onChange={onSelect}
-        className="sr-only"
-      />
-      {swatch ? (
-        <span
-          className={`h-5 w-4 shrink-0 rounded-sm ${swatch.className}`}
-          style={swatch.style}
-          aria-hidden
-        />
-      ) : (
-        <span className="h-5 w-4 shrink-0" aria-hidden />
-      )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
-          {label}
-        </span>
-        <span className="block text-[10px] text-coconut-400 dark:text-sand-300">{hint}</span>
-      </span>
-    </label>
   )
 }
