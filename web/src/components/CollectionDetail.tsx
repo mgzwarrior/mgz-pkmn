@@ -43,6 +43,10 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
+  // The item whose quantity PATCH is in flight, if any. Gating per-item edits
+  // keeps the absolute updates from racing — a stale response can't land after
+  // a newer one and overwrite the server (#769).
+  const [pendingId, setPendingId] = useState<number | null>(null)
 
   // A dynamic (smart) collection's membership comes from its rule, so its
   // counts aren't hand-editable — only manual/set collections get the stepper.
@@ -53,8 +57,11 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
   async function changeQuantity(item: CollectionItem, next: number) {
     if (!collection || next < 1) return
     const prev = item.quantity ?? 1
-    if (next === prev) return
+    // Ignore the click if nothing changes, or while this item's edit is still
+    // saving — the stepper is disabled then, but guard the handler too.
+    if (next === prev || pendingId === item.id) return
     setEditError(null)
+    setPendingId(item.id)
     setItems((list) =>
       list ? list.map((i) => (i.id === item.id ? { ...i, quantity: next } : i)) : list,
     )
@@ -65,6 +72,8 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
         list ? list.map((i) => (i.id === item.id ? { ...i, quantity: prev } : i)) : list,
       )
       setEditError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPendingId(null)
     }
   }
 
@@ -169,6 +178,7 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
                       key={it.id}
                       item={it}
                       editable={editable}
+                      busy={pendingId === it.id}
                       onChangeQuantity={(next) => void changeQuantity(it, next)}
                     />
                   ))}
@@ -192,10 +202,12 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
 function ItemRow({
   item,
   editable,
+  busy,
   onChangeQuantity,
 }: {
   item: CollectionItem
   editable: boolean
+  busy: boolean
   onChangeQuantity: (next: number) => void
 }) {
   const [broken, setBroken] = useState(false)
@@ -230,6 +242,7 @@ function ItemRow({
         <QuantityStepper
           qty={qty}
           label={cardLabel(item)}
+          busy={busy}
           onChange={onChangeQuantity}
         />
       ) : (
@@ -251,10 +264,12 @@ function ItemRow({
 function QuantityStepper({
   qty,
   label,
+  busy,
   onChange,
 }: {
   qty: number
   label: string
+  busy: boolean
   onChange: (next: number) => void
 }) {
   const btn =
@@ -264,7 +279,7 @@ function QuantityStepper({
       <button
         type="button"
         onClick={() => onChange(qty - 1)}
-        disabled={qty <= 1}
+        disabled={qty <= 1 || busy}
         aria-label={`Decrease quantity of ${label}`}
         className={btn}
       >
@@ -279,6 +294,7 @@ function QuantityStepper({
       <button
         type="button"
         onClick={() => onChange(qty + 1)}
+        disabled={busy}
         aria-label={`Increase quantity of ${label}`}
         className={btn}
       >

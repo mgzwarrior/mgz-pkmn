@@ -120,6 +120,31 @@ describe('CollectionDetail', () => {
     expect(screen.getByLabelText(/owned quantity of charizard/i)).toHaveTextContent('3')
   })
 
+  it('disables the stepper while a quantity update is in flight (#769 review)', async () => {
+    mockFetch.mockResolvedValue(collectionWith([item({ id: 7, quantity: 2 })]))
+    // Hold the PATCH open so we can observe the pending (disabled) state.
+    let resolvePatch!: (v: CollectionItem) => void
+    mockUpdateItem.mockReturnValue(
+      new Promise<CollectionItem>((res) => {
+        resolvePatch = res
+      }),
+    )
+    render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
+
+    await screen.findByText('Charizard')
+    const inc = screen.getByRole('button', { name: /increase quantity of charizard/i })
+    fireEvent.click(inc)
+
+    // Both controls are gated until the in-flight request resolves, so a
+    // second click can't race an out-of-order absolute update onto the server.
+    await waitFor(() => expect(inc).toBeDisabled())
+    expect(screen.getByRole('button', { name: /decrease quantity of charizard/i })).toBeDisabled()
+    expect(mockUpdateItem).toHaveBeenCalledTimes(1)
+
+    resolvePatch(item({ id: 7, quantity: 3 }))
+    await waitFor(() => expect(inc).not.toBeDisabled())
+  })
+
   it('floors the stepper at 1 (decrement disabled)', async () => {
     mockFetch.mockResolvedValue(collectionWith([item({ id: 7, quantity: 1 })]))
     render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
