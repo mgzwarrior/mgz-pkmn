@@ -821,6 +821,22 @@ export async function addCardToCollection(
   return (await res.json()) as CollectionItem
 }
 
+/** Set a card's owned quantity in a collection (#769). Floored at 1 server-side
+ * — removing the last copy is a delete, not a quantity-0 update. */
+export async function updateCollectionItem(
+  collectionId: number,
+  itemId: number,
+  quantity: number,
+): Promise<CollectionItem> {
+  const res = await fetch(`${BASE}/collections/${collectionId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity }),
+  })
+  if (!res.ok) throw new Error(`update collection item failed: ${res.status}`)
+  return (await res.json()) as CollectionItem
+}
+
 /** Result of a bulk add: the created rows plus their count (#268). */
 export interface BulkAddResult<T> {
   added: number
