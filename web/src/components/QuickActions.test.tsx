@@ -29,6 +29,16 @@ describe('QuickActions (#761)', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('disables the toggles while ownership is still loading (#767)', () => {
+    // `undefined` = the batched lookup is in flight; tapping now could pick the
+    // wrong action, so both buttons stay disabled until it resolves.
+    render(<QuickActions card={CARD} ownership={undefined} show />)
+    expect(screen.getByRole('button', { name: /^want$/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^own$/i })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /^want$/i }))
+    expect(client.wantCard).not.toHaveBeenCalled()
+  })
+
   it('wants a card and busts the ownership cache', async () => {
     render(<QuickActions card={CARD} ownership={EMPTY} show />)
     fireEvent.click(screen.getByRole('button', { name: /^want$/i }))

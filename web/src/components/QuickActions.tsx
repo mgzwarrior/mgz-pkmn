@@ -35,6 +35,11 @@ export function QuickActions({ card, ownership, show, variant = 'icon', classNam
   const [pending, setPending] = useState<'want' | 'own' | null>(null)
   if (!show) return null
 
+  // `undefined` means the batched ownership lookup is still in flight (vs.
+  // `null`, a known-empty result). Don't let a tap fire while it's unknown —
+  // we'd pick the add path on a card the user already has, breaking the
+  // tap-again-to-reverse toggle (#767 review).
+  const loading = ownership === undefined
   const wanted = !!ownership && ownership.wishlists.length > 0
   const owned = !!ownership && ownership.collections.length > 0
   const isPrimary = variant === 'primary'
@@ -58,7 +63,7 @@ export function QuickActions({ card, ownership, show, variant = 'icon', classNam
         icon={Star}
         active={wanted}
         pending={pending === 'want'}
-        disabled={pending !== null}
+        disabled={pending !== null || loading}
         tone="sun"
         variant={variant}
         onClick={() => run('want', () => (wanted ? unwantCard(card) : wantCard(card)))}
@@ -68,7 +73,7 @@ export function QuickActions({ card, ownership, show, variant = 'icon', classNam
         icon={Check}
         active={owned}
         pending={pending === 'own'}
-        disabled={pending !== null}
+        disabled={pending !== null || loading}
         tone="palm"
         variant={variant}
         onClick={() => run('own', () => (owned ? unownCard(card) : ownCard(card)))}
