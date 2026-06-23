@@ -248,7 +248,7 @@ class QuickActionTests(_IsolatedDbMixin):
             self.assertFalse(body["owned"])
             self.assertEqual(body["collections"], [])
 
-    def test_owning_a_wanted_card_stamps_the_chase_complete(self) -> None:
+    def test_owning_a_wanted_card_clears_the_active_want(self) -> None:
         from sqlalchemy import select
 
         from api.db.models import WishlistItem
@@ -256,17 +256,30 @@ class QuickActionTests(_IsolatedDbMixin):
         with self._client() as c:
             c.post("/api/v1/cards/want", json={"card": CHARIZARD})
             body = c.post("/api/v1/cards/own", json={"card": CHARIZARD}).json()
-            # A card can be both wanted (history preserved) and owned.
+            # Owning clears the active chase by default (#768): owned, no longer
+            # an active want.
             self.assertTrue(body["owned"])
-            self.assertTrue(body["wanted"])
+            self.assertFalse(body["wanted"])
 
         sf = session_mod.get_session_factory()
         with sf() as db:
+            # The wishlist row survives as history, stamped acquired (ADR-0025).
             item = db.scalar(select(WishlistItem))
             self.assertIsNotNone(item.acquired_at)
             self.assertIsNotNone(item.acquired_collection_item_id)
 
-    def test_unowning_clears_the_chase_stamp(self) -> None:
+    def test_wanting_again_after_owning_reactivates_the_chase(self) -> None:
+        with self._client() as c:
+            c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            c.post("/api/v1/cards/own", json={"card": CHARIZARD})
+            # Explicitly wanting again (own one, chase another) reactivates the
+            # row rather than minting a duplicate.
+            body = c.post("/api/v1/cards/want", json={"card": CHARIZARD}).json()
+            self.assertTrue(body["owned"])
+            self.assertTrue(body["wanted"])
+            self.assertEqual(len(body["wishlists"]), 1)
+
+    def test_unowning_restores_the_chase(self) -> None:
         from sqlalchemy import select
 
         from api.db.models import WishlistItem
@@ -274,7 +287,10 @@ class QuickActionTests(_IsolatedDbMixin):
         with self._client() as c:
             c.post("/api/v1/cards/want", json={"card": CHARIZARD})
             c.post("/api/v1/cards/own", json={"card": CHARIZARD})
-            c.post("/api/v1/cards/unown", json={"card": CHARIZARD})
+            body = c.post("/api/v1/cards/unown", json={"card": CHARIZARD}).json()
+            # Reversing the acquisition resumes the chase.
+            self.assertFalse(body["owned"])
+            self.assertTrue(body["wanted"])
 
         sf = session_mod.get_session_factory()
         with sf() as db:
