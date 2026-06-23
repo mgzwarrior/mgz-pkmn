@@ -2,12 +2,14 @@
 
 A binder is inventory-level: a real binder you own, carrying its physical
 identity (``binder_format`` / ``binder_color`` / ``binder_type`` /
-``capacity``), that holds zero or more collections via
-``Collection.binder_id``. You can own an empty binder (one with no
-collections filed in it yet) and fill it later.
+``capacity``), that holds zero or more collections via ``Collection.binder_id``
+and zero or more want-lists via ``Wishlist.binder_id`` (#774) — both owned
+cards and chase targets. You can own an empty binder (one with nothing filed
+in it yet) and fill it later.
 
-Deleting a binder detaches its collections (the FK is ``ON DELETE SET NULL``)
-rather than removing them — the cards live on the collections, not the binder.
+Deleting a binder detaches its collections and want-lists (the FK is
+``ON DELETE SET NULL``) rather than removing them — the cards/items live on
+those, not the binder.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from ..db.models import (
     Binder,
     CollectionItem,
     User,
+    WishlistItem,
 )
 from ..db.session import get_db
 
@@ -55,6 +58,14 @@ class BinderCollectionOut(BaseModel):
     total_quantity: int
 
 
+class BinderWishlistOut(BaseModel):
+    """A want-list filed in a binder, with its item count (#774)."""
+
+    id: int
+    name: str
+    item_count: int
+
+
 class BinderSummaryOut(BaseModel):
     """Lightweight binder record for the inventory list view."""
 
@@ -66,13 +77,17 @@ class BinderSummaryOut(BaseModel):
     binder_type: str | None
     capacity: int | None
     collection_count: int
-    #: ``True`` when no collections are filed in this binder yet — the "own a
-    #: binder before you fill it" case the inventory view surfaces.
+    #: Want-lists filed into this binder (#774). A binder organizes both owned
+    #: (collections) and chasing (want-lists) now.
+    wishlist_count: int
+    #: ``True`` when nothing — no collections *and* no want-lists — is filed in
+    #: this binder yet, the "own a binder before you fill it" case (#774).
     is_empty: bool
 
 
 class BinderOut(BinderSummaryOut):
     collections: list[BinderCollectionOut]
+    wishlists: list[BinderWishlistOut]
 
 
 class BinderCreate(BaseModel):
@@ -131,7 +146,7 @@ def _load_binder(db: Session, binder_id: int, user_id: int) -> Binder:
     binder = db.scalar(
         select(Binder)
         .where(Binder.id == binder_id, Binder.user_id == user_id)
-        .options(selectinload(Binder.collections))
+        .options(selectinload(Binder.collections), selectinload(Binder.wishlists))
     )
     if binder is None:
         raise HTTPException(status_code=404, detail=f"binder {binder_id} not found")
@@ -154,8 +169,21 @@ def _fill_counts(db: Session, collection_ids: list[int]) -> dict[int, tuple[int,
     return {cid: (int(count), int(qty)) for cid, count, qty in rows}
 
 
-def _serialize(db: Session, binder: Binder, *, include_collections: bool) -> dict[str, Any]:
+def _wishlist_counts(db: Session, wishlist_ids: list[int]) -> dict[int, int]:
+    """Per-want-list item count for the given ids (#774)."""
+    if not wishlist_ids:
+        return {}
+    rows = db.execute(
+        select(WishlistItem.wishlist_id, func.count(WishlistItem.id))
+        .where(WishlistItem.wishlist_id.in_(wishlist_ids))
+        .group_by(WishlistItem.wishlist_id)
+    ).all()
+    return {wid: int(count) for wid, count in rows}
+
+
+def _serialize(db: Session, binder: Binder, *, include_contents: bool) -> dict[str, Any]:
     collections = sorted(binder.collections, key=lambda c: c.created_at)
+    wishlists = sorted(binder.wishlists, key=lambda w: w.created_at)
     base: dict[str, Any] = {
         "id": binder.id,
         "name": binder.name,
@@ -165,9 +193,10 @@ def _serialize(db: Session, binder: Binder, *, include_collections: bool) -> dic
         "binder_type": binder.binder_type,
         "capacity": binder.capacity,
         "collection_count": len(collections),
-        "is_empty": len(collections) == 0,
+        "wishlist_count": len(wishlists),
+        "is_empty": len(collections) == 0 and len(wishlists) == 0,
     }
-    if not include_collections:
+    if not include_contents:
         return base
     counts = _fill_counts(db, [c.id for c in collections])
     base["collections"] = [
@@ -178,6 +207,10 @@ def _serialize(db: Session, binder: Binder, *, include_collections: bool) -> dic
             "total_quantity": counts.get(c.id, (0, 0))[1],
         }
         for c in collections
+    ]
+    wcounts = _wishlist_counts(db, [w.id for w in wishlists])
+    base["wishlists"] = [
+        {"id": w.id, "name": w.name, "item_count": wcounts.get(w.id, 0)} for w in wishlists
     ]
     return base
 
@@ -192,10 +225,10 @@ def list_binders(db: DbSession, current_user: CurrentUser) -> dict:
     binders = db.scalars(
         select(Binder)
         .where(Binder.user_id == current_user.id)
-        .options(selectinload(Binder.collections))
+        .options(selectinload(Binder.collections), selectinload(Binder.wishlists))
         .order_by(Binder.created_at)
     ).all()
-    return {"binders": [_serialize(db, b, include_collections=False) for b in binders]}
+    return {"binders": [_serialize(db, b, include_contents=False) for b in binders]}
 
 
 @router.post("/binders", status_code=201)
@@ -212,13 +245,13 @@ def create_binder(req: BinderCreate, db: DbSession, current_user: CurrentUser) -
     db.add(binder)
     db.commit()
     db.refresh(binder)
-    return _serialize(db, binder, include_collections=True)
+    return _serialize(db, binder, include_contents=True)
 
 
 @router.get("/binders/{binder_id}")
 def get_binder(binder_id: int, db: DbSession, current_user: CurrentUser) -> dict:
     binder = _load_binder(db, binder_id, current_user.id)
-    return _serialize(db, binder, include_collections=True)
+    return _serialize(db, binder, include_contents=True)
 
 
 @router.patch("/binders/{binder_id}")
@@ -242,16 +275,18 @@ def patch_binder(
             setattr(binder, key, fields[key])
     db.commit()
     db.refresh(binder)
-    return _serialize(db, binder, include_collections=True)
+    return _serialize(db, binder, include_contents=True)
 
 
 @router.delete("/binders/{binder_id}", status_code=204)
 def delete_binder(binder_id: int, db: DbSession, current_user: CurrentUser) -> None:
     binder = _load_binder(db, binder_id, current_user.id)
-    # Detach filed collections (the cards live on them, not the binder) before
-    # the row goes — explicit so the ORM identity map agrees with the FK's
-    # ON DELETE SET NULL, regardless of backend.
+    # Detach filed collections and want-lists (the cards/items live on them,
+    # not the binder) before the row goes — explicit so the ORM identity map
+    # agrees with the FK's ON DELETE SET NULL, regardless of backend (#774).
     for collection in binder.collections:
         collection.binder_id = None
+    for wishlist in binder.wishlists:
+        wishlist.binder_id = None
     db.delete(binder)
     db.commit()

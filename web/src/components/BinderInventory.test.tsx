@@ -3,12 +3,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { BinderInventory } from './BinderInventory'
 import { _resetBindersCacheForTests } from './useBinders'
 import { _resetCollectionsCacheForTests } from './useCollections'
+import { _resetWishlistsCacheForTests } from './useWishlists'
 import {
   fetchBinders,
   createBinder,
   deleteBinder,
   fetchCollections,
   createCollection,
+  fetchWishlists,
 } from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -21,6 +23,13 @@ vi.mock('../api/client', () => ({
   updateCollection: vi.fn(),
   deleteCollection: vi.fn(),
   addCardToCollection: vi.fn(),
+  // useWishlists is pulled in via BinderInventory's want-list listing (#774).
+  fetchWishlists: vi.fn(),
+  createWishlist: vi.fn(),
+  updateWishlist: vi.fn(),
+  deleteWishlist: vi.fn(),
+  addCardToWishlist: vi.fn(),
+  bulkAddToWishlist: vi.fn(),
 }))
 
 const mockFetch = vi.mocked(fetchBinders)
@@ -28,6 +37,7 @@ const mockCreate = vi.mocked(createBinder)
 const mockDelete = vi.mocked(deleteBinder)
 const mockCollections = vi.mocked(fetchCollections)
 const mockCreateCollection = vi.mocked(createCollection)
+const mockWishlists = vi.mocked(fetchWishlists)
 
 /** A filed collection summary (only the fields BinderInventory reads). */
 function filed(id: number, name: string, binderId: number) {
@@ -61,12 +71,15 @@ describe('BinderInventory', () => {
   beforeEach(() => {
     _resetBindersCacheForTests()
     _resetCollectionsCacheForTests()
+    _resetWishlistsCacheForTests()
     mockFetch.mockReset()
     mockCreate.mockReset()
     mockDelete.mockReset()
     mockCollections.mockReset()
     mockCollections.mockResolvedValue([])
     mockCreateCollection.mockReset()
+    mockWishlists.mockReset()
+    mockWishlists.mockResolvedValue([])
   })
 
   it('shows the empty state when there are no binders', async () => {
@@ -103,6 +116,20 @@ describe('BinderInventory', () => {
     expect(await screen.findByText(/2 collections/i)).toBeInTheDocument()
     expect(screen.getByText('Base holos')).toBeInTheDocument()
     expect(screen.getByText('Trainers')).toBeInTheDocument()
+  })
+
+  it('lists a filed want-list alongside collections (#774)', async () => {
+    mockFetch.mockResolvedValue([
+      binder({ id: 1, is_empty: false, collection_count: 1, capacity: null, binder_format: null }),
+    ] as never)
+    mockCollections.mockResolvedValue([filed(10, 'Base holos', 1)] as never)
+    mockWishlists.mockResolvedValue([
+      { id: 20, name: 'Mew hunt', description: null, created_at: '2026-06-06T00:00:00', item_count: 3, binder_id: 1 },
+    ])
+    render(<BinderInventory />)
+    // The summary line counts both kinds, and the want-list shows in contents.
+    expect(await screen.findByText(/1 collection · 1 want-list/i)).toBeInTheDocument()
+    expect(screen.getByText('Mew hunt')).toBeInTheDocument()
   })
 
   it('files a new collection straight into a binder', async () => {

@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react'
 import type { BinderSummary } from '../api/client'
 import { useBinders } from './useBinders'
 import { useCollections } from './useCollections'
+import { useWishlists } from './useWishlists'
 
 /** What the list files into: an existing binder's id, `'new'` for the inline
  *  create form, or null for "don't file". */
@@ -39,30 +40,38 @@ export interface BinderFiling {
 }
 
 export function useBinderFiling(): BinderFiling {
-  const { collections } = useCollections()
-  const { binders, fetched, create: createBinder, refresh } = useBinders()
+  const { collections, fetched: collectionsFetched } = useCollections()
+  const { wishlists, fetched: wishlistsFetched } = useWishlists()
+  const { binders, fetched: bindersFetched, create: createBinder, refresh } = useBinders()
 
   const [target, setTarget] = useState<FileTarget>(null)
   const [newBinderName, setNewBinderName] = useState('')
   const [newBinderColor, setNewBinderColor] = useState<string | null>(null)
   const [newBinderCapacity, setNewBinderCapacity] = useState('')
 
-  // Gate on the first fetch completing, not on `!loading`: the list starts
+  // Gate on the first fetch completing, not on `!loading`: each list starts
   // empty with loading=false, so an un-fetched state would otherwise read as
   // "no binders yet" and let the create submit before binders load (#775).
-  const settled = fetched
+  // Collections *and* want-lists must also be loaded before the slot math is
+  // trusted, since both occupy a binder's slots now (#774 review).
+  const settled = bindersFetched && collectionsFetched && wishlistsFetched
   const hasBinders = binders.length > 0
 
   // Cards already filed into each binder — the sum of its collections' pocket
-  // counts (vendor multiples via total_quantity, falling back to row count).
+  // counts (vendor multiples via total_quantity, falling back to row count)
+  // plus its want-lists' item counts (#774; chase targets occupy slots too).
   const usedByBinder = useMemo(() => {
     const map = new Map<number, number>()
     for (const c of collections) {
       if (c.binder_id == null) continue
       map.set(c.binder_id, (map.get(c.binder_id) ?? 0) + (c.total_quantity ?? c.item_count))
     }
+    for (const w of wishlists) {
+      if (w.binder_id == null) continue
+      map.set(w.binder_id, (map.get(w.binder_id) ?? 0) + w.item_count)
+    }
     return map
-  }, [collections])
+  }, [collections, wishlists])
 
   async function resolveTarget(): Promise<number | null> {
     if (typeof target === 'number') return target

@@ -78,6 +78,7 @@ export function useBinders() {
           binder_type: created.binder_type,
           capacity: created.capacity,
           collection_count: created.collection_count,
+          wishlist_count: created.wishlist_count,
           is_empty: created.is_empty,
         },
         ...state.binders,

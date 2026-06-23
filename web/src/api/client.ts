@@ -866,6 +866,13 @@ export interface BinderCollection {
   total_quantity: number
 }
 
+// A want-list filed into a binder (#774).
+export interface BinderWishlist {
+  id: number
+  name: string
+  item_count: number
+}
+
 export interface BinderSummary {
   id: number
   name: string
@@ -875,11 +882,14 @@ export interface BinderSummary {
   binder_type: BinderType | null
   capacity: number | null
   collection_count: number
+  // Want-lists filed into this binder (#774).
+  wishlist_count: number
   is_empty: boolean
 }
 
 export interface Binder extends BinderSummary {
   collections: BinderCollection[]
+  wishlists: BinderWishlist[]
 }
 
 export interface BinderInput {
@@ -1135,6 +1145,8 @@ export interface WishlistSummary {
   description: string | null
   created_at: string
   item_count: number
+  // The binder this want-list is filed into, or null when loose (#774).
+  binder_id: number | null
 }
 
 export interface WishlistItem {
@@ -1163,6 +1175,8 @@ export interface Wishlist {
   name: string
   description: string | null
   created_at: string
+  // The binder this want-list is filed into, or null when loose (#774).
+  binder_id: number | null
   items: WishlistItem[]
 }
 
@@ -1211,16 +1225,50 @@ export async function promoteWishlistItem(
   return (await res.json()) as PromoteResult
 }
 
+export interface CreateWishlistOptions {
+  description?: string | null
+  // #774 — file the new want-list into this binder (binders.id).
+  binder_id?: number | null
+}
+
 export async function createWishlist(
   name: string,
-  description?: string | null,
+  options?: CreateWishlistOptions,
 ): Promise<Wishlist> {
   const res = await fetch(`${BASE}/wishlists`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description: description ?? null }),
+    body: JSON.stringify({
+      name,
+      description: options?.description ?? null,
+      binder_id: options?.binder_id ?? null,
+    }),
   })
   if (!res.ok) throw new Error(`create wishlist failed: ${res.status}`)
+  return (await res.json()) as Wishlist
+}
+
+/**
+ * PATCH a want-list. Only the keys present are sent, so a filing-only edit
+ * (`binder_id`) leaves name/description intact — the server reads
+ * `model_fields_set`. Pass `binder_id: null` to unfile (#774).
+ */
+export interface UpdateWishlistOptions {
+  name?: string
+  description?: string | null
+  binder_id?: number | null
+}
+
+export async function updateWishlist(
+  wishlistId: number,
+  patch: UpdateWishlistOptions,
+): Promise<Wishlist> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`update wishlist failed: ${res.status}`)
   return (await res.json()) as Wishlist
 }
 

@@ -36,6 +36,7 @@ const WISHLIST = {
   description: null,
   created_at: '2026-06-06T00:00:00',
   item_count: 2,
+  binder_id: null,
 }
 
 function item(overrides: Record<string, unknown>) {

@@ -40,10 +40,10 @@ import { BinderModal } from './BinderModal'
 import { BinderInventory } from './BinderInventory'
 import { CollectionCreateDialog } from './CollectionCreateDialog'
 import { CollectionDetail } from './CollectionDetail'
-import { NameCreateDialog } from './NameCreateDialog'
 import { BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
 import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
+import { WishlistCreateDialog } from './WishlistCreateDialog'
 import { WishlistDetail } from './WishlistDetail'
 import { useBinders } from './useBinders'
 import { useCollections } from './useCollections'
@@ -103,7 +103,7 @@ export function LibraryBindersTab() {
     error: wError,
     refresh: refreshWishlists,
     remove: removeWishlist,
-    create: createWishlist,
+    file: fileWishlistApi,
   } = useWishlists()
 
   const [filter, setFilter] = useState<BinderFilter>('all')
@@ -150,6 +150,13 @@ export function LibraryBindersTab() {
   // the binder summaries so their counts stay in sync across surfaces.
   async function fileCollection(collectionId: number, binderId: number | null) {
     await updateCollection(collectionId, { binder_id: binderId })
+    await refreshBinders()
+  }
+
+  // File a want-list into a binder (or null to unfile), then refresh the
+  // binder summaries so their fill counts stay in sync across surfaces (#774).
+  async function fileWishlist(wishlistId: number, binderId: number | null) {
+    await fileWishlistApi(wishlistId, binderId)
     await refreshBinders()
   }
 
@@ -276,8 +283,10 @@ export function LibraryBindersTab() {
               <WishlistRow
                 key={row.key}
                 wishlist={row.wishlist}
+                binders={binders}
                 onOpen={setOpenWishlist}
                 onDelete={removeWishlist}
+                onFile={fileWishlist}
               />
             ),
           )}
@@ -320,15 +329,9 @@ export function LibraryBindersTab() {
         open={createDialog === 'collection'}
         onOpenChange={(o) => !o && setCreateDialog(null)}
       />
-      <NameCreateDialog
+      <WishlistCreateDialog
         open={createDialog === 'wishlist'}
         onOpenChange={(o) => !o && setCreateDialog(null)}
-        title="New want-list"
-        placeholder="Chase cards"
-        submitLabel="Create"
-        onSubmit={async (name) => {
-          await createWishlist(name)
-        }}
       />
     </div>
   )
@@ -526,7 +529,7 @@ function CollectionRow({
           at create (#726) — can be re-filed or unfiled from the row, so it's
           never stuck on the wrong binder (#775 review). */}
       {binders.length > 0 && (
-        <FileIntoBinderControl collection={c} binders={binders} onFile={onFile} />
+        <FileIntoBinderControl item={c} noun="collection" binders={binders} onFile={onFile} />
       )}
       <PrintIdCardControl collectionId={c.id} label={`collection "${c.name}"`} />
       <DeleteBinderControl label={`collection "${c.name}"`} onDelete={() => onDelete(c.id)} />
@@ -577,12 +580,16 @@ function PrintIdCardControl({ collectionId, label }: { collectionId: number; lab
 
 function WishlistRow({
   wishlist: w,
+  binders,
   onOpen,
   onDelete,
+  onFile,
 }: {
   wishlist: WishlistSummary
+  binders: BinderSummary[]
   onOpen: (w: WishlistSummary) => void
   onDelete: (id: number) => Promise<void>
+  onFile: (wishlistId: number, binderId: number | null) => Promise<void>
 }) {
   return (
     <li className="group flex items-center gap-1">
@@ -606,25 +613,32 @@ function WishlistRow({
         </div>
         <CardCount count={w.item_count} />
       </button>
+      {/* A want-list files into a binder too (#774) — same control as a row. */}
+      {binders.length > 0 && (
+        <FileIntoBinderControl item={w} noun="want-list" binders={binders} onFile={onFile} />
+      )}
       <DeleteBinderControl label={`want-list "${w.name}"`} onDelete={() => onDelete(w.id)} />
     </li>
   )
 }
 
 /**
- * Per-row "file into binder" control (#703) — a dropdown listing the user's
- * physical binders. Picking one moves the collection into it; "Remove from
+ * Per-row "file into binder" control (#703, #774) — a dropdown listing the
+ * user's physical binders. Picking one moves the list into it; "Remove from
  * binder" unfiles it. The current binder is checked. Reveals on hover/focus
- * like the other row controls.
+ * like the other row controls. Shared by collection and want-list rows — the
+ * `noun` only colors the accessible label.
  */
 function FileIntoBinderControl({
-  collection: c,
+  item: c,
+  noun = 'collection',
   binders,
   onFile,
 }: {
-  collection: CollectionSummary
+  item: { id: number; name: string; binder_id?: number | null }
+  noun?: 'collection' | 'want-list'
   binders: BinderSummary[]
-  onFile: (collectionId: number, binderId: number | null) => Promise<void>
+  onFile: (id: number, binderId: number | null) => Promise<void>
 }) {
   const [failed, setFailed] = useState(false)
 
@@ -648,7 +662,7 @@ function FileIntoBinderControl({
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            aria-label={`File collection "${c.name}" into a binder`}
+            aria-label={`File ${noun} "${c.name}" into a binder`}
             title="File into binder"
             className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-palm-600 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-palm-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
           >

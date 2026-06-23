@@ -25,14 +25,13 @@ import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
 import { BAKED_POKEDEX } from '../data/pokedex'
 import { useAuth } from '../hooks/useAuth'
 import { useFavoritePokemon } from './useFavoritePokemon'
-import { useWishlists } from './useWishlists'
 import type { CardData, PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
 import { BinderModal } from './BinderModal'
 import { browseCardToPayload, browseCardToRow, type BrowseSetContext } from './browseCard'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from './cardCategories'
 import { CardDetailModal } from './CardDetailModal'
 import { CollectionCreateDialog } from './CollectionCreateDialog'
-import { NameCreateDialog } from './NameCreateDialog'
+import { WishlistCreateDialog } from './WishlistCreateDialog'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
@@ -136,9 +135,8 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   // Create-from-Browse flow (#737): the New ▾ menu opens one of the three
   // canonical create dialogs (owned Collection / chasing Want-list / Smart
   // binder), seeded from the active set or species. Non-null mounts a dialog;
-  // closing clears it. Want-list seeding goes through the hook's bulkAdd so the
-  // shared ownership cache (#576) is busted and the badges/chips refresh.
-  const { create: createWishlist, bulkAdd: bulkAddWishlist } = useWishlists()
+  // closing clears it. The collection/want-list create dialogs own their seeding
+  // (via the shared bulkAdd) so the ownership cache (#576) refreshes the badges.
   const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null)
 
   // Collection / want-list creates snapshot the loaded cards as their seed, so
@@ -315,21 +313,13 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
         />
       )}
       {pendingCreate?.kind === 'wishlist' && (
-        <NameCreateDialog
+        <WishlistCreateDialog
           open
           onOpenChange={(o) => {
             if (!o) setPendingCreate(null)
           }}
-          title="New want-list"
-          placeholder="Cards you're chasing"
-          submitLabel="Create"
-          initialName={pendingCreate.name}
-          onSubmit={async (name) => {
-            const created = await createWishlist(name)
-            if (pendingCreate.seedCards.length > 0) {
-              await bulkAddWishlist(created.id, pendingCreate.seedCards)
-            }
-          }}
+          prefillName={pendingCreate.name}
+          seedCards={pendingCreate.seedCards}
         />
       )}
       {pendingCreate?.kind === 'smart' && (

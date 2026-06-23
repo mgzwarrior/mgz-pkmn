@@ -62,6 +62,7 @@ describe('CollectionCreateDialog', () => {
         binder_type: null,
         capacity: 360,
         collection_count: 1,
+        wishlist_count: 0,
         is_empty: false,
       },
     ])
@@ -102,6 +103,7 @@ describe('CollectionCreateDialog', () => {
         binder_type: null,
         capacity: 360,
         collection_count: 0,
+        wishlist_count: 0,
         is_empty: true,
       },
     ])
