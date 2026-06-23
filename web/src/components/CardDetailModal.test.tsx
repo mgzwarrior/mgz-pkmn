@@ -597,34 +597,11 @@ describe('CardDetailModal — library actions (#699)', () => {
     vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({})
   })
 
-  it('renders prominent owned/chasing actions when signed in', async () => {
+  it('renders the one-tap want / own quick actions when signed in (#761)', async () => {
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
     expect(await screen.findByRole('region', { name: /Library actions/i })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Add as owned/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Add as chasing/i })).toBeInTheDocument()
-  })
-
-  it('does not navigate when arrowing through save-action inputs', async () => {
-    const rows = [
-      identifiedRow(),
-      buildRow({ card: { name: 'Blastoise', id: 'b', set: { name: 'Base' } } }),
-    ]
-    const onChange = vi.fn()
-    render(<CardDetailModal rows={rows} index={0} onChangeIndex={onChange} />)
-
-    const trigger = await screen.findByRole('button', { name: /Add as owned/i })
-    trigger.focus()
-    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
-    fireEvent.click(
-      (await screen.findByText(/New collection/i)).closest('[role="menuitem"]')!,
-    )
-
-    const input = await screen.findByRole('textbox', { name: /New collection name/i })
-    fireEvent.keyDown(input, { key: 'ArrowRight' })
-
-    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /^want$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^own$/i })).toBeInTheDocument()
   })
 
   it('hides the save actions when signed out', async () => {

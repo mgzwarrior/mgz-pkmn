@@ -12,7 +12,7 @@
  * affordance; the full organize flow is #762.
  */
 import { useState } from 'react'
-import { Check, Loader2, Star } from 'lucide-react'
+import { Book, Footprints, Loader2 } from 'lucide-react'
 import {
   ownCard,
   unownCard,
@@ -60,7 +60,7 @@ export function QuickActions({ card, ownership, show, variant = 'icon', classNam
     <div className={`${layout} ${className}`}>
       <ToggleButton
         label="Want"
-        icon={Star}
+        icon={Footprints}
         active={wanted}
         pending={pending === 'want'}
         disabled={pending !== null || loading}
@@ -70,7 +70,7 @@ export function QuickActions({ card, ownership, show, variant = 'icon', classNam
       />
       <ToggleButton
         label="Own"
-        icon={Check}
+        icon={Book}
         active={owned}
         pending={pending === 'own'}
         disabled={pending !== null || loading}
@@ -105,7 +105,7 @@ function ToggleButton({
   onClick,
 }: {
   label: string
-  icon: typeof Star
+  icon: typeof Book
   active: boolean
   pending: boolean
   disabled: boolean
