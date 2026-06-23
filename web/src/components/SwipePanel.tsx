@@ -383,6 +383,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
               id: current.setId,
               name: current.setName,
             })}
+            ownership={lookupOwnership(current.setId, current.card.number)}
             className="justify-center"
           />
         )}

@@ -597,34 +597,11 @@ describe('CardDetailModal — library actions (#699)', () => {
     vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({})
   })
 
-  it('renders prominent owned/chasing actions when signed in', async () => {
+  it('renders the one-tap want / own quick actions when signed in (#761)', async () => {
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
     expect(await screen.findByRole('region', { name: /Library actions/i })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Add as owned/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Add as chasing/i })).toBeInTheDocument()
-  })
-
-  it('does not navigate when arrowing through save-action inputs', async () => {
-    const rows = [
-      identifiedRow(),
-      buildRow({ card: { name: 'Blastoise', id: 'b', set: { name: 'Base' } } }),
-    ]
-    const onChange = vi.fn()
-    render(<CardDetailModal rows={rows} index={0} onChangeIndex={onChange} />)
-
-    const trigger = await screen.findByRole('button', { name: /Add as owned/i })
-    trigger.focus()
-    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
-    fireEvent.click(
-      (await screen.findByText(/New collection/i)).closest('[role="menuitem"]')!,
-    )
-
-    const input = await screen.findByRole('textbox', { name: /New collection name/i })
-    fireEvent.keyDown(input, { key: 'ArrowRight' })
-
-    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /^want$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^own$/i })).toBeInTheDocument()
   })
 
   it('hides the save actions when signed out', async () => {
@@ -636,7 +613,7 @@ describe('CardDetailModal — library actions (#699)', () => {
     expect(screen.queryByRole('region', { name: /Library actions/i })).toBeNull()
   })
 
-  it('shows owned (with quantity) and chasing badges from the ownership lookup', async () => {
+  it('shows owned (with quantity) and hides the chase badge once owned (#761)', async () => {
     vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
       'base1::4': {
         collections: [{ id: 1, name: 'Show binder', quantity: 2 }],
@@ -645,7 +622,11 @@ describe('CardDetailModal — library actions (#699)', () => {
     })
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
     expect(await screen.findByText(/owned ×2/i)).toBeInTheDocument()
-    expect(screen.getByTitle(/Chasing on Chase list/i)).toBeInTheDocument()
+    // Owned supersedes chasing: the chase badge is gone, but the want-list
+    // still surfaces in the library-locations chips (#753).
+    expect(screen.queryByTitle(/Chasing on Chase list/i)).toBeNull()
+    const locations = screen.getByLabelText(/Library locations/i)
+    expect(within(locations).getByText('Chase list')).toBeInTheDocument()
   })
 
   it('surfaces the named collections and want-lists a card belongs to', async () => {

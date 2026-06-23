@@ -1,30 +1,31 @@
 /**
- * SaveCardActions — the Save-to-collection + Save-to-wishlist button pair
- * the Search results row carries, reused on Browse and Swipe cards so all
- * three surfaces share one save affordance. Renders nothing when signed
- * out, matching the row (which hides its actions column for anon users).
+ * SaveCardActions — the per-card save affordance shared across search, browse,
+ * swipe, and the detail modal. The one action everywhere is the one-tap
+ * `Want` / `Own` toggle pair ({@link QuickActions}, #761), which replaced the
+ * old collection / want-list pickers. Organizing into dedicated collections is
+ * a separate flow (#762).
+ *
+ * Renders nothing when signed out, matching the row (which hides its actions
+ * column for anon users).
  */
-import { AddToCollectionButton } from './AddToCollectionButton'
-import { AddToWishlistButton } from './AddToWishlistButton'
+import type { CardOwnership } from '../api/client'
+import { QuickActions } from './QuickActions'
 
 export function SaveCardActions({
   card,
+  ownership,
   show,
   variant = 'icon',
   className = '',
 }: {
   card: Record<string, unknown>
+  ownership?: CardOwnership | null
   show: boolean
   variant?: 'icon' | 'primary'
   className?: string
 }) {
   if (!show) return null
-  const layout =
-    variant === 'primary' ? 'grid grid-cols-1 gap-2 sm:grid-cols-2' : 'flex items-center gap-1'
   return (
-    <div className={`${layout} ${className}`}>
-      <AddToCollectionButton card={card} variant={variant} />
-      <AddToWishlistButton card={card} variant={variant} />
-    </div>
+    <QuickActions card={card} ownership={ownership} show variant={variant} className={className} />
   )
 }

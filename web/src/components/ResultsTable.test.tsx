@@ -341,7 +341,7 @@ describe('ResultsTable', () => {
     useAppStore.setState({ rows: [] })
   })
 
-  it('renders the row-level save buttons in a cell to the left of the Name column (#540)', async () => {
+  it('renders the row-level quick-action buttons in a cell to the left of the Name column (#540, #761)', async () => {
     useAppStore.setState({
       rows: [
         makeRow({
@@ -359,21 +359,19 @@ describe('ResultsTable', () => {
       progress: null,
     })
     const { container } = render(<ResultsTable />)
-    // useAuth resolves async — wait for the row-level save buttons to mount.
+    // useAuth resolves async — wait for the row-level quick actions to mount.
     await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: /save to collection/i }),
-      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^want$/i })).toBeInTheDocument()
     })
     const bodyRow = container.querySelector('tbody tr')!
     const cells = bodyRow.querySelectorAll(':scope > td')
-    // The selection checkbox (#268) is pinned leftmost, so the save-actions
+    // The selection checkbox (#268) is pinned leftmost, so the quick-actions
     // cell is the one holding the buttons — find it rather than assume index.
     const actionsCell = Array.from(cells).find((td) =>
-      td.querySelector('button[aria-label="Save to collection"]'),
+      td.querySelector('button[title="Want"]'),
     )!
     expect(actionsCell).toBeTruthy()
-    expect(actionsCell.querySelector('button[aria-label="Save to wishlist"]')).not.toBeNull()
+    expect(actionsCell.querySelector('button[title="Own"]')).not.toBeNull()
     const nameCell = Array.from(cells).find((td) =>
       td.textContent?.includes('Charizard'),
     )
