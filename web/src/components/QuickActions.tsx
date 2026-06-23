@@ -126,7 +126,10 @@ function ToggleButton({
       className={`inline-flex items-center justify-center gap-1 rounded-md border font-medium disabled:opacity-60 ${size} ${toneClass}`}
     >
       {pending ? <Loader2 size={13} className="animate-spin" /> : <Icon size={13} />}
-      {(isPrimary || active) && <span>{active ? `${label}ed` : label}</span>}
+      {/* Only the roomy detail view shows a text label (with a tense flip:
+          Want → Wanted). The compact surfaces stay icon-only to save space on
+          mobile and lean on the colour + the ownership chips for state (#761). */}
+      {isPrimary && <span>{active ? `${label}ed` : label}</span>}
     </button>
   )
 }
