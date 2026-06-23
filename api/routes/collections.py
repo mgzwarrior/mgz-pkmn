@@ -23,6 +23,7 @@ Endpoints:
 - `DELETE /collections/{id}`                  cascade-delete items
 - `POST   /collections/{id}/items`            add a card (manual/set only)
 - `POST   /collections/{id}/items/bulk`       add many cards at once (#268/#509)
+- `PATCH  /collections/{id}/items/{item_id}`  adjust a card's owned quantity (#769)
 - `DELETE /collections/{id}/items/{item_id}`  remove a card (manual/set only)
 - `GET    /collections/{id}/target`           catalog-backed membership + ownership overlay (#631)
 - `POST   /collections/{id}/chase`            push the un-owned matches onto a want-list (#631)
@@ -299,6 +300,12 @@ class CollectionItemCreate(BaseModel):
     #: Provenance tag. Inserts default to ``manual``; callers like the
     #: wishlist promote endpoint (#504) and the haul mode (#509) override.
     added_via: str | None = None
+
+
+class CollectionItemPatch(BaseModel):
+    #: New vendor-multiple count for the item (#769). Floored at 1 — removing
+    #: the last copy is a DELETE, not a quantity-0 PATCH.
+    quantity: int = Field(ge=1)
 
 
 class BulkItemsCreate(BaseModel):
@@ -619,6 +626,37 @@ def delete_collection_item(
         )
     db.delete(item)
     db.commit()
+
+
+@router.patch("/collections/{collection_id}/items/{item_id}")
+def update_collection_item(
+    collection_id: int,
+    item_id: int,
+    req: CollectionItemPatch,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Adjust a card's owned quantity in place (#769) — the editable count in
+    the collection detail view. Scoped through the parent collection so an
+    unowned id 404s; dynamic collections (rule-derived membership) are rejected
+    like the other item-write paths."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    _reject_if_dynamic(collection)
+    item = db.scalar(
+        select(CollectionItem).where(
+            CollectionItem.id == item_id,
+            CollectionItem.collection_id == collection.id,
+        )
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"item {item_id} not found in collection {collection_id}",
+        )
+    item.quantity = req.quantity
+    db.commit()
+    db.refresh(item)
+    return serialize_collection_item(item)
 
 
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import {
   deleteCollection,
   fetchCollections,
   updateCollection,
+  updateCollectionItem,
   type CollectionSummary,
   type CreateCollectionOptions,
   type UpdateCollectionOptions,
@@ -183,6 +184,27 @@ export function useCollections() {
     [],
   )
 
+  // Set a card's owned quantity (#769). `quantityDelta` (new − old) keeps the
+  // collection summary's total_quantity — binder fill / slot math — in sync
+  // without a refetch; the ownership badge (#576) is busted since counts moved.
+  const setItemQuantity = useCallback(
+    async (collectionId: number, itemId: number, quantity: number, quantityDelta: number) => {
+      const updated = await updateCollectionItem(collectionId, itemId, quantity)
+      invalidateOwnership()
+      if (quantityDelta !== 0) {
+        set({
+          collections: state.collections.map((c) =>
+            c.id === collectionId
+              ? { ...c, total_quantity: (c.total_quantity ?? c.item_count) + quantityDelta }
+              : c,
+          ),
+        })
+      }
+      return updated
+    },
+    [],
+  )
+
   const remove = useCallback(async (collectionId: number) => {
     await deleteCollection(collectionId)
     // Cascade-removed items drop the cards' ownership badges (#576) — bust
@@ -198,6 +220,7 @@ export function useCollections() {
     update,
     addCard,
     bulkAdd,
+    setItemQuantity,
     remove,
   }
 }
