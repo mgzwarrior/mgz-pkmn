@@ -34,16 +34,17 @@ export interface BinderFiling {
 
 export function useBinderFiling(): BinderFiling {
   const { collections } = useCollections()
-  const { binders, loading, create: createBinder, refresh } = useBinders()
+  const { binders, fetched, create: createBinder, refresh } = useBinders()
 
   const [binderId, setBinderId] = useState<number | null>(null)
   const [newBinderName, setNewBinderName] = useState('')
   const [newBinderColor, setNewBinderColor] = useState<string | null>(null)
   const [newBinderCapacity, setNewBinderCapacity] = useState('')
 
-  // Until the binder list resolves, neither branch is safe to show: an empty
-  // list mid-fetch would falsely read as "no binders yet" (#724 review).
-  const settled = !loading
+  // Gate on the first fetch completing, not on `!loading`: the list starts
+  // empty with loading=false, so an un-fetched state would otherwise read as
+  // "no binders yet" and let the create submit before binders load (#775).
+  const settled = fetched
   const hasBinders = binders.length > 0
 
   // Cards already filed into each binder — the sum of its collections' pocket
