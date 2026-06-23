@@ -580,4 +580,36 @@ describe('LibraryBindersTab', () => {
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(1, { binder_id: 3 }))
   })
+
+  it('lets a filed smart collection be unfiled from the row (#775 review)', async () => {
+    mockCollections.mockResolvedValue([
+      {
+        id: 2,
+        name: 'All Eevees',
+        description: null,
+        created_at: '2026-06-04T00:00:00',
+        item_count: 7,
+        kind: 'dynamic',
+        dynamic_scope: 'owned',
+        rule: { name: 'eevee' },
+        binder_id: 3,
+      },
+    ])
+    mockBinders.mockResolvedValue([
+      { id: 3, name: 'Show binder', created_at: '2026-06-01T00:00:00', binder_format: null, binder_color: null, binder_type: null, capacity: null, collection_count: 1, is_empty: false },
+    ])
+    mockUpdate.mockResolvedValue({
+      id: 2, name: 'All Eevees', description: null, created_at: '2026-06-04T00:00:00', items: [], kind: 'dynamic', binder_id: null,
+    } as never)
+    render(<LibraryBindersTab />)
+    // The filing control now shows for dynamic (smart) collections too.
+    const fileBtn = await screen.findByRole('button', {
+      name: /file collection "All Eevees" into a binder/i,
+    })
+    fileBtn.focus()
+    fireEvent.keyDown(fileBtn, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: /remove from binder/i }))
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(2, { binder_id: null }))
+  })
 })

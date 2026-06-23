@@ -522,7 +522,10 @@ function CollectionRow({
           <Pencil size={14} />
         </button>
       )}
-      {c.kind !== 'dynamic' && binders.length > 0 && (
+      {/* Any collection — including a smart collection, which can now be filed
+          at create (#726) — can be re-filed or unfiled from the row, so it's
+          never stuck on the wrong binder (#775 review). */}
+      {binders.length > 0 && (
         <FileIntoBinderControl collection={c} binders={binders} onFile={onFile} />
       )}
       <PrintIdCardControl collectionId={c.id} label={`collection "${c.name}"`} />
