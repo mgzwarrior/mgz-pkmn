@@ -99,7 +99,7 @@ describe('BinderModal', () => {
     expect(opts).not.toHaveProperty('binder_type')
   })
 
-  it('creates a smart binder carrying shared identity but no physical fields or color', async () => {
+  it('creates a smart collection carrying shared identity but no physical fields or color', async () => {
     mockCreate.mockResolvedValue({
       id: 6,
       name: 'All Eevees',
@@ -111,7 +111,7 @@ describe('BinderModal', () => {
     })
     render(<BinderModal open onOpenChange={() => {}} />)
 
-    fireEvent.click(screen.getByRole('radio', { name: /smart binder/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /smart collection/i }))
     fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
@@ -123,13 +123,13 @@ describe('BinderModal', () => {
     await waitFor(() => expect(mockCreate).toHaveBeenCalled())
     const [, opts] = mockCreate.mock.calls[0]
     expect(opts).toMatchObject({ kind: 'dynamic', dynamic_scope: 'owned' })
-    // A smart binder has no fixed slots and no cover color.
+    // A smart collection has no fixed slots and no cover color.
     expect(opts).not.toHaveProperty('binder_format')
     expect(opts).not.toHaveProperty('capacity')
     expect(opts).not.toHaveProperty('binder_color')
   })
 
-  it('files a new smart binder into a chosen binder (#726)', async () => {
+  it('files a new smart collection into a chosen binder (#726)', async () => {
     mockFetchBinders.mockResolvedValue([binder({ id: 3, name: 'Show binder' })])
     mockCreate.mockResolvedValue({
       id: 10,
@@ -142,7 +142,7 @@ describe('BinderModal', () => {
     } as never)
     render(<BinderModal open onOpenChange={() => {}} />)
 
-    fireEvent.click(screen.getByRole('radio', { name: /smart binder/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /smart collection/i }))
     fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
@@ -160,7 +160,7 @@ describe('BinderModal', () => {
     )
   })
 
-  it('lets you save identity edits to an existing smart binder without a rule', async () => {
+  it('lets you save identity edits to an existing smart collection without a rule', async () => {
     const smart: CollectionSummary = {
       id: 8,
       name: 'All Eevees',

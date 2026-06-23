@@ -3,7 +3,7 @@
  * create/edit surfaces: preset color tokens (#681) plus a native custom-hex
  * picker styled as a swatch. Clicking the active preset clears it (back to
  * no color). Extracted from BinderModal so the "Add binder" inventory form
- * and the smart-binder modal share one control.
+ * and the smart-collection modal share one control.
  */
 import {
   BINDER_COLOR_OPTIONS,

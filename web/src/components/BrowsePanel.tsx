@@ -69,7 +69,7 @@ type CreateKind = 'collection' | 'wishlist' | 'smart'
 interface PendingSeed {
   name: string
   /** The set's cards / species' printings to pre-populate a collection or
-   *  want-list. A smart binder ignores these — its rule is its membership. */
+   *  want-list. A smart collection ignores these — its rule is its membership. */
   seedCards: CardData[]
   ruleField: 'set_id' | 'name'
   ruleValue: string
@@ -143,11 +143,11 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
 
   // Collection / want-list creates snapshot the loaded cards as their seed, so
   // they're only offered once the drill-in's cards have landed — otherwise we'd
-  // seed an empty list. A smart binder needs no cards, so it's always available.
+  // seed an empty list. A smart collection needs no cards, so it's always available.
   const seedLoading = viewMode === 'set' ? cardsLoading : pokedexCardsLoading
 
   // Build the seed for the current drill-in: the list name, the cards to
-  // pre-populate (the whole set / all printings), and the rule a smart binder
+  // pre-populate (the whole set / all printings), and the rule a smart collection
   // would use. Returns null when there's nothing to seed from yet.
   function buildSeed(): PendingSeed | null {
     if (viewMode === 'set' && activeSet) {
@@ -396,7 +396,7 @@ function BrowseCreateMenu({
           />
           <BrowseCreateItem
             icon={<Sparkles size={13} />}
-            label="Smart binder"
+            label="Smart collection"
             blurb={`A saved rule for this ${noun}.`}
             onSelect={() => onCreate('smart')}
           />

@@ -65,9 +65,9 @@ async function openNewMenu(itemName: RegExp) {
   fireEvent.click(item)
 }
 
-/** Open the New ▾ menu and pick "Smart binder" (the modal opens smart-only). */
+/** Open the New ▾ menu and pick "Smart collection" (the modal opens smart-only). */
 async function openSmartBinder() {
-  await openNewMenu(/smart binder/i)
+  await openNewMenu(/smart collection/i)
 }
 
 describe('LibraryBindersTab', () => {
@@ -492,7 +492,7 @@ describe('LibraryBindersTab', () => {
 
   // ---- #703: New ▾ menu + file-into-binder -------------------------------
 
-  it('New ▾ lists Collection / Want-list / Smart binder and no plain binder', async () => {
+  it('New ▾ lists Collection / Want-list / Smart collection and no plain binder', async () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
@@ -500,9 +500,9 @@ describe('LibraryBindersTab', () => {
     trigger.focus()
     fireEvent.keyDown(trigger, { key: 'Enter' })
 
-    expect(await screen.findByRole('menuitem', { name: /collection/i })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: /^collection/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /want-list/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /smart binder/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /smart collection/i })).toBeInTheDocument()
     // No standalone "binder" create — physical binders come from "Add binder".
     expect(screen.queryByRole('menuitem', { name: /^binder$/i })).not.toBeInTheDocument()
   })
@@ -519,7 +519,7 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
-    await openNewMenu(/collection/i)
+    await openNewMenu(/^collection/i)
     // The new collection dialog (#723) uses a richer placeholder; with no
     // binders yet and no inline binder named, it creates a loose collection.
     fireEvent.change(screen.getByPlaceholderText('Base Set holos'), {
@@ -550,7 +550,7 @@ describe('LibraryBindersTab', () => {
     await waitFor(() => expect(mockCreateWishlist).toHaveBeenCalledWith('Chase list', undefined))
   })
 
-  it('the smart-binder create has no physical/smart selector', async () => {
+  it('the smart-collection create has no physical/smart selector', async () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 

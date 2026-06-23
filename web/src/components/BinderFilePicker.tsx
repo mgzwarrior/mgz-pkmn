@@ -1,13 +1,15 @@
 /**
  * BinderFilePicker — the shared "file this list into a binder" control (#726).
  *
- * Extracted from CollectionCreateDialog (#723) so the smart-binder create flow
- * can reuse the exact same affordance: pick an existing binder (each shown with
- * its free slots) or, when none exist yet, create one inline. Filing is always
- * optional. State + the resolve logic live in
- * [useBinderFiling](./useBinderFiling.ts); this is the presentation.
+ * Extracted from CollectionCreateDialog (#723) so the smart-collection create
+ * flow can reuse the exact same affordance: pick an existing binder (each shown
+ * with its free slots), create one inline (whether or not binders already
+ * exist), or leave the list loose. Filing is always optional. State + the
+ * resolve logic live in [useBinderFiling](./useBinderFiling.ts); this is the
+ * presentation.
  */
-import { Library, Loader2 } from 'lucide-react'
+import { Library, Loader2, Plus } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { BinderSummary } from '../api/client'
 import { BinderColorPicker } from './BinderColorPicker'
 import { coverSwatch } from './binderIdentity'
@@ -32,20 +34,7 @@ function slotHint(free: number | null, capacity: number | null | undefined): str
 }
 
 export function BinderFilePicker({ filing }: { filing: BinderFiling }) {
-  const {
-    settled,
-    hasBinders,
-    binders,
-    usedByBinder,
-    binderId,
-    setBinderId,
-    newBinderName,
-    setNewBinderName,
-    newBinderColor,
-    setNewBinderColor,
-    newBinderCapacity,
-    setNewBinderCapacity,
-  } = filing
+  const { settled, hasBinders, binders, usedByBinder, target, setTarget } = filing
 
   if (!settled) {
     return (
@@ -56,38 +45,70 @@ export function BinderFilePicker({ filing }: { filing: BinderFiling }) {
     )
   }
 
-  if (hasBinders) {
+  // No binders yet — the inline create form is the only path, shown directly.
+  if (!hasBinders) {
     return (
-      <fieldset className="space-y-1.5">
-        <legend className="mb-1 text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
-          File into a binder (optional)
-        </legend>
-        <BinderRadio
-          checked={binderId === null}
-          onSelect={() => setBinderId(null)}
-          label="Don't file"
-          hint="Leave it loose."
-        />
-        {binders.map((b) => (
-          <BinderRadio
-            key={b.id}
-            checked={binderId === b.id}
-            onSelect={() => setBinderId(b.id)}
-            label={b.name}
-            hint={slotHint(freeSlots(b, usedByBinder), b.capacity)}
-            swatch={coverSwatch(b.binder_color)}
-          />
-        ))}
-      </fieldset>
+      <div className="space-y-2 rounded-md border border-sand-200 bg-coconut-50 p-3 dark:border-husk-100 dark:bg-husk-100">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-coconut-500 dark:text-sand-200">
+          <Library size={12} aria-hidden />
+          No binders yet — create one to file this into (optional)
+        </div>
+        <NewBinderFields filing={filing} />
+      </div>
     )
   }
 
+  // Binders exist — pick one, leave it loose, or create a new one inline.
   return (
-    <div className="space-y-2 rounded-md border border-sand-200 bg-coconut-50 p-3 dark:border-husk-100 dark:bg-husk-100">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-coconut-500 dark:text-sand-200">
-        <Library size={12} aria-hidden />
-        No binders yet — create one to file this into (optional)
-      </div>
+    <fieldset className="space-y-1.5">
+      <legend className="mb-1 text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
+        File into a binder (optional)
+      </legend>
+      <BinderRadio
+        checked={target === null}
+        onSelect={() => setTarget(null)}
+        label="Don't file"
+        hint="Leave it loose."
+      />
+      {binders.map((b) => (
+        <BinderRadio
+          key={b.id}
+          checked={target === b.id}
+          onSelect={() => setTarget(b.id)}
+          label={b.name}
+          hint={slotHint(freeSlots(b, usedByBinder), b.capacity)}
+          swatch={coverSwatch(b.binder_color)}
+        />
+      ))}
+      <BinderRadio
+        checked={target === 'new'}
+        onSelect={() => setTarget('new')}
+        label="New binder"
+        hint="Create one to file this into."
+        icon={<Plus size={12} aria-hidden />}
+      />
+      {target === 'new' && (
+        <div className="space-y-2 rounded-md border border-sand-200 bg-coconut-50 p-3 dark:border-husk-100 dark:bg-husk-100">
+          <NewBinderFields filing={filing} />
+        </div>
+      )}
+    </fieldset>
+  )
+}
+
+/** The inline new-binder fields — name, cover color, capacity. Shared by the
+ *  no-binders empty state and the "New binder" option in the radio list. */
+function NewBinderFields({ filing }: { filing: BinderFiling }) {
+  const {
+    newBinderName,
+    setNewBinderName,
+    newBinderColor,
+    setNewBinderColor,
+    newBinderCapacity,
+    setNewBinderCapacity,
+  } = filing
+  return (
+    <>
       <input
         type="text"
         value={newBinderName}
@@ -111,7 +132,7 @@ export function BinderFilePicker({ filing }: { filing: BinderFiling }) {
           className={inputClass}
         />
       </label>
-    </div>
+    </>
   )
 }
 
@@ -121,12 +142,14 @@ function BinderRadio({
   label,
   hint,
   swatch,
+  icon,
 }: {
   checked: boolean
   onSelect: () => void
   label: string
   hint: string
   swatch?: { className: string; style?: { backgroundColor: string } }
+  icon?: ReactNode
 }) {
   return (
     <label
@@ -149,6 +172,10 @@ function BinderRadio({
           style={swatch.style}
           aria-hidden
         />
+      ) : icon ? (
+        <span className="flex h-5 w-4 shrink-0 items-center justify-center text-coconut-400 dark:text-sand-300">
+          {icon}
+        </span>
       ) : (
         <span className="h-5 w-4 shrink-0" aria-hidden />
       )}

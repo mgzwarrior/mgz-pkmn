@@ -214,7 +214,7 @@ export function LibraryBindersTab() {
                 />
                 <NewMenuItem
                   icon={<Sparkles size={13} />}
-                  label="Smart binder"
+                  label="Smart collection"
                   blurb="A saved rule over your cards."
                   onSelect={openCreate}
                 />
@@ -311,7 +311,7 @@ export function LibraryBindersTab() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         editing={editingBinder}
-        // Create from the Binders tab is smart-binder-only now (#703);
+        // Create from the Binders tab is smart-collection-only now (#703);
         // physical binders come from "Add binder" above. Edit keeps the
         // binder's real mode.
         smartOnly={editingBinder === null}
@@ -404,7 +404,8 @@ function CapacityFill({ count, capacity }: { count: number; capacity: number }) 
   )
 }
 
-/** A collection carries binder identity if it's a physical or smart binder. */
+/** A collection carries binder identity if it's a physical binder or a smart
+ * collection. */
 function hasBinderIdentity(c: CollectionSummary): boolean {
   return c.kind === 'binder' || c.kind === 'dynamic'
 }
