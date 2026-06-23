@@ -166,6 +166,10 @@ def card_ownership(
         .where(
             Wishlist.user_id == current_user.id,
             WishlistItem.card_set_id.in_(set_ids),
+            # Only active chases count as "wanted" — an acquired item is a
+            # completed chase kept for history (ADR-0025), not a live want
+            # (#768).
+            WishlistItem.acquired_at.is_(None),
         )
     ).all()
     for set_id, number, wish_id, wish_name in wish_rows:
@@ -245,6 +249,9 @@ def _card_state(db: Session, user_id: int, set_id: str | None, number: str | Non
                 Wishlist.user_id == user_id,
                 WishlistItem.card_set_id == set_id,
                 WishlistItem.card_number == number,
+                # Active chases only — an acquired item is history, not a live
+                # want (#768).
+                WishlistItem.acquired_at.is_(None),
             )
         ).all()
     else:
@@ -264,16 +271,25 @@ def _card_state(db: Session, user_id: int, set_id: str | None, number: str | Non
     )
 
 
-def _default_wishlist_item(
-    db: Session, wishlist_id: int, set_id: str | None, number: str | None
+def _wishlist_item(
+    db: Session,
+    wishlist_id: int,
+    set_id: str | None,
+    number: str | None,
+    *,
+    acquired: bool,
 ) -> WishlistItem | None:
+    """The default-wishlist row for a card, filtered to active chases
+    (``acquired=False``) or completed ones (``acquired=True``)."""
     if set_id is None or number is None:
         return None
+    cond = WishlistItem.acquired_at.is_not(None) if acquired else WishlistItem.acquired_at.is_(None)
     return db.scalar(
         select(WishlistItem).where(
             WishlistItem.wishlist_id == wishlist_id,
             WishlistItem.card_set_id == set_id,
             WishlistItem.card_number == number,
+            cond,
         )
     )
 
@@ -294,31 +310,45 @@ def _default_collection_item(
 
 @router.post("/cards/want")
 def want_card(req: CardActionRequest, db: DbSession, current_user: CurrentUser) -> dict:
-    """Add a card to the user's default wishlist. Idempotent — already on it is
-    a no-op."""
+    """Want a card on the user's default wishlist — an active chase.
+
+    Idempotent for an already-active want. If the only item is an *acquired*
+    one (the card was wanted, then owned), re-wanting reactivates that row
+    rather than minting a duplicate — the explicit "I own one but want another"
+    path (#768)."""
     wishlist = get_or_create_default_wishlist(db, current_user.id)
     set_id, number = _identity(req.card)
-    if _default_wishlist_item(db, wishlist.id, set_id, number) is None:
-        price = extract_price_snapshot(req.card)
-        db.add(
-            WishlistItem(
-                wishlist_id=wishlist.id,
-                card_json=req.card,
-                price_snapshot=price,
-                priced_at=datetime.now(UTC) if price is not None else None,
-                **extract_card_identity(req.card),
+    # An active want already covers this card → nothing to do (and don't touch
+    # any acquired history row).
+    if _wishlist_item(db, wishlist.id, set_id, number, acquired=False) is None:
+        acquired = _wishlist_item(db, wishlist.id, set_id, number, acquired=True)
+        if acquired is not None:
+            acquired.acquired_at = None
+            acquired.acquired_collection_item_id = None
+        else:
+            price = extract_price_snapshot(req.card)
+            db.add(
+                WishlistItem(
+                    wishlist_id=wishlist.id,
+                    card_json=req.card,
+                    price_snapshot=price,
+                    priced_at=datetime.now(UTC) if price is not None else None,
+                    **extract_card_identity(req.card),
+                )
             )
-        )
     db.commit()
     return _card_state(db, current_user.id, set_id, number).model_dump()
 
 
 @router.post("/cards/unwant")
 def unwant_card(req: CardActionRequest, db: DbSession, current_user: CurrentUser) -> dict:
-    """Remove a card from the user's default wishlist. No-op if not on it."""
+    """Drop a card's active chase from the user's default wishlist.
+
+    Only removes an active want — an acquired item is kept as history (its chase
+    already completed), so this never erases the "I got it" record (#768)."""
     wishlist = get_or_create_default_wishlist(db, current_user.id)
     set_id, number = _identity(req.card)
-    item = _default_wishlist_item(db, wishlist.id, set_id, number)
+    item = _wishlist_item(db, wishlist.id, set_id, number, acquired=False)
     if item is not None:
         db.delete(item)
     db.commit()
