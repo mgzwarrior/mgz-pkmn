@@ -35,15 +35,25 @@ export function AddToListPicker({
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // `undefined` means the batched ownership lookup is still in flight (vs.
+  // `null`, a known-empty result). Withhold the existing-list choices until
+  // it resolves — adding to a list the card is already in inserts a duplicate
+  // row, so we can't offer them before the "already in" filter is reliable
+  // (#762 review). Create-and-add stays available: a brand-new list can't
+  // already contain the card.
+  const loading = ownership === undefined
+
   // Drop lists the card already sits in (from the shared occupancy) and
   // dynamic collections, whose membership is rule-resolved (the items API
   // 409s on a hand-add).
   const inCollections = new Set((ownership?.collections ?? []).map((c) => c.id))
   const inWishlists = new Set((ownership?.wishlists ?? []).map((w) => w.id))
-  const addableCollections = collections.collections.filter(
-    (c) => c.kind !== 'dynamic' && !inCollections.has(c.id),
-  )
-  const addableWishlists = wishlists.wishlists.filter((w) => !inWishlists.has(w.id))
+  const addableCollections = loading
+    ? []
+    : collections.collections.filter((c) => c.kind !== 'dynamic' && !inCollections.has(c.id))
+  const addableWishlists = loading
+    ? []
+    : wishlists.wishlists.filter((w) => !inWishlists.has(w.id))
 
   function reset() {
     setCreating(null)
@@ -129,6 +139,7 @@ export function AddToListPicker({
             label="Add to collection"
             icon={<Book size={12} />}
             items={addableCollections}
+            loading={loading}
             emptyHint="In every collection already."
             onPick={addToCollection}
             creating={creating === 'collection'}
@@ -149,6 +160,7 @@ export function AddToListPicker({
             label="Add to want-list"
             icon={<Footprints size={12} />}
             items={addableWishlists}
+            loading={loading}
             emptyHint="On every want-list already."
             onPick={addToWishlist}
             creating={creating === 'wishlist'}
@@ -179,6 +191,7 @@ function ListSection({
   label,
   icon,
   items,
+  loading,
   emptyHint,
   onPick,
   creating,
@@ -194,6 +207,7 @@ function ListSection({
   label: string
   icon: React.ReactNode
   items: { id: number; name: string; item_count: number }[]
+  loading: boolean
   emptyHint: string
   onPick: (id: number) => void
   creating: boolean
@@ -212,7 +226,12 @@ function ListSection({
         {icon}
         {label}
       </DropdownMenu.Label>
-      {items.length === 0 && !creating && (
+      {loading && (
+        <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-coconut-400 dark:text-sand-300">
+          <Loader2 size={12} className="animate-spin" /> Checking your lists…
+        </div>
+      )}
+      {!loading && items.length === 0 && !creating && (
         <div className="px-2 py-1 text-[11px] text-coconut-400 dark:text-sand-300">{emptyHint}</div>
       )}
       {items.map((item) => (

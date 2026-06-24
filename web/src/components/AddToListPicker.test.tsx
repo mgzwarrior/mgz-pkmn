@@ -69,6 +69,18 @@ describe('AddToListPicker (#762)', () => {
     expect(screen.queryByRole('menuitem', { name: /Chase list/i })).toBeNull()
   })
 
+  it('withholds existing lists until ownership is known, keeping create available', () => {
+    // `undefined` = the batched ownership lookup is still in flight; offering
+    // an occupied list now would insert a duplicate row (#762 review).
+    render(<AddToListPicker card={CARD} ownership={undefined} />)
+    open()
+    expect(screen.queryByRole('menuitem', { name: /Show Binder/i })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Chase list/i })).toBeNull()
+    // Create-and-add stays available — a brand-new list can't already hold it.
+    expect(screen.getByRole('menuitem', { name: /New collection/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /New want-list/i })).toBeInTheDocument()
+  })
+
   it('adds the card to a chosen collection', async () => {
     render(<AddToListPicker card={CARD} ownership={null} />)
     open()
