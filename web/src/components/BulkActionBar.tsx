@@ -31,6 +31,8 @@ import { exportFile, ownCard, wantCard } from '../api/client'
 import { useAppStore } from '../store'
 import type { ExportFormat, Row } from '../types'
 import { invalidateOwnership } from './useCardOwnership'
+import { useCollections } from './useCollections'
+import { useWishlists } from './useWishlists'
 import { QUICK_ACTION_TONES } from './quickActionTones'
 
 const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
@@ -256,6 +258,8 @@ function BulkSaveButton({
   onClear: () => void
   onError: (msg: string | null) => void
 }) {
+  const collections = useCollections()
+  const wishlists = useWishlists()
   const [busy, setBusy] = useState(false)
   const [added, setAdded] = useState(false)
 
@@ -268,8 +272,12 @@ function BulkSaveButton({
     onError(null)
     try {
       await Promise.all(cards.map((card) => (own ? ownCard(card) : wantCard(card))))
-      // Bust the shared cache so every mounted surface re-reads the new state.
+      // Bust the shared ownership cache, then refresh the affected library
+      // cache so binder counts / insights don't go stale — the raw card
+      // actions don't touch the summary caches the old picker's bulkAdd did
+      // (#781 review).
       invalidateOwnership()
+      await (own ? collections.refresh() : wishlists.refresh())
       setAdded(true)
       setTimeout(() => {
         setAdded(false)

@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { BulkActionBar } from './BulkActionBar'
 import * as client from '../api/client'
 import * as ownershipHook from './useCardOwnership'
+import { _resetCollectionsCacheForTests } from './useCollections'
+import { _resetWishlistsCacheForTests } from './useWishlists'
 import type { Row } from '../types'
 
 const CARD_A = { id: 'base1-4', name: 'Charizard', set: { id: 'base1' }, number: '4' }
@@ -41,26 +43,41 @@ function renderBar(props: Partial<React.ComponentProps<typeof BulkActionBar>> = 
 describe('BulkActionBar quick-action save (#781)', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    _resetCollectionsCacheForTests()
+    _resetWishlistsCacheForTests()
     vi.spyOn(ownershipHook, 'invalidateOwnership').mockImplementation(() => {})
     vi.spyOn(client, 'wantCard').mockResolvedValue({} as never)
     vi.spyOn(client, 'ownCard').mockResolvedValue({} as never)
+    // The bulk save refreshes the affected library cache on success.
+    vi.spyOn(client, 'fetchCollections').mockResolvedValue([])
+    vi.spyOn(client, 'fetchWishlists').mockResolvedValue([])
   })
 
-  it('owns every selected matched card against the default collection', async () => {
+  it('owns every selected matched card and refreshes the collections cache', async () => {
     renderBar()
+    // Drop the mount-time refresh so we can assert the post-save one.
+    await waitFor(() => expect(client.fetchCollections).toHaveBeenCalled())
+    vi.mocked(client.fetchCollections).mockClear()
+
     fireEvent.click(screen.getByRole('button', { name: /own selected cards/i }))
     await waitFor(() => expect(client.ownCard).toHaveBeenCalledTimes(2))
     expect(client.ownCard).toHaveBeenCalledWith(CARD_A)
     expect(client.ownCard).toHaveBeenCalledWith(CARD_B)
     expect(ownershipHook.invalidateOwnership).toHaveBeenCalled()
+    // Binder counts / insights stay live (#781 review).
+    await waitFor(() => expect(client.fetchCollections).toHaveBeenCalled())
   })
 
-  it('wants every selected matched card against the default wishlist', async () => {
+  it('wants every selected matched card and refreshes the wishlists cache', async () => {
     renderBar()
+    await waitFor(() => expect(client.fetchWishlists).toHaveBeenCalled())
+    vi.mocked(client.fetchWishlists).mockClear()
+
     fireEvent.click(screen.getByRole('button', { name: /want selected cards/i }))
     await waitFor(() => expect(client.wantCard).toHaveBeenCalledTimes(2))
     expect(client.wantCard).toHaveBeenCalledWith(CARD_A)
     expect(client.wantCard).toHaveBeenCalledWith(CARD_B)
+    await waitFor(() => expect(client.fetchWishlists).toHaveBeenCalled())
   })
 
   it('clears the selection after a successful save', async () => {
