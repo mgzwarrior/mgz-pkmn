@@ -149,6 +149,10 @@ class CollectionSummaryOut(BaseModel):
     binder_type: str | None
     capacity: int | None
     is_master_set: bool | None
+    #: #759/#762 — the user's default `Own` target. The flag is the invariant,
+    #: not the row: renaming keeps it, deleting re-establishes one lazily. The
+    #: SPA shows a subtle "default" marker so a bare Own's destination is clear.
+    is_default: bool
 
 
 class CollectionItemOut(BaseModel):
@@ -386,6 +390,7 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
                 binder_type=c.binder_type,
                 capacity=c.capacity,
                 is_master_set=c.is_master_set,
+                is_default=c.is_default,
             )
         )
     return {"items": [item.model_dump() for item in items], "total": len(items)}

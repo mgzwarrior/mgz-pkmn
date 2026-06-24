@@ -619,6 +619,9 @@ export interface CollectionSummary {
   binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
+  // #759/#762 — the user's default `Own` target. Optional so older cached
+  // payloads / fixtures without it still type-check.
+  is_default?: boolean
 }
 
 export interface CollectionItem {
@@ -1163,6 +1166,9 @@ export interface WishlistSummary {
   item_count: number
   // The binder this want-list is filed into, or null when loose (#774).
   binder_id: number | null
+  // #759/#762 — the user's default `Want` target. Optional so older cached
+  // payloads / fixtures without it still type-check.
+  is_default?: boolean
 }
 
 export interface WishlistItem {

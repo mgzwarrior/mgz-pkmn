@@ -65,6 +65,10 @@ class WishlistSummaryOut(BaseModel):
     item_count: int
     #: The binder this want-list is filed into, or null when loose (#774).
     binder_id: int | None
+    #: #759/#762 — the user's default `Want` target. The flag is the invariant,
+    #: not the row: renaming keeps it, deleting re-establishes one lazily. The
+    #: SPA shows a subtle "default" marker so a bare Want's destination is clear.
+    is_default: bool
 
 
 class WishlistItemOut(BaseModel):
@@ -193,6 +197,7 @@ def list_wishlists(db: DbSession, current_user: CurrentUser) -> dict:
             created_at=w.created_at.isoformat(),
             item_count=int(item_count),
             binder_id=w.binder_id,
+            is_default=w.is_default,
         )
         for w, item_count in db.execute(stmt).all()
     ]

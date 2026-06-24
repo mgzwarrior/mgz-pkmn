@@ -39,13 +39,23 @@ function set(next: Partial<State>) {
   for (const fn of listeners) fn(state)
 }
 
+/** Refresh the shared collections cache from outside a mounted hook — the
+ *  one-tap quick actions call this after a default-targeting save so the
+ *  library list + "default" marker stay live (#762). */
+export function refreshCollectionsCache(): Promise<void> {
+  return refresh()
+}
+
 async function refresh(): Promise<void> {
   if (inflight) return inflight
   set({ loading: true, error: null })
   inflight = (async () => {
     try {
       const collections = await fetchCollections()
-      set({ collections, loading: false, fetched: true })
+      // Guard against a malformed (non-array) payload corrupting the cache —
+      // subscribers iterate `collections`, so a stray null/undefined would
+      // crash every mounted surface mid-render.
+      set({ collections: Array.isArray(collections) ? collections : [], loading: false, fetched: true })
     } catch (e) {
       set({
         loading: false,

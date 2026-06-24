@@ -143,6 +143,24 @@ describe('LibraryBindersTab', () => {
     expect(names.map((n) => n.textContent)).toEqual(['Mew hunt', 'Charizard masters'])
   })
 
+  it('marks the default collection / want-list and leaves the rest plain (#762)', async () => {
+    mockCollections.mockResolvedValue([
+      { id: 1, name: 'My collection', description: null, created_at: '2026-06-04T00:00:00', item_count: 1, is_default: true },
+      { id: 2, name: 'Trade binder', description: null, created_at: '2026-06-03T00:00:00', item_count: 0, is_default: false },
+    ])
+    mockWishlists.mockResolvedValue([
+      { id: 3, name: 'My want-list', description: null, created_at: '2026-06-06T00:00:00', item_count: 2, binder_id: null, is_default: true },
+    ])
+    render(<LibraryBindersTab />)
+
+    await waitFor(() => expect(screen.getByText('My collection')).toBeInTheDocument())
+    // One marker on the default collection, one on the default want-list.
+    expect(screen.getAllByText('default')).toHaveLength(2)
+    // The plain collection carries no marker.
+    const tradeRow = screen.getByText('Trade binder').closest('li')!
+    expect(within(tradeRow).queryByText('default')).toBeNull()
+  })
+
   it('filters to owned binders only', async () => {
     mockCollections.mockResolvedValue([
       { id: 1, name: 'Charizard masters', description: null, created_at: '2026-06-04T00:00:00', item_count: 4 },
