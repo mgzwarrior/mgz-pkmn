@@ -165,6 +165,28 @@ class BindersEndpointTests(_IsolatedDbMixin):
             still = c.get(f"/api/v1/collections/{cid}")
             self.assertEqual(still.status_code, 200)
 
+    def test_filing_a_wishlist_flips_is_empty_and_delete_detaches(self) -> None:
+        # A binder now organizes want-lists too (#774): filing one makes the
+        # binder non-empty and lists it in contents; deleting detaches it.
+        with self._client() as c:
+            bid = c.post("/api/v1/binders", json={"name": "Chase binder"}).json()["id"]
+            wid = c.post(
+                "/api/v1/wishlists",
+                json={"name": "Charizard hunt", "binder_id": bid},
+            ).json()["id"]
+
+            detail = c.get(f"/api/v1/binders/{bid}").json()
+            self.assertFalse(detail["is_empty"])
+            self.assertEqual(detail["collection_count"], 0)
+            self.assertEqual(detail["wishlist_count"], 1)
+            self.assertEqual(detail["wishlists"][0]["name"], "Charizard hunt")
+
+            self.assertEqual(c.delete(f"/api/v1/binders/{bid}").status_code, 204)
+            # The want-list survives the binder, now unfiled.
+            survived = c.get(f"/api/v1/wishlists/{wid}")
+            self.assertEqual(survived.status_code, 200)
+            self.assertIsNone(survived.json()["binder_id"])
+
 
 if __name__ == "__main__":
     unittest.main()

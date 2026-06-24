@@ -36,6 +36,7 @@ const WISHLIST = {
   description: null,
   created_at: '2026-06-06T00:00:00',
   item_count: 2,
+  binder_id: null,
 }
 
 function item(overrides: Record<string, unknown>) {
@@ -88,6 +89,8 @@ describe('WishlistDetail', () => {
     expect(screen.getByText('Charizard')).toBeInTheDocument()
     // The acquired one is struck through.
     expect(screen.getByText('Blastoise')).toHaveClass('line-through')
+    // Export is offered now that the want-list has items (#773).
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
   })
 
   it('promotes an item into a collection and marks it acquired', async () => {

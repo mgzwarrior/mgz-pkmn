@@ -13,6 +13,7 @@ import {
   deleteCollection,
   fetchCollections,
   updateCollection,
+  updateCollectionItem,
   type CollectionSummary,
   type CreateCollectionOptions,
   type UpdateCollectionOptions,
@@ -23,15 +24,26 @@ interface State {
   collections: CollectionSummary[]
   loading: boolean
   error: string | null
+  // True once the first fetch has resolved or failed. Callers that gate on
+  // load (e.g. binder slot math, #774) must check this, not `!loading`: the
+  // list starts empty with loading=false before the effect kicks off.
+  fetched: boolean
 }
 
 const listeners = new Set<(s: State) => void>()
-let state: State = { collections: [], loading: false, error: null }
+let state: State = { collections: [], loading: false, error: null, fetched: false }
 let inflight: Promise<void> | null = null
 
 function set(next: Partial<State>) {
   state = { ...state, ...next }
   for (const fn of listeners) fn(state)
+}
+
+/** Refresh the shared collections cache from outside a mounted hook — the
+ *  one-tap quick actions call this after a default-targeting save so the
+ *  library list + "default" marker stay live (#762). */
+export function refreshCollectionsCache(): Promise<void> {
+  return refresh()
 }
 
 async function refresh(): Promise<void> {
@@ -40,11 +52,15 @@ async function refresh(): Promise<void> {
   inflight = (async () => {
     try {
       const collections = await fetchCollections()
-      set({ collections, loading: false })
+      // Guard against a malformed (non-array) payload corrupting the cache —
+      // subscribers iterate `collections`, so a stray null/undefined would
+      // crash every mounted surface mid-render.
+      set({ collections: Array.isArray(collections) ? collections : [], loading: false, fetched: true })
     } catch (e) {
       set({
         loading: false,
         error: e instanceof Error ? e.message : String(e),
+        fetched: true,
       })
     } finally {
       inflight = null
@@ -178,6 +194,27 @@ export function useCollections() {
     [],
   )
 
+  // Set a card's owned quantity (#769). `quantityDelta` (new − old) keeps the
+  // collection summary's total_quantity — binder fill / slot math — in sync
+  // without a refetch; the ownership badge (#576) is busted since counts moved.
+  const setItemQuantity = useCallback(
+    async (collectionId: number, itemId: number, quantity: number, quantityDelta: number) => {
+      const updated = await updateCollectionItem(collectionId, itemId, quantity)
+      invalidateOwnership()
+      if (quantityDelta !== 0) {
+        set({
+          collections: state.collections.map((c) =>
+            c.id === collectionId
+              ? { ...c, total_quantity: (c.total_quantity ?? c.item_count) + quantityDelta }
+              : c,
+          ),
+        })
+      }
+      return updated
+    },
+    [],
+  )
+
   const remove = useCallback(async (collectionId: number) => {
     await deleteCollection(collectionId)
     // Cascade-removed items drop the cards' ownership badges (#576) — bust
@@ -193,6 +230,7 @@ export function useCollections() {
     update,
     addCard,
     bulkAdd,
+    setItemQuantity,
     remove,
   }
 }
@@ -200,7 +238,7 @@ export function useCollections() {
 // Test-only: reset the module-level cache between vitest runs so each
 // test starts with an empty list. Production code should not call this.
 export function _resetCollectionsCacheForTests() {
-  state = { collections: [], loading: false, error: null }
+  state = { collections: [], loading: false, error: null, fetched: false }
   inflight = null
   listeners.clear()
 }

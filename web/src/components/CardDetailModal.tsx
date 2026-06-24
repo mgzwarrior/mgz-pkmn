@@ -16,9 +16,13 @@
  * patterns so we don't duplicate a11y plumbing.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
-import type { CardOwnership } from '../api/client'
+import { ChevronLeft, ChevronRight, ExternalLink, Loader2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  removeCardFromCollection,
+  removeCardFromWishlist,
+  type CardOwnership,
+} from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { CardData, CardSet, EbaySoldComp, Pricing, Row } from '../types'
 import { ebayAffiliateUrl, tcgplayerAffiliateUrl } from '../utils/affiliateLinks'
@@ -31,9 +35,12 @@ import {
 } from './cardCategories'
 import { EbaySparkline } from './EbaySparkline'
 import { hasEbayData, soldPriceSeries } from './ebayComps'
+import { AddToListPicker } from './AddToListPicker'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
-import { useCardOwnership } from './useCardOwnership'
+import { invalidateOwnership, useCardOwnership } from './useCardOwnership'
+import { useCollections } from './useCollections'
+import { useWishlists } from './useWishlists'
 
 interface Props {
   /** The already filtered + sorted row set the parent table is showing. */
@@ -255,12 +262,22 @@ function CardDetailBody({
                   </h3>
                   <OwnershipBadge ownership={ownership} />
                 </div>
-                <LibraryLocations ownership={ownership} />
+                <LibraryLocations ownership={ownership} card={card} />
                 <SaveCardActions
                   card={card as unknown as Record<string, unknown>}
+                  ownership={ownership}
                   show={showActions}
                   variant="primary"
                 />
+                {/* The light "organize later" step (#762): the toggles above
+                    write to your default list; this drops the card onto a
+                    specific named collection / want-list. */}
+                <div className="mt-2 flex justify-end">
+                  <AddToListPicker
+                    card={card as unknown as Record<string, unknown>}
+                    ownership={ownership}
+                  />
+                </div>
               </section>
             )}
             <CategoryBadges card={card} />
@@ -334,47 +351,126 @@ function CardDetailBody({
   )
 }
 
+/** The lists a card sits in, with an inline remove on each chip (#762). The
+ *  "organize later" complement to {@link AddToListPicker}: drop the card off a
+ *  specific collection / want-list right from the detail view. Removal targets
+ *  the card identity (the occupancy has no item ids) and goes through the
+ *  cache-aware hooks so counts and the badge re-read. */
 function LibraryLocations({
   ownership,
+  card,
 }: {
   ownership: CardOwnership | null | undefined
+  card: CardData | null
 }) {
-  if (!ownership) return null
-  const { collections, wishlists } = ownership
-  if (collections.length === 0 && wishlists.length === 0) return null
+  const collections = useCollections()
+  const wishlists = useWishlists()
+  const [removing, setRemoving] = useState<string | null>(null)
+
+  const setId = (card?.set as CardSet | undefined)?.id
+  const number = card?.number as string | undefined
+
+  if (!ownership || !card) return null
+  const { collections: cols, wishlists: wls } = ownership
+  if (cols.length === 0 && wls.length === 0) return null
+
+  async function remove(
+    kind: 'collection' | 'wishlist',
+    id: number,
+    fn: () => Promise<void>,
+  ) {
+    if (!setId || !number) return
+    setRemoving(`${kind}-${id}`)
+    try {
+      await fn()
+      // Re-read the ownership badge / locations everywhere, and resync the
+      // list counts the chip was removed from.
+      invalidateOwnership()
+      await (kind === 'collection' ? collections.refresh() : wishlists.refresh())
+    } finally {
+      setRemoving(null)
+    }
+  }
 
   return (
     <div
       aria-label="Library locations"
       className="mb-3 space-y-1.5 rounded-md bg-sand-100 px-2.5 py-2 text-xs text-coconut-500 dark:bg-husk-300 dark:text-sand-200"
     >
-      {collections.length > 0 && (
+      {cols.length > 0 && (
         <LocationLine
           label="In:"
-          names={collections.map((c) =>
-            c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name,
-          )}
+          noun="collection"
+          chips={cols.map((c) => ({
+            id: c.id,
+            name: c.name,
+            display: c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name,
+          }))}
+          removingKey={removing}
+          keyPrefix="collection"
+          onRemove={(id) =>
+            void remove('collection', id, () =>
+              removeCardFromCollection(id, setId as string, number as string),
+            )
+          }
         />
       )}
-      {wishlists.length > 0 && (
-        <LocationLine label="Want:" names={wishlists.map((w) => w.name)} />
+      {wls.length > 0 && (
+        <LocationLine
+          label="Want:"
+          noun="want-list"
+          chips={wls.map((w) => ({ id: w.id, name: w.name, display: w.name }))}
+          removingKey={removing}
+          keyPrefix="wishlist"
+          onRemove={(id) =>
+            void remove('wishlist', id, () =>
+              removeCardFromWishlist(id, setId as string, number as string),
+            )
+          }
+        />
       )}
     </div>
   )
 }
 
-function LocationLine({ label, names }: { label: string; names: string[] }) {
+function LocationLine({
+  label,
+  noun,
+  chips,
+  removingKey,
+  keyPrefix,
+  onRemove,
+}: {
+  label: string
+  noun: string
+  chips: { id: number; name: string; display: string }[]
+  removingKey: string | null
+  keyPrefix: string
+  onRemove: (id: number) => void
+}) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="font-semibold text-coconut-600 dark:text-sand-100">{label}</span>
-      {names.map((name) => (
-        <span
-          key={name}
-          className="rounded-full bg-sand-200 px-1.5 py-0.5 text-coconut-600 dark:bg-husk-100 dark:text-sand-100"
-        >
-          {name}
-        </span>
-      ))}
+      {chips.map((chip) => {
+        const busy = removingKey === `${keyPrefix}-${chip.id}`
+        return (
+          <span
+            key={chip.id}
+            className="inline-flex items-center gap-1 rounded-full bg-sand-200 py-0.5 pl-1.5 pr-1 text-coconut-600 dark:bg-husk-100 dark:text-sand-100"
+          >
+            {chip.display}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onRemove(chip.id)}
+              aria-label={`Remove from ${noun} ${chip.name}`}
+              className="rounded-full p-0.5 text-coconut-400 hover:bg-sand-300 hover:text-ember-500 disabled:opacity-50 dark:text-sand-300 dark:hover:bg-husk-200 dark:hover:text-ember-300"
+            >
+              {busy ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
+            </button>
+          </span>
+        )
+      })}
     </div>
   )
 }

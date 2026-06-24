@@ -386,6 +386,31 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             self.assertEqual(resp.status_code, 204)
             self.assertEqual(len(c.get(f"/api/v1/collections/{cid}").json()["items"]), 0)
 
+    def test_delete_items_by_card_removes_every_matching_row(self) -> None:
+        # The card-detail "remove from this list" affordance (#762) deletes by
+        # identity, so a card added more than once leaves the collection clean.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            self.assertEqual(len(c.get(f"/api/v1/collections/{cid}").json()["items"]), 2)
+
+            resp = c.delete(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+            )
+            self.assertEqual(resp.status_code, 204)
+            self.assertEqual(len(c.get(f"/api/v1/collections/{cid}").json()["items"]), 0)
+
+    def test_delete_items_by_card_404_when_card_absent(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            resp = c.delete(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+            )
+            self.assertEqual(resp.status_code, 404)
+
     def test_add_item_promotes_card_identity_and_defaults_quantity(self) -> None:
         # The promoted columns are what every other surface in the epic
         # queries against — the ownership badge (#576), the insights
@@ -424,6 +449,41 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
                 json={"card": SAMPLE_CARD, "quantity": 0},
             )
             self.assertEqual(resp.status_code, 422)
+
+    def test_patch_item_updates_quantity(self) -> None:
+        # #769 — the editable owned count in the collection detail view.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+
+            patched = c.patch(f"/api/v1/collections/{cid}/items/{item_id}", json={"quantity": 4})
+            self.assertEqual(patched.status_code, 200)
+            self.assertEqual(patched.json()["quantity"], 4)
+            # The change persists on the next read.
+            items = c.get(f"/api/v1/collections/{cid}").json()["items"]
+            self.assertEqual(items[0]["quantity"], 4)
+
+    def test_patch_item_rejects_zero_quantity(self) -> None:
+        # Dropping to zero is a DELETE, not a quantity-0 PATCH — 422.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            resp = c.patch(f"/api/v1/collections/{cid}/items/{item_id}", json={"quantity": 0})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_patch_item_404_when_wrong_collection(self) -> None:
+        with self._client() as c:
+            cid_a = c.post("/api/v1/collections", json={"name": "a"}).json()["id"]
+            cid_b = c.post("/api/v1/collections", json={"name": "b"}).json()["id"]
+            item_id = c.post(
+                f"/api/v1/collections/{cid_a}/items", json={"card": SAMPLE_CARD}
+            ).json()["id"]
+            resp = c.patch(f"/api/v1/collections/{cid_b}/items/{item_id}", json={"quantity": 2})
+            self.assertEqual(resp.status_code, 404)
 
     def test_delete_item_404_when_wrong_collection(self) -> None:
         with self._client() as c:

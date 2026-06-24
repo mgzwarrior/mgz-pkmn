@@ -3,7 +3,7 @@
  *
  * The New ▾ menu in the Binders tab uses this for the two logical-list
  * creates that need nothing but a name: a plain collection and a want-list.
- * (Smart binders go through the richer [BinderModal](./BinderModal.tsx).)
+ * (Smart collections go through the richer [BinderModal](./BinderModal.tsx).)
  *
  * Submits on Enter or the action button; surfaces a server error inline and
  * leaves the dialog open so the user can retry. Clears the field whenever

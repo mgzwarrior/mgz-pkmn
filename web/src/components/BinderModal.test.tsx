@@ -2,8 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { BinderModal } from './BinderModal'
 import { _resetCollectionsCacheForTests } from './useCollections'
-import { createCollection, updateCollection, fetchCollections } from '../api/client'
-import type { CollectionSummary } from '../api/client'
+import { _resetBindersCacheForTests } from './useBinders'
+import {
+  createCollection,
+  updateCollection,
+  fetchCollections,
+  fetchBinders,
+  createBinder,
+} from '../api/client'
+import type { BinderSummary, CollectionSummary } from '../api/client'
 
 vi.mock('../api/client', () => ({
   fetchCollections: vi.fn(),
@@ -12,19 +19,43 @@ vi.mock('../api/client', () => ({
   addCardToCollection: vi.fn(),
   bulkAddToCollection: vi.fn(),
   deleteCollection: vi.fn(),
+  fetchBinders: vi.fn(),
+  createBinder: vi.fn(),
 }))
 
 const mockCreate = vi.mocked(createCollection)
 const mockUpdate = vi.mocked(updateCollection)
 const mockFetch = vi.mocked(fetchCollections)
+const mockFetchBinders = vi.mocked(fetchBinders)
+const mockCreateBinder = vi.mocked(createBinder)
+
+function binder(over: Partial<BinderSummary> = {}): BinderSummary {
+  return {
+    id: 3,
+    name: 'Show binder',
+    created_at: '2026-06-15T00:00:00',
+    binder_format: null,
+    binder_color: null,
+    binder_type: null,
+    capacity: 360,
+    collection_count: 0,
+    wishlist_count: 0,
+    is_empty: true,
+    ...over,
+  }
+}
 
 describe('BinderModal', () => {
   beforeEach(() => {
     _resetCollectionsCacheForTests()
+    _resetBindersCacheForTests()
     mockCreate.mockReset()
     mockUpdate.mockReset()
     mockFetch.mockReset()
+    mockFetchBinders.mockReset()
+    mockCreateBinder.mockReset()
     mockFetch.mockResolvedValue([])
+    mockFetchBinders.mockResolvedValue([])
   })
 
   it('creates a binder with format and capacity (no cover color / storage type — those live on the binder unit)', async () => {
@@ -69,7 +100,7 @@ describe('BinderModal', () => {
     expect(opts).not.toHaveProperty('binder_type')
   })
 
-  it('creates a smart binder carrying shared identity but no physical fields or color', async () => {
+  it('creates a smart collection carrying shared identity but no physical fields or color', async () => {
     mockCreate.mockResolvedValue({
       id: 6,
       name: 'All Eevees',
@@ -81,23 +112,56 @@ describe('BinderModal', () => {
     })
     render(<BinderModal open onOpenChange={() => {}} />)
 
-    fireEvent.click(screen.getByRole('radio', { name: /smart binder/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /smart collection/i }))
     fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
       target: { value: 'All Eevees' },
     })
     fireEvent.change(screen.getByPlaceholderText('Eevee'), { target: { value: 'Eevee' } })
+    // Wait for the binder-file picker to settle (no binders here) before submit.
+    await screen.findByText(/No binders yet/i)
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled())
     const [, opts] = mockCreate.mock.calls[0]
     expect(opts).toMatchObject({ kind: 'dynamic', dynamic_scope: 'owned' })
-    // A smart binder has no fixed slots and no cover color.
+    // A smart collection has no fixed slots and no cover color.
     expect(opts).not.toHaveProperty('binder_format')
     expect(opts).not.toHaveProperty('capacity')
     expect(opts).not.toHaveProperty('binder_color')
   })
 
-  it('lets you save identity edits to an existing smart binder without a rule', async () => {
+  it('files a new smart collection into a chosen binder (#726)', async () => {
+    mockFetchBinders.mockResolvedValue([binder({ id: 3, name: 'Show binder' })])
+    mockCreate.mockResolvedValue({
+      id: 10,
+      name: 'All Eevees',
+      description: null,
+      created_at: '2026-06-15T00:00:00',
+      items: [],
+      kind: 'dynamic',
+      rule: { name: 'Eevee' },
+    } as never)
+    render(<BinderModal open onOpenChange={() => {}} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: /smart collection/i }))
+    fireEvent.change(screen.getByPlaceholderText('All Eevees'), {
+      target: { value: 'All Eevees' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Eevee'), { target: { value: 'Eevee' } })
+
+    // The shared binder-file picker lists existing binders; pick one.
+    fireEvent.click(await screen.findByRole('radio', { name: /Show binder/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith(
+        'All Eevees',
+        expect.objectContaining({ kind: 'dynamic', binder_id: 3 }),
+      ),
+    )
+  })
+
+  it('lets you save identity edits to an existing smart collection without a rule', async () => {
     const smart: CollectionSummary = {
       id: 8,
       name: 'All Eevees',

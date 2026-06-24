@@ -389,6 +389,7 @@ describe('SwipePanel', () => {
       name: 'Custom prep',
       description: null,
       created_at: '2026-06-06T00:00:00',
+      binder_id: null,
       items: [],
     })
     mockAddCardToWishlist.mockResolvedValue({
@@ -467,7 +468,7 @@ describe('SwipePanel', () => {
     expect(screen.getByText('Pikachu')).toBeInTheDocument()
   })
 
-  it('shows the collection / wishlist save buttons when signed in', async () => {
+  it('shows the one-tap want / own quick actions when signed in (#761)', async () => {
     mockFetchMe.mockResolvedValue({
       user: { id: 1, email: 'u@e.com', display_name: 'U' },
       authEnabled: true,
@@ -476,16 +477,12 @@ describe('SwipePanel', () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
 
-    // useAuth resolves async — wait for the gated save buttons to mount.
+    // useAuth resolves async — wait for the gated quick actions to mount.
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /save to collection/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /^want$/i })).toBeInTheDocument(),
     )
-    expect(
-      screen.getByRole('button', { name: /save to wishlist/i }),
-    ).toBeInTheDocument()
-    // The swipe-mechanic buttons stay alongside the new save pair.
+    expect(screen.getByRole('button', { name: /^own$/i })).toBeInTheDocument()
+    // The swipe-mechanic buttons stay alongside the new quick-action pair.
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
   })
 

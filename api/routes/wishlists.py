@@ -42,7 +42,7 @@ from ..db.models import (
     WishlistItem,
 )
 from ..db.session import get_db
-from .collections import serialize_collection_item
+from .collections import _require_owned_binder, serialize_collection_item
 
 router = APIRouter()
 
@@ -63,6 +63,12 @@ class WishlistSummaryOut(BaseModel):
     description: str | None
     created_at: str
     item_count: int
+    #: The binder this want-list is filed into, or null when loose (#774).
+    binder_id: int | None
+    #: #759/#762 — the user's default `Want` target. The flag is the invariant,
+    #: not the row: renaming keeps it, deleting re-establishes one lazily. The
+    #: SPA shows a subtle "default" marker so a bare Want's destination is clear.
+    is_default: bool
 
 
 class WishlistItemOut(BaseModel):
@@ -91,17 +97,25 @@ class WishlistOut(BaseModel):
     name: str
     description: str | None
     created_at: str
+    #: The binder this want-list is filed into, or null when loose (#774).
+    binder_id: int | None
     items: list[WishlistItemOut]
 
 
 class WishlistCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
+    #: File the new want-list into a binder on create (#774). Null leaves it
+    #: loose; an unowned id is a 404 (see :func:`_require_owned_binder`).
+    binder_id: int | None = None
 
 
 class WishlistPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
+    #: Re-file (or, with null, unfile) the want-list (#774). Only applied when
+    #: the key is present, so omitting it leaves the current binder untouched.
+    binder_id: int | None = None
 
 
 class WishlistItemCreate(BaseModel):
@@ -182,6 +196,8 @@ def list_wishlists(db: DbSession, current_user: CurrentUser) -> dict:
             description=w.description,
             created_at=w.created_at.isoformat(),
             item_count=int(item_count),
+            binder_id=w.binder_id,
+            is_default=w.is_default,
         )
         for w, item_count in db.execute(stmt).all()
     ]
@@ -190,10 +206,12 @@ def list_wishlists(db: DbSession, current_user: CurrentUser) -> dict:
 
 @router.post("/wishlists", status_code=201)
 def create_wishlist(req: WishlistCreate, db: DbSession, current_user: CurrentUser) -> dict:
+    _require_owned_binder(db, req.binder_id, current_user.id)
     wishlist = Wishlist(
         user_id=current_user.id,
         name=req.name.strip(),
         description=req.description,
+        binder_id=req.binder_id,
     )
     db.add(wishlist)
     db.commit()
@@ -222,6 +240,11 @@ def patch_wishlist(
     # from "explicitly null" since Pydantic collapses both to None.
     if "description" in req.model_fields_set:
         wishlist.description = req.description
+    # File / re-file / unfile only when the caller sends the key (#774);
+    # passing `null` detaches, mirroring the collections patch path.
+    if "binder_id" in req.model_fields_set:
+        _require_owned_binder(db, req.binder_id, current_user.id)
+        wishlist.binder_id = req.binder_id
     db.commit()
     db.refresh(wishlist)
     return _serialize_wishlist(wishlist)
@@ -317,6 +340,39 @@ def delete_wishlist_item(
             detail=f"item {item_id} not found in wishlist {wishlist_id}",
         )
     db.delete(item)
+    db.commit()
+
+
+@router.delete("/wishlists/{wishlist_id}/items", status_code=204)
+def delete_wishlist_items_by_card(
+    wishlist_id: int,
+    set_id: str,
+    number: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    """Remove a card from a specific want-list by its ``(set_id, number)``
+    identity — the card-detail "remove from this list" affordance (#762).
+
+    Only drops *active* chases; an acquired item is kept as history (its chase
+    already completed), mirroring ``/cards/unwant`` (#768). 404s when no active
+    chase for the card is on the list."""
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
+    items = db.scalars(
+        select(WishlistItem).where(
+            WishlistItem.wishlist_id == wishlist.id,
+            WishlistItem.card_set_id == set_id,
+            WishlistItem.card_number == number,
+            WishlistItem.acquired_at.is_(None),
+        )
+    ).all()
+    if not items:
+        raise HTTPException(
+            status_code=404,
+            detail=f"card {set_id}-{number} not found on wishlist {wishlist_id}",
+        )
+    for item in items:
+        db.delete(item)
     db.commit()
 
 
@@ -424,6 +480,7 @@ def _serialize_wishlist(wishlist: Wishlist) -> dict:
         name=wishlist.name,
         description=wishlist.description,
         created_at=wishlist.created_at.isoformat(),
+        binder_id=wishlist.binder_id,
         items=[_item_out(i) for i in wishlist.items],
     ).model_dump()
 

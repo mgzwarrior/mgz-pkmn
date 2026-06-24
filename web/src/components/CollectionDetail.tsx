@@ -7,14 +7,20 @@
  * cards in the collection with their snapshot price, and surfaces an empty
  * state for a freshly-created collection so it's never a dead end.
  *
- * Read-only for now: cards are added from Browse / Search via the save
- * buttons, and seeded placeholder slots are a separate effort (#725).
+ * Owned quantity per card is shown and editable here (#769) — the canonical
+ * place to manage counts. Cards are still added from Browse / Search via the
+ * save buttons; seeded placeholder slots are a separate effort (#725). Editing
+ * is gated to manual/set collections — a dynamic (smart) collection's
+ * membership is rule-derived, so its counts aren't hand-adjustable.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { ImageOff, Loader2, Wallet, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ImageOff, Loader2, Minus, Plus, Wallet, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { fetchCollection, type CollectionItem, type CollectionSummary } from '../api/client'
 import { coverSwatch } from './binderIdentity'
+import { ExportBar } from './ExportBar'
+import { itemsToExportRows } from './exportRows'
+import { useCollections } from './useCollections'
 import { formatMoney } from '../utils/format'
 
 interface Props {
@@ -34,9 +40,44 @@ function cardLabel(item: CollectionItem): string {
 }
 
 export function CollectionDetail({ collection, open, onOpenChange }: Props) {
+  const { setItemQuantity } = useCollections()
   const [items, setItems] = useState<CollectionItem[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
+  // The item whose quantity PATCH is in flight, if any. Gating per-item edits
+  // keeps the absolute updates from racing — a stale response can't land after
+  // a newer one and overwrite the server (#769).
+  const [pendingId, setPendingId] = useState<number | null>(null)
+
+  // A dynamic (smart) collection's membership comes from its rule, so its
+  // counts aren't hand-editable — only manual/set collections get the stepper.
+  const editable = collection != null && collection.kind !== 'dynamic'
+
+  // Persist a card's new owned quantity, optimistically updating the row and
+  // reverting on failure (#769).
+  async function changeQuantity(item: CollectionItem, next: number) {
+    if (!collection || next < 1) return
+    const prev = item.quantity ?? 1
+    // Ignore the click if nothing changes, or while this item's edit is still
+    // saving — the stepper is disabled then, but guard the handler too.
+    if (next === prev || pendingId === item.id) return
+    setEditError(null)
+    setPendingId(item.id)
+    setItems((list) =>
+      list ? list.map((i) => (i.id === item.id ? { ...i, quantity: next } : i)) : list,
+    )
+    try {
+      await setItemQuantity(collection.id, item.id, next, next - prev)
+    } catch (e) {
+      setItems((list) =>
+        list ? list.map((i) => (i.id === item.id ? { ...i, quantity: prev } : i)) : list,
+      )
+      setEditError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPendingId(null)
+    }
+  }
 
   useEffect(() => {
     if (!open || !collection) return
@@ -47,6 +88,7 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
     const load = async () => {
       setItems(null)
       setError(null)
+      setEditError(null)
       setLoading(true)
       try {
         const c = await fetchCollection(collection.id)
@@ -64,6 +106,7 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
   }, [open, collection])
 
   const cover = coverSwatch(collection?.binder_color)
+  const exportRows = useMemo(() => itemsToExportRows(items ?? []), [items])
   const total = (items ?? []).reduce(
     (sum, it) => sum + (it.price_snapshot ?? 0) * (it.quantity ?? 1),
     0,
@@ -89,14 +132,23 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
                 {collection?.name ?? 'Collection'}
               </Dialog.Title>
             </div>
-            <Dialog.Close asChild>
-              <button
-                aria-label="Close"
-                className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
-              >
-                <X size={18} />
-              </button>
-            </Dialog.Close>
+            <div className="flex shrink-0 items-center gap-1">
+              {items && items.length > 0 && (
+                <ExportBar
+                  rows={exportRows}
+                  title={collection?.name}
+                  showSetIdCards={false}
+                />
+              )}
+              <Dialog.Close asChild>
+                <button
+                  aria-label="Close"
+                  className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
+                >
+                  <X size={18} />
+                </button>
+              </Dialog.Close>
+            </div>
           </header>
           <Dialog.Description className="sr-only">
             The cards in this collection, with their snapshot prices.
@@ -127,9 +179,20 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
                     </span>
                   )}
                 </div>
+                {editError && (
+                  <div role="alert" className="mb-2 text-[11px] text-sun-600 dark:text-sun-300">
+                    Couldn&apos;t update quantity: {editError}
+                  </div>
+                )}
                 <ul className="divide-y divide-sand-200 dark:divide-husk-100">
                   {items.map((it) => (
-                    <ItemRow key={it.id} item={it} />
+                    <ItemRow
+                      key={it.id}
+                      item={it}
+                      editable={editable}
+                      busy={pendingId === it.id}
+                      onChangeQuantity={(next) => void changeQuantity(it, next)}
+                    />
                   ))}
                 </ul>
               </>
@@ -148,7 +211,17 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
   )
 }
 
-function ItemRow({ item }: { item: CollectionItem }) {
+function ItemRow({
+  item,
+  editable,
+  busy,
+  onChangeQuantity,
+}: {
+  item: CollectionItem
+  editable: boolean
+  busy: boolean
+  onChangeQuantity: (next: number) => void
+}) {
   const [broken, setBroken] = useState(false)
   const img = cardImage(item)
   const qty = item.quantity ?? 1
@@ -170,7 +243,6 @@ function ItemRow({ item }: { item: CollectionItem }) {
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
           {cardLabel(item)}
-          {qty > 1 && <span className="text-coconut-400 dark:text-sand-300"> · {qty}x</span>}
         </div>
         <div className="truncate text-[11px] text-coconut-400 dark:text-sand-300">
           {item.card_set_id}
@@ -178,11 +250,68 @@ function ItemRow({ item }: { item: CollectionItem }) {
           {item.card_rarity ? ` · ${item.card_rarity}` : ''}
         </div>
       </div>
+      {editable ? (
+        <QuantityStepper
+          qty={qty}
+          label={cardLabel(item)}
+          busy={busy}
+          onChange={onChangeQuantity}
+        />
+      ) : (
+        <span className="shrink-0 text-xs text-coconut-500 dark:text-sand-300" aria-label="Owned quantity">
+          {qty}x
+        </span>
+      )}
       {item.price_snapshot != null && (
-        <span className="shrink-0 text-xs font-medium text-palm-600 dark:text-palm-200">
+        <span className="w-16 shrink-0 text-right text-xs font-medium text-palm-600 dark:text-palm-200">
           {formatMoney(item.price_snapshot, 'USD')}
         </span>
       )}
     </li>
+  )
+}
+
+/** The −/+ owned-quantity control for one card (#769). Floored at 1 — removing
+ *  the last copy is a separate delete, not a zero here. */
+function QuantityStepper({
+  qty,
+  label,
+  busy,
+  onChange,
+}: {
+  qty: number
+  label: string
+  busy: boolean
+  onChange: (next: number) => void
+}) {
+  const btn =
+    'flex h-6 w-6 items-center justify-center rounded text-coconut-500 hover:bg-sand-200 disabled:opacity-40 disabled:hover:bg-transparent dark:text-sand-300 dark:hover:bg-husk-100'
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <button
+        type="button"
+        onClick={() => onChange(qty - 1)}
+        disabled={qty <= 1 || busy}
+        aria-label={`Decrease quantity of ${label}`}
+        className={btn}
+      >
+        <Minus size={13} />
+      </button>
+      <span
+        className="min-w-[1.5rem] text-center text-xs font-medium tabular-nums text-coconut-700 dark:text-sand-50"
+        aria-label={`Owned quantity of ${label}`}
+      >
+        {qty}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(qty + 1)}
+        disabled={busy}
+        aria-label={`Increase quantity of ${label}`}
+        className={btn}
+      >
+        <Plus size={13} />
+      </button>
+    </div>
   )
 }

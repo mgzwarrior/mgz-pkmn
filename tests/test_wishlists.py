@@ -183,6 +183,47 @@ class WishlistsEndpointTests(_IsolatedDbMixin):
                     None,
                 )
 
+    # ---- #774: filing want-lists into binders ----------------------------
+
+    def test_create_files_into_binder(self) -> None:
+        with self._client() as c:
+            bid = c.post("/api/v1/binders", json={"name": "Show binder"}).json()["id"]
+            created = c.post(
+                "/api/v1/wishlists",
+                json={"name": "Chase", "binder_id": bid},
+            )
+            self.assertEqual(created.status_code, 201)
+            self.assertEqual(created.json()["binder_id"], bid)
+            # The summary list carries binder_id too, so the SPA can group it.
+            self.assertEqual(c.get("/api/v1/wishlists").json()["items"][0]["binder_id"], bid)
+
+    def test_create_rejects_unowned_binder(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/wishlists", json={"name": "Chase", "binder_id": 9999})
+            self.assertEqual(resp.status_code, 404)
+
+    def test_patch_refiles_and_unfiles(self) -> None:
+        with self._client() as c:
+            b1 = c.post("/api/v1/binders", json={"name": "B1"}).json()["id"]
+            b2 = c.post("/api/v1/binders", json={"name": "B2"}).json()["id"]
+            wid = c.post("/api/v1/wishlists", json={"name": "Chase", "binder_id": b1}).json()["id"]
+
+            refiled = c.patch(f"/api/v1/wishlists/{wid}", json={"binder_id": b2})
+            self.assertEqual(refiled.json()["binder_id"], b2)
+
+            unfiled = c.patch(f"/api/v1/wishlists/{wid}", json={"binder_id": None})
+            self.assertIsNone(unfiled.json()["binder_id"])
+
+            # Omitting binder_id leaves the current value untouched.
+            renamed = c.patch(f"/api/v1/wishlists/{wid}", json={"name": "Renamed"})
+            self.assertIsNone(renamed.json()["binder_id"])
+
+    def test_patch_rejects_unowned_binder(self) -> None:
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "Chase"}).json()["id"]
+            resp = c.patch(f"/api/v1/wishlists/{wid}", json={"binder_id": 9999})
+            self.assertEqual(resp.status_code, 404)
+
     def test_add_card_persists_max_price(self) -> None:
         with self._client() as c:
             wid = c.post("/api/v1/wishlists", json={"name": "Charizard hunt"}).json()["id"]
@@ -253,6 +294,28 @@ class WishlistsEndpointTests(_IsolatedDbMixin):
                 "id"
             ]
             resp = c.delete(f"/api/v1/wishlists/{wid_b}/items/{item_id}")
+            self.assertEqual(resp.status_code, 404)
+
+    def test_delete_items_by_card_removes_active_chase(self) -> None:
+        # The card-detail "remove from this list" affordance (#762) drops the
+        # active chase by identity, no item id needed.
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "k"}).json()["id"]
+            c.post(f"/api/v1/wishlists/{wid}/items", json={"card": SAMPLE_CARD})
+            resp = c.delete(
+                f"/api/v1/wishlists/{wid}/items",
+                params={"set_id": "base1", "number": "4"},
+            )
+            self.assertEqual(resp.status_code, 204)
+            self.assertEqual(len(c.get(f"/api/v1/wishlists/{wid}").json()["items"]), 0)
+
+    def test_delete_items_by_card_404_when_card_absent(self) -> None:
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "k"}).json()["id"]
+            resp = c.delete(
+                f"/api/v1/wishlists/{wid}/items",
+                params={"set_id": "base1", "number": "4"},
+            )
             self.assertEqual(resp.status_code, 404)
 
     def test_bulk_add_items_round_trip(self) -> None:

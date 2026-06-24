@@ -62,6 +62,7 @@ describe('CollectionCreateDialog', () => {
         binder_type: null,
         capacity: 360,
         collection_count: 1,
+        wishlist_count: 0,
         is_empty: false,
       },
     ])
@@ -89,6 +90,56 @@ describe('CollectionCreateDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('Base holos', { binder_id: 3 }))
+  })
+
+  it('creates a new binder even when binders already exist, then files into it', async () => {
+    mockBinders.mockResolvedValue([
+      {
+        id: 3,
+        name: 'Show binder',
+        created_at: '2026-06-01T00:00:00',
+        binder_format: null,
+        binder_color: null,
+        binder_type: null,
+        capacity: 360,
+        collection_count: 0,
+        wishlist_count: 0,
+        is_empty: true,
+      },
+    ])
+    mockCreateBinder.mockResolvedValue({
+      id: 20,
+      name: 'Slot 2',
+      created_at: '2026-06-21T00:00:00',
+      binder_format: null,
+      binder_color: null,
+      binder_type: null,
+      capacity: 180,
+      collection_count: 0,
+      is_empty: true,
+    } as never)
+
+    render(<CollectionCreateDialog open onOpenChange={() => {}} />)
+    // The "New binder" option is offered alongside the existing binder.
+    fireEvent.click(await screen.findByRole('radio', { name: /new binder/i }))
+    fireEvent.change(screen.getByPlaceholderText('Base Set holos'), {
+      target: { value: 'Base holos' },
+    })
+    fireEvent.change(screen.getByLabelText('New binder name'), {
+      target: { value: 'Slot 2' },
+    })
+    fireEvent.change(screen.getByLabelText('New binder capacity (slots)'), {
+      target: { value: '180' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
+
+    await waitFor(() =>
+      expect(mockCreateBinder).toHaveBeenCalledWith('Slot 2', {
+        binder_color: null,
+        capacity: 180,
+      }),
+    )
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('Base holos', { binder_id: 20 }))
   })
 
   it('creates a binder inline when none exist, then files the collection into it', async () => {

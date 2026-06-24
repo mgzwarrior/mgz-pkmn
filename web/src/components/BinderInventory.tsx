@@ -12,16 +12,34 @@
  */
 import { Check, FolderPlus, Library, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import type { BinderFormat, BinderSummary, BinderType, CollectionSummary } from '../api/client'
+import type {
+  BinderFormat,
+  BinderSummary,
+  BinderType,
+  CollectionSummary,
+  WishlistSummary,
+} from '../api/client'
 import { BINDER_FORMAT_OPTIONS, BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
 import { BinderColorPicker } from './BinderColorPicker'
 import { NameCreateDialog } from './NameCreateDialog'
 import { useBinders } from './useBinders'
 import { useCollections } from './useCollections'
+import { useWishlists } from './useWishlists'
+
+/** The "what's filed" line under a binder: collections and/or want-lists, or
+ *  "Empty" when nothing is filed yet (#774). */
+function filedSummary(collections: number, wishlists: number): string {
+  if (collections === 0 && wishlists === 0) return 'Empty'
+  const parts: string[] = []
+  if (collections > 0) parts.push(`${collections} ${collections === 1 ? 'collection' : 'collections'}`)
+  if (wishlists > 0) parts.push(`${wishlists} ${wishlists === 1 ? 'want-list' : 'want-lists'}`)
+  return parts.join(' · ')
+}
 
 export function BinderInventory() {
   const { binders, loading, error, create, remove, refresh } = useBinders()
   const { collections, create: createCollection } = useCollections()
+  const { wishlists } = useWishlists()
 
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
@@ -47,6 +65,19 @@ export function BinderInventory() {
     }
     return map
   }, [collections])
+
+  // Want-lists filed into each binder (#774), derived the same way — a binder
+  // organizes chase targets alongside owned cards.
+  const wishlistsByBinder = useMemo(() => {
+    const map = new Map<number, WishlistSummary[]>()
+    for (const w of wishlists) {
+      if (w.binder_id == null) continue
+      const list = map.get(w.binder_id)
+      if (list) list.push(w)
+      else map.set(w.binder_id, [w])
+    }
+    return map
+  }, [wishlists])
 
   function resetForm() {
     setName('')
@@ -203,6 +234,7 @@ export function BinderInventory() {
           {binders.map((b) => {
             const swatch = coverSwatch(b.binder_color)
             const filed = collectionsByBinder.get(b.id) ?? []
+            const filedWishlists = wishlistsByBinder.get(b.id) ?? []
             const storageType = BINDER_TYPE_OPTIONS.find((o) => o.value === b.binder_type)?.label
             return (
               <li
@@ -218,9 +250,7 @@ export function BinderInventory() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-coconut-700 dark:text-sand-50">{b.name}</p>
                     <p className="text-[11px] text-coconut-400 dark:text-sand-300">
-                      {filed.length === 0
-                        ? 'Empty'
-                        : `${filed.length} ${filed.length === 1 ? 'collection' : 'collections'}`}
+                      {filedSummary(filed.length, filedWishlists.length)}
                       {storageType ? ` · ${storageType}` : ''}
                       {b.binder_format ? ` · ${b.binder_format}` : ''}
                       {b.capacity ? ` · ${b.capacity} slots` : ''}
@@ -241,7 +271,7 @@ export function BinderInventory() {
                         type="button"
                         onClick={() => void handleDelete(b.id)}
                         aria-label={`Confirm delete ${b.name}`}
-                        className="rounded p-1 text-sun-600 hover:bg-sun-50 dark:text-sun-300 dark:hover:bg-husk-100"
+                        className="rounded p-1 text-ember-600 hover:bg-ember-500/10 dark:text-ember-300 dark:hover:bg-husk-100"
                       >
                         <Check size={13} />
                       </button>
@@ -259,23 +289,35 @@ export function BinderInventory() {
                       type="button"
                       onClick={() => setConfirmingId(b.id)}
                       aria-label={`Delete ${b.name}`}
-                      className="rounded p-1 text-coconut-400 hover:text-sun-600 dark:text-sand-300 dark:hover:text-sun-300"
+                      className="rounded p-1 text-coconut-400 hover:text-ember-500 dark:text-sand-300 dark:hover:text-ember-300"
                     >
                       <Trash2 size={13} />
                     </button>
                   )}
                 </div>
-                {filed.length > 0 && (
+                {(filed.length > 0 || filedWishlists.length > 0) && (
                   <ul className="ml-7 mt-1 space-y-0.5">
                     {filed.map((c) => (
                       <li
-                        key={c.id}
+                        key={`c-${c.id}`}
                         className="truncate text-[11px] text-coconut-500 dark:text-sand-300"
                       >
                         {c.name}
                         <span className="text-coconut-400 dark:text-sand-400">
                           {' '}
                           · {c.item_count} {c.item_count === 1 ? 'card' : 'cards'}
+                        </span>
+                      </li>
+                    ))}
+                    {filedWishlists.map((w) => (
+                      <li
+                        key={`w-${w.id}`}
+                        className="truncate text-[11px] text-coconut-500 dark:text-sand-300"
+                      >
+                        {w.name}
+                        <span className="text-coconut-400 dark:text-sand-400">
+                          {' '}
+                          · want-list · {w.item_count} {w.item_count === 1 ? 'card' : 'cards'}
                         </span>
                       </li>
                     ))}

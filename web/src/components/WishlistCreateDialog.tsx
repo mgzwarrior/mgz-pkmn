@@ -1,12 +1,12 @@
 /**
- * CollectionCreateDialog — the New ▾ → Collection create flow (#723).
+ * WishlistCreateDialog — the New ▾ → Want-list create flow (#774).
  *
- * A plain collection lives inside a physical binder (the inventory unit from
- * #702), so this dialog connects the two at create time via the shared
- * {@link BinderFilePicker} (#726): pick an existing binder (each shown with its
- * free slots), create one inline when none exist, or leave the collection
- * loose. Both paths go through [useCollections](./useCollections.ts) /
- * [useBinders](./useBinders.ts) so every surface re-renders without a refetch.
+ * Mirrors {@link CollectionCreateDialog}: a want-list can now be filed into a
+ * physical binder at create time via the shared {@link BinderFilePicker} —
+ * pick an existing binder, create one inline, or leave it loose — so all three
+ * logical lists (collection, smart collection, want-list) are binder-aware.
+ * State flows through [useWishlists](./useWishlists.ts) / [useBinders](./useBinders.ts)
+ * so every surface re-renders without a refetch.
  */
 import * as Dialog from '@radix-ui/react-dialog'
 import { Loader2, X } from 'lucide-react'
@@ -14,32 +14,32 @@ import { useState } from 'react'
 import type { CardData } from '../types'
 import { BinderFilePicker } from './BinderFilePicker'
 import { useBinderFiling } from './useBinderFiling'
-import { useCollections } from './useCollections'
+import { useWishlists } from './useWishlists'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Seed the name field (e.g. opened from Browse for a set/species). */
   prefillName?: string
-  /** When set, bulk-add these cards into the new collection on create — the
-   *  Browse "create a collection of this set/species" path (#737). */
+  /** When set, bulk-add these cards into the new want-list on create — the
+   *  Browse "create a want-list of this set/species" path (#737). */
   seedCards?: CardData[]
 }
 
-export function CollectionCreateDialog({ open, onOpenChange, prefillName, seedCards }: Props) {
+export function WishlistCreateDialog({ open, onOpenChange, prefillName, seedCards }: Props) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 backdrop-blur-sm dark:bg-husk-500/70" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(420px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200">
-        {/* Form state only mounts while open, so each open starts fresh. */}
-        {open && (
-          <CreateForm
-            onClose={() => onOpenChange(false)}
-            prefillName={prefillName}
-            seedCards={seedCards}
-          />
-        )}
+          {/* Form state only mounts while open, so each open starts fresh. */}
+          {open && (
+            <CreateForm
+              onClose={() => onOpenChange(false)}
+              prefillName={prefillName}
+              seedCards={seedCards}
+            />
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -55,7 +55,7 @@ function CreateForm({
   prefillName?: string
   seedCards?: CardData[]
 }) {
-  const { create: createCollection, bulkAdd: bulkAddCollection } = useCollections()
+  const { create: createWishlist, bulkAdd: bulkAddWishlist } = useWishlists()
   const filing = useBinderFiling()
 
   const [name, setName] = useState(prefillName ?? '')
@@ -71,15 +71,13 @@ function CreateForm({
     setError(null)
     try {
       const target = await filing.resolveTarget()
-      const created = await createCollection(
+      const created = await createWishlist(
         name.trim(),
         target != null ? { binder_id: target } : undefined,
       )
-      // Seeded from Browse (#737): drop the set's cards / species' printings
-      // straight in. The hook's bulkAdd updates the count and busts the shared
-      // ownership cache (#576) so the badges/chips reflect the new cards.
+      // Seeded from Browse (#737): drop the set's cards / species' printings in.
       if (seedCards && seedCards.length > 0) {
-        await bulkAddCollection(created.id, seedCards, { addedVia: 'browse' })
+        await bulkAddWishlist(created.id, seedCards)
       }
       if (target != null) await filing.refresh()
       onClose()
@@ -97,7 +95,7 @@ function CreateForm({
     <>
       <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
         <Dialog.Title className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
-          New collection
+          New want-list
         </Dialog.Title>
         <Dialog.Close asChild>
           <button
@@ -109,7 +107,7 @@ function CreateForm({
         </Dialog.Close>
       </header>
       <Dialog.Description className="sr-only">
-        Name the collection and optionally file it into one of your binders.
+        Name the want-list and optionally file it into one of your binders.
       </Dialog.Description>
 
       <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -122,7 +120,7 @@ function CreateForm({
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Base Set holos"
+            placeholder="Chase cards"
             className={inputClass}
           />
         </label>

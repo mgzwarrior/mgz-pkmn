@@ -31,6 +31,7 @@ import {
   Sparkles,
   Star,
   Trash2,
+  X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { downloadCollectionIdCardPdf } from '../api/client'
@@ -40,10 +41,10 @@ import { BinderModal } from './BinderModal'
 import { BinderInventory } from './BinderInventory'
 import { CollectionCreateDialog } from './CollectionCreateDialog'
 import { CollectionDetail } from './CollectionDetail'
-import { NameCreateDialog } from './NameCreateDialog'
 import { BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
 import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
+import { WishlistCreateDialog } from './WishlistCreateDialog'
 import { WishlistDetail } from './WishlistDetail'
 import { useBinders } from './useBinders'
 import { useCollections } from './useCollections'
@@ -103,7 +104,7 @@ export function LibraryBindersTab() {
     error: wError,
     refresh: refreshWishlists,
     remove: removeWishlist,
-    create: createWishlist,
+    file: fileWishlistApi,
   } = useWishlists()
 
   const [filter, setFilter] = useState<BinderFilter>('all')
@@ -150,6 +151,13 @@ export function LibraryBindersTab() {
   // the binder summaries so their counts stay in sync across surfaces.
   async function fileCollection(collectionId: number, binderId: number | null) {
     await updateCollection(collectionId, { binder_id: binderId })
+    await refreshBinders()
+  }
+
+  // File a want-list into a binder (or null to unfile), then refresh the
+  // binder summaries so their fill counts stay in sync across surfaces (#774).
+  async function fileWishlist(wishlistId: number, binderId: number | null) {
+    await fileWishlistApi(wishlistId, binderId)
     await refreshBinders()
   }
 
@@ -214,7 +222,7 @@ export function LibraryBindersTab() {
                 />
                 <NewMenuItem
                   icon={<Sparkles size={13} />}
-                  label="Smart binder"
+                  label="Smart collection"
                   blurb="A saved rule over your cards."
                   onSelect={openCreate}
                 />
@@ -276,8 +284,10 @@ export function LibraryBindersTab() {
               <WishlistRow
                 key={row.key}
                 wishlist={row.wishlist}
+                binders={binders}
                 onOpen={setOpenWishlist}
                 onDelete={removeWishlist}
+                onFile={fileWishlist}
               />
             ),
           )}
@@ -311,7 +321,7 @@ export function LibraryBindersTab() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         editing={editingBinder}
-        // Create from the Binders tab is smart-binder-only now (#703);
+        // Create from the Binders tab is smart-collection-only now (#703);
         // physical binders come from "Add binder" above. Edit keeps the
         // binder's real mode.
         smartOnly={editingBinder === null}
@@ -320,15 +330,9 @@ export function LibraryBindersTab() {
         open={createDialog === 'collection'}
         onOpenChange={(o) => !o && setCreateDialog(null)}
       />
-      <NameCreateDialog
+      <WishlistCreateDialog
         open={createDialog === 'wishlist'}
         onOpenChange={(o) => !o && setCreateDialog(null)}
-        title="New want-list"
-        placeholder="Chase cards"
-        submitLabel="Create"
-        onSubmit={async (name) => {
-          await createWishlist(name)
-        }}
       />
     </div>
   )
@@ -363,6 +367,20 @@ function NewMenuItem({
 }
 
 /** Palm "Owned" / sun "Chasing" chip — mirrors OwnershipBadge (#576). */
+/** Subtle marker on the list a bare one-tap Want/Own writes to (#759/#762).
+ *  The default is just a normal list (rename/delete work on it like any other);
+ *  this only signals where an unspecified save lands. */
+function DefaultBadge({ noun }: { noun: 'Own' | 'Want' }) {
+  return (
+    <span
+      title={`Default ${noun} target — a one-tap ${noun} saves here`}
+      className="shrink-0 rounded-full border border-sand-300 px-1.5 py-0.5 text-[10px] font-medium text-coconut-400 dark:border-husk-50 dark:text-sand-300"
+    >
+      default
+    </span>
+  )
+}
+
 function KindBadge({ kind }: { kind: 'owned' | 'chasing' }) {
   return kind === 'owned' ? (
     <span className="shrink-0 rounded-full bg-palm-500/15 px-1.5 py-0.5 text-[10px] font-medium text-palm-600 dark:bg-palm-400/20 dark:text-palm-200">
@@ -404,7 +422,8 @@ function CapacityFill({ count, capacity }: { count: number; capacity: number }) 
   )
 }
 
-/** A collection carries binder identity if it's a physical or smart binder. */
+/** A collection carries binder identity if it's a physical binder or a smart
+ * collection. */
 function hasBinderIdentity(c: CollectionSummary): boolean {
   return c.kind === 'binder' || c.kind === 'dynamic'
 }
@@ -479,6 +498,7 @@ function CollectionRow({
           <span className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
             {c.name}
           </span>
+          {c.is_default && <DefaultBadge noun="Own" />}
           {pill && (
             <span className="shrink-0 rounded bg-palm-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-palm-700 dark:bg-husk-100 dark:text-palm-300">
               {pill}
@@ -521,8 +541,11 @@ function CollectionRow({
           <Pencil size={14} />
         </button>
       )}
-      {c.kind !== 'dynamic' && binders.length > 0 && (
-        <FileIntoBinderControl collection={c} binders={binders} onFile={onFile} />
+      {/* Any collection — including a smart collection, which can now be filed
+          at create (#726) — can be re-filed or unfiled from the row, so it's
+          never stuck on the wrong binder (#775 review). */}
+      {binders.length > 0 && (
+        <FileIntoBinderControl item={c} noun="collection" binders={binders} onFile={onFile} />
       )}
       <PrintIdCardControl collectionId={c.id} label={`collection "${c.name}"`} />
       <DeleteBinderControl label={`collection "${c.name}"`} onDelete={() => onDelete(c.id)} />
@@ -573,12 +596,16 @@ function PrintIdCardControl({ collectionId, label }: { collectionId: number; lab
 
 function WishlistRow({
   wishlist: w,
+  binders,
   onOpen,
   onDelete,
+  onFile,
 }: {
   wishlist: WishlistSummary
+  binders: BinderSummary[]
   onOpen: (w: WishlistSummary) => void
   onDelete: (id: number) => Promise<void>
+  onFile: (wishlistId: number, binderId: number | null) => Promise<void>
 }) {
   return (
     <li className="group flex items-center gap-1">
@@ -593,6 +620,7 @@ function WishlistRow({
             <span className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
               {w.name}
             </span>
+            {w.is_default && <DefaultBadge noun="Want" />}
           </div>
           {w.description && (
             <div className="truncate text-[11px] text-coconut-400 dark:text-sand-300">
@@ -602,25 +630,32 @@ function WishlistRow({
         </div>
         <CardCount count={w.item_count} />
       </button>
+      {/* A want-list files into a binder too (#774) — same control as a row. */}
+      {binders.length > 0 && (
+        <FileIntoBinderControl item={w} noun="want-list" binders={binders} onFile={onFile} />
+      )}
       <DeleteBinderControl label={`want-list "${w.name}"`} onDelete={() => onDelete(w.id)} />
     </li>
   )
 }
 
 /**
- * Per-row "file into binder" control (#703) — a dropdown listing the user's
- * physical binders. Picking one moves the collection into it; "Remove from
+ * Per-row "file into binder" control (#703, #774) — a dropdown listing the
+ * user's physical binders. Picking one moves the list into it; "Remove from
  * binder" unfiles it. The current binder is checked. Reveals on hover/focus
- * like the other row controls.
+ * like the other row controls. Shared by collection and want-list rows — the
+ * `noun` only colors the accessible label.
  */
 function FileIntoBinderControl({
-  collection: c,
+  item: c,
+  noun = 'collection',
   binders,
   onFile,
 }: {
-  collection: CollectionSummary
+  item: { id: number; name: string; binder_id?: number | null }
+  noun?: 'collection' | 'want-list'
   binders: BinderSummary[]
-  onFile: (collectionId: number, binderId: number | null) => Promise<void>
+  onFile: (id: number, binderId: number | null) => Promise<void>
 }) {
   const [failed, setFailed] = useState(false)
 
@@ -644,7 +679,7 @@ function FileIntoBinderControl({
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            aria-label={`File collection "${c.name}" into a binder`}
+            aria-label={`File ${noun} "${c.name}" into a binder`}
             title="File into binder"
             className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-palm-600 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-palm-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
           >
@@ -690,10 +725,10 @@ function FileIntoBinderControl({
 }
 
 /**
- * Two-step delete affordance for a binder row. The trash icon reveals on
- * hover/focus (mirrors the Recent tab); clicking it swaps in an inline
- * "Delete / Cancel" confirm, since removing a binder cascade-deletes its
- * cards and can't be undone.
+ * Two-step delete affordance for a collection/want-list row. The trash icon is
+ * always visible; clicking it swaps in an inline check/x confirm, since
+ * deleting cascade-removes the row's cards and can't be undone. Mirrors the
+ * saved-search delete (#772).
  */
 function DeleteBinderControl({
   label,
@@ -720,7 +755,7 @@ function DeleteBinderControl({
 
   if (confirming) {
     return (
-      <div className="flex shrink-0 items-center gap-1">
+      <span className="flex shrink-0 items-center gap-1">
         {failed && (
           <span role="alert" className="text-[10px] text-ember-500 dark:text-ember-300">
             Couldn&apos;t delete
@@ -730,10 +765,10 @@ function DeleteBinderControl({
           type="button"
           onClick={() => void handleConfirm()}
           disabled={busy}
-          className="inline-flex items-center gap-1 rounded bg-ember-500 px-2 py-1 text-[11px] font-medium text-coconut-50 hover:bg-ember-600 disabled:opacity-50"
+          aria-label={`Confirm delete ${label}`}
+          className="rounded p-1 text-ember-600 hover:bg-ember-500/10 disabled:opacity-50 dark:text-ember-300 dark:hover:bg-husk-100"
         >
-          {busy && <Loader2 size={11} className="animate-spin" />}
-          Delete
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
         </button>
         <button
           type="button"
@@ -742,11 +777,12 @@ function DeleteBinderControl({
             setFailed(false)
           }}
           disabled={busy}
-          className="rounded px-2 py-1 text-[11px] font-medium text-coconut-500 hover:bg-sand-200 disabled:opacity-50 dark:text-sand-300 dark:hover:bg-husk-100"
+          aria-label="Cancel delete"
+          className="rounded p-1 text-coconut-400 hover:bg-sand-200 disabled:opacity-50 dark:text-sand-300 dark:hover:bg-husk-100"
         >
-          Cancel
+          <X size={14} />
         </button>
-      </div>
+      </span>
     )
   }
 
@@ -755,7 +791,7 @@ function DeleteBinderControl({
       type="button"
       onClick={() => setConfirming(true)}
       aria-label={`Delete ${label}`}
-      className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-ember-500 focus-visible:opacity-100 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-ember-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+      className="shrink-0 rounded p-1.5 text-coconut-400 hover:bg-sand-200 hover:text-ember-500 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-ember-300"
     >
       <Trash2 size={14} />
     </button>

@@ -61,6 +61,7 @@ describe('AddToWishlistButton', () => {
         description: null,
         created_at: '2026-06-06T00:00:00',
         item_count: 0,
+        binder_id: null,
       },
     ])
     mockAdd.mockResolvedValue({
@@ -90,6 +91,7 @@ describe('AddToWishlistButton', () => {
       name: 'Under $50',
       description: null,
       created_at: '2026-06-06T00:00:00',
+      binder_id: null,
       items: [],
     })
     mockAdd.mockResolvedValue({
@@ -133,6 +135,7 @@ describe('AddToWishlistButton', () => {
       name: 'No cap',
       description: null,
       created_at: '2026-06-06T00:00:00',
+      binder_id: null,
       items: [],
     })
     mockAdd.mockResolvedValue({
@@ -169,6 +172,7 @@ describe('AddToWishlistButton', () => {
         description: null,
         created_at: '2026-06-06T00:00:00',
         item_count: 0,
+        binder_id: null,
       },
     ])
     mockAdd.mockRejectedValue(new Error('boom'))

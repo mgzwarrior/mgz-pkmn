@@ -23,6 +23,7 @@ Endpoints:
 - `DELETE /collections/{id}`                  cascade-delete items
 - `POST   /collections/{id}/items`            add a card (manual/set only)
 - `POST   /collections/{id}/items/bulk`       add many cards at once (#268/#509)
+- `PATCH  /collections/{id}/items/{item_id}`  adjust a card's owned quantity (#769)
 - `DELETE /collections/{id}/items/{item_id}`  remove a card (manual/set only)
 - `GET    /collections/{id}/target`           catalog-backed membership + ownership overlay (#631)
 - `POST   /collections/{id}/chase`            push the un-owned matches onto a want-list (#631)
@@ -148,6 +149,10 @@ class CollectionSummaryOut(BaseModel):
     binder_type: str | None
     capacity: int | None
     is_master_set: bool | None
+    #: #759/#762 — the user's default `Own` target. The flag is the invariant,
+    #: not the row: renaming keeps it, deleting re-establishes one lazily. The
+    #: SPA shows a subtle "default" marker so a bare Own's destination is clear.
+    is_default: bool
 
 
 class CollectionItemOut(BaseModel):
@@ -301,6 +306,12 @@ class CollectionItemCreate(BaseModel):
     added_via: str | None = None
 
 
+class CollectionItemPatch(BaseModel):
+    #: New vendor-multiple count for the item (#769). Floored at 1 — removing
+    #: the last copy is a DELETE, not a quantity-0 PATCH.
+    quantity: int = Field(ge=1)
+
+
 class BulkItemsCreate(BaseModel):
     """Add a set of matched cards to a manual/set collection in one call.
 
@@ -379,6 +390,7 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
                 binder_type=c.binder_type,
                 capacity=c.capacity,
                 is_master_set=c.is_master_set,
+                is_default=c.is_default,
             )
         )
     return {"items": [item.model_dump() for item in items], "total": len(items)}
@@ -619,6 +631,71 @@ def delete_collection_item(
         )
     db.delete(item)
     db.commit()
+
+
+@router.delete("/collections/{collection_id}/items", status_code=204)
+def delete_collection_items_by_card(
+    collection_id: int,
+    set_id: str,
+    number: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    """Remove a card from a specific collection by its ``(set_id, number)``
+    identity — the card-detail "remove from this list" affordance (#762).
+
+    Deletes every matching row, since a card can occupy a collection more than
+    once (separate adds), so the collection cleanly stops listing the card.
+    Scoped through the parent collection (an unowned id 404s); dynamic
+    collections are rejected like the other item-write paths."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    _reject_if_dynamic(collection)
+    items = db.scalars(
+        select(CollectionItem).where(
+            CollectionItem.collection_id == collection.id,
+            CollectionItem.card_set_id == set_id,
+            CollectionItem.card_number == number,
+        )
+    ).all()
+    if not items:
+        raise HTTPException(
+            status_code=404,
+            detail=f"card {set_id}-{number} not found in collection {collection_id}",
+        )
+    for item in items:
+        db.delete(item)
+    db.commit()
+
+
+@router.patch("/collections/{collection_id}/items/{item_id}")
+def update_collection_item(
+    collection_id: int,
+    item_id: int,
+    req: CollectionItemPatch,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Adjust a card's owned quantity in place (#769) — the editable count in
+    the collection detail view. Scoped through the parent collection so an
+    unowned id 404s; dynamic collections (rule-derived membership) are rejected
+    like the other item-write paths."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    _reject_if_dynamic(collection)
+    item = db.scalar(
+        select(CollectionItem).where(
+            CollectionItem.id == item_id,
+            CollectionItem.collection_id == collection.id,
+        )
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"item {item_id} not found in collection {collection_id}",
+        )
+    item.quantity = req.quantity
+    db.commit()
+    db.refresh(item)
+    return serialize_collection_item(item)
 
 
 # ---------------------------------------------------------------------------

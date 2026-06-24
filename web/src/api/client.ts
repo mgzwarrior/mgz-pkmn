@@ -619,6 +619,9 @@ export interface CollectionSummary {
   binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
+  // #759/#762 — the user's default `Own` target. Optional so older cached
+  // payloads / fixtures without it still type-check.
+  is_default?: boolean
 }
 
 export interface CollectionItem {
@@ -821,6 +824,22 @@ export async function addCardToCollection(
   return (await res.json()) as CollectionItem
 }
 
+/** Set a card's owned quantity in a collection (#769). Floored at 1 server-side
+ * — removing the last copy is a delete, not a quantity-0 update. */
+export async function updateCollectionItem(
+  collectionId: number,
+  itemId: number,
+  quantity: number,
+): Promise<CollectionItem> {
+  const res = await fetch(`${BASE}/collections/${collectionId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity }),
+  })
+  if (!res.ok) throw new Error(`update collection item failed: ${res.status}`)
+  return (await res.json()) as CollectionItem
+}
+
 /** Result of a bulk add: the created rows plus their count (#268). */
 export interface BulkAddResult<T> {
   added: number
@@ -866,6 +885,13 @@ export interface BinderCollection {
   total_quantity: number
 }
 
+// A want-list filed into a binder (#774).
+export interface BinderWishlist {
+  id: number
+  name: string
+  item_count: number
+}
+
 export interface BinderSummary {
   id: number
   name: string
@@ -875,11 +901,14 @@ export interface BinderSummary {
   binder_type: BinderType | null
   capacity: number | null
   collection_count: number
+  // Want-lists filed into this binder (#774).
+  wishlist_count: number
   is_empty: boolean
 }
 
 export interface Binder extends BinderSummary {
   collections: BinderCollection[]
+  wishlists: BinderWishlist[]
 }
 
 export interface BinderInput {
@@ -1135,6 +1164,11 @@ export interface WishlistSummary {
   description: string | null
   created_at: string
   item_count: number
+  // The binder this want-list is filed into, or null when loose (#774).
+  binder_id: number | null
+  // #759/#762 — the user's default `Want` target. Optional so older cached
+  // payloads / fixtures without it still type-check.
+  is_default?: boolean
 }
 
 export interface WishlistItem {
@@ -1163,6 +1197,8 @@ export interface Wishlist {
   name: string
   description: string | null
   created_at: string
+  // The binder this want-list is filed into, or null when loose (#774).
+  binder_id: number | null
   items: WishlistItem[]
 }
 
@@ -1211,16 +1247,50 @@ export async function promoteWishlistItem(
   return (await res.json()) as PromoteResult
 }
 
+export interface CreateWishlistOptions {
+  description?: string | null
+  // #774 — file the new want-list into this binder (binders.id).
+  binder_id?: number | null
+}
+
 export async function createWishlist(
   name: string,
-  description?: string | null,
+  options?: CreateWishlistOptions,
 ): Promise<Wishlist> {
   const res = await fetch(`${BASE}/wishlists`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description: description ?? null }),
+    body: JSON.stringify({
+      name,
+      description: options?.description ?? null,
+      binder_id: options?.binder_id ?? null,
+    }),
   })
   if (!res.ok) throw new Error(`create wishlist failed: ${res.status}`)
+  return (await res.json()) as Wishlist
+}
+
+/**
+ * PATCH a want-list. Only the keys present are sent, so a filing-only edit
+ * (`binder_id`) leaves name/description intact — the server reads
+ * `model_fields_set`. Pass `binder_id: null` to unfile (#774).
+ */
+export interface UpdateWishlistOptions {
+  name?: string
+  description?: string | null
+  binder_id?: number | null
+}
+
+export async function updateWishlist(
+  wishlistId: number,
+  patch: UpdateWishlistOptions,
+): Promise<Wishlist> {
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`update wishlist failed: ${res.status}`)
   return (await res.json()) as Wishlist
 }
 
@@ -1279,6 +1349,44 @@ export async function deleteWishlistItem(
     method: 'DELETE',
   })
   if (!res.ok && res.status !== 204) {
+    throw new Error(`remove want-list card failed: ${res.status}`)
+  }
+}
+
+/** Remove a card from a specific collection / want-list by its (set_id,
+ *  number) identity — the card-detail "remove from this list" affordance
+ *  (#762). The occupancy payload carries list ids but no item ids, so removal
+ *  targets the card itself; the server drops every matching row. */
+export async function removeCardFromCollection(
+  collectionId: number,
+  setId: string,
+  number: string,
+): Promise<void> {
+  const params = new URLSearchParams({ set_id: setId, number })
+  const res = await fetch(`${BASE}/collections/${collectionId}/items?${params}`, {
+    method: 'DELETE',
+  })
+  // 404 means the card is already off the list (e.g. a stale chip after a
+  // change in another tab) — the desired end state, so treat it as an
+  // idempotent success and let the caller reconcile the cache (#784 review).
+  if (!res.ok && res.status !== 204 && res.status !== 404) {
+    throw new Error(`remove collection card failed: ${res.status}`)
+  }
+}
+
+export async function removeCardFromWishlist(
+  wishlistId: number,
+  setId: string,
+  number: string,
+): Promise<void> {
+  const params = new URLSearchParams({ set_id: setId, number })
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items?${params}`, {
+    method: 'DELETE',
+  })
+  // 404 means the card is already off the list — treat as idempotent success
+  // so a stale chip still reconciles via the caller's cache refresh
+  // (#784 review).
+  if (!res.ok && res.status !== 204 && res.status !== 404) {
     throw new Error(`remove want-list card failed: ${res.status}`)
   }
 }
@@ -1377,3 +1485,34 @@ export async function fetchCardOwnership(
   const data = await res.json()
   return data.ownership as Record<string, CardOwnership>
 }
+
+/**
+ * A card's derived library state after a quick action (#760) — the `wanted` /
+ * `owned` view flags plus the named lists/collections it sits in.
+ */
+export interface CardState {
+  set_id: string | null
+  number: string | null
+  wanted: boolean
+  owned: boolean
+  collections: CollectionOccupancy[]
+  wishlists: WishlistOccupancy[]
+}
+
+/** One-tap quick actions against the user's default wishlist / collection
+ *  (#761, ADR-0027). Each writes to the default and returns the card's derived
+ *  state; all are idempotent server-side. */
+async function cardAction(path: string, card: Record<string, unknown>): Promise<CardState> {
+  const res = await fetch(`${BASE}/cards/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card }),
+  })
+  if (!res.ok) throw new Error(`card ${path} failed: ${res.status}`)
+  return (await res.json()) as CardState
+}
+
+export const wantCard = (card: Record<string, unknown>) => cardAction('want', card)
+export const unwantCard = (card: Record<string, unknown>) => cardAction('unwant', card)
+export const ownCard = (card: Record<string, unknown>) => cardAction('own', card)
+export const unownCard = (card: Record<string, unknown>) => cardAction('unown', card)
