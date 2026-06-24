@@ -91,8 +91,10 @@ describe('CollectionDetail', () => {
 
     expect(await screen.findByText('Charizard')).toBeInTheDocument()
     expect(screen.getByText(/base1-4/)).toBeInTheDocument()
-    // Snapshot total folds in quantity (2 × $250).
-    expect(screen.getByText('$500.00')).toBeInTheDocument()
+    // The row shows the line total (unit × qty = 2 × $250) and the snapshot
+    // total folds in quantity the same way (#790).
+    expect(screen.getByLabelText('Line total')).toHaveTextContent('$500.00')
+    expect(screen.getByText(/Snapshot total/i)).toHaveTextContent('$500.00')
     expect(mockFetch).toHaveBeenCalledWith(3)
   })
 
@@ -127,6 +129,23 @@ describe('CollectionDetail', () => {
     await waitFor(() => expect(mockUpdateItem).toHaveBeenCalledWith(3, 7, 3))
     // Optimistic update bumps the displayed count.
     expect(screen.getByLabelText(/owned quantity of charizard/i)).toHaveTextContent('3')
+  })
+
+  it('updates the row line total and snapshot total after a quantity change (#790)', async () => {
+    mockFetch.mockResolvedValue(collectionWith([item({ id: 7, quantity: 2, price_snapshot: 250 })]))
+    mockUpdateItem.mockResolvedValue(item({ id: 7, quantity: 3, price_snapshot: 250 }))
+    render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
+
+    await screen.findByText('Charizard')
+    // Before: 2 × $250 on both the row and the snapshot total.
+    expect(screen.getByLabelText('Line total')).toHaveTextContent('$500.00')
+    expect(screen.getByText(/Snapshot total/i)).toHaveTextContent('$500.00')
+
+    fireEvent.click(screen.getByRole('button', { name: /increase quantity of charizard/i }))
+
+    // After: the optimistic 3 × $250 flows into both prices, no reopen.
+    await waitFor(() => expect(screen.getByLabelText('Line total')).toHaveTextContent('$750.00'))
+    expect(screen.getByText(/Snapshot total/i)).toHaveTextContent('$750.00')
   })
 
   it('disables the stepper while a quantity update is in flight (#769 review)', async () => {
