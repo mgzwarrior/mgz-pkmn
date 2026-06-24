@@ -100,6 +100,15 @@ describe('CollectionDetail', () => {
     mockFetch.mockResolvedValue(collectionWith([]))
     render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
     expect(await screen.findByText('No cards yet.')).toBeInTheDocument()
+    // No export control when there's nothing to export (#773).
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument()
+  })
+
+  it('offers export when the collection has cards (#773)', async () => {
+    mockFetch.mockResolvedValue(collectionWith([item({ id: 7 })]))
+    render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
+    await screen.findByText('Charizard')
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
   })
 
   it("doesn't fetch while closed", () => {

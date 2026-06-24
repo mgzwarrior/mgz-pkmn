@@ -236,4 +236,36 @@ describe('ExportBar', () => {
 
     expect(await screen.findByText('rate-limited')).toBeInTheDocument()
   })
+
+  // ---- #773: prop-driven export for the collection / want-list detail views ----
+
+  it('exports the rows passed as a prop over the Search store', async () => {
+    // The store has an unrelated run; the detail view supplies its own rows.
+    useAppStore.setState((s) => ({
+      rows: [makeRow(true)],
+      settings: { ...s.settings, sort: 'alpha' },
+    }))
+    const detailRows = [makeRow(true), makeRow(true)]
+
+    render(<ExportBar rows={detailRows} title="Base Set holos" showSetIdCards={false} />)
+    openDropdown()
+    fireEvent.click(screen.getByText('Download .xlsx'))
+
+    await waitFor(() => expect(mockExportFile).toHaveBeenCalledTimes(1))
+    // The provided rows + title are used; sort/etc. still come from settings.
+    expect(mockExportFile).toHaveBeenCalledWith(detailRows, 'xlsx', {
+      maxPrice: null,
+      title: 'Base Set holos',
+      sort: 'alpha',
+      noImages: true,
+      dedupe: false,
+    })
+  })
+
+  it('hides the Set ID cards item when showSetIdCards is false', () => {
+    render(<ExportBar rows={[makeRow(true)]} showSetIdCards={false} />)
+    openDropdown()
+    expect(screen.getByText('Download .xlsx')).toBeInTheDocument()
+    expect(screen.queryByText('Set ID cards…')).not.toBeInTheDocument()
+  })
 })
