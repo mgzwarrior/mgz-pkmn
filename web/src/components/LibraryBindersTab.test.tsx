@@ -446,8 +446,8 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(screen.getByText('Charizard masters')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: /delete collection "Charizard masters"/i }))
-    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^delete collection "Charizard masters"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm delete collection "Charizard masters"/i }))
 
     await waitFor(() => expect(mockDeleteCollection).toHaveBeenCalledWith(1))
     await waitFor(() =>
@@ -463,8 +463,8 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(screen.getByText('Mew hunt')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: /delete want-list "Mew hunt"/i }))
-    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^delete want-list "Mew hunt"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm delete want-list "Mew hunt"/i }))
 
     await waitFor(() => expect(mockDeleteWishlist).toHaveBeenCalledWith(2))
     await waitFor(() => expect(screen.queryByText('Mew hunt')).not.toBeInTheDocument())
@@ -492,8 +492,8 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(screen.getByText('Charizard masters')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: /delete collection "Charizard masters"/i }))
-    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^delete collection "Charizard masters"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /cancel delete/i }))
 
     expect(mockDeleteCollection).not.toHaveBeenCalled()
     expect(screen.getByText('Charizard masters')).toBeInTheDocument()

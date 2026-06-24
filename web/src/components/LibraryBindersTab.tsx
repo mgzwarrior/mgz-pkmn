@@ -31,6 +31,7 @@ import {
   Sparkles,
   Star,
   Trash2,
+  X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { downloadCollectionIdCardPdf } from '../api/client'
@@ -708,10 +709,10 @@ function FileIntoBinderControl({
 }
 
 /**
- * Two-step delete affordance for a binder row. The trash icon reveals on
- * hover/focus (mirrors the Recent tab); clicking it swaps in an inline
- * "Delete / Cancel" confirm, since removing a binder cascade-deletes its
- * cards and can't be undone.
+ * Two-step delete affordance for a collection/want-list row. The trash icon is
+ * always visible; clicking it swaps in an inline check/x confirm, since
+ * deleting cascade-removes the row's cards and can't be undone. Mirrors the
+ * saved-search delete (#772).
  */
 function DeleteBinderControl({
   label,
@@ -738,7 +739,7 @@ function DeleteBinderControl({
 
   if (confirming) {
     return (
-      <div className="flex shrink-0 items-center gap-1">
+      <span className="flex shrink-0 items-center gap-1">
         {failed && (
           <span role="alert" className="text-[10px] text-ember-500 dark:text-ember-300">
             Couldn&apos;t delete
@@ -748,10 +749,10 @@ function DeleteBinderControl({
           type="button"
           onClick={() => void handleConfirm()}
           disabled={busy}
-          className="inline-flex items-center gap-1 rounded bg-ember-500 px-2 py-1 text-[11px] font-medium text-coconut-50 hover:bg-ember-600 disabled:opacity-50"
+          aria-label={`Confirm delete ${label}`}
+          className="rounded p-1 text-ember-600 hover:bg-ember-500/10 disabled:opacity-50 dark:text-ember-300 dark:hover:bg-husk-100"
         >
-          {busy && <Loader2 size={11} className="animate-spin" />}
-          Delete
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
         </button>
         <button
           type="button"
@@ -760,11 +761,12 @@ function DeleteBinderControl({
             setFailed(false)
           }}
           disabled={busy}
-          className="rounded px-2 py-1 text-[11px] font-medium text-coconut-500 hover:bg-sand-200 disabled:opacity-50 dark:text-sand-300 dark:hover:bg-husk-100"
+          aria-label="Cancel delete"
+          className="rounded p-1 text-coconut-400 hover:bg-sand-200 disabled:opacity-50 dark:text-sand-300 dark:hover:bg-husk-100"
         >
-          Cancel
+          <X size={14} />
         </button>
-      </div>
+      </span>
     )
   }
 
@@ -773,7 +775,7 @@ function DeleteBinderControl({
       type="button"
       onClick={() => setConfirming(true)}
       aria-label={`Delete ${label}`}
-      className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-ember-500 focus-visible:opacity-100 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-ember-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+      className="shrink-0 rounded p-1.5 text-coconut-400 hover:bg-sand-200 hover:text-ember-500 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-ember-300"
     >
       <Trash2 size={14} />
     </button>
