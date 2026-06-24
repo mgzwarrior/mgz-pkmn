@@ -21,6 +21,7 @@ import {
   type CardOwnership,
 } from '../api/client'
 import { invalidateOwnership } from './useCardOwnership'
+import { QUICK_ACTION_TONES } from './quickActionTones'
 
 interface Props {
   card: Record<string, unknown>
@@ -82,18 +83,6 @@ export function QuickActions({ card, ownership, show, variant = 'icon', classNam
   )
 }
 
-const TONES = {
-  sun: {
-    active: 'border-sun-400 bg-sun-400/20 text-husk-500 dark:bg-sun-400/25 dark:text-sun-200',
-    idle: 'border-sand-300 bg-sand-100 text-coconut-500 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-200 dark:hover:bg-husk-200',
-  },
-  palm: {
-    active:
-      'border-palm-500 bg-palm-500/15 text-palm-600 dark:bg-palm-400/20 dark:text-palm-200',
-    idle: 'border-sand-300 bg-sand-100 text-coconut-500 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-200 dark:hover:bg-husk-200',
-  },
-} as const
-
 function ToggleButton({
   label,
   icon: Icon,
@@ -109,12 +98,12 @@ function ToggleButton({
   active: boolean
   pending: boolean
   disabled: boolean
-  tone: keyof typeof TONES
+  tone: keyof typeof QUICK_ACTION_TONES
   variant: 'icon' | 'primary'
   onClick: () => void
 }) {
   const isPrimary = variant === 'primary'
-  const toneClass = active ? TONES[tone].active : TONES[tone].idle
+  const toneClass = active ? QUICK_ACTION_TONES[tone].active : QUICK_ACTION_TONES[tone].idle
   const size = isPrimary ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-[11px]'
   return (
     <button

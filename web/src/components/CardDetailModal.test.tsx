@@ -609,7 +609,7 @@ describe('CardDetailModal — library actions (#699)', () => {
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
     // Let the auth probe settle, then assert the actions never mounted.
     await waitFor(() => expect(client.fetchMe).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: /Add as owned/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^own$/i })).toBeNull()
     expect(screen.queryByRole('region', { name: /Library actions/i })).toBeNull()
   })
 
