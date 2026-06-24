@@ -296,6 +296,28 @@ class WishlistsEndpointTests(_IsolatedDbMixin):
             resp = c.delete(f"/api/v1/wishlists/{wid_b}/items/{item_id}")
             self.assertEqual(resp.status_code, 404)
 
+    def test_delete_items_by_card_removes_active_chase(self) -> None:
+        # The card-detail "remove from this list" affordance (#762) drops the
+        # active chase by identity, no item id needed.
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "k"}).json()["id"]
+            c.post(f"/api/v1/wishlists/{wid}/items", json={"card": SAMPLE_CARD})
+            resp = c.delete(
+                f"/api/v1/wishlists/{wid}/items",
+                params={"set_id": "base1", "number": "4"},
+            )
+            self.assertEqual(resp.status_code, 204)
+            self.assertEqual(len(c.get(f"/api/v1/wishlists/{wid}").json()["items"]), 0)
+
+    def test_delete_items_by_card_404_when_card_absent(self) -> None:
+        with self._client() as c:
+            wid = c.post("/api/v1/wishlists", json={"name": "k"}).json()["id"]
+            resp = c.delete(
+                f"/api/v1/wishlists/{wid}/items",
+                params={"set_id": "base1", "number": "4"},
+            )
+            self.assertEqual(resp.status_code, 404)
+
     def test_bulk_add_items_round_trip(self) -> None:
         # #268 — add a multi-select of matched rows to a want-list at once,
         # with a shared price cap stamped on every row.

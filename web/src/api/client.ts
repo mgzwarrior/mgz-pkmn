@@ -1347,6 +1347,44 @@ export async function deleteWishlistItem(
   }
 }
 
+/** Remove a card from a specific collection / want-list by its (set_id,
+ *  number) identity — the card-detail "remove from this list" affordance
+ *  (#762). The occupancy payload carries list ids but no item ids, so removal
+ *  targets the card itself; the server drops every matching row. */
+export async function removeCardFromCollection(
+  collectionId: number,
+  setId: string,
+  number: string,
+): Promise<void> {
+  const params = new URLSearchParams({ set_id: setId, number })
+  const res = await fetch(`${BASE}/collections/${collectionId}/items?${params}`, {
+    method: 'DELETE',
+  })
+  // 404 means the card is already off the list (e.g. a stale chip after a
+  // change in another tab) — the desired end state, so treat it as an
+  // idempotent success and let the caller reconcile the cache (#784 review).
+  if (!res.ok && res.status !== 204 && res.status !== 404) {
+    throw new Error(`remove collection card failed: ${res.status}`)
+  }
+}
+
+export async function removeCardFromWishlist(
+  wishlistId: number,
+  setId: string,
+  number: string,
+): Promise<void> {
+  const params = new URLSearchParams({ set_id: setId, number })
+  const res = await fetch(`${BASE}/wishlists/${wishlistId}/items?${params}`, {
+    method: 'DELETE',
+  })
+  // 404 means the card is already off the list — treat as idempotent success
+  // so a stale chip still reconciles via the caller's cache refresh
+  // (#784 review).
+  if (!res.ok && res.status !== 204 && res.status !== 404) {
+    throw new Error(`remove want-list card failed: ${res.status}`)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // swipe (library-aware deck memory + exclusion, #581)
 // ---------------------------------------------------------------------------

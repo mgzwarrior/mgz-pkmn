@@ -4,6 +4,8 @@ import {
   fetchChangelog,
   fetchMe,
   logout,
+  removeCardFromCollection,
+  removeCardFromWishlist,
   requestAccountMagicLink,
   requestMagicLink,
   unlinkIdentity,
@@ -205,5 +207,34 @@ describe('unlinkIdentity', () => {
   it('throws on a failed unlink', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 400 }))
     await expect(unlinkIdentity(42)).rejects.toThrow(/unlink identity failed: 400/)
+  })
+})
+
+describe('removeCardFromCollection / removeCardFromWishlist (#762)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('DELETEs a collection card by its (set_id, number) identity', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    await expect(removeCardFromCollection(7, 'base1', '4')).resolves.toBeUndefined()
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/collections/7/items?set_id=base1&number=4', {
+      method: 'DELETE',
+    })
+  })
+
+  it('treats a 404 as idempotent success so a stale chip still reconciles', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 404 }))
+    await expect(removeCardFromCollection(7, 'base1', '4')).resolves.toBeUndefined()
+    await expect(removeCardFromWishlist(9, 'base1', '4')).resolves.toBeUndefined()
+  })
+
+  it('throws on a real server error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 500 }))
+    await expect(removeCardFromWishlist(9, 'base1', '4')).rejects.toThrow(
+      /remove want-list card failed: 500/,
+    )
   })
 })
