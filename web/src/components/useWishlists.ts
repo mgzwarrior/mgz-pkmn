@@ -36,6 +36,13 @@ function set(next: Partial<State>) {
   for (const fn of listeners) fn(state)
 }
 
+/** Refresh the shared wishlists cache from outside a mounted hook — the
+ *  one-tap quick actions call this after a default-targeting save so the
+ *  library list + "default" marker stay live (#762). */
+export function refreshWishlistsCache(): Promise<void> {
+  return refresh()
+}
+
 async function refresh(): Promise<void> {
   if (inflight) return inflight
   set({ loading: true, error: null })

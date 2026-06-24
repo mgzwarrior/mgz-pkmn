@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QuickActions } from './QuickActions'
 import * as client from '../api/client'
 import * as ownershipHook from './useCardOwnership'
+import { _resetCollectionsCacheForTests } from './useCollections'
+import { _resetWishlistsCacheForTests } from './useWishlists'
 import type { CardOwnership } from '../api/client'
 
 const CARD = { id: 'base1-4', name: 'Charizard', set: { id: 'base1' }, number: '4' }
@@ -17,11 +19,16 @@ const OWNED: CardOwnership = {
 describe('QuickActions (#761)', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    _resetCollectionsCacheForTests()
+    _resetWishlistsCacheForTests()
     vi.spyOn(ownershipHook, 'invalidateOwnership').mockImplementation(() => {})
     vi.spyOn(client, 'wantCard').mockResolvedValue({} as never)
     vi.spyOn(client, 'unwantCard').mockResolvedValue({} as never)
     vi.spyOn(client, 'ownCard').mockResolvedValue({} as never)
     vi.spyOn(client, 'unownCard').mockResolvedValue({} as never)
+    // A save refreshes the affected library list cache (#762).
+    vi.spyOn(client, 'fetchCollections').mockResolvedValue([])
+    vi.spyOn(client, 'fetchWishlists').mockResolvedValue([])
   })
 
   it('renders nothing when show is false', () => {
@@ -59,6 +66,17 @@ describe('QuickActions (#761)', () => {
     render(<QuickActions card={CARD} ownership={EMPTY} show />)
     fireEvent.click(screen.getByRole('button', { name: /^own$/i }))
     await waitFor(() => expect(client.ownCard).toHaveBeenCalledWith(CARD))
+  })
+
+  it('refreshes the affected library list after a save so the default marker stays live (#762)', async () => {
+    render(<QuickActions card={CARD} ownership={EMPTY} show />)
+    fireEvent.click(screen.getByRole('button', { name: /^own$/i }))
+    // Own → collections list refreshes (where the default Own marker lives).
+    await waitFor(() => expect(client.fetchCollections).toHaveBeenCalled())
+    expect(client.fetchWishlists).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /^want$/i }))
+    await waitFor(() => expect(client.fetchWishlists).toHaveBeenCalled())
   })
 
   it('unowns when already owned', async () => {

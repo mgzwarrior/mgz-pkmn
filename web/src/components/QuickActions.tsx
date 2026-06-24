@@ -21,6 +21,8 @@ import {
   type CardOwnership,
 } from '../api/client'
 import { invalidateOwnership } from './useCardOwnership'
+import { refreshCollectionsCache } from './useCollections'
+import { refreshWishlistsCache } from './useWishlists'
 import { QUICK_ACTION_TONES } from './quickActionTones'
 
 interface Props {
@@ -49,8 +51,12 @@ export function QuickActions({ card, ownership, show, variant = 'icon', classNam
     setPending(action)
     try {
       await fn()
-      // Bust the shared cache so every mounted surface re-reads the new state.
+      // Bust the shared ownership cache so every mounted surface re-reads the
+      // new state, and refresh the affected library list — a one-tap save can
+      // create or re-create the default list, so its row + "default" marker
+      // stay live without a remount (#762, parity with the bulk save).
       invalidateOwnership()
+      await (action === 'own' ? refreshCollectionsCache() : refreshWishlistsCache())
     } finally {
       setPending(null)
     }
