@@ -271,7 +271,7 @@ export function BinderInventory() {
                         type="button"
                         onClick={() => void handleDelete(b.id)}
                         aria-label={`Confirm delete ${b.name}`}
-                        className="rounded p-1 text-sun-600 hover:bg-sun-50 dark:text-sun-300 dark:hover:bg-husk-100"
+                        className="rounded p-1 text-ember-600 hover:bg-ember-500/10 dark:text-ember-300 dark:hover:bg-husk-100"
                       >
                         <Check size={13} />
                       </button>
@@ -289,7 +289,7 @@ export function BinderInventory() {
                       type="button"
                       onClick={() => setConfirmingId(b.id)}
                       aria-label={`Delete ${b.name}`}
-                      className="rounded p-1 text-coconut-400 hover:text-sun-600 dark:text-sand-300 dark:hover:text-sun-300"
+                      className="rounded p-1 text-coconut-400 hover:text-ember-500 dark:text-sand-300 dark:hover:text-ember-300"
                     >
                       <Trash2 size={13} />
                     </button>
