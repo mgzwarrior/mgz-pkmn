@@ -93,7 +93,7 @@ describe('CollectionDetail', () => {
     expect(screen.getByText(/base1-4/)).toBeInTheDocument()
     // The row shows the line total (unit × qty = 2 × $250) and the snapshot
     // total folds in quantity the same way (#790).
-    expect(screen.getByLabelText('Line total')).toHaveTextContent('$500.00')
+    expect(screen.getByLabelText(/^Line total/)).toHaveTextContent('$500.00')
     expect(screen.getByText(/Snapshot total/i)).toHaveTextContent('$500.00')
     expect(mockFetch).toHaveBeenCalledWith(3)
   })
@@ -138,13 +138,13 @@ describe('CollectionDetail', () => {
 
     await screen.findByText('Charizard')
     // Before: 2 × $250 on both the row and the snapshot total.
-    expect(screen.getByLabelText('Line total')).toHaveTextContent('$500.00')
+    expect(screen.getByLabelText(/^Line total/)).toHaveTextContent('$500.00')
     expect(screen.getByText(/Snapshot total/i)).toHaveTextContent('$500.00')
 
     fireEvent.click(screen.getByRole('button', { name: /increase quantity of charizard/i }))
 
     // After: the optimistic 3 × $250 flows into both prices, no reopen.
-    await waitFor(() => expect(screen.getByLabelText('Line total')).toHaveTextContent('$750.00'))
+    await waitFor(() => expect(screen.getByLabelText(/^Line total/)).toHaveTextContent('$750.00'))
     expect(screen.getByText(/Snapshot total/i)).toHaveTextContent('$750.00')
   })
 
