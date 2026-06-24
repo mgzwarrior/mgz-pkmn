@@ -2,17 +2,16 @@
  * BulkActionBar — floating action bar for the results-table multi-select
  * (#268). Slides up from the bottom when ≥1 row is selected and offers:
  *
- * - **Binder actions** — add the selected matched cards to a binder as
- *   *owned* (a collection) or *chasing* (a want-list), backed by the bulk
- *   endpoints (`bulkAdd` on [useCollections](./useCollections.ts) /
- *   [useWishlists](./useWishlists.ts)). A picker lists existing binders and
- *   can spin up a new one inline.
+ * - **Save actions** — the one-tap `Want` / `Own` bulk toggles, the
+ *   multi-select mirror of the inline quick actions (#761, #781). Each writes
+ *   every selected matched card to the user's default wishlist / collection;
+ *   organizing into a specific binder is the separate picker flow (#762).
  * - **View actions** — drop the selected rows from the current results
  *   view, retag them (the export source tag), or export only the selection.
  *
  * Delete and retag mutate the ephemeral results rows in the store via the
  * parent's callbacks; the parent keeps the removed rows so Undo can restore
- * the last delete. Binder/Export tones follow the owned=palm / chasing=sun
+ * the last delete. Save/Export tones follow the owned=palm / chasing=sun
  * read (#576).
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -22,18 +21,17 @@ import {
   Download,
   Footprints,
   Loader2,
-  Plus,
   RotateCcw,
   Tags,
   Trash2,
   X,
 } from 'lucide-react'
 import { useState } from 'react'
-import { exportFile, type CollectionSummary, type WishlistSummary } from '../api/client'
+import { exportFile, ownCard, wantCard } from '../api/client'
 import { useAppStore } from '../store'
 import type { ExportFormat, Row } from '../types'
-import { useCollections } from './useCollections'
-import { useWishlists } from './useWishlists'
+import { invalidateOwnership } from './useCardOwnership'
+import { QUICK_ACTION_TONES } from './quickActionTones'
 
 const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'xlsx', label: 'Download .xlsx' },
@@ -114,8 +112,8 @@ export function BulkActionBar({
           <>
             {showBinderActions && (
               <>
-                <BinderPicker kind="owned" cards={cards} onClear={onClear} onError={setError} />
-                <BinderPicker kind="chasing" cards={cards} onClear={onClear} onError={setError} />
+                <BulkSaveButton kind="want" cards={cards} onClear={onClear} onError={setError} />
+                <BulkSaveButton kind="own" cards={cards} onClear={onClear} onError={setError} />
 
                 <span className="h-5 w-px bg-sand-300 dark:bg-husk-100" aria-hidden />
               </>
@@ -241,184 +239,68 @@ function BarButton({
   )
 }
 
-/** Add-to-binder picker, parameterised by owned (collection) vs chasing
- * (want-list). Lists the user's binders of that kind and can create a new
- * one inline, then bulk-adds the selected matched cards. */
-function BinderPicker({
+/** One-tap bulk Want / Own — the multi-select mirror of the inline quick
+ * actions (#761, #781). Writes every selected matched card to the user's
+ * default wishlist (`want`) or collection (`own`) via the idempotent
+ * default-targeting card actions; organizing into a specific binder is the
+ * separate picker flow (#762). Shares the quick-action tones so the two
+ * surfaces read identically. */
+function BulkSaveButton({
   kind,
   cards,
   onClear,
   onError,
 }: {
-  kind: 'owned' | 'chasing'
+  kind: 'want' | 'own'
   cards: Record<string, unknown>[]
   onClear: () => void
   onError: (msg: string | null) => void
 }) {
-  const collections = useCollections()
-  const wishlists = useWishlists()
-  const [open, setOpen] = useState(false)
-  const [busyId, setBusyId] = useState<number | null>(null)
-  const [justAdded, setJustAdded] = useState(false)
-  const [newOpen, setNewOpen] = useState(false)
-  const [newName, setNewName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [added, setAdded] = useState(false)
 
-  const owned = kind === 'owned'
-  // Dynamic collections are rule-defined — you can't hand-add to them, so
-  // keep only the hand-curated kinds (manual / set / binder) in the picker.
-  const binders: (CollectionSummary | WishlistSummary)[] = owned
-    ? collections.collections.filter(
-        (c) => !('kind' in c) || c.kind === 'manual' || c.kind === 'set' || c.kind === 'binder',
-      )
-    : wishlists.wishlists
-  const disabled = cards.length === 0
+  const own = kind === 'own'
+  const empty = cards.length === 0
+  const Icon = own ? Book : Footprints
 
-  async function addTo(binderId: number) {
-    setBusyId(binderId)
+  async function run() {
+    setBusy(true)
     onError(null)
     try {
-      if (owned) await collections.bulkAdd(binderId, cards, { addedVia: 'bulk' })
-      else await wishlists.bulkAdd(binderId, cards)
-      setJustAdded(true)
+      await Promise.all(cards.map((card) => (own ? ownCard(card) : wantCard(card))))
+      // Bust the shared cache so every mounted surface re-reads the new state.
+      invalidateOwnership()
+      setAdded(true)
       setTimeout(() => {
-        setJustAdded(false)
-        setOpen(false)
+        setAdded(false)
         onClear()
       }, 700)
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
     } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function createAndAdd() {
-    const name = newName.trim()
-    if (!name) return
-    setBusyId(-1)
-    onError(null)
-    try {
-      const created = owned
-        ? await collections.create(name)
-        : await wishlists.create(name)
-      if (owned) await collections.bulkAdd(created.id, cards, { addedVia: 'bulk' })
-      else await wishlists.bulkAdd(created.id, cards)
-      setNewName('')
-      setNewOpen(false)
-      setJustAdded(true)
-      setTimeout(() => {
-        setJustAdded(false)
-        setOpen(false)
-        onClear()
-      }, 700)
-    } catch (e) {
-      onError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusyId(null)
+      setBusy(false)
     }
   }
 
   return (
-    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
-      <DropdownMenu.Trigger asChild>
-        <button
-          type="button"
-          disabled={disabled}
-          title={disabled ? 'Select at least one matched card' : undefined}
-          className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-40 ${
-            owned
-              ? 'text-palm-600 hover:bg-palm-500/10 dark:text-palm-200'
-              : 'text-husk-500 hover:bg-sun-400/15 dark:text-sun-200'
-          }`}
-        >
-          {owned ? <Book size={13} /> : <Footprints size={13} />}
-          {owned ? 'Add as owned' : 'Add as chasing'}
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="center"
-          sideOffset={6}
-          className="z-50 w-56 rounded-md border border-sand-300 bg-sand-50 p-1 shadow-lg dark:border-husk-50 dark:bg-husk-200"
-        >
-          <DropdownMenu.Label className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-            {owned ? 'Add to collection' : 'Add to want-list'}
-          </DropdownMenu.Label>
-          {justAdded && (
-            <div className="flex items-center gap-2 px-2 py-2 text-xs text-palm-600 dark:text-palm-200">
-              <Check size={12} /> Added {cards.length} {cards.length === 1 ? 'card' : 'cards'}
-            </div>
-          )}
-          {!justAdded && binders.length === 0 && (
-            <div className="px-2 py-2 text-xs text-coconut-400 dark:text-sand-300">
-              {owned ? 'No collections yet.' : 'No want-lists yet.'}
-            </div>
-          )}
-          {!justAdded &&
-            binders.map((b) => (
-              <DropdownMenu.Item
-                key={b.id}
-                onSelect={(e) => {
-                  e.preventDefault()
-                  void addTo(b.id)
-                }}
-                className="flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm text-coconut-700 outline-none data-[highlighted]:bg-sand-200 dark:text-sand-50 dark:data-[highlighted]:bg-husk-100"
-              >
-                <span className="truncate">{b.name}</span>
-                {busyId === b.id ? (
-                  <Loader2 size={12} className="animate-spin text-coconut-400 dark:text-sand-300" />
-                ) : (
-                  <span className="text-xs text-coconut-400 dark:text-sand-300">{b.item_count}</span>
-                )}
-              </DropdownMenu.Item>
-            ))}
-          {!justAdded && (
-            <>
-              <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
-              {newOpen ? (
-                <div className="flex items-center gap-1 px-1 py-1">
-                  <input
-                    autoFocus
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        void createAndAdd()
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault()
-                        setNewOpen(false)
-                        setNewName('')
-                      }
-                    }}
-                    placeholder={owned ? 'Collection name' : 'Want-list name'}
-                    aria-label={owned ? 'New collection name' : 'New want-list name'}
-                    className="flex-1 rounded border border-sand-300 bg-sand-50 px-2 py-1 text-xs text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-coconut-500 dark:bg-husk-100 dark:text-sand-50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void createAndAdd()}
-                    disabled={busyId === -1 || !newName.trim()}
-                    className="rounded bg-palm-400 px-2 py-1 text-xs font-medium text-sand-50 hover:bg-palm-300 disabled:opacity-50 dark:bg-sun-300 dark:text-husk-500"
-                  >
-                    {busyId === -1 ? <Loader2 size={12} className="animate-spin" /> : 'Add'}
-                  </button>
-                </div>
-              ) : (
-                <DropdownMenu.Item
-                  onSelect={(e) => {
-                    e.preventDefault()
-                    setNewOpen(true)
-                  }}
-                  className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1.5 text-sm text-palm-500 outline-none data-[highlighted]:bg-sand-200 dark:text-sun-300 dark:data-[highlighted]:bg-husk-100"
-                >
-                  <Plus size={13} /> {owned ? 'New collection…' : 'New want-list…'}
-                </DropdownMenu.Item>
-              )}
-            </>
-          )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    <button
+      type="button"
+      onClick={() => void run()}
+      disabled={empty || busy}
+      title={empty ? 'Select at least one matched card' : undefined}
+      aria-label={own ? 'Own selected cards' : 'Want selected cards'}
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-40 ${
+        QUICK_ACTION_TONES[own ? 'palm' : 'sun'].idle
+      }`}
+    >
+      {busy ? (
+        <Loader2 size={13} className="animate-spin" />
+      ) : added ? (
+        <Check size={13} />
+      ) : (
+        <Icon size={13} />
+      )}
+      {own ? 'Own' : 'Want'}
+    </button>
   )
 }

@@ -4,12 +4,7 @@ import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
-import {
-  bulkAddToCollection,
-  exportFile,
-  fetchCardOwnership,
-  fetchCollections,
-} from '../api/client'
+import { exportFile, fetchCardOwnership, ownCard } from '../api/client'
 import { _resetCardOwnershipForTests } from './useCardOwnership'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { _resetWishlistsCacheForTests } from './useWishlists'
@@ -38,6 +33,10 @@ vi.mock('../api/client', () => ({
   addCardToWishlist: vi.fn(),
   bulkAddToCollection: vi.fn(async () => ({ added: 0, items: [] })),
   bulkAddToWishlist: vi.fn(async () => ({ added: 0, items: [] })),
+  // The bulk bar's want / own toggles (#781) write each selected card to the
+  // user's default wishlist / collection via the per-card quick actions.
+  wantCard: vi.fn(async () => ({})),
+  ownCard: vi.fn(async () => ({})),
   exportFile: vi.fn(async () => undefined),
 }))
 
@@ -971,7 +970,7 @@ describe('ResultsTable: bulk row actions (#268)', () => {
     useAppStore.setState({ rows: [] })
   })
 
-  it('hides the add-to-binder pickers for a signed-out user', () => {
+  it('hides the want / own save toggles for a signed-out user', () => {
     signOut()
     useAppStore.setState({
       rows: [matched('Charizard', '4')],
@@ -981,26 +980,17 @@ describe('ResultsTable: bulk row actions (#268)', () => {
     render(<ResultsTable />)
 
     fireEvent.click(screen.getByLabelText('Select Charizard'))
-    // View actions are present; binder pickers are not.
+    // View actions are present; the save toggles are not.
     expect(within(bar()).getByRole('button', { name: /retag/i })).toBeInTheDocument()
-    expect(within(bar()).queryByRole('button', { name: /add as owned/i })).toBeNull()
-    expect(within(bar()).queryByRole('button', { name: /add as chasing/i })).toBeNull()
+    expect(within(bar()).queryByRole('button', { name: /own selected cards/i })).toBeNull()
+    expect(within(bar()).queryByRole('button', { name: /want selected cards/i })).toBeNull()
 
     useAppStore.setState({ rows: [] })
   })
 
-  it('adds the selected matched cards to a collection via the binder picker', async () => {
-    // Signed-in default mock → binder pickers render. Seed one collection.
-    vi.mocked(fetchCollections).mockResolvedValue([
-      {
-        id: 7,
-        name: 'Show Binder',
-        description: null,
-        created_at: '2026-06-06T00:00:00',
-        item_count: 0,
-      },
-    ])
-    vi.mocked(bulkAddToCollection).mockResolvedValue({ added: 2, items: [] })
+  it('owns the selected matched cards via the bulk quick action (#781)', async () => {
+    // Signed-in default mock → the want / own save toggles render.
+    vi.mocked(ownCard).mockResolvedValue({} as never)
     useAppStore.setState({
       rows: [matched('Charizard', '4'), matched('Pikachu', '58')],
       isRunning: false,
@@ -1009,17 +999,10 @@ describe('ResultsTable: bulk row actions (#268)', () => {
     render(<ResultsTable />)
 
     fireEvent.click(screen.getByLabelText('Select all rows'))
-    const owned = await within(bar()).findByRole('button', { name: /add as owned/i })
-    owned.focus()
-    fireEvent.keyDown(owned, { key: 'Enter', code: 'Enter' })
+    fireEvent.click(await within(bar()).findByRole('button', { name: /own selected cards/i }))
 
-    const item = (await screen.findByText('Show Binder')).closest('[role="menuitem"]')!
-    fireEvent.click(item)
-
-    await waitFor(() => expect(vi.mocked(bulkAddToCollection)).toHaveBeenCalled())
-    const [collectionId, cards] = vi.mocked(bulkAddToCollection).mock.calls[0]
-    expect(collectionId).toBe(7)
-    expect(cards).toHaveLength(2)
+    // One default-targeting write per selected matched card, no picker.
+    await waitFor(() => expect(vi.mocked(ownCard)).toHaveBeenCalledTimes(2))
 
     useAppStore.setState({ rows: [] })
   })
