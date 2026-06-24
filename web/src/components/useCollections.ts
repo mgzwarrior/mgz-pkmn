@@ -52,7 +52,10 @@ async function refresh(): Promise<void> {
   inflight = (async () => {
     try {
       const collections = await fetchCollections()
-      set({ collections, loading: false, fetched: true })
+      // Guard against a malformed (non-array) payload corrupting the cache —
+      // subscribers iterate `collections`, so a stray null/undefined would
+      // crash every mounted surface mid-render.
+      set({ collections: Array.isArray(collections) ? collections : [], loading: false, fetched: true })
     } catch (e) {
       set({
         loading: false,

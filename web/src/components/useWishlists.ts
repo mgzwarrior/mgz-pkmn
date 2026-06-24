@@ -49,7 +49,10 @@ async function refresh(): Promise<void> {
   inflight = (async () => {
     try {
       const wishlists = await fetchWishlists()
-      set({ wishlists, loading: false, fetched: true })
+      // Guard against a malformed (non-array) payload corrupting the cache —
+      // subscribers iterate `wishlists`, so a stray null/undefined would crash
+      // every mounted surface mid-render.
+      set({ wishlists: Array.isArray(wishlists) ? wishlists : [], loading: false, fetched: true })
     } catch (e) {
       set({
         loading: false,
