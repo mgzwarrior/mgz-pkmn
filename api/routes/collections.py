@@ -628,6 +628,40 @@ def delete_collection_item(
     db.commit()
 
 
+@router.delete("/collections/{collection_id}/items", status_code=204)
+def delete_collection_items_by_card(
+    collection_id: int,
+    set_id: str,
+    number: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    """Remove a card from a specific collection by its ``(set_id, number)``
+    identity — the card-detail "remove from this list" affordance (#762).
+
+    Deletes every matching row, since a card can occupy a collection more than
+    once (separate adds), so the collection cleanly stops listing the card.
+    Scoped through the parent collection (an unowned id 404s); dynamic
+    collections are rejected like the other item-write paths."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    _reject_if_dynamic(collection)
+    items = db.scalars(
+        select(CollectionItem).where(
+            CollectionItem.collection_id == collection.id,
+            CollectionItem.card_set_id == set_id,
+            CollectionItem.card_number == number,
+        )
+    ).all()
+    if not items:
+        raise HTTPException(
+            status_code=404,
+            detail=f"card {set_id}-{number} not found in collection {collection_id}",
+        )
+    for item in items:
+        db.delete(item)
+    db.commit()
+
+
 @router.patch("/collections/{collection_id}/items/{item_id}")
 def update_collection_item(
     collection_id: int,

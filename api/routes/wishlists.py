@@ -338,6 +338,39 @@ def delete_wishlist_item(
     db.commit()
 
 
+@router.delete("/wishlists/{wishlist_id}/items", status_code=204)
+def delete_wishlist_items_by_card(
+    wishlist_id: int,
+    set_id: str,
+    number: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    """Remove a card from a specific want-list by its ``(set_id, number)``
+    identity — the card-detail "remove from this list" affordance (#762).
+
+    Only drops *active* chases; an acquired item is kept as history (its chase
+    already completed), mirroring ``/cards/unwant`` (#768). 404s when no active
+    chase for the card is on the list."""
+    wishlist = _load_wishlist(db, wishlist_id, current_user.id)
+    items = db.scalars(
+        select(WishlistItem).where(
+            WishlistItem.wishlist_id == wishlist.id,
+            WishlistItem.card_set_id == set_id,
+            WishlistItem.card_number == number,
+            WishlistItem.acquired_at.is_(None),
+        )
+    ).all()
+    if not items:
+        raise HTTPException(
+            status_code=404,
+            detail=f"card {set_id}-{number} not found on wishlist {wishlist_id}",
+        )
+    for item in items:
+        db.delete(item)
+    db.commit()
+
+
 @router.post("/wishlists/{wishlist_id}/items/{item_id}/promote", status_code=201)
 def promote_wishlist_item(
     wishlist_id: int,

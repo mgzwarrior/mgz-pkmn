@@ -649,4 +649,35 @@ describe('CardDetailModal — library actions (#699)', () => {
     expect(within(locations).getByText('Want:')).toBeInTheDocument()
     expect(within(locations).getByText('Allentown chase list')).toBeInTheDocument()
   })
+
+  it('removes the card from a specific collection via the location chip (#762)', async () => {
+    vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
+      'base1::4': { collections: [{ id: 7, name: 'Show binder', quantity: 2 }], wishlists: [] },
+    })
+    const removeSpy = vi.spyOn(client, 'removeCardFromCollection').mockResolvedValue()
+
+    render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+    const locations = await screen.findByLabelText(/Library locations/i)
+    fireEvent.click(
+      within(locations).getByRole('button', { name: /Remove from collection Show binder/i }),
+    )
+
+    // Removal targets the card identity, not an item id.
+    await waitFor(() => expect(removeSpy).toHaveBeenCalledWith(7, 'base1', '4'))
+  })
+
+  it('removes the card from a specific want-list via the location chip (#762)', async () => {
+    vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
+      'base1::4': { collections: [], wishlists: [{ id: 9, name: 'Chase list' }] },
+    })
+    const removeSpy = vi.spyOn(client, 'removeCardFromWishlist').mockResolvedValue()
+
+    render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+    const locations = await screen.findByLabelText(/Library locations/i)
+    fireEvent.click(
+      within(locations).getByRole('button', { name: /Remove from want-list Chase list/i }),
+    )
+
+    await waitFor(() => expect(removeSpy).toHaveBeenCalledWith(9, 'base1', '4'))
+  })
 })

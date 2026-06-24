@@ -386,6 +386,31 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             self.assertEqual(resp.status_code, 204)
             self.assertEqual(len(c.get(f"/api/v1/collections/{cid}").json()["items"]), 0)
 
+    def test_delete_items_by_card_removes_every_matching_row(self) -> None:
+        # The card-detail "remove from this list" affordance (#762) deletes by
+        # identity, so a card added more than once leaves the collection clean.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            self.assertEqual(len(c.get(f"/api/v1/collections/{cid}").json()["items"]), 2)
+
+            resp = c.delete(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+            )
+            self.assertEqual(resp.status_code, 204)
+            self.assertEqual(len(c.get(f"/api/v1/collections/{cid}").json()["items"]), 0)
+
+    def test_delete_items_by_card_404_when_card_absent(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            resp = c.delete(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+            )
+            self.assertEqual(resp.status_code, 404)
+
     def test_add_item_promotes_card_identity_and_defaults_quantity(self) -> None:
         # The promoted columns are what every other surface in the epic
         # queries against — the ownership badge (#576), the insights
