@@ -31,6 +31,7 @@ import {
 } from './cardCategories'
 import { EbaySparkline } from './EbaySparkline'
 import { hasEbayData, soldPriceSeries } from './ebayComps'
+import { AddToListPicker } from './AddToListPicker'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
 import { useCardOwnership } from './useCardOwnership'
@@ -262,6 +263,15 @@ function CardDetailBody({
                   show={showActions}
                   variant="primary"
                 />
+                {/* The light "organize later" step (#762): the toggles above
+                    write to your default list; this drops the card onto a
+                    specific named collection / want-list. */}
+                <div className="mt-2 flex justify-end">
+                  <AddToListPicker
+                    card={card as unknown as Record<string, unknown>}
+                    ownership={ownership}
+                  />
+                </div>
               </section>
             )}
             <CategoryBadges card={card} />
