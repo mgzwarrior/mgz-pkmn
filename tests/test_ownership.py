@@ -222,6 +222,26 @@ class QuickActionTests(_IsolatedDbMixin):
             self.assertEqual(len(lists), 1)
             self.assertTrue(lists[0].is_default)
 
+    def test_default_wishlist_is_flagged_in_the_list_view(self) -> None:
+        # #762 — the SPA shows a "default" marker next to the bare-Want target,
+        # so the list endpoint surfaces the flag; a hand-made list stays plain.
+        with self._client() as c:
+            c.post("/api/v1/cards/want", json={"card": CHARIZARD})
+            plain = c.post("/api/v1/wishlists", json={"name": "Allentown chase"}).json()
+            items = c.get("/api/v1/wishlists").json()["items"]
+            defaults = [w for w in items if w["is_default"]]
+            self.assertEqual(len(defaults), 1)
+            self.assertFalse({w["id"]: w for w in items}[plain["id"]]["is_default"])
+
+    def test_default_collection_is_flagged_in_the_list_view(self) -> None:
+        with self._client() as c:
+            c.post("/api/v1/cards/own", json={"card": CHARIZARD})
+            plain = c.post("/api/v1/collections", json={"name": "Trade binder"}).json()
+            items = c.get("/api/v1/collections").json()["items"]
+            defaults = [col for col in items if col["is_default"]]
+            self.assertEqual(len(defaults), 1)
+            self.assertFalse({col["id"]: col for col in items}[plain["id"]]["is_default"])
+
     def test_unwant_removes_from_default_wishlist(self) -> None:
         with self._client() as c:
             c.post("/api/v1/cards/want", json={"card": CHARIZARD})

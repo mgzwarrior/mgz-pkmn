@@ -367,6 +367,20 @@ function NewMenuItem({
 }
 
 /** Palm "Owned" / sun "Chasing" chip — mirrors OwnershipBadge (#576). */
+/** Subtle marker on the list a bare one-tap Want/Own writes to (#759/#762).
+ *  The default is just a normal list (rename/delete work on it like any other);
+ *  this only signals where an unspecified save lands. */
+function DefaultBadge({ noun }: { noun: 'Own' | 'Want' }) {
+  return (
+    <span
+      title={`Default ${noun} target — a one-tap ${noun} saves here`}
+      className="shrink-0 rounded-full border border-sand-300 px-1.5 py-0.5 text-[10px] font-medium text-coconut-400 dark:border-husk-50 dark:text-sand-300"
+    >
+      default
+    </span>
+  )
+}
+
 function KindBadge({ kind }: { kind: 'owned' | 'chasing' }) {
   return kind === 'owned' ? (
     <span className="shrink-0 rounded-full bg-palm-500/15 px-1.5 py-0.5 text-[10px] font-medium text-palm-600 dark:bg-palm-400/20 dark:text-palm-200">
@@ -484,6 +498,7 @@ function CollectionRow({
           <span className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
             {c.name}
           </span>
+          {c.is_default && <DefaultBadge noun="Own" />}
           {pill && (
             <span className="shrink-0 rounded bg-palm-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-palm-700 dark:bg-husk-100 dark:text-palm-300">
               {pill}
@@ -605,6 +620,7 @@ function WishlistRow({
             <span className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
               {w.name}
             </span>
+            {w.is_default && <DefaultBadge noun="Want" />}
           </div>
           {w.description && (
             <div className="truncate text-[11px] text-coconut-400 dark:text-sand-300">
