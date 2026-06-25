@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.7.0](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.1...v1.7.0) (2026-06-25)
+
+
+### Added
+
+* **api:** card quick-action endpoints for default want/own ([#766](https://github.com/mgzwarrior/mgz-pkmn/issues/766)) ([cd5b86c](https://github.com/mgzwarrior/mgz-pkmn/commit/cd5b86c0e00e601249d591586256c3ccc83e379d)), closes [#760](https://github.com/mgzwarrior/mgz-pkmn/issues/760)
+* **api:** owning a card clears its active want by default ([#771](https://github.com/mgzwarrior/mgz-pkmn/issues/771)) ([8d211db](https://github.com/mgzwarrior/mgz-pkmn/commit/8d211db75e0143964e1be2f40f72aec1f4fba155))
+* **api:** provision a default wishlist and collection per user ([#763](https://github.com/mgzwarrior/mgz-pkmn/issues/763)) ([4b84a71](https://github.com/mgzwarrior/mgz-pkmn/commit/4b84a7106685bd18da8019219f7f308fbce47d74)), closes [#759](https://github.com/mgzwarrior/mgz-pkmn/issues/759)
+* binders as inventory containers — model, API, and inventory UI ([#705](https://github.com/mgzwarrior/mgz-pkmn/issues/705)) ([3cd984c](https://github.com/mgzwarrior/mgz-pkmn/commit/3cd984c87187c373b46de951f285697d03065483))
+* **site:** rework header nav — demo cta, icon-only github, hamburger menu ([#677](https://github.com/mgzwarrior/mgz-pkmn/issues/677)) ([8c554b8](https://github.com/mgzwarrior/mgz-pkmn/commit/8c554b8985f77ef3815e92fe00d190754e3db888))
+* **web:** add a card to a specific list from the detail view ([#783](https://github.com/mgzwarrior/mgz-pkmn/issues/783)) ([b9742fe](https://github.com/mgzwarrior/mgz-pkmn/commit/b9742fe1b59f7be38bda3b442dd955f3c7183278))
+* **web:** add marketplace logos and affiliate disclosures ([#749](https://github.com/mgzwarrior/mgz-pkmn/issues/749)) ([9f7c88c](https://github.com/mgzwarrior/mgz-pkmn/commit/9f7c88c4fac65625c2c01178cc6da411ba65b384))
+* **web:** add the cover-color picker to the Add binder form ([#721](https://github.com/mgzwarrior/mgz-pkmn/issues/721)) ([26f77a7](https://github.com/mgzwarrior/mgz-pkmn/commit/26f77a7202564f03933aefa93eda6653c5a5136e))
+* **web:** align Browse create entry points with the owned/chasing model ([#756](https://github.com/mgzwarrior/mgz-pkmn/issues/756)) ([cbd83a8](https://github.com/mgzwarrior/mgz-pkmn/commit/cbd83a86db05b0983c342b835ab09cab885f3908))
+* **web:** bring search's export options to the collection and wishlist detail views ([#779](https://github.com/mgzwarrior/mgz-pkmn/issues/779)) ([142da4c](https://github.com/mgzwarrior/mgz-pkmn/commit/142da4c23bae30ebd63da2039caa969c7b9c109d))
+* **web:** collection-aware card detail modal — save actions, ownership badges, prominent buy links ([#709](https://github.com/mgzwarrior/mgz-pkmn/issues/709)) ([915fe6a](https://github.com/mgzwarrior/mgz-pkmn/commit/915fe6a77477d77df080f6f28491105f7dc64f66))
+* **web:** create-flow rework — New ▾ menu + file collections into binders ([#719](https://github.com/mgzwarrior/mgz-pkmn/issues/719)) ([242e635](https://github.com/mgzwarrior/mgz-pkmn/commit/242e6353f2559059b8a724e180f62210f46c9b07))
+* **web:** delete a saved search (run) ([#718](https://github.com/mgzwarrior/mgz-pkmn/issues/718)) ([393f872](https://github.com/mgzwarrior/mgz-pkmn/commit/393f872db39f714196e091b9cba48de872382614))
+* **web:** editable swipe taste-profile view — sets, types, eras, rarity ([#715](https://github.com/mgzwarrior/mgz-pkmn/issues/715)) ([c5587c8](https://github.com/mgzwarrior/mgz-pkmn/commit/c5587c8125778f9535990a949a67cba0d64e9a8f))
+* **web:** favorite-set pinning and suggestion from swipe + owned signal ([#716](https://github.com/mgzwarrior/mgz-pkmn/issues/716)) ([62b236c](https://github.com/mgzwarrior/mgz-pkmn/commit/62b236c9f6add55aafbf810f89d0fb9558111b1d))
+* **web:** let users pick favorite Pokémon (pokedex + onboarding) ([#752](https://github.com/mgzwarrior/mgz-pkmn/issues/752)) ([a259037](https://github.com/mgzwarrior/mgz-pkmn/commit/a2590372f637c7affee0341fe006a206f89b9555))
+* **web:** let want-lists file into binders ([#777](https://github.com/mgzwarrior/mgz-pkmn/issues/777)) ([d4110c6](https://github.com/mgzwarrior/mgz-pkmn/commit/d4110c6b5e940ebadefc5066263001330c44a734))
+* **web:** mark the default collection / want-list in the library ([#785](https://github.com/mgzwarrior/mgz-pkmn/issues/785)) ([e1837af](https://github.com/mgzwarrior/mgz-pkmn/commit/e1837af755f51d82aabac55dfae80d6423a2b12e))
+* **web:** move export control into search mode ([#750](https://github.com/mgzwarrior/mgz-pkmn/issues/750)) ([f1187c5](https://github.com/mgzwarrior/mgz-pkmn/commit/f1187c5d03c5b2dbdc8b9c85357e6d2d9b49db1f))
+* **web:** move swipe-mode wishlist nudge above the card image, and only nudge after 3 saved cards ([#678](https://github.com/mgzwarrior/mgz-pkmn/issues/678)) ([8102a79](https://github.com/mgzwarrior/mgz-pkmn/commit/8102a79f6f865fb128b86d2ef53884a13ed651b7))
+* **web:** one-tap Want / Own quick actions across search, browse, and swipe ([#767](https://github.com/mgzwarrior/mgz-pkmn/issues/767)) ([2793c4d](https://github.com/mgzwarrior/mgz-pkmn/commit/2793c4db675e95caf7aff328a1c28bc1b088b320))
+* **web:** open a collection to view its cards ([#731](https://github.com/mgzwarrior/mgz-pkmn/issues/731)) ([3ee7004](https://github.com/mgzwarrior/mgz-pkmn/commit/3ee7004c211638a3a9c0b10870cd065fb30885df)), closes [#723](https://github.com/mgzwarrior/mgz-pkmn/issues/723)
+* **web:** physical-binder identity + unified create/edit binder modal ([#680](https://github.com/mgzwarrior/mgz-pkmn/issues/680)) ([235b193](https://github.com/mgzwarrior/mgz-pkmn/commit/235b193bdd73b359ee9f85e7e3cfa15eed2430f0))
+* **web:** remove a card from a specific list from the detail view ([#784](https://github.com/mgzwarrior/mgz-pkmn/issues/784)) ([a0fe2c4](https://github.com/mgzwarrior/mgz-pkmn/commit/a0fe2c49d265702de27297cd39bfb27d1aa3a09a))
+* **web:** route TCGPlayer buy links through the approved affiliate redirect ([#697](https://github.com/mgzwarrior/mgz-pkmn/issues/697)) ([9911342](https://github.com/mgzwarrior/mgz-pkmn/commit/9911342cabcda3100e18e893f5814cac572f7ae3))
+* **web:** set-name autocomplete in the binder modal + quick binder-create from Browse ([#695](https://github.com/mgzwarrior/mgz-pkmn/issues/695)) ([35a8886](https://github.com/mgzwarrior/mgz-pkmn/commit/35a888651606c85a68931e55a625cb385bb80beb))
+* **web:** show and edit owned quantity per card in collection detail ([#778](https://github.com/mgzwarrior/mgz-pkmn/issues/778)) ([e76a3b9](https://github.com/mgzwarrior/mgz-pkmn/commit/e76a3b93686bf777b22ff8923901577f64c9bdc4))
+* **web:** show card library locations ([#753](https://github.com/mgzwarrior/mgz-pkmn/issues/753)) ([f697c18](https://github.com/mgzwarrior/mgz-pkmn/commit/f697c18e09eea5d02bb6133d011f599f3284d4db))
+* **web:** smart collections + a shared binder-filing picker ([#775](https://github.com/mgzwarrior/mgz-pkmn/issues/775)) ([a49dcbb](https://github.com/mgzwarrior/mgz-pkmn/commit/a49dcbb7c6f1dcb89a062487dfc6552977949017))
+* **web:** surface cache-hit vs upstream signal in the lookup timer ([#676](https://github.com/mgzwarrior/mgz-pkmn/issues/676)) ([33f3068](https://github.com/mgzwarrior/mgz-pkmn/commit/33f3068e4781c1419e7e0824da22c45ef3945a5d))
+* **web:** surface collection insights in the nav and expand the dashboard ([#751](https://github.com/mgzwarrior/mgz-pkmn/issues/751)) ([91d6ebd](https://github.com/mgzwarrior/mgz-pkmn/commit/91d6ebdc4da9fcc7d53ae302f3e0ba0b005fac91))
+* **web:** surface eBay + TCGPlayer affiliate links across the web app ([#672](https://github.com/mgzwarrior/mgz-pkmn/issues/672)) ([b74a1af](https://github.com/mgzwarrior/mgz-pkmn/commit/b74a1afbf3926d891784da560285f9ebecbf2259))
+* **web:** switch the multi-select bar to the quick-action want / own toggles ([#782](https://github.com/mgzwarrior/mgz-pkmn/issues/782)) ([54cd8ce](https://github.com/mgzwarrior/mgz-pkmn/commit/54cd8cea451f22b882d346cf52d716856920a30f))
+* **web:** unify library delete affordances on the saved-search pattern ([#780](https://github.com/mgzwarrior/mgz-pkmn/issues/780)) ([00cd791](https://github.com/mgzwarrior/mgz-pkmn/commit/00cd7910ec822217276784167c0ede9c44856d8a)), closes [#772](https://github.com/mgzwarrior/mgz-pkmn/issues/772)
+* **web:** weight swipe candidates by the learned taste profile ([#717](https://github.com/mgzwarrior/mgz-pkmn/issues/717)) ([74009dc](https://github.com/mgzwarrior/mgz-pkmn/commit/74009dc1f246a5c4164398e0c3a8029030c137e3))
+
+
+### Fixed
+
+* **cli:** forward unknown root options to the lookup fallback ([#658](https://github.com/mgzwarrior/mgz-pkmn/issues/658)) ([8ede184](https://github.com/mgzwarrior/mgz-pkmn/commit/8ede1841938818a698469276f2304a7f4f6232de))
+* **web:** align the library symbol system across surfaces ([#619](https://github.com/mgzwarrior/mgz-pkmn/issues/619)) ([057898e](https://github.com/mgzwarrior/mgz-pkmn/commit/057898ec5a5bcaf1a605bbbaa4ff504bf664edb8))
+* **web:** cache-bust the SPA favicon so the tropical rebrand replaces the cached purple bolt ([#665](https://github.com/mgzwarrior/mgz-pkmn/issues/665)) ([2149640](https://github.com/mgzwarrior/mgz-pkmn/commit/214964018a460715be9c7998b181df5f6ff20839))
+* **web:** clarify card detail save actions ([#748](https://github.com/mgzwarrior/mgz-pkmn/issues/748)) ([183deb4](https://github.com/mgzwarrior/mgz-pkmn/commit/183deb412e538a7b7d2cb7f03ce5fe49dd2ef0a2))
+* **web:** hide smart collections from the save/promote pickers ([#733](https://github.com/mgzwarrior/mgz-pkmn/issues/733)) ([f1d8466](https://github.com/mgzwarrior/mgz-pkmn/commit/f1d8466c4f570671ef184890c8973ef223b4a359)), closes [#732](https://github.com/mgzwarrior/mgz-pkmn/issues/732)
+* **web:** rename the Library panel to "Backpack" to match its icon ([#706](https://github.com/mgzwarrior/mgz-pkmn/issues/706)) ([bf67cc5](https://github.com/mgzwarrior/mgz-pkmn/commit/bf67cc57062d9905da8dc9aff3f8338dc86613c7))
+* **web:** show the per-row line total so collection prices track quantity ([#791](https://github.com/mgzwarrior/mgz-pkmn/issues/791)) ([434e228](https://github.com/mgzwarrior/mgz-pkmn/commit/434e228bc388fa4f3c3502c54f1dc1bfafdf4a31))
+
+
+### Changed
+
+* **api:** cancel queued /bulk lookups on disconnect; keep SPA progress monotonic ([#675](https://github.com/mgzwarrior/mgz-pkmn/issues/675)) ([6bc64b2](https://github.com/mgzwarrior/mgz-pkmn/commit/6bc64b2b4521139836fd615ec32206b76ce8bcdf))
+* **api:** memoize the upstream session per api_key to keep connections warm ([#673](https://github.com/mgzwarrior/mgz-pkmn/issues/673)) ([29ae4d0](https://github.com/mgzwarrior/mgz-pkmn/commit/29ae4d082b79bdee3e144f46128520ddb3f7dc39))
+* **api:** run /bulk SSE lookups with bounded concurrency ([#674](https://github.com/mgzwarrior/mgz-pkmn/issues/674)) ([4d3b2e8](https://github.com/mgzwarrior/mgz-pkmn/commit/4d3b2e84379c35903181172573223358f8ce2dfd))
+
 ## [1.6.1] - 2026-06-13
 
 ### Fixed
