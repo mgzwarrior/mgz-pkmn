@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-06-25
+
+### Added
+
+- Web + API: **One-tap Want / Own quick actions save a card to your defaults with no setup** ([#763](https://github.com/mgzwarrior/mgz-pkmn/issues/763), [#766](https://github.com/mgzwarrior/mgz-pkmn/issues/766), [#767](https://github.com/mgzwarrior/mgz-pkmn/issues/767), [#771](https://github.com/mgzwarrior/mgz-pkmn/issues/771), [#782](https://github.com/mgzwarrior/mgz-pkmn/issues/782), [#756](https://github.com/mgzwarrior/mgz-pkmn/issues/756), closes [#759](https://github.com/mgzwarrior/mgz-pkmn/issues/759), [#760](https://github.com/mgzwarrior/mgz-pkmn/issues/760)). Every account now gets a default wishlist and a default personal collection provisioned automatically, so marking a card wanted or owned from search, browse, or swipe is a single tap. The multi-select bar switched to the same Want / Own toggles, owning a card clears its active want by default, and Browse's create entry points line up with the owned/chasing model. ADR-0027 records the direction.
+- Web + API: **Binders became first-class inventory containers** ([#705](https://github.com/mgzwarrior/mgz-pkmn/issues/705), [#680](https://github.com/mgzwarrior/mgz-pkmn/issues/680), [#719](https://github.com/mgzwarrior/mgz-pkmn/issues/719), [#695](https://github.com/mgzwarrior/mgz-pkmn/issues/695), [#721](https://github.com/mgzwarrior/mgz-pkmn/issues/721), [#775](https://github.com/mgzwarrior/mgz-pkmn/issues/775), [#777](https://github.com/mgzwarrior/mgz-pkmn/issues/777)). Binders now model and present owned cards through a unified create/edit modal with physical-binder identity, a cover-color picker, set-name autocomplete with quick binder-create from Browse, a New menu that files collections into binders, smart collections backed by a shared binder-filing picker, and wishlists that file into binders too.
+- Web: **Collection and wishlist detail views grew real management tools** ([#709](https://github.com/mgzwarrior/mgz-pkmn/issues/709), [#731](https://github.com/mgzwarrior/mgz-pkmn/issues/731), [#778](https://github.com/mgzwarrior/mgz-pkmn/issues/778), [#783](https://github.com/mgzwarrior/mgz-pkmn/issues/783), [#784](https://github.com/mgzwarrior/mgz-pkmn/issues/784), [#785](https://github.com/mgzwarrior/mgz-pkmn/issues/785), [#779](https://github.com/mgzwarrior/mgz-pkmn/issues/779), [#780](https://github.com/mgzwarrior/mgz-pkmn/issues/780), [#718](https://github.com/mgzwarrior/mgz-pkmn/issues/718), [#753](https://github.com/mgzwarrior/mgz-pkmn/issues/753), closes [#723](https://github.com/mgzwarrior/mgz-pkmn/issues/723), [#772](https://github.com/mgzwarrior/mgz-pkmn/issues/772)). Open a collection to view its cards in a collection-aware detail modal with save actions and ownership badges, edit owned quantity per card, add or remove a card from a specific list inline, see which collection or wishlist is the default, bring search's export options into the detail views, view a card's library locations, delete a saved search, and rely on one unified delete affordance across the library.
+- Web: **Swipe learns your taste and lets you tune it** ([#717](https://github.com/mgzwarrior/mgz-pkmn/issues/717), [#715](https://github.com/mgzwarrior/mgz-pkmn/issues/715), [#716](https://github.com/mgzwarrior/mgz-pkmn/issues/716), [#752](https://github.com/mgzwarrior/mgz-pkmn/issues/752), [#678](https://github.com/mgzwarrior/mgz-pkmn/issues/678)). Swipe candidates are now weighted by a learned taste profile you can edit directly — sets, types, eras, and rarity — with favorite-set pinning suggested from your swipes and owned cards, a favorite-Pokémon picker in onboarding and the pokedex, and a wishlist nudge that moved above the card image and only appears after three saved cards.
+- Web: **eBay and TCGplayer affiliate buy links across the app** ([#672](https://github.com/mgzwarrior/mgz-pkmn/issues/672), [#697](https://github.com/mgzwarrior/mgz-pkmn/issues/697), [#749](https://github.com/mgzwarrior/mgz-pkmn/issues/749)). Card surfaces gained eBay and TCGplayer buy links routed through the approved affiliate redirect, with marketplace logos and the required affiliate disclosures.
+- Web: **A collection-insights dashboard surfaced in the nav** ([#751](https://github.com/mgzwarrior/mgz-pkmn/issues/751)). Collection insights now appear in the navigation alongside an expanded dashboard.
+- Web: **Export moved into search mode** ([#750](https://github.com/mgzwarrior/mgz-pkmn/issues/750)). The export control now lives in search mode, where you build the result set.
+- Web: **The lookup timer distinguishes a cache hit from a live fetch** ([#676](https://github.com/mgzwarrior/mgz-pkmn/issues/676)). The timer now shows whether a lookup was served from cache or fetched upstream.
+- Site: **Reworked marketing header nav** ([#677](https://github.com/mgzwarrior/mgz-pkmn/issues/677)). A demo CTA, an icon-only GitHub link, and a hamburger menu on small screens.
+
+### Changed
+
+- API: **Bulk lookups run with bounded concurrency and cancel cleanly on disconnect** ([#674](https://github.com/mgzwarrior/mgz-pkmn/issues/674), [#675](https://github.com/mgzwarrior/mgz-pkmn/issues/675), [#673](https://github.com/mgzwarrior/mgz-pkmn/issues/673)). The `/bulk` SSE endpoint now runs lookups with bounded concurrency, cancels queued work when the client disconnects while keeping SPA progress monotonic, and memoizes the upstream session per API key to keep connections warm.
+
+### Fixed
+
+- Web: **Collection prices track owned quantity** ([#791](https://github.com/mgzwarrior/mgz-pkmn/issues/791)). Each row shows a per-row line total so a collection's value reflects how many copies you own.
+- Web: **Clearer card-detail save actions and pickers** ([#748](https://github.com/mgzwarrior/mgz-pkmn/issues/748), [#733](https://github.com/mgzwarrior/mgz-pkmn/issues/733), closes [#732](https://github.com/mgzwarrior/mgz-pkmn/issues/732)). Card-detail save actions read more clearly, and smart collections are hidden from the save/promote pickers where they can't be written to.
+- Web: **Consistent library symbols and naming** ([#619](https://github.com/mgzwarrior/mgz-pkmn/issues/619), [#706](https://github.com/mgzwarrior/mgz-pkmn/issues/706)). The library symbol system is aligned across surfaces, and the Library panel is renamed "Backpack" to match its icon.
+- Web: **The tropical favicon replaces the cached purple bolt** ([#665](https://github.com/mgzwarrior/mgz-pkmn/issues/665)). The SPA favicon is cache-busted so the tropical rebrand takes effect for returning visitors.
+- CLI: **Unknown root options forward to the lookup fallback** ([#658](https://github.com/mgzwarrior/mgz-pkmn/issues/658)). Unrecognized root-level options now pass through to the lookup command instead of erroring.
+
 ## [1.6.1] - 2026-06-13
 
 ### Fixed
@@ -209,6 +235,7 @@ Foundation release. Establishes the full CLI pipeline, a FastAPI / React web UI,
 - Parser ReDoS vulnerabilities were eliminated across multiple regex passes.
 - URL substring sanitization and workflow permissions were hardened in response to CodeQL alerts.
 
+[1.7.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.4.0...v1.5.0
