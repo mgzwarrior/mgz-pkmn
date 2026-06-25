@@ -263,8 +263,15 @@ function ItemRow({
         </span>
       )}
       {item.price_snapshot != null && (
-        <span className="w-16 shrink-0 text-right text-xs font-medium text-palm-600 dark:text-palm-200">
-          {formatMoney(item.price_snapshot, 'USD')}
+        // Line total (unit × qty), so the row reflects a quantity change and
+        // the rows visibly sum to the snapshot total (#790). The unit price
+        // stays available in the tooltip when there's more than one.
+        <span
+          className="w-16 shrink-0 text-right text-xs font-medium text-palm-600 dark:text-palm-200"
+          aria-label={`Line total ${formatMoney(item.price_snapshot * qty, 'USD')}`}
+          title={qty > 1 ? `${formatMoney(item.price_snapshot, 'USD')} each` : undefined}
+        >
+          {formatMoney(item.price_snapshot * qty, 'USD')}
         </span>
       )}
     </li>
