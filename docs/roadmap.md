@@ -1,10 +1,14 @@
 # Roadmap
 
-[![v1.4 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/6?label=v1.4)](https://github.com/mgzwarrior/mgz-pkmn/milestone/6)
-[![v1.5 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/8?label=v1.5)](https://github.com/mgzwarrior/mgz-pkmn/milestone/8)
-[![v1.6 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/9?label=v1.6)](https://github.com/mgzwarrior/mgz-pkmn/milestone/9)
-[![v2.0 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/3?label=v2.0)](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
-[![v2.1 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/10?label=v2.1)](https://github.com/mgzwarrior/mgz-pkmn/milestone/10)
+[![v1.8 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/12?label=v1.8)](https://github.com/mgzwarrior/mgz-pkmn/milestone/12)
+[![v1.9 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/13?label=v1.9)](https://github.com/mgzwarrior/mgz-pkmn/milestone/13)
+[![v1.10 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/15?label=v1.10)](https://github.com/mgzwarrior/mgz-pkmn/milestone/15)
+[![v1.11 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/16?label=v1.11)](https://github.com/mgzwarrior/mgz-pkmn/milestone/16)
+[![v1.12 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/17?label=v1.12)](https://github.com/mgzwarrior/mgz-pkmn/milestone/17)
+[![v1.13 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/18?label=v1.13)](https://github.com/mgzwarrior/mgz-pkmn/milestone/18)
+[![v1.14 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/19?label=v1.14)](https://github.com/mgzwarrior/mgz-pkmn/milestone/19)
+[![v1.15 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/20?label=v1.15)](https://github.com/mgzwarrior/mgz-pkmn/milestone/20)
+[![Backlog open](https://img.shields.io/github/milestones/open/mgzwarrior/mgz-pkmn/3?label=Backlog)](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
 [![open issues](https://img.shields.io/github/issues-raw/mgzwarrior/mgz-pkmn?label=open)](https://github.com/mgzwarrior/mgz-pkmn/issues)
 
 A forward-looking view of what's in flight and what's next. **Shipped
@@ -46,31 +50,46 @@ live demo), see <https://mgz-pkmn.com>.
   from pokemontcg.io. Tracked on the
   [v1.6 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/9)
   under [`epic:tcgplayer`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Atcgplayer).
-- **V2** — **committed (currently staging area)**. The v2.0 milestone
-  on GitHub today aggregates structured query DSL, persistence MVP,
-  identity sign-on, and assorted lookup/web/output improvements. Under
-  strict semver — the trigger we've settled on — most of these are
-  **additive** (new commands, new endpoints, new fields, new UI
-  toggles) and could ship in the v1.x cadence without breaking
-  existing users. The real **v2 cut trigger** is one of:
-  1. **The plugin contract goes live** — the entry-point surface that
-     [ADR-0012](adr/0012-open-core-architecture.md) requires for
-     `mgz-pkmn-vendor` to register `pkmn vendor <subcommand>` becomes
-     a public API. Adding it doesn't break existing users; promising
-     compat on it does.
-  2. **Hosted-demo identity becomes required** — anonymous lookups stop
-     working on the demo. Doesn't affect the CLI, but materially
-     changes the demo's product shape.
-
-  The current [v2.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
-  serves as the staging area for the breakpoint-adjacent epics. Some
-  of its items will likely ship earlier as v1.7/v1.8 minor releases
-  once the cut criterion is firmer.
-- **V2.1** — **committed**. **Persistence-at-growth epic** — post-MVP
-  collections/wishlists scaling (Postgres / D1 / Turso spike, retention,
-  per-user export, ops runbooks). Tracked on the
-  [v2.1 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/10)
-  under [`epic:persistence-growth`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Apersistence-growth).
+- **No committed V2 yet.** Earlier drafts of this roadmap treated a
+  "v2.0" milestone as a staging area aggregating the structured query
+  DSL, persistence MVP, identity sign-on, and assorted lookup / web /
+  output epics. On 2026-06-25 that milestone was renamed to
+  **[Backlog](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)** — an
+  explicit pool of uncommitted, externally-blocked, or deferred work,
+  *not* a release. Under strict semver almost all of it is **additive**
+  (new commands, endpoints, fields, UI toggles), so it now ships in the
+  v1.x cadence through a run of themed minors that carve the old v2
+  backlog into committed, shippable slices:
+  [v1.10](https://github.com/mgzwarrior/mgz-pkmn/milestone/15) (test
+  coverage & reliability),
+  [v1.11](https://github.com/mgzwarrior/mgz-pkmn/milestone/16) (lookup &
+  search relevance),
+  [v1.12](https://github.com/mgzwarrior/mgz-pkmn/milestone/17) (web UX
+  polish),
+  [v1.13](https://github.com/mgzwarrior/mgz-pkmn/milestone/18) (output
+  formats),
+  [v1.14](https://github.com/mgzwarrior/mgz-pkmn/milestone/19) (cache &
+  data platform), and
+  [v1.15](https://github.com/mgzwarrior/mgz-pkmn/milestone/20) (packaging
+  & distribution). Anything not yet committed — including the former
+  v2.1 persistence-at-growth scaling work (its milestone is now closed)
+  and the eBay / TCGPlayer pricing epics blocked on developer access —
+  waits in the Backlog pool until it's promoted into one of those minors.
+- **The real V2 cut is gated on vendor interest.** A major bump happens
+  only when a genuinely breaking commitment lands — the entry-point
+  plugin surface that [ADR-0012](adr/0012-open-core-architecture.md)
+  requires for `mgz-pkmn-vendor` to register `pkmn vendor <subcommand>`
+  becoming a public API, or hosted-demo identity becoming *required*
+  (anonymous lookups stop working on the demo). Both are tracked under
+  [`epic:vendor-vision`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Avendor-vision)
+  ([#420](https://github.com/mgzwarrior/mgz-pkmn/issues/420),
+  [#470](https://github.com/mgzwarrior/mgz-pkmn/issues/470),
+  [#341](https://github.com/mgzwarrior/mgz-pkmn/issues/341),
+  [#271](https://github.com/mgzwarrior/mgz-pkmn/issues/271)) and stay
+  gated on real vendor interest rather than a date. The `version:v2`
+  label now survives only on the genuine vendor-vision breaking issues
+  ([#271](https://github.com/mgzwarrior/mgz-pkmn/issues/271),
+  [#341](https://github.com/mgzwarrior/mgz-pkmn/issues/341)).
 - **V2.x / Post-V2** — **committed but later**. Currently themed around
   the **free / paid separation and monetization work** — once V2 is
   shipped, the project is mature enough to consider sustainable funding
@@ -194,11 +213,17 @@ new persistence schema.
 
 ---
 
-## V2 — committed
+## V2 staging epics — now Backlog / the v1.x minors
 
 Deeper development per area. The kind of work that takes more than an
 afternoon, has design tradeoffs worth talking through, and benefits from
-its own GitHub issue + PR thread.
+its own GitHub issue + PR thread. These epics were once staged under a
+single "v2.0" milestone; as the [Versioning policy](#versioning-policy)
+explains, there's **no committed v2 yet**, so each item below now ships
+through the themed v1.x minors (v1.10–v1.15) or waits in the
+[Backlog](https://github.com/mgzwarrior/mgz-pkmn/milestone/3) pool. The
+groupings here are by project area, not by release — the milestone on
+each issue is the source of truth for *when*.
 
 ### Lookup engine
 
@@ -307,13 +332,16 @@ its own GitHub issue + PR thread.
 
 ---
 
-## V2.1 — committed (epic: persistence at growth)
+## Persistence at growth — Backlog (former v2.1, milestone closed)
 
-V2 ships the persistence MVP (collections #244, wishlists #245, runs).
-V2.1 is the layer below — what we do when the single-tenant SQLite
-shape outgrows the hosted demo. Tracked under
-[`epic:persistence-growth`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Apersistence-growth);
-depends on the V2 persistence MVP landing first.
+The persistence-at-growth epic is the layer below the persistence MVP
+(collections #244, wishlists #245, runs) — what we do when the
+single-tenant SQLite shape outgrows the hosted demo. It briefly had its
+own "v2.1" milestone; that milestone is now closed and the work folded
+into the [Backlog](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
+pool, still tracked under
+[`epic:persistence-growth`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Apersistence-growth)
+and gated on the persistence MVP landing first.
 
 - **Cache & persistence** — Postgres (via Hyperdrive) vs. Turso vs.
   Cloudflare D1 spike (captured as a follow-up ADR); migration story
@@ -462,13 +490,23 @@ split them apart:
 [v1.1](https://github.com/mgzwarrior/mgz-pkmn/milestone/2) (shipped),
 [v1.2](https://github.com/mgzwarrior/mgz-pkmn/milestone/4) (shipped),
 [v1.3](https://github.com/mgzwarrior/mgz-pkmn/milestone/5) (shipped),
-[v1.4](https://github.com/mgzwarrior/mgz-pkmn/milestone/6),
-[v1.5](https://github.com/mgzwarrior/mgz-pkmn/milestone/8),
-[v1.6](https://github.com/mgzwarrior/mgz-pkmn/milestone/9),
-[v2.0](https://github.com/mgzwarrior/mgz-pkmn/milestone/3), and
-[v2.1](https://github.com/mgzwarrior/mgz-pkmn/milestone/10). A
-`version:v2.x` label gets created when the monetization items above
-graduate from text-only proposals to filed issues.
+[v1.4](https://github.com/mgzwarrior/mgz-pkmn/milestone/6) (shipped),
+[v1.5](https://github.com/mgzwarrior/mgz-pkmn/milestone/8) (shipped),
+[v1.6](https://github.com/mgzwarrior/mgz-pkmn/milestone/9) (shipped),
+[v1.7](https://github.com/mgzwarrior/mgz-pkmn/milestone/11) (shipped),
+[v1.8](https://github.com/mgzwarrior/mgz-pkmn/milestone/12),
+[v1.9](https://github.com/mgzwarrior/mgz-pkmn/milestone/13),
+[v1.10](https://github.com/mgzwarrior/mgz-pkmn/milestone/15),
+[v1.11](https://github.com/mgzwarrior/mgz-pkmn/milestone/16),
+[v1.12](https://github.com/mgzwarrior/mgz-pkmn/milestone/17),
+[v1.13](https://github.com/mgzwarrior/mgz-pkmn/milestone/18),
+[v1.14](https://github.com/mgzwarrior/mgz-pkmn/milestone/19), and
+[v1.15](https://github.com/mgzwarrior/mgz-pkmn/milestone/20) — with the
+uncommitted, blocked, and deferred pool living in
+[Backlog](https://github.com/mgzwarrior/mgz-pkmn/milestone/3) (the
+renamed former v2.0 staging milestone). A `version:v2.x` label gets
+created when the monetization items above graduate from text-only
+proposals to filed issues.
 
 V2.x and V3+ items stay in this document as text-only proposals until
 they get promoted to committed work. The "proposed" tag is
