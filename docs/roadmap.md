@@ -15,7 +15,7 @@ A forward-looking view of what's in flight and what's next. **Shipped
 work is no longer enumerated here** — the [CHANGELOG](../CHANGELOG.md)
 and the closed milestones own that record. The Versioning policy
 section below gives a one-line summary per shipped version with a
-link to its milestone for the full ledger; everything past V1.4 is
+link to its milestone for the full ledger; everything past V1.7 is
 open work.
 
 Items live on GitHub as issues, labels, milestones, and projects —
@@ -32,24 +32,30 @@ live demo), see <https://mgz-pkmn.com>.
 
 - **V1** (`1.0.0`) — 2026-05-15. Defensible 1.0; polish, tests, docs, release engineering. [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
 - **V1.1** (`1.1.0`) — 2026-05-25. Set ID cards + web set-picker, marketing site, devex (PyPI, DCO, Codecov), a11y pass. [v1.1 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/2).
-- **V1.2** — Marketing-site polish + late v1.1-cycle web UX. [v1.2 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/4).
-- **V1.3** — Pre-Scrydex catalog-warm epic ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)) + auth foundation ([#414](https://github.com/mgzwarrior/mgz-pkmn/pull/414)). [v1.3 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/5) · [v1.3.1 patch](https://github.com/mgzwarrior/mgz-pkmn/milestone/7).
+- **V1.2** (`1.2.0`) — 2026-05-31. Marketing-site polish + late v1.1-cycle web UX. [v1.2 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/4).
+- **V1.3** (`1.3.0`) — 2026-06-03. Pre-Scrydex catalog-warm epic ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)) + auth foundation ([#414](https://github.com/mgzwarrior/mgz-pkmn/pull/414)). [v1.3 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/5) · [v1.3.1 patch](https://github.com/mgzwarrior/mgz-pkmn/milestone/7).
+- **V1.4** (`1.4.0`) — 2026-06-09. Hosted-demo identity + auth UX (provider sign-in, Save-Search nudge, anonymous cache-only mode), CLI maintainability refactor, marketing polish. [v1.4 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/6).
+- **V1.5** (`1.5.0`) — 2026-06-10. eBay as an additive sold + active-listings pricing source. [v1.5 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/8).
+- **V1.6** (`1.6.0`) — 2026-06-13. First-class TCGPlayer API pricing + per-user OAuth. [v1.6 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/9) · [v1.6.1 patch](https://github.com/mgzwarrior/mgz-pkmn/milestone/14).
+- **V1.7** (`1.7.0`) — 2026-06-25. Pricing-source pivot: with full eBay/TCGPlayer API access gated to high-volume developers, the pricing epics re-scoped around affiliate links across the web app plus the no-auth TCGCSV stopgap; CLI/auth bug clears, radon allowlist to zero, web/API perf + site polish. [v1.7 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/11).
 
 **In flight / planned:**
 
-- **V1.4** — **committed**. Hosted-demo auth UX (provider sign-in,
-  Save-Search nudge, anonymous cache-only mode), CLI maintainability
-  refactor, marketing polish. Tracked on the
-  [v1.4 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/6).
-- **V1.5** — **committed**. **eBay integration epic** — additive sold +
-  active listings as a fourth pricing source via OAuth. Tracked on the
-  [v1.5 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/8)
-  under [`epic:ebay`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aebay).
-- **V1.6** — **committed**. **TCGPlayer integration epic** —
-  first-class TCGPlayer API replacing the embedded `tcgplayer` block
-  from pokemontcg.io. Tracked on the
-  [v1.6 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/9)
-  under [`epic:tcgplayer`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Atcgplayer).
+- **V1.8** — **committed (in flight)**. **"Make it honest"** — a
+  legibility release that brings every surface explaining the app back
+  in sync with what it actually does (in-app Tour and Help modal,
+  end-user docs, marketing-site accuracy), lays the first Playwright
+  end-to-end smoke flow under the UI, and builds a collector-facing
+  front door (hero demo video, welcome-sequence copy). Tracked on the
+  [v1.8 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/12).
+- **V1.9** — **committed (in flight)**. **Web workspace rethink** —
+  gives the library a real identity (saved searches vs. wishlists vs.
+  collections), ships the mobile-first IA + desktop-workspace
+  responsive overhaul, lands the export / filter / pricing-column UX
+  upgrades that thread through both layouts, and introduces parent/kid
+  profiles ("parents mode"). Tracked on the
+  [v1.9 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/13)
+  under [`epic:library`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Alibrary).
 - **No committed V2 yet.** Earlier drafts of this roadmap treated a
   "v2.0" milestone as a staging area aggregating the structured query
   DSL, persistence MVP, identity sign-on, and assorted lookup / web /
@@ -124,8 +130,8 @@ you're looking for:
   `specialty:security`, `specialty:data`, `specialty:design`. Pick
   whichever matches your background and filter the board to it.
 
-A frontend contributor browsing v1.5 work can run
-`is:open milestone:v1.5 label:specialty:frontend` to find their issues.
+A frontend contributor browsing v1.9 work can run
+`is:open milestone:v1.9 label:specialty:frontend` to find their issues.
 A security-minded contributor can pull `label:specialty:security` across
 all open milestones. The combinations are meant to make self-serve
 contribution easy without anyone having to triage by hand.
@@ -145,7 +151,7 @@ rationale behind the single-project structure.
 |---|---|---|---|
 | **Lookup engine** | Parse user input, resolve cards across data sources, attach pricing. ([`parser.py`](../src/mgz_pkmn/parser.py), [`lookup.py`](../src/mgz_pkmn/lookup.py), [`sources/`](../src/mgz_pkmn/sources/), [`pricing.py`](../src/mgz_pkmn/pricing.py)) | [Lookup](https://github.com/users/mgzwarrior/projects/11/views/3) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Alookup?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Alookup) |
 | **Output artifacts** | Render rows into spreadsheet / PDFs / checklist / JSON. ([`spreadsheet.py`](../src/mgz_pkmn/spreadsheet.py), [`binder.py`](../src/mgz_pkmn/binder.py), [`checklist.py`](../src/mgz_pkmn/checklist.py), [`report.py`](../src/mgz_pkmn/report.py)) | [Outputs](https://github.com/users/mgzwarrior/projects/11/views/4) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aoutputs?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aoutputs) |
-| **Cache & persistence** | Disk cache for API responses + URL overrides; (V2) multi-user storage. ([`cache.py`](../src/mgz_pkmn/cache.py)) | [Cache](https://github.com/users/mgzwarrior/projects/11/views/5) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Acache?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Acache) |
+| **Cache & persistence** | Disk cache for API responses + URL overrides; (planned) multi-user storage. ([`cache.py`](../src/mgz_pkmn/cache.py)) | [Cache](https://github.com/users/mgzwarrior/projects/11/views/5) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Acache?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Acache) |
 | **Web UI / API** | FastAPI service + React SPA. ([`api/`](../api/), [`web/`](../web/)) | [Web / API](https://github.com/users/mgzwarrior/projects/11/views/6) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Aweb?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Aweb) |
 | **Marketing site** | Astro static site deployed to Cloudflare Pages — landing page, copy, visuals. ([`site/`](../site/)) | [Site](https://github.com/users/mgzwarrior/projects/11?filterQuery=label%3A%22area%3Asite%22) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Asite?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Asite) |
 | **DevOps & release** | CI, deployment, packaging, distribution, security, governance. | [DevOps](https://github.com/users/mgzwarrior/projects/11/views/7) | [![](https://img.shields.io/github/issues/mgzwarrior/mgz-pkmn/area%3Adevops?label=)](https://github.com/mgzwarrior/mgz-pkmn/issues?q=is%3Aopen+label%3Aarea%3Adevops) |
@@ -164,196 +170,321 @@ label filters. AI-assisted PRs welcome — see
 
 ---
 
-## V1.5 — committed (epic: eBay integration)
+## V1.8 — Make it honest (in flight)
 
-Adds eBay as a fourth pricing source alongside pokemontcg.io / Scrydex
-/ PriceCharting. Slots into the existing source-plugin pattern; the
-existing CLI / API contracts don't change, hence a v1.x rather than v2
-milestone. See [ADR-0020](adr/0020-ebay-pricing-source.md) for the
-acceptance contract and the
-[`epic:ebay`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aebay)
-tracking issue for the live task list.
+Before courting collectors and the V1.9 workspace overhaul, every
+surface that *explains* the app is brought back in sync with what it
+actually does — with a Playwright safety net underneath and a
+collector-facing front door on top. Tracked on the
+[v1.8 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/12).
 
-The epic spans every project area:
+### Legibility — say what the app does
 
-- **Lookup engine** — `EbayClient` adapter implementing the existing
-  source contract; `Pricing.source` enum gains `"ebay_sold"` and
-  `"ebay_active"`.
-- **Cache & persistence** — per-source TTL policy (sold listings get a
-  longer freshness window than active listings).
-- **Web UI / API** — results-table column / drawer for eBay comps + a
-  last-N sold sparkline.
-- **DevOps & release** — eBay Developer OAuth client, secret rotation
-  runbook, Render env-var wiring.
-- **Security** — token storage, scope minimization, rate-limit
-  back-pressure.
-- **Tests** — cassette-based integration tests against eBay sandbox.
+- Refresh the Tour walkthrough for current features.
+  ([#317](https://github.com/mgzwarrior/mgz-pkmn/issues/317))
+- Refresh the in-app Help modal to match current behavior.
+  ([#792](https://github.com/mgzwarrior/mgz-pkmn/issues/792))
+- Audit end-user docs (web flows) against current behavior.
+  ([#793](https://github.com/mgzwarrior/mgz-pkmn/issues/793))
+- Marketing-site accuracy pass — copy + screenshots match the live app.
+  ([#794](https://github.com/mgzwarrior/mgz-pkmn/issues/794))
 
----
+### Safety net
 
-## V1.6 — committed (epic: TCGPlayer integration)
+- Scaffold Playwright and the first end-to-end smoke flow, under
+  [`epic:e2e-tests`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Ae2e-tests).
+  ([#758](https://github.com/mgzwarrior/mgz-pkmn/issues/758))
 
-Upgrades the embedded `tcgplayer` price block (today delivered nested
-inside pokemontcg.io responses) to live data from TCGPlayer's API,
-falling through to the embedded block when no credentials are present.
-See [ADR-0021](adr/0021-tcgplayer-first-class-pricing.md) and the
-[`epic:tcgplayer`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Atcgplayer)
-tracking issue.
+### Collector-facing front door
 
-Pairs with the V2 persistence epic: per-user OAuth tokens land in the
-new persistence schema.
-
-- **Lookup engine** — `TCGPlayerClient` adapter; pricing upgrade path.
-- **Cache & persistence** — SWR window for TCGPlayer market price.
-- **Web UI / API** — "Connect TCGPlayer" settings panel with status.
-- **DevOps & release** — per-user token storage migration.
-- **Security** — OAuth `app/authorizeApplication` flow, refresh-token
-  handling.
-- **Tests** — sandbox / canned-response coverage.
+- Replace the hero asciinema cast with a live demo video.
+  ([#345](https://github.com/mgzwarrior/mgz-pkmn/issues/345))
+- Refine the welcome-sequence copy before enabling email automation.
+  ([#359](https://github.com/mgzwarrior/mgz-pkmn/issues/359))
+- A personal "why I built this" maker's story.
+  ([#800](https://github.com/mgzwarrior/mgz-pkmn/issues/800))
+- Vendor-interest callout + signup form to gauge demand before the
+  vendor adapter, under
+  [`epic:vendor-vision`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Avendor-vision).
+  ([#801](https://github.com/mgzwarrior/mgz-pkmn/issues/801))
 
 ---
 
-## V2 staging epics — now Backlog / the v1.x minors
+## V1.9 — Web workspace rethink (in flight)
 
-Deeper development per area. The kind of work that takes more than an
-afternoon, has design tradeoffs worth talking through, and benefits from
-its own GitHub issue + PR thread. These epics were once staged under a
-single "v2.0" milestone; as the [Versioning policy](#versioning-policy)
-explains, there's **no committed v2 yet**, so each item below now ships
-through the themed v1.x minors (v1.10–v1.15) or waits in the
-[Backlog](https://github.com/mgzwarrior/mgz-pkmn/milestone/3) pool. The
-groupings here are by project area, not by release — the milestone on
-each issue is the source of truth for *when*.
+The biggest open release: give the web library a real identity, make
+the whole UI responsive mobile-first, and thread export / filter /
+pricing-column upgrades through both layouts — plus parent/kid
+profiles. Tracked on the
+[v1.9 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/13);
+the library work sits under
+[`epic:library`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Alibrary).
 
-### Lookup engine
+### Library identity
 
-- **Structured query DSL — dual-mode + smart auto-detect.**
-  `top:N subtype:V,VMAX in "Surging Sparks" rarity:rare>=$50` runs in
-  DSL mode alongside the existing flavor-text mode. A frontend toggle
-  picks the default; smart auto-detect picks the right mode when input
-  is unambiguous (`key:value` or `>=$` tokens are always DSL even if
-  the toggle says flavor). Tracked under the `epic:query-dsl` umbrella;
-  closes [#39](https://github.com/mgzwarrior/mgz-pkmn/issues/39) when
-  the dual-mode contract ships.
-- eBay sold-listings — has graduated to its own epic in V1.5; see the
-  `epic:ebay` tracking issue and [v1.5 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/8). The
-  original opt-in framing in
-  [#40](https://github.com/mgzwarrior/mgz-pkmn/issues/40) is now a
-  child issue under that epic.
-- Cache TCGdex responses too (today only pokemontcg.io is cached).
-  ([#41](https://github.com/mgzwarrior/mgz-pkmn/issues/41))
-- Surface ambiguity in the JSON report
-  (`"alternatives": [{...}]`) instead of silently picking one.
-  ([#42](https://github.com/mgzwarrior/mgz-pkmn/issues/42))
+- RFC: library rethink — distinguish from saved searches, give
+  collections a real identity.
+  ([#501](https://github.com/mgzwarrior/mgz-pkmn/issues/501))
+- Rename "want-list" UI labels to "Wishlist" to match the data model.
+  ([#786](https://github.com/mgzwarrior/mgz-pkmn/issues/786))
+- Rename a collection / wishlist from its detail view.
+  ([#787](https://github.com/mgzwarrior/mgz-pkmn/issues/787))
+- Deeplink to the chosen collection after a wishlist "Got it".
+  ([#789](https://github.com/mgzwarrior/mgz-pkmn/issues/789))
+- Collection purpose (personal / trade / bulk) + purpose-aware
+  ownership. ([#707](https://github.com/mgzwarrior/mgz-pkmn/issues/707))
+- Post-capture organize flow for quick-action saves.
+  ([#762](https://github.com/mgzwarrior/mgz-pkmn/issues/762))
+- First-run onboarding via a swipe pass.
+  ([#714](https://github.com/mgzwarrior/mgz-pkmn/issues/714))
+- Swipe mode as a personalization surface — favorite sets, taste
+  profile, smarter candidates.
+  ([#701](https://github.com/mgzwarrior/mgz-pkmn/issues/701))
+- Set-ID card tracks collection progress over time.
+  ([#508](https://github.com/mgzwarrior/mgz-pkmn/issues/508))
+- "Card show haul" mode — bulk-enter cards into a collection from the
+  search bar. ([#509](https://github.com/mgzwarrior/mgz-pkmn/issues/509))
+- CLI parity with API/web for collections + wishlists.
+  ([#499](https://github.com/mgzwarrior/mgz-pkmn/issues/499))
+
+### Responsive IA + desktop workspace
+
+- Responsive UI overhaul: mobile-first IA + desktop workspace.
+  ([#518](https://github.com/mgzwarrior/mgz-pkmn/issues/518))
+- Mobile: bottom-tab navigation + collapsed utility sheet
+  ([#519](https://github.com/mgzwarrior/mgz-pkmn/issues/519)), Look-up
+  affordance + want-list textarea touch polish
+  ([#520](https://github.com/mgzwarrior/mgz-pkmn/issues/520)), render
+  results as cards
+  ([#521](https://github.com/mgzwarrior/mgz-pkmn/issues/521)).
+- Desktop: side-by-side workspace
+  ([#522](https://github.com/mgzwarrior/mgz-pkmn/issues/522)), editor
+  polish ([#523](https://github.com/mgzwarrior/mgz-pkmn/issues/523)),
+  lift the 1200px width cap
+  ([#524](https://github.com/mgzwarrior/mgz-pkmn/issues/524)), command
+  palette (⌘K)
+  ([#525](https://github.com/mgzwarrior/mgz-pkmn/issues/525)), density
+  toggle ([#526](https://github.com/mgzwarrior/mgz-pkmn/issues/526)),
+  sticky run controls + sidebar-collapse reflow
+  ([#527](https://github.com/mgzwarrior/mgz-pkmn/issues/527)).
+- Catch-all 404 page for unknown SPA routes.
+  ([#539](https://github.com/mgzwarrior/mgz-pkmn/issues/539))
+
+### Export · filter · pricing-column UX
+
+- Export as a contextual action surfaced with results.
+  ([#529](https://github.com/mgzwarrior/mgz-pkmn/issues/529))
+- Promote result filters out of the inline editor into a dedicated
+  panel. ([#541](https://github.com/mgzwarrior/mgz-pkmn/issues/541))
+- User-configurable ResultsTable columns (comp tiers + pricing source).
+  ([#542](https://github.com/mgzwarrior/mgz-pkmn/issues/542))
+- Configurable export data — choose which fields/columns each export
+  includes. ([#262](https://github.com/mgzwarrior/mgz-pkmn/issues/262))
+- Per-row manual price override that flows through to every export.
+  ([#266](https://github.com/mgzwarrior/mgz-pkmn/issues/266))
+- Condition-aware pricing — toggle NM / LP / MP / HP and recalculate
+  comps. ([#270](https://github.com/mgzwarrior/mgz-pkmn/issues/270))
+- Per-section tagging in the web flow (parity with CLI multi-file runs).
+  ([#365](https://github.com/mgzwarrior/mgz-pkmn/issues/365))
+- Dark-mode export variant + dynamic light/dark gallery switching.
+  ([#598](https://github.com/mgzwarrior/mgz-pkmn/issues/598))
+
+### Profiles + accessibility
+
+- RFC: kid profiles inside a parent account ("parents mode").
+  ([#765](https://github.com/mgzwarrior/mgz-pkmn/issues/765))
+- Expand the user profile with optional detail + a first-signup prompt.
+  ([#770](https://github.com/mgzwarrior/mgz-pkmn/issues/770))
+- Expand what's configurable in settings while condensing the surface.
+  ([#764](https://github.com/mgzwarrior/mgz-pkmn/issues/764))
+- Browser-level axe-core in CI (Playwright + @axe-core/playwright).
+  ([#222](https://github.com/mgzwarrior/mgz-pkmn/issues/222))
+
+---
+
+## The v1.10–v1.15 themed minors
+
+The epics once staged under a single "v2.0" milestone now ship as a run
+of themed v1.x minors. Each is a committed milestone; the slices below
+are the issues filed against it. (Where an issue predates the
+restructure its number is unchanged — only its milestone moved.)
+
+### v1.10 — Reliability foundation
+
+Fill the test gaps so the collector-facing surfaces are trustworthy and
+safe to refactor. Tracked on the
+[v1.10 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/15).
+
+- Lookup sources — pokemontcg.io, TCGdex, base adapter.
+  ([#230](https://github.com/mgzwarrior/mgz-pkmn/issues/230))
+- Lookup orchestration (`lookup.py` + `api/routes/lookup.py`).
+  ([#231](https://github.com/mgzwarrior/mgz-pkmn/issues/231))
+- CLI command flows.
+  ([#232](https://github.com/mgzwarrior/mgz-pkmn/issues/232))
+- Web SPA + API client.
+  ([#233](https://github.com/mgzwarrior/mgz-pkmn/issues/233))
+- Interactive web components.
+  ([#234](https://github.com/mgzwarrior/mgz-pkmn/issues/234))
+
+### v1.11 — Sharper lookups
+
+Make free-form collector queries land the right cards more often.
+Tracked on the
+[v1.11 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/16).
+
 - Pluggable name aliases — `top 5 ナッシー` works as well as
   `top 5 Exeggutor`.
   ([#43](https://github.com/mgzwarrior/mgz-pkmn/issues/43))
-- **Pokemon type-aware search.** First-class support for the actual
-  type system (Fire, Water, Grass, Lightning, Psychic, Fighting,
-  Darkness, Metal, Fairy, Dragon, Colorless). `top 5 Fire type
-  cards`, `top 10 Dragon cards in Surging Sparks`, name + type
-  combos. Routes to pokemontcg.io's `types:` filter rather than the
-  current flavor-text fallback.
-  ([#72](https://github.com/mgzwarrior/mgz-pkmn/issues/72))
-- Public `parse_lines(text) → list[CardQuery]` for downstream tools.
-  ([#44](https://github.com/mgzwarrior/mgz-pkmn/issues/44))
-
-### Output artifacts
-
 - Configurable comp tiers via `--comps 70,80,90`.
   ([#45](https://github.com/mgzwarrior/mgz-pkmn/issues/45))
+- Skip-already-owned mode — filter binder + checklist against a "what I
+  own" list. ([#50](https://github.com/mgzwarrior/mgz-pkmn/issues/50))
+- Pokémon type-aware search — route to the `types:` filter instead of
+  the flavor-text fallback.
+  ([#72](https://github.com/mgzwarrior/mgz-pkmn/issues/72))
+- Surface ambiguity in the JSON report instead of silently picking one.
+  ([#42](https://github.com/mgzwarrior/mgz-pkmn/issues/42))
+- Surface "why this matched" on result rows.
+  ([#179](https://github.com/mgzwarrior/mgz-pkmn/issues/179))
+- Replace hardcoded "cute card" flavor logic with a concept-tag
+  registry. ([#181](https://github.com/mgzwarrior/mgz-pkmn/issues/181))
+- Canonical Pokémon type-normalization map (aliases + multi-type).
+  ([#182](https://github.com/mgzwarrior/mgz-pkmn/issues/182))
+- Confidence bands + weak-match threshold filtering.
+  ([#184](https://github.com/mgzwarrior/mgz-pkmn/issues/184))
+- Pokémon metadata enrichment pipeline (stage / ability / evolution
+  tags). ([#189](https://github.com/mgzwarrior/mgz-pkmn/issues/189))
+
+### v1.12 — Web quality-of-life
+
+Tracked on the
+[v1.12 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/17).
+
+- Drag-and-drop file upload onto the editor.
+  ([#59](https://github.com/mgzwarrior/mgz-pkmn/issues/59))
+- Inline edit + re-run for unmatched rows.
+  ([#60](https://github.com/mgzwarrior/mgz-pkmn/issues/60))
+- Card artwork modal / lightbox (accessibility-first).
+  ([#178](https://github.com/mgzwarrior/mgz-pkmn/issues/178))
+- Advanced filter drawer (type / rarity / set / price) with a mobile
+  bottom-sheet. ([#183](https://github.com/mgzwarrior/mgz-pkmn/issues/183))
+- High-res image strategy (lazy-load, srcset, modal prefetch).
+  ([#185](https://github.com/mgzwarrior/mgz-pkmn/issues/185))
+- Structured lookup telemetry (opt-in).
+  ([#186](https://github.com/mgzwarrior/mgz-pkmn/issues/186))
+- Offline mode for card shows with poor connectivity.
+  ([#258](https://github.com/mgzwarrior/mgz-pkmn/issues/258))
+- 30-day price-trend sparkline on every results row.
+  ([#269](https://github.com/mgzwarrior/mgz-pkmn/issues/269))
+
+### v1.13 — Richer artifacts
+
+Tracked on the
+[v1.13 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/18).
+
 - Per-section charts in xlsx (price-distribution, top-N).
   ([#46](https://github.com/mgzwarrior/mgz-pkmn/issues/46))
 - HTML output mode for sharing a wishlist by URL.
   ([#47](https://github.com/mgzwarrior/mgz-pkmn/issues/47))
-- Custom binder layouts via TOML config (user-supplied
-  `BinderLayout` instance without editing Python).
+- Custom binder layouts via TOML config.
   ([#48](https://github.com/mgzwarrior/mgz-pkmn/issues/48))
 - Color-coded rarity in xlsx.
   ([#49](https://github.com/mgzwarrior/mgz-pkmn/issues/49))
-- Skip-already-owned mode (filters binder + checklist against a
-  user-supplied "what I own" list).
-  ([#50](https://github.com/mgzwarrior/mgz-pkmn/issues/50))
-- **Expanded PDF design customization.** Per-page-size presets
-  (A4, A5, custom), per-cell border/background controls, optional
-  watermark, configurable card-art aspect / rotation, branded header
-  bar. ([#51](https://github.com/mgzwarrior/mgz-pkmn/issues/51))
+- Expanded PDF design customization (page-size presets, per-cell
+  controls, watermark, header bar).
+  ([#51](https://github.com/mgzwarrior/mgz-pkmn/issues/51))
+- Swipeable flipbook export — a digital binder for phone/tablet review.
+  ([#259](https://github.com/mgzwarrior/mgz-pkmn/issues/259))
 
-### Cache & persistence
+### v1.14 — Cache maturity
 
-- LRU eviction with size cap (`MGZ_PKMN_CACHE_MAX_MB`, default 100).
+Tracked on the
+[v1.14 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/19).
+
+- Cache TCGdex responses too (today only pokemontcg.io is cached).
+  ([#41](https://github.com/mgzwarrior/mgz-pkmn/issues/41))
+- LRU eviction with a size cap (`MGZ_PKMN_CACHE_MAX_MB`).
   ([#52](https://github.com/mgzwarrior/mgz-pkmn/issues/52))
-- `pkmn cache compact` subcommand (re-encodes, drops corrupt
-  entries). ([#53](https://github.com/mgzwarrior/mgz-pkmn/issues/53))
-- TTL per source (pokemontcg.io stable; PriceCharting volatile).
+- `pkmn cache compact` subcommand.
+  ([#53](https://github.com/mgzwarrior/mgz-pkmn/issues/53))
+- TTL per source.
   ([#54](https://github.com/mgzwarrior/mgz-pkmn/issues/54))
-- `pkmn cache warm input/` — pre-populate the cache before a
-  show with spotty Wi-Fi.
-  ([#55](https://github.com/mgzwarrior/mgz-pkmn/issues/55))
-- SQLite cache option (queryable history) — opt-in; default JSON
-  store stays. ([#56](https://github.com/mgzwarrior/mgz-pkmn/issues/56))
-- **Multi-user persistent collections.** Promote the disk cache to a
-  full database (PostgreSQL or SQLite-with-Alembic) so deployed
-  instances can track per-user collections, wishlists, and run
-  history. Backwards-compatible: single-user CLI keeps the
-  filesystem path; the API gains `/collections` endpoints.
-  ([#57](https://github.com/mgzwarrior/mgz-pkmn/issues/57))
+- `pkmn cache warm input/` — pre-populate before a show with spotty
+  Wi-Fi. ([#55](https://github.com/mgzwarrior/mgz-pkmn/issues/55))
+- SQLite cache option (queryable history), opt-in.
+  ([#56](https://github.com/mgzwarrior/mgz-pkmn/issues/56))
+- TCGdex disk persistence across CLI runs.
+  ([#294](https://github.com/mgzwarrior/mgz-pkmn/issues/294))
+- Scrydex migration cutover — swap the price-fetch path + ID mapping.
+  ([#351](https://github.com/mgzwarrior/mgz-pkmn/issues/351))
+- Scrydex webhooks for push-based cache invalidation.
+  ([#373](https://github.com/mgzwarrior/mgz-pkmn/issues/373))
 
-### Web UI / API
+### v1.15 — Easy to install
 
-- Persistent run history with sidebar diff/re-export.
-  ([#58](https://github.com/mgzwarrior/mgz-pkmn/issues/58))
-- Drag-and-drop `.txt` upload onto the editor.
-  ([#59](https://github.com/mgzwarrior/mgz-pkmn/issues/59))
-- Inline edit + re-run for unmatched rows.
-  ([#60](https://github.com/mgzwarrior/mgz-pkmn/issues/60))
-- Authentication for hosted instances (API keys, per-key rate
-  limits). ([#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61))
-- Mobile-responsive layout + a11y audit (axe-core in CI).
-  ([#62](https://github.com/mgzwarrior/mgz-pkmn/issues/62))
-- OpenAPI client codegen (`@mgzwarrior/mgz-pkmn-client` published
-  from the FastAPI schema).
-  ([#63](https://github.com/mgzwarrior/mgz-pkmn/issues/63))
+Tracked on the
+[v1.15 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/20).
 
-### DevOps & release
-
-- PyPI publish on `v*` tag (Trusted Publisher).
-  ([#64](https://github.com/mgzwarrior/mgz-pkmn/issues/64))
+- OpenAPI client codegen (`@mgzwarrior/mgz-pkmn-client` from the
+  FastAPI schema). ([#63](https://github.com/mgzwarrior/mgz-pkmn/issues/63))
 - Docker image to GHCR on tag.
   ([#65](https://github.com/mgzwarrior/mgz-pkmn/issues/65))
-- Standalone PyInstaller binaries (macOS / Linux / Windows) on
-  releases. ([#66](https://github.com/mgzwarrior/mgz-pkmn/issues/66))
+- Standalone PyInstaller binaries (macOS / Linux / Windows).
+  ([#66](https://github.com/mgzwarrior/mgz-pkmn/issues/66))
 - Homebrew tap: `brew install mgzwarrior/tap/mgz-pkmn`.
   ([#67](https://github.com/mgzwarrior/mgz-pkmn/issues/67))
-- Conventional Commits + auto-generated release notes.
-  ([#68](https://github.com/mgzwarrior/mgz-pkmn/issues/68))
-- Coverage reporting (Codecov) with a hard threshold on PRs.
-  ([#69](https://github.com/mgzwarrior/mgz-pkmn/issues/69))
 
 ---
 
-## Persistence at growth — Backlog (former v2.1, milestone closed)
+## Backlog — uncommitted, blocked, deferred
 
-The persistence-at-growth epic is the layer below the persistence MVP
-(collections #244, wishlists #245, runs) — what we do when the
-single-tenant SQLite shape outgrows the hosted demo. It briefly had its
-own "v2.1" milestone; that milestone is now closed and the work folded
-into the [Backlog](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
-pool, still tracked under
-[`epic:persistence-growth`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Apersistence-growth)
-and gated on the persistence MVP landing first.
+The [Backlog milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
+is the renamed former "v2.0" staging milestone — a pool of work that
+isn't committed to a release yet, is blocked on an external dependency,
+or has been deferred. It is **not** a release. Items graduate out of it
+into a themed v1.x minor once they're committed. Each epic below has a
+tracking issue carrying the full child task list.
 
-- **Cache & persistence** — Postgres (via Hyperdrive) vs. Turso vs.
-  Cloudflare D1 spike (captured as a follow-up ADR); migration story
-  keeps Alembic and adds a Postgres dialect adapter.
-- **Web UI / API** — per-user data export (`GET /me/export` → JSON
-  dump); "Your data" page listing runs, collections, wishlists with
-  delete + export controls.
-- **DevOps & release** — backup + restore runbook for the hosted demo
-  DB.
-- **Security** — retention policy for `runs` / `run_rows` (90 days
-  anonymous, indefinite signed-in).
-- **Tests** — SQLite ↔ Postgres migration round-trip coverage.
+- **Flavor-text parser uplift + LLM-backed flavor→DSL translator** —
+  expand keyword coverage, add a `FlavorTranslator` behind the
+  `QueryMode` interface, and back it with Claude so free-text input like
+  `pkmn lookup "top:10 puppy cards"` resolves. Tracked under
+  [`epic:flavor-uplift`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aflavor-uplift)
+  ([#455](https://github.com/mgzwarrior/mgz-pkmn/issues/455)); deferred
+  out of V1.8.
+- **Structured query DSL — dual-mode + smart auto-detect** —
+  `top:N subtype:V,VMAX in "Surging Sparks" rarity:rare>=$50` running
+  alongside flavor mode, with auto-detect on unambiguous tokens. Tracked
+  under
+  [`epic:query-dsl`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aquery-dsl)
+  ([#418](https://github.com/mgzwarrior/mgz-pkmn/issues/418); closes
+  [#39](https://github.com/mgzwarrior/mgz-pkmn/issues/39)).
+- **Persistence at growth** — post-MVP scaling for collections /
+  wishlists / runs: a Postgres (Hyperdrive) vs. Turso vs. Cloudflare D1
+  spike, a Postgres dialect adapter, `GET /me/export`, a retention
+  policy, a "Your data" page, and a backup/restore runbook. Formerly its
+  own "v2.1" milestone, now closed and folded here under
+  [`epic:persistence-growth`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Apersistence-growth)
+  ([#419](https://github.com/mgzwarrior/mgz-pkmn/issues/419)); gated on
+  the persistence MVP (collections
+  [#244](https://github.com/mgzwarrior/mgz-pkmn/issues/244), wishlists
+  [#245](https://github.com/mgzwarrior/mgz-pkmn/issues/245)) landing
+  first.
+- **TCGPlayer first-class API pricing** — a `TCGPlayerClient` adapter,
+  per-user OAuth, a "Connect TCGPlayer" panel, encrypted token storage.
+  **Blocked**: full API access is gated to high-volume developers, so it
+  waits behind the affiliate-link + TCGCSV stopgap that shipped in V1.7.
+  Tracked under
+  [`epic:tcgplayer`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Atcgplayer)
+  ([#417](https://github.com/mgzwarrior/mgz-pkmn/issues/417); TCGCSV
+  stopgap [#635](https://github.com/mgzwarrior/mgz-pkmn/issues/635)).
+- **eBay sold + active listings as a first-class pricing source** — an
+  `EbayClient` adapter with cassette-based sandbox tests. **Blocked** on
+  the same developer-access gate. Tracked under
+  [`epic:ebay`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aebay)
+  ([#416](https://github.com/mgzwarrior/mgz-pkmn/issues/416)).
+- **Governance** — evaluate converting mgz-pkmn to an organization-owned
+  repo. ([#163](https://github.com/mgzwarrior/mgz-pkmn/issues/163))
 
 ---
 
@@ -371,8 +502,8 @@ V2.x items track on the unified
 [`mgz-pkmn`](https://github.com/users/mgzwarrior/projects/11) project
 alongside the rest of the roadmap; once issues are filed they get the
 `version:v2.x` label so the policy work, infra changes, and feature
-gating land coherently. Leaving them un-numbered until V1 ships keeps
-the doc honest about what's open vs. just intended.
+gating land coherently. Leaving them un-numbered until they're
+committed keeps the doc honest about what's open vs. just intended.
 
 ### Monetization
 
