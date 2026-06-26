@@ -43,9 +43,12 @@ const USER_SCOPED_TABS = new Set<LibraryTab>(['binders'])
 interface Props {
   variant: 'sidebar' | 'accordion'
   onRun: (overrideText: string) => void
+  /** Surface the Search editor + results — the app opens on Swipe, so loading
+   *  a saved search has to switch modes for its rows to be visible (#814). */
+  onShowSearch: () => void
 }
 
-export function LibraryPanel({ variant, onRun }: Props) {
+export function LibraryPanel({ variant, onRun, onShowSearch }: Props) {
   const [activeTab, setActiveTab] = useState<LibraryTab>('searches')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [accordionOpen, setAccordionOpen] = useState(false)
@@ -64,7 +67,7 @@ export function LibraryPanel({ variant, onRun }: Props) {
   // flicker; the stored activeTab catches up on the next user click.
   const resolvedActive: LibraryTab =
     !showUserScoped && USER_SCOPED_TABS.has(activeTab) ? 'searches' : activeTab
-  const tabContent = renderTab(resolvedActive, onRun)
+  const tabContent = renderTab(resolvedActive, onRun, onShowSearch)
   // The cached `runs` array is server-fetched and user-scoped; signOut()
   // only clears `auth.user`, not the store, so reading `runs.length`
   // straight through would leak the previous user's saved-search count
@@ -169,10 +172,14 @@ export function LibraryPanel({ variant, onRun }: Props) {
   )
 }
 
-function renderTab(tab: LibraryTab, onRun: (overrideText: string) => void) {
+function renderTab(
+  tab: LibraryTab,
+  onRun: (overrideText: string) => void,
+  onShowSearch: () => void,
+) {
   switch (tab) {
     case 'searches':
-      return <LibrarySearchesTab />
+      return <LibrarySearchesTab onShowSearch={onShowSearch} />
     case 'recent':
       return <LibraryRecentTab onRun={onRun} />
     case 'binders':

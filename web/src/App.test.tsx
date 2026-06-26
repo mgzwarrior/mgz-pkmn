@@ -101,6 +101,19 @@ function resetStore() {
   useAppStore.getState().resetSettings()
 }
 
+// The app now opens on Swipe (#814). Most of these tests exercise the
+// Search-mode editor / run lifecycle, so render and switch to Search first —
+// reproducing the old default landing without coupling each test to it.
+function renderInSearchMode() {
+  const utils = render(<App />)
+  fireEvent.click(
+    within(screen.getByRole('tablist', { name: /Discovery mode/i })).getByRole('tab', {
+      name: /Search/,
+    }),
+  )
+  return utils
+}
+
 describe('App: bulk-run timestamp lifecycle', () => {
   let nowSpy: ReturnType<typeof vi.spyOn>
   let currentTime = 0
@@ -147,7 +160,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
       },
     )
 
-    render(<App />)
+    renderInSearchMode()
     setNow(1_000)
     fireEvent.click(screen.getByRole('button', { name: /look up/i }))
 
@@ -204,7 +217,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
       },
     )
 
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(screen.getByRole('button', { name: /look up/i }))
     await waitFor(() => {
       expect(useAppStore.getState().runStartedAt).toBe(1_000)
@@ -231,7 +244,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
       },
     )
 
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(screen.getByRole('button', { name: /look up/i }))
     await waitFor(() => expect(captured).not.toBeNull())
 
@@ -259,7 +272,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
       },
     )
 
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(screen.getByRole('button', { name: /look up/i }))
     await waitFor(() => expect(captured).not.toBeNull())
 
@@ -283,7 +296,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
       return Promise.reject(new Error('network'))
     })
 
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(screen.getByRole('button', { name: /look up/i }))
 
     await waitFor(() => {
@@ -311,7 +324,7 @@ describe('App: bulk-run timestamp lifecycle', () => {
       },
     )
 
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(screen.getByRole('button', { name: /look up/i }))
 
     await waitFor(() => {
@@ -332,7 +345,7 @@ describe('App: footer disclosures', () => {
   })
 
   it('discloses the marketplace affiliate relationship in the app footer', () => {
-    render(<App />)
+    renderInSearchMode()
     expect(
       screen.getByText(
         /Affiliate disclosure: mgz-pkmn may earn from qualifying purchases through eBay and TCGplayer links\./,
@@ -359,15 +372,27 @@ describe('App: discovery mode switcher', () => {
     return within(screen.getByRole('tablist', { name: /Discovery mode/i }))
   }
 
-  it('defaults to Search mode and shows the card-list editor', () => {
+  it('defaults to Swipe mode and orders the tabs Swipe, Browse, Search', () => {
     render(<App />)
-    const searchTab = discoveryTabs().getByRole('tab', { name: /Search/ })
-    expect(searchTab).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('textbox', { name: /Card list/i })).toBeInTheDocument()
+    const tabs = discoveryTabs().getAllByRole('tab')
+    // Newcomer-first order matches the Help modal (#792, #814). The first span
+    // in each tab is its label (the second is the hint).
+    expect(tabs.map((t) => t.querySelector('span')?.textContent)).toEqual([
+      'Swipe',
+      'Browse',
+      'Search',
+    ])
+    expect(discoveryTabs().getByRole('tab', { name: /Swipe/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    // Swipe is the landing surface, not the Search editor.
+    expect(screen.getByRole('region', { name: /Swipe mode/i })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /Card list/i })).not.toBeInTheDocument()
   })
 
   it('switching to Browse hides the editor and renders the inline browse panel', () => {
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
     expect(screen.queryByRole('textbox', { name: /Card list/i })).not.toBeInTheDocument()
     // The inline BrowsePanel renders its description and a section
@@ -379,7 +404,7 @@ describe('App: discovery mode switcher', () => {
   })
 
   it('switching to Swipe mounts the SwipePanel', () => {
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(discoveryTabs().getByRole('tab', { name: /Swipe/ }))
     expect(screen.getByRole('region', { name: /Swipe mode/i })).toBeInTheDocument()
     expect(
@@ -388,8 +413,8 @@ describe('App: discovery mode switcher', () => {
   })
 
   it('surfaces Export in Search mode but not in Browse or Swipe', () => {
-    render(<App />)
-    // Search is the default mode — Export lives in the Results section.
+    renderInSearchMode()
+    // In Search mode, Export lives in the Results section.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument()
 
     fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
@@ -400,7 +425,7 @@ describe('App: discovery mode switcher', () => {
   })
 
   it('starting the tour from Browse switches back to Search so its targets mount', async () => {
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
     expect(discoveryTabs().getByRole('tab', { name: /Browse/ })).toHaveAttribute(
       'aria-selected',
@@ -418,10 +443,29 @@ describe('App: discovery mode switcher', () => {
 
   it('switching back to Search restores the editor without losing input', () => {
     useAppStore.setState({ inputText: 'Charizard | Base Set | 4' })
-    render(<App />)
+    renderInSearchMode()
     fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
     fireEvent.click(discoveryTabs().getByRole('tab', { name: /Search/ }))
     const textbox = screen.getByRole('textbox', { name: /Card list/i })
     expect(textbox).toHaveValue('Charizard | Base Set | 4')
+  })
+
+  it('rerunning a Recent search from the default Swipe mode surfaces Search', async () => {
+    // A run never resolves, so the app stays mid-run while we assert the switch.
+    mockBulkLookup.mockImplementation(() => new Promise<void>(() => {}))
+    useAppStore.setState({
+      recentRuns: [{ id: 'r1', savedAt: Date.now(), lines: ['Charizard'] }],
+    })
+    render(<App />)
+    // Open the Backpack's Recent tab and rerun (the app opens on Swipe, so the
+    // results would otherwise stay hidden behind the Swipe panel — #814).
+    fireEvent.click(screen.getAllByRole('tab', { name: /Recent/ })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /Rerun search/i })[0])
+    await waitFor(() =>
+      expect(discoveryTabs().getByRole('tab', { name: /Search/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
   })
 })

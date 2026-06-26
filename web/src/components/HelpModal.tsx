@@ -1,9 +1,10 @@
 /**
- * HelpModal — onboarding/help dialog whose sections track the live app:
- * what it does, the Search / Browse / Swipe modes, writing queries,
- * results + card details, the Library (Searches / Recent / Binders),
- * settings, exports, and shortcuts. Includes a "Take the tour" button
- * that hands control off to the Tour component.
+ * HelpModal — onboarding/help dialog whose sections track the live app. It
+ * opens with a plain-language intro and a real sample card, then leads with the
+ * two modes newcomers reach for first (Swipe, Browse) before text Search, the
+ * one-tap Want / Own save actions, the Backpack (Binders / Searches / Recent),
+ * search tips, settings, exports, and shortcuts. Includes a "Take the tour"
+ * button that hands control off to the Tour component.
  *
  * The "what's new" surface is a collapsible bar pinned below the header,
  * collapsed by default and condensed to the latest release's top features.
@@ -13,7 +14,17 @@
  * seen, clearing both dots.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { ChevronDown, CircleHelp, X } from 'lucide-react'
+import {
+  Book,
+  ChevronDown,
+  CircleHelp,
+  Footprints,
+  GalleryHorizontalEnd,
+  ImageOff,
+  Layers,
+  Search,
+  X,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { fetchChangelog } from '../api/client'
 import { useAppStore } from '../store'
@@ -218,7 +229,7 @@ export function HelpModal({ onStartTour }: Props) {
             {whatsNewOpen && (
               <div
                 id="whats-new-panel"
-                className="px-5 pb-4 text-sm text-coconut-600 dark:text-sand-200"
+                className="max-h-[40vh] overflow-y-auto px-5 pb-4 text-sm text-coconut-600 dark:text-sand-200"
               >
                 {releasesError || (releases && releases.length === 0) ? (
                   <p className="text-coconut-400 dark:text-sand-300">
@@ -274,48 +285,57 @@ export function HelpModal({ onStartTour }: Props) {
             tabIndex={0}
             className="flex-1 overflow-y-auto px-5 py-4 space-y-6 text-sm text-coconut-600 dark:text-sand-200 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
           >
-            <Section title="What this does">
-              <p>
-                mgz-pkmn helps you prep for a card show. Find cards three ways —
-                paste a want-list, walk a whole set, or swipe card by card — then
-                get current market prices and negotiation comps for every match.
-                Save what you own to a collection, keep a want-list of what
-                you&apos;re hunting, and download an .xlsx, PDF binder, condensed
-                PDF, or checklist for the table.
+            {/* Intro — a friendly one-liner next to a real card so a newcomer
+                sees what "find a card and price it" actually looks like. */}
+            <div className="flex items-start gap-4">
+              <p className="flex-1 leading-relaxed">
+                New here? mgz-pkmn helps you prep for a card show. Find the cards
+                you want, see what they’re worth right now, and build lists you can
+                bring to the table — no spreadsheet required.
               </p>
-            </Section>
+              <SampleCard />
+            </div>
 
             <Section title="Finding cards">
-              <p className="mb-2 text-coconut-400 dark:text-sand-300">
-                Switch modes from the bar above the card list:
+              <p className="mb-3 text-coconut-500 dark:text-sand-300">
+                Pick a mode from the bar at the top. New to it all? Start with
+                Swipe or Browse — Search is best once you know exactly what you’re
+                after.
               </p>
-              <Definitions
-                rows={[
-                  ['Search', 'Paste or type a want-list, one card per line, and look them all up at once.'],
-                  ['Browse', 'Pick a set and walk every card — search by name, filter by rarity, and sort by number, name, or price.'],
-                  ['Swipe', 'Flip through one card at a time — pass, save, or love — then turn the keepers into a want-list.'],
-                ]}
-              />
+              <div className="space-y-2">
+                <ModeCard icon={Layers} tone="sun" name="Swipe" badge="Easiest">
+                  Flip through cards one at a time and swipe to pass, keep, or love.
+                  Great for discovering what you like — turn the keepers into a list
+                  in one tap.
+                </ModeCard>
+                <ModeCard icon={GalleryHorizontalEnd} tone="palm" name="Browse" badge="Most popular">
+                  Walk a whole set card by card, or switch to By Pokédex # to see
+                  every version of one Pokémon across every set. Filter by rarity or
+                  card type, and sort by number, name, or price.
+                </ModeCard>
+                <ModeCard icon={Search} tone="sky" name="Search">
+                  Already know what you want? Paste a list — one card per line — and
+                  look them all up at once. See Search tips below for the shorthand.
+                </ModeCard>
+              </div>
             </Section>
 
-            <Section title="Writing queries">
-              <p className="mb-2 text-coconut-400 dark:text-sand-300">
-                In Search mode, one card per line. Click <Kbd>Look up</Kbd> to run
-                it. Blank lines and <code>#</code> comments are skipped. Common
-                formats:
+            <Section title="Saving cards">
+              <p className="mb-2 text-coconut-500 dark:text-sand-300">
+                On any card, two one-tap buttons:
               </p>
-              <Examples
-                rows={[
-                  ['Charizard | Base Set | 4/102', 'Most precise: name, set, number'],
-                  ['Pikachu | Jungle', 'Name + set'],
-                  ['Squirtle | 7/102', 'Name + card number'],
-                  ['Mew ex', 'Name only — best match wins'],
-                  ['Charizard [holo]', 'Variant hint in brackets'],
-                  ['top:5 Charizard cards', 'Bulk: top N by price'],
-                  ['All Charizard cards | Base Set', 'Bulk: every match in a set'],
-                  ['Pikachu >=20 <=50', 'Price-bound filter'],
-                ]}
-              />
+              <div className="flex flex-wrap gap-2">
+                <SaveChip icon={Footprints} tone="sun" label="Want">
+                  cards you’re chasing
+                </SaveChip>
+                <SaveChip icon={Book} tone="palm" label="Own">
+                  cards you already have
+                </SaveChip>
+              </div>
+              <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">
+                Tap to save, tap again to undo. A small badge on each card shows
+                which of your lists already hold it.
+              </p>
             </Section>
 
             <Section title="Results & card details">
@@ -323,25 +343,44 @@ export function HelpModal({ onStartTour }: Props) {
                 rows={[
                   ['Sort', 'Click any column header to sort. Your sort and filters ride along when you save the search.'],
                   ['Filter', 'Narrow a big result set by per-column text or a price range.'],
-                  ['Card details', 'Click any row for the full-size card and every field the source returned. Left and right arrows step through your results.'],
-                  ['Save a card', 'Per-row buttons add a card to a collection (you own it) or a want-list (you want it).'],
+                  ['Card details', 'Click any card for the full-size art and every detail the source returned. Left and right arrows step through your results.'],
                 ]}
               />
             </Section>
 
             <Section title="Backpack">
+              <p className="mb-2 text-coconut-500 dark:text-sand-300">
+                Everything you save lives in the Backpack down the side:
+              </p>
               <Definitions
                 rows={[
-                  ['Searches', 'Lookups you have saved with a name. Click one to reload its cards, sort, and filters.'],
+                  ['Binders', 'Your collections (cards you own) and want-lists (cards you’re chasing), together. Filter by Owned or Chasing.'],
+                  ['Searches', 'Lookups you saved with a name. Click one to reload its cards, sort, and filters.'],
                   ['Recent', 'Your last few lookups, kept on this device. One tap re-runs them.'],
-                  ['Binders', 'Your collections (cards you own) and want-lists (cards you are chasing) in one place. Filter by Owned or Chasing; build them with the book and footprints buttons on any result row.'],
                 ]}
               />
               <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">
-                Binders and saved searches are tied to your account — sign in on
-                the hosted demo to use them. The self-hosted build keeps
-                everything locally.
+                Binders and saved searches are tied to your account — sign in on the
+                hosted demo to use them. The self-hosted build keeps everything
+                locally.
               </p>
+            </Section>
+
+            <Section title="Search tips">
+              <p className="mb-2 text-coconut-400 dark:text-sand-300">
+                In Search mode, one card per line. Click <Kbd>Look up</Kbd> to run
+                it. Blank lines and <code>#</code> comments are skipped. A few handy
+                formats:
+              </p>
+              <Examples
+                rows={[
+                  ['Charizard | Base Set | 4/102', 'Most precise: name, set, number'],
+                  ['Pikachu | Jungle', 'Name + set'],
+                  ['Mew ex', 'Name only — best match wins'],
+                  ['top:5 Charizard cards', 'Bulk: top N by price'],
+                  ['Pikachu >=20 <=50', 'Price-bound filter'],
+                ]}
+              />
             </Section>
 
             <Section title="Settings">
@@ -353,6 +392,9 @@ export function HelpModal({ onStartTour }: Props) {
                   ['Max price cap', 'Drops bulk top-N results above the cap. Single-card lookups always show through (flagged amber).'],
                   ['Deduplicate by card ID', 'Removes duplicates across queries when the same card matched more than once.'],
                   ['Hide images', 'Skip thumbnails — faster table, smaller exports.'],
+                  ['Show eBay comps', 'Adds an eBay column — median sold price and a sparkline of recent sales — next to the market price.'],
+                  ['Hide owned cards', 'Drops results you already have in a collection, so the table shows just what’s still missing.'],
+                  ['Show lookup timer', 'Surfaces elapsed time during a run and a total/average summary after.'],
                 ]}
               />
             </Section>
@@ -456,5 +498,121 @@ function Definitions({ rows }: { rows: [React.ReactNode, string][] }) {
         </div>
       ))}
     </dl>
+  )
+}
+
+// Per-mode accent tones, drawn from the brand palette so the help mirrors the
+// app: Swipe leans sun (its warm, playful entry point), Browse palm (the prices
+// it surfaces), Search sky (the "looking up" stage colour).
+type Tone = 'sun' | 'palm' | 'sky'
+const TONES: Record<Tone, { icon: string; badge: string }> = {
+  sun: {
+    icon: 'bg-sun-400/20 text-husk-500 dark:text-sun-200',
+    badge: 'bg-sun-400/20 text-husk-500 dark:text-sun-200',
+  },
+  palm: {
+    icon: 'bg-palm-500/15 text-palm-600 dark:text-palm-200',
+    badge: 'bg-palm-500/15 text-palm-600 dark:text-palm-200',
+  },
+  sky: {
+    icon: 'bg-sky-500/15 text-sky-500 dark:text-sky-300',
+    badge: 'bg-sky-500/15 text-sky-500 dark:text-sky-300',
+  },
+}
+
+// One of the three find-a-card modes, as a tile with a coloured icon and (for
+// the two we steer newcomers toward) a small badge.
+function ModeCard({
+  icon: Icon,
+  name,
+  tone,
+  badge,
+  children,
+}: {
+  icon: typeof Layers
+  name: string
+  tone: Tone
+  badge?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-100/50 p-3">
+      <div
+        className={`flex h-9 w-9 flex-none items-center justify-center rounded-md ${TONES[tone].icon}`}
+        aria-hidden="true"
+      >
+        <Icon size={18} />
+      </div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-coconut-700 dark:text-sand-50">{name}</span>
+          {badge && (
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TONES[tone].badge}`}>
+              {badge}
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-xs leading-relaxed text-coconut-500 dark:text-sand-300 sm:text-sm">
+          {children}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// The Want / Own save affordance, mirroring the card buttons' icon + tone so
+// the help reads the same as the surface it describes.
+function SaveChip({
+  icon: Icon,
+  tone,
+  label,
+  children,
+}: {
+  icon: typeof Book
+  tone: Tone
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-100/50 px-3 py-1.5">
+      <span
+        className={`flex h-6 w-6 flex-none items-center justify-center rounded-md ${TONES[tone].icon}`}
+        aria-hidden="true"
+      >
+        <Icon size={14} />
+      </span>
+      <span className="text-xs sm:text-sm">
+        <span className="font-semibold text-coconut-700 dark:text-sand-50">{label}</span>{' '}
+        <span className="text-coconut-400 dark:text-sand-300">— {children}</span>
+      </span>
+    </span>
+  )
+}
+
+// A real card next to the intro so a newcomer sees what the app is actually
+// about. Loads the same way every card in the app does (straight from
+// pokemontcg.io); falls back to a placeholder if the image can't load so the
+// help never shows a broken graphic.
+function SampleCard() {
+  const [failed, setFailed] = useState(false)
+  return (
+    <div className="relative w-24 flex-none sm:w-28">
+      {failed ? (
+        <div className="flex aspect-[245/342] items-center justify-center rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-100">
+          <ImageOff size={24} className="text-coconut-300 dark:text-sand-500" aria-hidden="true" />
+        </div>
+      ) : (
+        <img
+          src="https://images.pokemontcg.io/base1/4.png"
+          alt="A Base Set Charizard card"
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="w-full rounded-lg shadow-md"
+        />
+      )}
+      <span className="absolute -bottom-2 -right-2 rounded-full bg-palm-500 px-2 py-0.5 text-xs font-semibold text-sand-50 shadow-md dark:bg-palm-400 dark:text-husk-500">
+        ~$320
+      </span>
+    </div>
   )
 }

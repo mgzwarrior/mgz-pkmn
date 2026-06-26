@@ -205,6 +205,37 @@ describe('HelpModal', () => {
     expect(screen.getByText('Binders')).toBeInTheDocument()
   })
 
+  it('leads with Swipe and Browse, with Search third', async () => {
+    useAppStore.setState({ lastSeenChangelogVersion: '1.1.1' })
+    render(<HelpModal onStartTour={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
+    // The three modes render as titled tiles in newcomer-first order.
+    const finding = (await screen.findByText('Finding cards')).closest('section')!
+    const names = Array.from(finding.querySelectorAll('span.font-semibold')).map(
+      (el) => el.textContent,
+    )
+    expect(names).toEqual(['Swipe', 'Browse', 'Search'])
+    // Swipe/Browse carry their newcomer badges; Search does not.
+    expect(screen.getByText('Easiest')).toBeInTheDocument()
+    expect(screen.getByText('Most popular')).toBeInTheDocument()
+  })
+
+  it('reflects the current browse, save, and settings surfaces', async () => {
+    useAppStore.setState({ lastSeenChangelogVersion: '1.1.1' })
+    render(<HelpModal onStartTour={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /^help$/i }))
+    // Browse covers the By Pokédex # view and the card-category filter (#577 / #700).
+    expect(await screen.findByText(/By Pokédex #/)).toBeInTheDocument()
+    // Saving is the one-tap Want / Own quick-action pair (ADR-0027).
+    expect(screen.getByText('Saving cards')).toBeInTheDocument()
+    expect(screen.getByText('Want')).toBeInTheDocument()
+    expect(screen.getByText('Own')).toBeInTheDocument()
+    // Settings surface the toggles shipped since the last edit.
+    expect(screen.getByText('Show eBay comps')).toBeInTheDocument()
+    expect(screen.getByText('Hide owned cards')).toBeInTheDocument()
+    expect(screen.getByText('Show lookup timer')).toBeInTheDocument()
+  })
+
   it('Take the tour button closes the modal and fires the callback', async () => {
     const onStartTour = vi.fn()
     render(<HelpModal onStartTour={onStartTour} />)

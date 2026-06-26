@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { GalleryHorizontalEnd, Heart, Search } from 'lucide-react'
+import { GalleryHorizontalEnd, Layers, Search } from 'lucide-react'
 import { bulkLookup, completeOnboarding, listRuns, lookupLine, saveRun } from './api/client'
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { SaveSearchNameDialog } from './components/SaveSearchNameDialog'
@@ -43,10 +43,14 @@ import logoDarkUrl from '../../assets/logo-dark.svg'
 
 type DiscoveryMode = 'search' | 'browse' | 'swipe'
 
+// Ordered newcomer-first to match the Help modal (#792, #814): Swipe is the
+// lowest-friction way in, so it leads; text Search sits last. The Swipe icon
+// is a card deck — the stack you flip through — not a heart (which already
+// means the swipe-up "love" action).
 const MODES: { value: DiscoveryMode; label: string; icon: typeof Search; hint: string }[] = [
-  { value: 'search', label: 'Search', icon: Search, hint: 'Paste a want-list' },
+  { value: 'swipe', label: 'Swipe', icon: Layers, hint: 'Card-at-a-time' },
   { value: 'browse', label: 'Browse', icon: GalleryHorizontalEnd, hint: 'Walk a set' },
-  { value: 'swipe', label: 'Swipe', icon: Heart, hint: 'Card-at-a-time' },
+  { value: 'search', label: 'Search', icon: Search, hint: 'Paste a want-list' },
 ]
 
 function App() {
@@ -72,7 +76,7 @@ function App() {
 
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
-  const [mode, setMode] = useState<DiscoveryMode>('search')
+  const [mode, setMode] = useState<DiscoveryMode>('swipe')
   const { user: authedUser, refresh: refreshAuth } = useAuth()
 
   // First-login onboarding survey (#742): the favorite-Pokémon pop-up shows
@@ -160,6 +164,11 @@ function App() {
     const lines = text.split('\n')
     const nonEmpty = lines.filter((l) => l.trim() && !l.trim().startsWith('#'))
     if (nonEmpty.length === 0) return
+
+    // Results render only in Search mode, and the app now opens on Swipe (#814).
+    // A rerun fired from the Backpack's Recent tab must surface the editor +
+    // results rather than leaving them hidden behind the Swipe panel.
+    setMode('search')
 
     clearRows()
     setProcessingLines(nonEmpty.map((line) => ({ line, status: 'pending' })))
@@ -283,6 +292,7 @@ function App() {
     setCurrentRunId,
     setCacheStatus,
     resetViewState,
+    setMode,
   ])
 
   const handleStop = useCallback(() => {
@@ -344,11 +354,19 @@ function App() {
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex gap-4">
           <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="library">
-            <LibraryPanel variant="sidebar" onRun={handleRun} />
+            <LibraryPanel
+              variant="sidebar"
+              onRun={handleRun}
+              onShowSearch={() => setMode('search')}
+            />
           </div>
           <div className="flex-1 min-w-0 space-y-6">
             <div className="lg:hidden" data-tour="library-mobile">
-              <LibraryPanel variant="accordion" onRun={handleRun} />
+              <LibraryPanel
+                variant="accordion"
+                onRun={handleRun}
+                onShowSearch={() => setMode('search')}
+              />
             </div>
             <nav
               role="tablist"
