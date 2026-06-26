@@ -41,6 +41,8 @@ from mgz_pkmn.card_images import SMALL_CATEGORY
 from mgz_pkmn.pricing import extract_pricing
 from mgz_pkmn.sources import TCGClient
 
+from ..cache_mode import cache_only_enabled
+
 router = APIRouter()
 
 # Pokemon TCG set ids are short alphanumeric strings (e.g. `sv8`, `base1`,
@@ -195,7 +197,9 @@ def _trim_card(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _fetch_set_cards(set_id: str, api_key: str | None) -> tuple[list[dict[str, Any]], str]:
+def _fetch_set_cards(
+    set_id: str, api_key: str | None, *, cache_only: bool = False
+) -> tuple[list[dict[str, Any]], str]:
     """Fetch every card in `set_id` via pokemontcg.io and return slim shapes.
 
     Uses `TCGClient.search_all` so the request flows through the existing
@@ -205,12 +209,18 @@ def _fetch_set_cards(set_id: str, api_key: str | None) -> tuple[list[dict[str, A
     filter; ids are short alnum so quoting isn't strictly needed but
     we include it for defence against future ids with special chars.
 
+    When `cache_only` is set (driven by `MGZ_PKMN_CACHE_ONLY`, see
+    `api.cache_mode`), a disk-cache miss returns an empty
+    `MISS-CACHE-ONLY` result instead of fetching upstream — the load-bearing
+    case is the e2e suite, where the Swipe deck can sample a set that isn't
+    in the committed cassette and would otherwise hit pokemontcg.io live.
+
     Returns `(cards, cache_status)`; the status is the worst split-cache
     outcome across the paged walk (#372), surfaced as `X-Cache` by the
     route handler so a contributor can tell a warm-cache open from an
     upstream round-trip (#310)."""
     client = TCGClient(api_key=api_key)
-    cards, status = client.search_all(f'set.id:"{set_id}"')
+    cards, status = client.search_all(f'set.id:"{set_id}"', cache_only=cache_only)
     return [_trim_card(c) for c in cards], status
 
 
@@ -234,8 +244,20 @@ async def get_set_cards(
     Sets an `X-Cache` header (`HIT` / `STALE` / `MISS`) mirroring the disk
     cache freshness of the underlying pokemontcg.io read (#310).
     """
-    cards, cache_status = await run_in_threadpool(_fetch_set_cards, set_id, api_key)
+    cards, cache_status = await run_in_threadpool(
+        _fetch_set_cards, set_id, api_key, cache_only=cache_only_enabled()
+    )
     if not cards:
+        # A `MISS-CACHE-ONLY` empty means "not in the disk cache and we were
+        # told not to fetch upstream" (`MGZ_PKMN_CACHE_ONLY`), not "this set
+        # doesn't exist". Return an empty 200 so a client like the Swipe deck
+        # retires the set and samples the next one instead of erroring on a
+        # 404 (`fetchSetCards` throws on non-OK). A genuine empty/unknown set
+        # still 404s. Don't browser-cache the empty offline result so a later
+        # warm cache isn't masked.
+        if cache_status == "MISS-CACHE-ONLY":
+            response.headers["X-Cache"] = cache_status
+            return {"set_id": set_id, "cards": []}
         raise HTTPException(
             status_code=404,
             detail=f"no cards found for set '{set_id}'",

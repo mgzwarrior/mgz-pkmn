@@ -33,6 +33,13 @@ export MGZ_PKMN_DATABASE_URL="sqlite:///$STATE_DIR/e2e.db"
 export XDG_CACHE_HOME="$STATE_DIR/cache"
 # Auth scaffold stays off → sentinel default user, no cookies required.
 unset MGZ_PKMN_AUTH_ENABLED 2>/dev/null || true
+# Pin the API offline. The cassette covers the cards the specs touch, but the
+# Swipe deck (the default surface) samples a random set from the bundled
+# catalog on load — one outside the cassette would otherwise fetch
+# pokemontcg.io live via /api/v1/sets/{id}/cards. cache_only degrades a disk
+# miss to an empty result, so a run makes zero outbound calls regardless of
+# which set the deck picks. See api/cache_mode.py and docs/e2e.md.
+export MGZ_PKMN_CACHE_ONLY=1
 
 # Seed the cassette into this run's cache root. The structural slice is no-TTL,
 # so it always HITs; `touch` brings the 24h pricing slice's mtime to now so it
