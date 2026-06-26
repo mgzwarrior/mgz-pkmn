@@ -87,6 +87,10 @@ dev-site:  ## Start the Astro dev server on :4321 for the marketing site.
 test:  ## Run the Python test suite.
 	uv run python -m unittest discover -s tests
 
+.PHONY: e2e
+e2e:  ## Run the Playwright end-to-end suite — builds the SPA, then boots the API (auth off, throwaway DB) and drives a real browser. First run downloads the browser.
+	cd web && npm run build && npx playwright install chromium && npm run e2e
+
 .PHONY: coverage
 coverage:  ## Run the Python test suite under coverage; emit terminal report + coverage.xml + junit.xml + htmlcov/.
 	uv run coverage run -m pytest tests/ --junitxml=junit.xml -o junit_family=legacy
