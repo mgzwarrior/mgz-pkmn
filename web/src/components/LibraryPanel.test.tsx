@@ -42,7 +42,7 @@ describe('LibraryPanel', () => {
   })
 
   it('sidebar variant renders all three tabs with Searches active', async () => {
-    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} onShowSearch={vi.fn()} />)
     // Binders is gated on a resolved signed-in user, so wait for the auth
     // load before asserting the full tab set.
     expect(await screen.findByRole('tab', { name: /Binders/i })).toBeInTheDocument()
@@ -58,7 +58,7 @@ describe('LibraryPanel', () => {
     useAppStore.setState({
       recentRuns: [{ id: 'r1', savedAt: 1_700_000_000_000, lines: ['Pikachu'] }],
     })
-    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} onShowSearch={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('tab', { name: /Recent/i }))
 
@@ -70,7 +70,7 @@ describe('LibraryPanel', () => {
   })
 
   it('clicking the Binders tab fetches and shows the empty state', async () => {
-    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} onShowSearch={vi.fn()} />)
     fireEvent.click(await screen.findByRole('tab', { name: /Binders/i }))
     expect(
       await screen.findByText(/You don't have any binders yet/i),
@@ -78,7 +78,7 @@ describe('LibraryPanel', () => {
   })
 
   it('sidebar collapse toggles a compact rail and announces state via aria-expanded', async () => {
-    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} onShowSearch={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByText(/No saved searches yet/i)).toBeInTheDocument(),
     )
@@ -92,7 +92,7 @@ describe('LibraryPanel', () => {
   })
 
   it('accordion variant is collapsed by default and tabs are hidden until expanded', async () => {
-    render(<LibraryPanel variant="accordion" onRun={vi.fn()} />)
+    render(<LibraryPanel variant="accordion" onRun={vi.fn()} onShowSearch={vi.fn()} />)
     const trigger = screen.getByRole('button', { name: /Backpack/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('tab', { name: /Searches/i })).not.toBeInTheDocument()
@@ -105,7 +105,7 @@ describe('LibraryPanel', () => {
 
   it('hides the Binders tab when no user is identified', async () => {
     vi.mocked(client.fetchMe).mockResolvedValue({ user: null, authEnabled: true })
-    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} onShowSearch={vi.fn()} />)
 
     expect(
       await screen.findByText(/Sign in to see saved searches/i),
@@ -120,7 +120,7 @@ describe('LibraryPanel', () => {
       user: { id: 1, email: null, display_name: 'default' },
       authEnabled: false,
     })
-    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} />)
+    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} onShowSearch={vi.fn()} />)
 
     expect(await screen.findByRole('tab', { name: /Binders/i })).toBeInTheDocument()
   })
@@ -167,7 +167,7 @@ describe('LibraryPanel', () => {
         },
       ],
     })
-    render(<LibraryPanel variant="accordion" onRun={vi.fn()} />)
+    render(<LibraryPanel variant="accordion" onRun={vi.fn()} onShowSearch={vi.fn()} />)
     const trigger = await screen.findByRole('button', { name: /Backpack/i })
     // Accordion header — no "(2)" badge for the signed-out visitor.
     expect(trigger.textContent ?? '').not.toMatch(/\(2\)/)
@@ -178,7 +178,7 @@ describe('LibraryPanel', () => {
     useAppStore.setState({
       recentRuns: [{ id: 'r1', savedAt: 1_700_000_000_000, lines: ['Mew'] }],
     })
-    render(<LibraryPanel variant="sidebar" onRun={onRun} />)
+    render(<LibraryPanel variant="sidebar" onRun={onRun} onShowSearch={vi.fn()} />)
     fireEvent.click(screen.getByRole('tab', { name: /Recent/i }))
 
     fireEvent.click(screen.getByRole('button', { name: /Rerun search/i }))

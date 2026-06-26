@@ -36,7 +36,7 @@ function summaryTotal(run: RunSummary): { amount: number; currency: string } | n
   return { amount, currency }
 }
 
-export function LibrarySearchesTab() {
+export function LibrarySearchesTab({ onShowSearch }: { onShowSearch: () => void }) {
   const auth = useAuth()
   const {
     runs,
@@ -119,6 +119,9 @@ export function LibrarySearchesTab() {
             filters: { ...EMPTY_VIEW_STATE.filters },
           },
         )
+        // The app opens on Swipe (#814); the loaded rows live in the Search
+        // editor/results, so surface that mode or they stay hidden.
+        onShowSearch()
       } catch (err) {
         setError(err instanceof Error ? err.message : `Failed to load run ${run.id}`)
       } finally {
@@ -137,6 +140,7 @@ export function LibrarySearchesTab() {
       setRunEndedAt,
       setCurrentRunId,
       setViewState,
+      onShowSearch,
     ],
   )
 

@@ -449,4 +449,23 @@ describe('App: discovery mode switcher', () => {
     const textbox = screen.getByRole('textbox', { name: /Card list/i })
     expect(textbox).toHaveValue('Charizard | Base Set | 4')
   })
+
+  it('rerunning a Recent search from the default Swipe mode surfaces Search', async () => {
+    // A run never resolves, so the app stays mid-run while we assert the switch.
+    mockBulkLookup.mockImplementation(() => new Promise<void>(() => {}))
+    useAppStore.setState({
+      recentRuns: [{ id: 'r1', savedAt: Date.now(), lines: ['Charizard'] }],
+    })
+    render(<App />)
+    // Open the Backpack's Recent tab and rerun (the app opens on Swipe, so the
+    // results would otherwise stay hidden behind the Swipe panel — #814).
+    fireEvent.click(screen.getAllByRole('tab', { name: /Recent/ })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /Rerun search/i })[0])
+    await waitFor(() =>
+      expect(discoveryTabs().getByRole('tab', { name: /Search/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
+  })
 })

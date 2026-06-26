@@ -89,7 +89,7 @@ describe('LibrarySearchesTab', () => {
 
   it('shows the empty state when there are no saved searches', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [], total: 0 })
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     expect(await screen.findByText(/No saved searches yet/i)).toBeInTheDocument()
   })
 
@@ -100,7 +100,7 @@ describe('LibrarySearchesTab', () => {
     })
     const listSpy = vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [], total: 0 })
 
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
 
     expect(await screen.findByText(/Sign in to see saved searches/i)).toBeInTheDocument()
     expect(listSpy).not.toHaveBeenCalled()
@@ -111,7 +111,7 @@ describe('LibrarySearchesTab', () => {
       items: [makeRun(1, { name: 'Show prep' }), makeRun(2, { name: 'Wishlist', row_count: 5 })],
       total: 2,
     })
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(2))
     expect(screen.getByText('Show prep')).toBeInTheDocument()
     expect(screen.getByText('Wishlist')).toBeInTheDocument()
@@ -138,7 +138,8 @@ describe('LibrarySearchesTab', () => {
       total: 1,
     })
     vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7, savedView))
-    render(<LibrarySearchesTab />)
+    const onShowSearch = vi.fn()
+    render(<LibrarySearchesTab onShowSearch={onShowSearch} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Load saved search/i }))
@@ -147,6 +148,9 @@ describe('LibrarySearchesTab', () => {
     expect(useAppStore.getState().inputText).toBe('Charizard\nPikachu')
     expect(useAppStore.getState().rows).toHaveLength(1)
     expect(useAppStore.getState().viewState).toEqual(savedView)
+    // The app opens on Swipe; loading a saved search must surface Search mode
+    // so its rows aren't hidden behind the Swipe panel (#814).
+    expect(onShowSearch).toHaveBeenCalled()
   })
 
   it('falls back to the empty view when a saved search has no stored view_state', async () => {
@@ -160,7 +164,7 @@ describe('LibrarySearchesTab', () => {
         filters: { ...EMPTY_VIEW_STATE.filters, name: 'pika' },
       },
     })
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Load saved search/i }))
@@ -171,7 +175,7 @@ describe('LibrarySearchesTab', () => {
   it('hydrating a saved search clears ephemeral progress + timer state', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(7)], total: 1 })
     vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7))
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Load saved search/i }))
@@ -194,7 +198,7 @@ describe('LibrarySearchesTab', () => {
           setTimeout(() => resolve(makeDetail(id)), 10)
         }),
     )
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(2))
 
     const [first, second] = screen.getAllByRole('button', { name: /Load saved search/i })
@@ -208,7 +212,7 @@ describe('LibrarySearchesTab', () => {
   it('load is blocked while a lookup is in flight', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(7)], total: 1 })
     const getSpy = vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7))
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
     await act(async () => {
       useAppStore.setState({ isRunning: true })
@@ -222,7 +226,7 @@ describe('LibrarySearchesTab', () => {
 
   it('surfaces the listRuns error', async () => {
     vi.spyOn(client, 'listRuns').mockRejectedValue(new Error('boom'))
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
   })
 
@@ -232,7 +236,7 @@ describe('LibrarySearchesTab', () => {
       total: 2,
     })
     const deleteSpy = vi.spyOn(client, 'deleteRun').mockResolvedValue(undefined)
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(2))
 
     // First click reveals confirm rather than deleting.
@@ -250,7 +254,7 @@ describe('LibrarySearchesTab', () => {
   it('cancelling the confirm leaves the saved search in place', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(1, { name: 'Keep me' })], total: 1 })
     const deleteSpy = vi.spyOn(client, 'deleteRun').mockResolvedValue(undefined)
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Delete saved search Keep me/i }))
@@ -263,7 +267,7 @@ describe('LibrarySearchesTab', () => {
   it('restores the row and surfaces an error when delete fails', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(3, { name: 'Oops' })], total: 1 })
     vi.spyOn(client, 'deleteRun').mockRejectedValue(new Error('nope'))
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Delete saved search Oops/i }))
@@ -277,7 +281,7 @@ describe('LibrarySearchesTab', () => {
   it('clears currentRunId when the deleted run was loaded', async () => {
     vi.spyOn(client, 'listRuns').mockResolvedValue({ items: [makeRun(5, { name: 'Active' })], total: 1 })
     vi.spyOn(client, 'deleteRun').mockResolvedValue(undefined)
-    render(<LibrarySearchesTab />)
+    render(<LibrarySearchesTab onShowSearch={vi.fn()} />)
     await waitFor(() => expect(useAppStore.getState().runs).toHaveLength(1))
     act(() => {
       useAppStore.setState({ currentRunId: 5 })

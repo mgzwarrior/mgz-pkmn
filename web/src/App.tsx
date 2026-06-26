@@ -165,6 +165,11 @@ function App() {
     const nonEmpty = lines.filter((l) => l.trim() && !l.trim().startsWith('#'))
     if (nonEmpty.length === 0) return
 
+    // Results render only in Search mode, and the app now opens on Swipe (#814).
+    // A rerun fired from the Backpack's Recent tab must surface the editor +
+    // results rather than leaving them hidden behind the Swipe panel.
+    setMode('search')
+
     clearRows()
     setProcessingLines(nonEmpty.map((line) => ({ line, status: 'pending' })))
     setIsRunning(true)
@@ -287,6 +292,7 @@ function App() {
     setCurrentRunId,
     setCacheStatus,
     resetViewState,
+    setMode,
   ])
 
   const handleStop = useCallback(() => {
@@ -348,11 +354,19 @@ function App() {
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex gap-4">
           <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="library">
-            <LibraryPanel variant="sidebar" onRun={handleRun} />
+            <LibraryPanel
+              variant="sidebar"
+              onRun={handleRun}
+              onShowSearch={() => setMode('search')}
+            />
           </div>
           <div className="flex-1 min-w-0 space-y-6">
             <div className="lg:hidden" data-tour="library-mobile">
-              <LibraryPanel variant="accordion" onRun={handleRun} />
+              <LibraryPanel
+                variant="accordion"
+                onRun={handleRun}
+                onShowSearch={() => setMode('search')}
+              />
             </div>
             <nav
               role="tablist"
