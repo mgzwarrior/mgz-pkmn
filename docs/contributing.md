@@ -324,6 +324,7 @@ make format             # ruff format in-place
 make fix                # ruff --fix + ruff format
 make complexity         # radon CC + MI gate — fails on D+ functions or B+ files (no allowlist: a new offender must be refactored, not excluded; pair with the [`repo-analysis`](../.claude/skills/repo-analysis/SKILL.md) skill to find the next refactor target)
 make check              # CI-equivalent: lint + format-check + complexity gate + tests + web lint
+make e2e                # Playwright end-to-end suite — builds the SPA, boots the API (auth off, throwaway DB), drives a real browser. First run downloads the browser. See docs/e2e.md
 make precommit          # run all pre-commit hooks against every file
 ```
 

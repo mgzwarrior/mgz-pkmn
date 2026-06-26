@@ -32,6 +32,7 @@
 ### Contributing
 
 - [Guide](contributing)
+- [End-to-end tests](e2e)
 - [Security policy](SECURITY)
 
 ---
