@@ -300,7 +300,12 @@ describe('SwipePanel', () => {
     )
   })
 
-  it('shows the exhausted state once every set has been walked', async () => {
+  // Chaining two swipes doubles the exit-animation timer race, which still
+  // loses to a starved CI event loop often enough to redden the job on
+  // unrelated PRs (#804; same contention as #387 / #653). Retry just this
+  // test so a transient miss re-runs in isolation; a real regression still
+  // fails every attempt and blocks.
+  it('shows the exhausted state once every set has been walked', { retry: 2 }, async () => {
     // A single set with two cards — after two swipes the catalog is empty.
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
