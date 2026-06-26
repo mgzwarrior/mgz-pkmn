@@ -33,11 +33,11 @@ live demo), see <https://mgz-pkmn.com>.
 - **V1** (`1.0.0`) — 2026-05-15. Defensible 1.0; polish, tests, docs, release engineering. [v1.0 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/1).
 - **V1.1** (`1.1.0`) — 2026-05-25. Set ID cards + web set-picker, marketing site, devex (PyPI, DCO, Codecov), a11y pass. [v1.1 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/2).
 - **V1.2** (`1.2.0`) — 2026-05-31. Marketing-site polish + late v1.1-cycle web UX. [v1.2 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/4).
-- **V1.3** (`1.3.0`) — 2026-06-03. Pre-Scrydex catalog-warm epic ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)) + auth foundation ([#414](https://github.com/mgzwarrior/mgz-pkmn/pull/414)). [v1.3 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/5) · [v1.3.1 patch](https://github.com/mgzwarrior/mgz-pkmn/milestone/7).
-- **V1.4** (`1.4.0`) — 2026-06-09. Hosted-demo identity + auth UX (provider sign-in, Save-Search nudge, anonymous cache-only mode), CLI maintainability refactor, marketing polish. [v1.4 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/6).
-- **V1.5** (`1.5.0`) — 2026-06-10. eBay as an additive sold + active-listings pricing source. [v1.5 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/8).
-- **V1.6** (`1.6.0`) — 2026-06-13. First-class TCGPlayer API pricing + per-user OAuth. [v1.6 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/9) · [v1.6.1 patch](https://github.com/mgzwarrior/mgz-pkmn/milestone/14).
-- **V1.7** (`1.7.0`) — 2026-06-25. Pricing-source pivot: with full eBay/TCGPlayer API access gated to high-volume developers, the pricing epics re-scoped around affiliate links across the web app plus the no-auth TCGCSV stopgap; CLI/auth bug clears, radon allowlist to zero, web/API perf + site polish. [v1.7 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/11).
+- **V1.3** (`1.3.0`) — 2026-06-02. Pre-Scrydex catalog-warm epic ([#368](https://github.com/mgzwarrior/mgz-pkmn/issues/368)) + auth foundation ([#414](https://github.com/mgzwarrior/mgz-pkmn/pull/414)). [v1.3 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/5) · [v1.3.1 patch](https://github.com/mgzwarrior/mgz-pkmn/milestone/7).
+- **V1.4** (`1.4.0`) — 2026-06-08. Tropical design system, full multi-provider hosted-demo auth (anonymous cache-only fallback), collections + wishlists as first-class surfaces, Search/Browse/Swipe discovery modes, and the CLI maintainability refactor + gate. [v1.4 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/6).
+- **V1.5** (`1.5.0`) — 2026-06-10. Browse/swipe parity + pokédex-number view, refreshed Help modal, tropical-rebranded exports + published styleguide, the collections data-model foundation, and Conventional Commits + release-please. [v1.5 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/8).
+- **V1.6** (`1.6.0`) — 2026-06-13. eBay sold + active comps as a fourth pricing source, collections/want-lists merged into a Binders library, smart rule-based collections, and ownership-aware discovery (hide-owned, cross-collection badges). [v1.6 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/9) · [v1.6.1 patch](https://github.com/mgzwarrior/mgz-pkmn/milestone/14).
+- **V1.7** (`1.7.0`) — 2026-06-25. Collector workflow + pricing pivot: one-tap Want/Own quick actions with auto-provisioned default lists, binders as first-class inventory, collection/wishlist management tools, swipe taste-learning, and eBay/TCGplayer affiliate buy-links across the app (the pricing epics re-scoped to affiliate redirects since full API access is gated to high-volume developers). [v1.7 milestone](https://github.com/mgzwarrior/mgz-pkmn/milestone/11).
 
 **In flight / planned:**
 
@@ -242,6 +242,8 @@ the library work sits under
   ([#701](https://github.com/mgzwarrior/mgz-pkmn/issues/701))
 - Set-ID card tracks collection progress over time.
   ([#508](https://github.com/mgzwarrior/mgz-pkmn/issues/508))
+- Customizable set-ID card + an export option to lead a binder slot
+  with it. ([#788](https://github.com/mgzwarrior/mgz-pkmn/issues/788))
 - "Card show haul" mode — bulk-enter cards into a collection from the
   search bar. ([#509](https://github.com/mgzwarrior/mgz-pkmn/issues/509))
 - CLI parity with API/web for collections + wishlists.
@@ -472,15 +474,17 @@ tracking issue carrying the full child task list.
   first.
 - **TCGPlayer first-class API pricing** — a `TCGPlayerClient` adapter,
   per-user OAuth, a "Connect TCGPlayer" panel, encrypted token storage.
-  **Blocked**: full API access is gated to high-volume developers, so it
-  waits behind the affiliate-link + TCGCSV stopgap that shipped in V1.7.
-  Tracked under
+  **Blocked**: full API access is gated to high-volume developers, so the
+  interim is the eBay/TCGplayer affiliate buy-links that shipped in V1.7;
+  a no-auth TCGCSV price stopgap is queued here too. Tracked under
   [`epic:tcgplayer`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Atcgplayer)
   ([#417](https://github.com/mgzwarrior/mgz-pkmn/issues/417); TCGCSV
   stopgap [#635](https://github.com/mgzwarrior/mgz-pkmn/issues/635)).
-- **eBay sold + active listings as a first-class pricing source** — an
-  `EbayClient` adapter with cassette-based sandbox tests. **Blocked** on
-  the same developer-access gate. Tracked under
+- **eBay first-class pricing source** — a first key-gated iteration of
+  sold + active comps shipped in V1.6; the broader first-class /
+  high-volume version (with cassette-based sandbox tests
+  [#428](https://github.com/mgzwarrior/mgz-pkmn/issues/428)) is parked
+  here on the same developer-access gate. Tracked under
   [`epic:ebay`](https://github.com/mgzwarrior/mgz-pkmn/labels/epic%3Aebay)
   ([#416](https://github.com/mgzwarrior/mgz-pkmn/issues/416)).
 - **Governance** — evaluate converting mgz-pkmn to an organization-owned
