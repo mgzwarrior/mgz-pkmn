@@ -248,6 +248,16 @@ async def get_set_cards(
         _fetch_set_cards, set_id, api_key, cache_only=cache_only_enabled()
     )
     if not cards:
+        # A `MISS-CACHE-ONLY` empty means "not in the disk cache and we were
+        # told not to fetch upstream" (`MGZ_PKMN_CACHE_ONLY`), not "this set
+        # doesn't exist". Return an empty 200 so a client like the Swipe deck
+        # retires the set and samples the next one instead of erroring on a
+        # 404 (`fetchSetCards` throws on non-OK). A genuine empty/unknown set
+        # still 404s. Don't browser-cache the empty offline result so a later
+        # warm cache isn't masked.
+        if cache_status == "MISS-CACHE-ONLY":
+            response.headers["X-Cache"] = cache_status
+            return {"set_id": set_id, "cards": []}
         raise HTTPException(
             status_code=404,
             detail=f"no cards found for set '{set_id}'",
