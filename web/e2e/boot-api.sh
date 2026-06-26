@@ -8,6 +8,10 @@
 # from `web/dist` at `/` so Playwright drives a single same-origin base URL.
 # Nothing here touches the developer's real ~/.cache/mgz-pkmn or DB.
 #
+# The cache root is seeded from the committed cassette (web/e2e/fixtures/cassette)
+# so card-dependent flows resolve the warmed set from a disk-cache HIT — the
+# SPA↔API seam stays real, only the external pokemontcg.io call is short-circuited.
+#
 # Playwright's `webServer` runs this and waits for the URL to answer; the Make
 # target and CI build the SPA first, but we build on demand too so a bare
 # `npx playwright test` works locally.
@@ -29,6 +33,18 @@ export MGZ_PKMN_DATABASE_URL="sqlite:///$STATE_DIR/e2e.db"
 export XDG_CACHE_HOME="$STATE_DIR/cache"
 # Auth scaffold stays off → sentinel default user, no cookies required.
 unset MGZ_PKMN_AUTH_ENABLED 2>/dev/null || true
+
+# Seed the cassette into this run's cache root. The structural slice is no-TTL,
+# so it always HITs; `touch` brings the 24h pricing slice's mtime to now so it
+# HITs too — together that means a run makes zero outbound pokemontcg.io calls.
+# See web/e2e/fixtures/README.md.
+CASSETTE="$ROOT/web/e2e/fixtures/cassette"
+if [ -d "$CASSETTE" ]; then
+  mkdir -p "$XDG_CACHE_HOME/mgz-pkmn"
+  cp -R "$CASSETTE/." "$XDG_CACHE_HOME/mgz-pkmn/"
+  find "$XDG_CACHE_HOME/mgz-pkmn" -type f -exec touch {} +
+  echo "e2e: seeded cache cassette from $CASSETTE" >&2
+fi
 
 echo "e2e: applying migrations to $MGZ_PKMN_DATABASE_URL" >&2
 uv run alembic -c api/alembic.ini upgrade head >&2
