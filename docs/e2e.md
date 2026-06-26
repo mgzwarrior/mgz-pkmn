@@ -22,7 +22,7 @@ The specs live in [`web/e2e/`](../web/e2e); config is [`web/playwright.config.ts
 
 - **Auth off.** `MGZ_PKMN_AUTH_ENABLED` stays unset, so every request resolves to the sentinel `default` user (see [deployment.md](deployment.md)) — no sign-in dance, no cookies, no provider secrets.
 - **Throwaway state.** A fresh `mktemp -d` holds the SQLite DB (`MGZ_PKMN_DATABASE_URL`) and the cache root (`XDG_CACHE_HOME`), both torn down when the server exits. A run never touches your real `~/.cache/mgz-pkmn` or DB.
-- **Single origin.** The API serves the built SPA from `web/dist`, so the browser drives one base URL (`http://localhost:8000`) and `/api` calls are same-origin — no Vite proxy in the loop.
+- **Single origin.** The API serves the built SPA from `web/dist`, so the browser drives one base URL (`http://localhost:8123` by default — a dedicated port that stays clear of `make dev-api`/`make dev` on `:8000`, override with `E2E_PORT`) and `/api` calls are same-origin — no Vite proxy in the loop. Playwright never reuses an already-running server, so a stray dev instance can't pull the suite onto your real DB.
 
 Migrations seed the `default` user, so the app boots straight into a usable, empty library.
 

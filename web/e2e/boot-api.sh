@@ -33,5 +33,15 @@ unset MGZ_PKMN_AUTH_ENABLED 2>/dev/null || true
 echo "e2e: applying migrations to $MGZ_PKMN_DATABASE_URL" >&2
 uv run alembic -c api/alembic.ini upgrade head >&2
 
-echo "e2e: starting uvicorn on :${E2E_PORT:-8000}" >&2
-exec uv run uvicorn api.main:app --port "${E2E_PORT:-8000}"
+# A dedicated default port keeps the suite off :8000, where `make dev-api` /
+# `make dev` may already be serving the developer's real DB.
+echo "e2e: starting uvicorn on :${E2E_PORT:-8123}" >&2
+# Run uvicorn as a child (not `exec`) so the EXIT trap above survives to tear
+# down $STATE_DIR. Forward termination so Playwright's stop shuts uvicorn down,
+# then wait for it to actually exit before cleanup releases the temp DB.
+uv run uvicorn api.main:app --port "${E2E_PORT:-8123}" &
+UVICORN_PID=$!
+trap 'kill -TERM "$UVICORN_PID" 2>/dev/null || true' INT TERM
+while kill -0 "$UVICORN_PID" 2>/dev/null; do
+  wait "$UVICORN_PID" 2>/dev/null || true
+done
