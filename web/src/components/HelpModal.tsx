@@ -20,8 +20,8 @@ import {
   CircleHelp,
   Footprints,
   GalleryHorizontalEnd,
-  Heart,
   ImageOff,
+  Layers,
   Search,
   X,
 } from 'lucide-react'
@@ -303,7 +303,7 @@ export function HelpModal({ onStartTour }: Props) {
                 after.
               </p>
               <div className="space-y-2">
-                <ModeCard icon={Heart} tone="sun" name="Swipe" badge="Easiest">
+                <ModeCard icon={Layers} tone="sun" name="Swipe" badge="Easiest">
                   Flip through cards one at a time and swipe to pass, keep, or love.
                   Great for discovering what you like — turn the keepers into a list
                   in one tap.
@@ -502,8 +502,8 @@ function Definitions({ rows }: { rows: [React.ReactNode, string][] }) {
 }
 
 // Per-mode accent tones, drawn from the brand palette so the help mirrors the
-// app: Swipe leans sun (its Heart), Browse palm (the prices it surfaces),
-// Search sky (the "looking up" stage colour).
+// app: Swipe leans sun (its warm, playful entry point), Browse palm (the prices
+// it surfaces), Search sky (the "looking up" stage colour).
 type Tone = 'sun' | 'palm' | 'sky'
 const TONES: Record<Tone, { icon: string; badge: string }> = {
   sun: {
@@ -529,7 +529,7 @@ function ModeCard({
   badge,
   children,
 }: {
-  icon: typeof Heart
+  icon: typeof Layers
   name: string
   tone: Tone
   badge?: string
