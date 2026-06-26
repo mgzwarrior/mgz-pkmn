@@ -8,7 +8,7 @@
 [![v1.13 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/18?label=v1.13)](https://github.com/mgzwarrior/mgz-pkmn/milestone/18)
 [![v1.14 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/19?label=v1.14)](https://github.com/mgzwarrior/mgz-pkmn/milestone/19)
 [![v1.15 progress](https://img.shields.io/github/milestones/progress-percent/mgzwarrior/mgz-pkmn/20?label=v1.15)](https://github.com/mgzwarrior/mgz-pkmn/milestone/20)
-[![Backlog open](https://img.shields.io/github/milestones/open/mgzwarrior/mgz-pkmn/3?label=Backlog)](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
+[![Backlog open](https://img.shields.io/github/milestones/issues-open/mgzwarrior/mgz-pkmn/3?label=Backlog)](https://github.com/mgzwarrior/mgz-pkmn/milestone/3)
 [![open issues](https://img.shields.io/github/issues-raw/mgzwarrior/mgz-pkmn?label=open)](https://github.com/mgzwarrior/mgz-pkmn/issues)
 
 A forward-looking view of what's in flight and what's next. **Shipped
