@@ -38,11 +38,28 @@ test('browse a set, save a card, and see it in the Backpack', async ({ page }) =
   await expect(pikachu).toBeVisible()
 
   // One-tap Want. The button is disabled until the batched ownership lookup
-  // resolves; Playwright's click auto-waits for it to enable.
-  await pikachu.getByRole('button', { name: 'Want', exact: true }).click()
+  // resolves, and its accessible name flips to "Remove from want" once active.
+  const chasing = pikachu.getByText('chasing')
+  const wantButton = pikachu.getByRole('button', { name: 'Want', exact: true })
+
+  // A CI retry reuses the same DB, so Pikachu may already be saved from the
+  // prior attempt. Wait for the ownership lookup to settle — the button enables
+  // (not yet saved) or the chasing badge is already showing — then save only
+  // when it isn't already chasing, so a retry doesn't hang on a button whose
+  // name has flipped away from "Want".
+  await expect
+    .poll(
+      async () =>
+        (await chasing.isVisible()) ||
+        ((await wantButton.count()) > 0 && (await wantButton.isEnabled())),
+    )
+    .toBe(true)
+  if (!(await chasing.isVisible())) {
+    await wantButton.click()
+  }
 
   // The write round-trips: the card re-reads as chasing across the seam.
-  await expect(pikachu.getByText('chasing')).toBeVisible()
+  await expect(chasing).toBeVisible()
 
   // It surfaces in the library: the first Want lazily provisions the default
   // "My wishlist", which now shows as a binder row in the Backpack.
