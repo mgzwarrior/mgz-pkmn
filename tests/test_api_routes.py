@@ -791,8 +791,8 @@ class SetCardsRouteTests(unittest.TestCase):
 
         captured: list[str] = []
 
-        def _capture(self_, query):
-            del self_  # bound-method shape; we only care about the query string
+        def _capture(self_, query, *, cache_only=False):
+            del self_, cache_only  # only the query string matters here
             captured.append(query)
             return [], "MISS"
 
@@ -825,7 +825,54 @@ class SetCardsRouteTests(unittest.TestCase):
             ),
         ) as fetch_mock:
             client.get("/api/v1/sets/MixedCaseId-9/cards?api_key=abc")
-        fetch_mock.assert_called_once_with("MixedCaseId-9", "abc")
+        fetch_mock.assert_called_once_with("MixedCaseId-9", "abc", cache_only=False)
+
+    def test_cache_only_env_threads_cache_only_to_fetch(self) -> None:
+        # `MGZ_PKMN_CACHE_ONLY` must pin the route into cache-only mode so a
+        # disk-cache miss returns empty instead of fetching pokemontcg.io —
+        # the e2e "network-free" guarantee (#815). The route reads the env at
+        # call time via `api.cache_mode.cache_only_enabled`.
+        card = {
+            "id": "x",
+            "name": "x",
+            "number": "1",
+            "rarity": None,
+            "supertype": None,
+            "subtypes": [],
+            "thumb": None,
+            "market": None,
+        }
+        with (
+            patch.dict(os.environ, {"MGZ_PKMN_CACHE_ONLY": "1"}),
+            patch(
+                "api.routes.sets._fetch_set_cards",
+                return_value=([card], "HIT"),
+            ) as fetch_mock,
+        ):
+            resp = client.get("/api/v1/sets/sv8/cards")
+        self.assertEqual(resp.status_code, 200)
+        fetch_mock.assert_called_once_with("sv8", None, cache_only=True)
+
+    def test_cache_only_passed_through_to_search_all(self) -> None:
+        # End-to-end through the helper: with cache_only=True the underlying
+        # `search_all` must receive it, so a miss degrades to MISS-CACHE-ONLY
+        # rather than hitting the network.
+        from api.routes.sets import _fetch_set_cards
+
+        captured: dict = {}
+
+        def _capture(self_, query, *, cache_only=False):
+            del self_
+            captured["query"] = query
+            captured["cache_only"] = cache_only
+            return [], "MISS-CACHE-ONLY"
+
+        with patch("mgz_pkmn.sources.pokemontcg.TCGClient.search_all", _capture):
+            cards, status = _fetch_set_cards("sv8", api_key=None, cache_only=True)
+
+        self.assertEqual(cards, [])
+        self.assertEqual(status, "MISS-CACHE-ONLY")
+        self.assertTrue(captured["cache_only"])
 
 
 class SetLogoRouteTests(unittest.TestCase):

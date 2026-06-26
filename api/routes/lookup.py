@@ -30,6 +30,7 @@ from mgz_pkmn.sources.base import worse_cache_status
 from mgz_pkmn.spreadsheet import Row
 
 from ..auth.session import CurrentUserOptional, auth_enabled
+from ..cache_mode import cache_only_enabled
 from ..db.models import DEFAULT_USER_ID, Run, User
 from ..db.serialize import build_run_summary, row_to_run_row
 from ..db.session import get_session_factory
@@ -300,7 +301,10 @@ def _unparseable_row(line: str, tag: str) -> Row:
 
 
 def _cache_only_for_user(current_user: User | None) -> bool:
-    return auth_enabled() and current_user is None
+    # `MGZ_PKMN_CACHE_ONLY` pins the whole surface offline (e2e determinism,
+    # see `api.cache_mode`); otherwise anonymous traffic on an auth-enabled
+    # deploy stays cache-only so it can't drive upstream fetches.
+    return cache_only_enabled() or (auth_enabled() and current_user is None)
 
 
 @router.post("/lookup")
