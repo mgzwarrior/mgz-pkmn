@@ -6,14 +6,14 @@ Wishlist items carry one extra field that collection items don't: an optional `m
 
 ## In the SPA
 
-- **Add to a wishlist** — every matched row in the results table has a small heart icon next to the bookmark. Clicking it opens a picker listing your existing wishlists plus an inline "New wishlist…" form with an optional cap input. Picking one adds the card to it; the picker confirms with a checkmark, then closes.
-- **Browse wishlists** — the header has a **Wishlists** chip that opens a modal listing every wishlist you've made, with each one's card count.
-
-V1 stops at add + browse. Renaming, editing the cap on an existing item, drilling into items, and deleting are wired through the API and will land in follow-up iterations.
+- **Want a card (one tap)** — every card across Search results, Browse, Swipe, and the card detail view carries a one-tap **Want** action ([ADR-0027](adr/0027-default-card-quick-actions.md)). Tapping it drops the card onto your default wishlist, **My wishlist**, which is created the first time you use it. Tap again to remove. Capture first, organize later — no picker in the way.
+- **Organize into a named wishlist** — open a card's detail view and use **Add to a list…** to file it onto a specific wishlist, with an inline create option (the menu item reads "Want-list" today; the UI rename to "Wishlist" is tracked in [#786](https://github.com/mgzwarrior/mgz-pkmn/issues/786)).
+- **The Backpack** — the library lives in the **Backpack** sidebar. Its **Binders** tab is the shared home for wishlists (a **Chasing** badge) and collections (an **Owned** badge), each row showing its card count. The **New ▾** menu there creates a wishlist, and in Browse the set header's own **New ▾** can spin up one seeded from the whole set.
+- **Open a wishlist** — click a row to drill into its cards and remove them; once you own a card you were chasing, marking it owned settles the chase rather than dropping the row (see the lifecycle note below). Delete the whole wishlist from its Backpack row's two-step trash control.
 
 ## API
 
-All endpoints live under `/api/v1/wishlists` and operate on the sentinel `default` user until [#61 hosted-demo auth](https://github.com/mgzwarrior/mgz-pkmn/issues/61) lands. Bodies are JSON.
+All endpoints live under `/api/v1/wishlists`. With [authentication](adr/0019-hosted-demo-identity-and-auth.md) on (the hosted demo) they're scoped to the signed-in user; with auth off (self-host) they resolve to the sentinel `default` user. Bodies are JSON.
 
 | Method | Path | What it does |
 |-------|------|--------------|
@@ -68,4 +68,3 @@ Two tables, both keyed on `user_id`:
 
 - **Price-drop alerting on `max_price`** — separate feature, file when scoped.
 - **Sharing / exporting wishlists** — follow-up.
-- **Multi-user identity** — every wishlist currently belongs to the sentinel `default` user; real per-user routing arrives with [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61).
