@@ -2,18 +2,18 @@
 
 A **collection** is a user-named bucket of cards you want to keep around across lookup runs — think "binder candidates", "Charizard masters", or "show pickups". It's the third slice of [ADR-0013](adr/0013-sqlite-persistence-for-runs-collections-wishlists.md): a flat list of matched cards pinned by their verbatim payload, so card identity survives even if the upstream source ([pokemontcg.io](https://pokemontcg.io) / TCGdex) renames or removes the row.
 
-Collections live alongside runs (per-pipeline history) and [wishlists](wishlists.md) (the next slice — "I want these" instead of "I own these"). They don't change pricing or lookup behavior — they're just a place to remember matched cards you care about.
+Collections live alongside runs (per-pipeline history) and [wishlists](wishlists.md) ("I want these" instead of "I own these"). They don't change pricing or lookup behavior — they're just a place to remember matched cards you care about.
 
 ## In the SPA
 
-- **Add to a collection** — every matched row in the results table has a small bookmark icon. Clicking it opens a picker listing your existing collections plus an inline "New collection…" form. Picking one adds the card to it; the picker confirms with a checkmark, then closes.
-- **Browse collections** — the header has a **Collections** chip that opens a modal listing every collection you've made, with each one's card count.
-
-The minimal V1 surface intentionally stops here. Renaming, editing notes, drilling into a collection's items, and deleting are wired through the API and will land in follow-up iterations.
+- **Own a card (one tap)** — every card across Search results, Browse, Swipe, and the card detail view carries a one-tap **Own** action ([ADR-0027](adr/0027-default-card-quick-actions.md)). Tapping it drops the card into your default collection, **My collection**, which is created the first time you use it. Tap again to remove. There's no picker in the way — capture first, organize later.
+- **Organize into a named collection** — open a card's detail view and use **Add to a list…** to file it into a specific collection, with an inline "New collection…" option. This is the deliberate second step for when the default bucket isn't where you want it.
+- **The Backpack** — the library lives in the **Backpack** sidebar. Its **Binders** tab is the shared home for collections (an **Owned** badge) and wishlists (a **Chasing** badge), each row showing its card count. The **New ▾** menu there creates a collection (among other kinds), and in Browse the set header's own **New ▾** can spin up a collection seeded from the whole set.
+- **Open a collection** — click a row to drill into its cards and adjust owned quantities (the stepper is floored at one copy — a card never quantity-zeroes out of the list). Delete the whole collection from its Backpack row's two-step trash control.
 
 ## API
 
-All endpoints live under `/api/v1/collections` and operate on the sentinel `default` user until [#61 hosted-demo auth](https://github.com/mgzwarrior/mgz-pkmn/issues/61) lands. Bodies are JSON.
+All endpoints live under `/api/v1/collections`. With [authentication](adr/0019-hosted-demo-identity-and-auth.md) on (the hosted demo) they're scoped to the signed-in user; with auth off (self-host) they resolve to the sentinel `default` user. Bodies are JSON.
 
 | Method | Path | What it does |
 |-------|------|--------------|
@@ -67,5 +67,4 @@ Two tables, both keyed on `user_id`, plus an append-only snapshot table for prog
 ## Out of scope (for now)
 
 - **Sharing / exporting collections** — follow-up.
-- **Multi-user identity** — every collection currently belongs to the sentinel `default` user; real per-user routing arrives with [#61](https://github.com/mgzwarrior/mgz-pkmn/issues/61).
 - **Wishlist behavior** — separate surface ([wishlists.md](wishlists.md) / [#245](https://github.com/mgzwarrior/mgz-pkmn/issues/245)).
