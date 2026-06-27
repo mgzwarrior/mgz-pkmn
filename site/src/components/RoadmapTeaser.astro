@@ -17,22 +17,22 @@ interface Milestone {
 // data so any inline links / code / bold render consistently.
 const fallbackRaw: { label: string; state: RoadmapState; body: string; href: string }[] = [
   {
-    label: "1.1 — Shipped",
+    label: "1.7 — Shipped",
     state: "done",
-    body: "Polish and on-ramp: starter-issue curation, CITATION.cff, docs troubleshooting, py.typed marker, Discussions visibility, cache subcommands. Open to first-time contributors.",
-    href: "https://github.com/mgzwarrior/mgz-pkmn/milestone/2",
+    body: "Collector-facing web surfaces: swipe triage, browse-a-set, saved searches, wishlists, collections, and printable binders.",
+    href: "https://github.com/mgzwarrior/mgz-pkmn/milestone/11",
   },
   {
-    label: "1.2 — In flight",
+    label: "1.8 — In flight",
     state: "active",
-    body: "Persistence foundation and web/site polish. Bridges v1.1's devex work and v2.0's deeper architectural changes.",
-    href: "https://github.com/mgzwarrior/mgz-pkmn/milestone/4",
+    body: "Make it honest — every surface that explains the app brought back in sync with what it ships, plus the first end-to-end smoke tests and a collector-facing front door.",
+    href: "https://github.com/mgzwarrior/mgz-pkmn/milestone/12",
   },
   {
-    label: "2.0 — Next major",
+    label: "1.9 — Next up",
     state: "planned",
-    body: "Structured query DSL, eBay sold-listings, type-aware search, LRU cache with eviction, persistent run history, PyPI + Docker publishing, OpenAPI client codegen.",
-    href: "https://github.com/mgzwarrior/mgz-pkmn/milestone/3",
+    body: "Web workspace rethink: a real library identity (saved searches vs. wishlists vs. collections), a mobile-first IA, and export / filter / pricing-column upgrades.",
+    href: "https://github.com/mgzwarrior/mgz-pkmn/milestone/13",
   },
 ];
 const fallback: Milestone[] = fallbackRaw.map((m) => ({
@@ -115,7 +115,7 @@ const stateStyle = {
     </ul>
 
     <p class="mt-10 text-sm text-sand-500 dark:text-sand-400">
-      Full roadmap (including post-V2 monetization and V3+ proposals) lives in the
+      Full roadmap (the committed minors plus the speculative Backlog) lives in the
       <a
         href="https://github.com/mgzwarrior/mgz-pkmn/blob/main/docs/roadmap.md"
         class="text-coconut-500 dark:text-sand-200 underline-offset-4 hover:underline">repo</a
