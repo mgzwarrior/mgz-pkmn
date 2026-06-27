@@ -1,0 +1,71 @@
+---
+import logoLightUrl from "../../../assets/logo.svg?url";
+import logoDarkUrl from "../../../assets/logo-dark.svg?url";
+
+const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
+const discussionsUrl = "https://github.com/mgzwarrior/mgz-pkmn/discussions";
+---
+
+<section
+  id="why"
+  class="border-b border-sand-300 dark:border-husk-200/80 px-6 py-20 sm:py-24"
+>
+  <div class="mx-auto max-w-3xl">
+    <p
+      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 backdrop-blur px-3 py-1 text-xs font-medium text-coconut-500 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-200"
+    >
+      <span class="h-1.5 w-1.5 rounded-full bg-palm-400 dark:bg-sun-300"></span>
+      From the maker
+    </p>
+
+    <h2
+      class="mt-6 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50 text-balance"
+    >
+      Why I built this.
+    </h2>
+
+    <div
+      class="mt-6 space-y-4 text-lg leading-relaxed text-coconut-500 dark:text-sand-200"
+    >
+      <p>
+        I'm Matt — a collector, not a company. mgz-pkmn started as a tool for
+        exactly one person: me, trying to walk into a card show with a plan
+        instead of a phone full of half-loaded comp pages.
+      </p>
+      <p>
+        I build it around the rest of life — a full-time job, a new baby, and the
+        hours that are left after both. So it grows in small, honest steps. I'd
+        rather ship something real and admit what's missing than promise you the
+        moon and quietly under-deliver.
+      </p>
+      <p>
+        If you collect too, that's who this is for. It's MIT-licensed and built
+        out in the open, and the fastest way to shape where it goes is to tell me
+        what you wish it did.
+      </p>
+    </div>
+
+    <div class="mt-8 flex flex-wrap items-center gap-3">
+      <a
+        href={repoUrl}
+        class="inline-flex items-center gap-2 rounded-md border border-sand-300 bg-sand-100 backdrop-blur px-5 py-3 text-sm font-semibold text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition"
+      >
+        See the code
+      </a>
+      <a
+        href={discussionsUrl}
+        class="inline-flex items-center gap-1 text-sm font-semibold text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200"
+      >
+        Tell me what's missing →
+      </a>
+    </div>
+
+    <div class="mt-10 flex items-center gap-3 border-t border-sand-300 pt-6 dark:border-husk-200/80">
+      <img src={logoLightUrl} alt="" width="120" height="30" class="h-6 w-auto dark:hidden" />
+      <img src={logoDarkUrl} alt="" width="120" height="30" class="hidden h-6 w-auto dark:block" />
+      <span class="text-sm text-coconut-400 dark:text-sand-300">
+        A personal project — not a startup. Honest about pace, warm to everyone.
+      </span>
+    </div>
+  </div>
+</section>
