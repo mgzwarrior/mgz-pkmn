@@ -13,6 +13,20 @@ const views = [
     body: "Pivot by national dex number instead — pick a Pokemon and see every printing of it across every set. Built for the species collectors chasing one line.",
   },
 ];
+
+// Real card art for the illustrative set-grid preview.
+const gridCards = [
+  "/cards/base1-4.webp",
+  "/cards/base1-2.webp",
+  "/cards/gym2-2.webp",
+  "/cards/ex15-100.webp",
+  "/cards/sv8-1.webp",
+  "/cards/ru1-7.webp",
+  "/cards/pop5-16.webp",
+  "/cards/ecard3-H30.webp",
+  "/cards/ecard3-H31.webp",
+  "/cards/si1-13.webp",
+];
 ---
 
 <DocsLayout
@@ -25,6 +39,46 @@ const views = [
   heading="Browse"
   lede="For when you know roughly what you're after — a set you're completing, or one Pokemon you collect everywhere it shows up. Browse lays the cards out so you can see the whole shape of it."
 >
+  {/* Illustrative UI preview — real card art, annotated. Swap for a real
+      screenshot / demo clip once the mobile + desktop UX settles. */}
+  <figure
+    class="mb-10 overflow-hidden rounded-2xl border border-sand-300 bg-gradient-to-b from-sand-100 to-sand-50 p-6 dark:border-husk-50 dark:from-husk-200/50 dark:to-husk-300/40"
+  >
+    <div class="flex items-center justify-between gap-3">
+      <p class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
+        Browse · walk a set
+      </p>
+      <span
+        class="inline-flex items-center gap-1 rounded-full border border-sand-300 bg-sand-50 p-0.5 text-[11px] font-medium dark:border-husk-50 dark:bg-husk-400"
+      >
+        <span class="rounded-full bg-palm-500 px-2 py-0.5 text-sand-50">Set</span>
+        <span class="px-2 py-0.5 text-coconut-500 dark:text-sand-300">Pokédex</span>
+      </span>
+    </div>
+    <div class="mt-4 grid grid-cols-5 gap-2">
+      {
+        gridCards.map((src, i) => (
+          <div class="relative">
+            <img
+              src={src}
+              alt=""
+              loading="lazy"
+              class="w-full rounded-md shadow-sm ring-1 ring-sand-300/60 dark:ring-white/10"
+            />
+            {i === 0 && (
+              <span class="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-palm-500 text-[9px] font-bold text-sand-50 ring-2 ring-sand-50 dark:ring-husk-400">
+                ✓
+              </span>
+            )}
+          </div>
+        ))
+      }
+    </div>
+    <figcaption class="mt-5 text-center text-xs text-sand-500 dark:text-sand-400">
+      Illustration of set view — the badge marks a card you already own.
+    </figcaption>
+  </figure>
+
   <h2 class="mt-2 text-xl font-semibold text-coconut-700 dark:text-sand-50">
     Two ways to organize it
   </h2>

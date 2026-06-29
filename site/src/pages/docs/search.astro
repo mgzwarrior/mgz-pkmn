@@ -2,6 +2,15 @@
 import DocsLayout from "../../components/DocsLayout.astro";
 
 const demoUrl = "https://mgz-pkmn.onrender.com";
+
+// Illustrative priced rows for the results-table preview. Comps are
+// 80/85/90/95% of market, the same columns the real export carries.
+const resultRows = [
+  { card: "Charizard", set: "Base · 4/102", market: "$240", comps: ["$192", "$204", "$216", "$228"] },
+  { card: "Blastoise", set: "Base · 2/102", market: "$90", comps: ["$72", "$77", "$81", "$86"] },
+  { card: "Exeggutor", set: "S. Islands · 13", market: "$40", comps: ["$32", "$34", "$36", "$38"] },
+];
+const compHeads = ["80%", "85%", "90%", "95%"];
 ---
 
 <DocsLayout
@@ -14,6 +23,56 @@ const demoUrl = "https://mgz-pkmn.onrender.com";
   heading="Search"
   lede="For when you already have a list. Paste a wishlist, hit Look up, and get a priced table back — the same engine the CLI runs, in the browser. This is the flow that ends in an export you carry to the show."
 >
+  {/* Illustrative UI preview — the priced results table. Swap for a real
+      screenshot / demo clip once the mobile + desktop UX settles. */}
+  <figure
+    class="mb-10 overflow-hidden rounded-2xl border border-sand-300 bg-gradient-to-b from-sand-100 to-sand-50 p-6 dark:border-husk-50 dark:from-husk-200/50 dark:to-husk-300/40"
+  >
+    <p class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
+      Search · results
+    </p>
+    <div class="mt-4 overflow-hidden rounded-lg border border-sand-300 bg-sand-50 dark:border-husk-50 dark:bg-husk-400">
+      <table class="w-full border-collapse text-left text-xs">
+        <thead>
+          <tr class="border-b border-sand-300 text-coconut-500 dark:border-husk-50 dark:text-sand-300">
+            <th class="px-3 py-2 font-semibold">Card</th>
+            <th class="px-2 py-2 text-right font-semibold">Market</th>
+            {
+              compHeads.map((h) => (
+                <th class="bg-sun-50 px-2 py-2 text-right font-semibold text-sun-700 dark:bg-sun-400/10 dark:text-sun-300">
+                  {h}
+                </th>
+              ))
+            }
+          </tr>
+        </thead>
+        <tbody>
+          {
+            resultRows.map((row) => (
+              <tr class="border-b border-sand-200 last:border-0 dark:border-husk-50/60">
+                <td class="px-3 py-2">
+                  <span class="block font-medium text-coconut-700 dark:text-sand-50">{row.card}</span>
+                  <span class="block text-[11px] text-sand-500 dark:text-sand-400">{row.set}</span>
+                </td>
+                <td class="px-2 py-2 text-right font-semibold text-coconut-700 dark:text-sand-50">
+                  {row.market}
+                </td>
+                {row.comps.map((c) => (
+                  <td class="bg-sun-50 px-2 py-2 text-right tabular-nums text-coconut-600 dark:bg-sun-400/10 dark:text-sand-200">
+                    {c}
+                  </td>
+                ))}
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <figcaption class="mt-5 text-center text-xs text-sand-500 dark:text-sand-400">
+      Illustration of results — market price, then the highlighted 80/85/90/95% negotiation comps.
+    </figcaption>
+  </figure>
+
   <h2 class="mt-2 text-xl font-semibold text-coconut-700 dark:text-sand-50">
     Paste a wishlist
   </h2>
