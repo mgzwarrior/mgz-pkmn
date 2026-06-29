@@ -224,6 +224,7 @@ function TabStrip({
             type="button"
             role="tab"
             aria-selected={active}
+            data-tour={t.value === 'binders' ? 'binders-tab' : undefined}
             onClick={() => onChange(t.value)}
             className={`flex min-w-0 items-center justify-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium transition-colors ${
               spanFull ? 'col-span-2' : ''

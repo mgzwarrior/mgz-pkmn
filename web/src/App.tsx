@@ -77,6 +77,13 @@ function App() {
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('swipe')
+  // The discovery mode the user was in when they opened the tour, restored when
+  // it closes — the tour switches modes as it walks through Swipe/Browse/Search.
+  const preTourModeRef = useRef<DiscoveryMode>('swipe')
+  const closeTour = useCallback(() => {
+    setTourOpen(false)
+    setMode(preTourModeRef.current)
+  }, [])
   const { user: authedUser, refresh: refreshAuth } = useAuth()
 
   // First-login onboarding survey (#742): the favorite-Pokémon pop-up shows
@@ -334,10 +341,10 @@ function App() {
             <InsightsNavButton />
             <HelpModal
               onStartTour={() => {
-                // The tour seeds the card list and runs a lookup, and several
-                // of its steps (input, results, exports) target Search-only
-                // nodes — start it from Search so every target is mounted.
-                setMode('search')
+                // The tour drives the discovery mode itself (Swipe → Browse →
+                // Search) as it advances. Remember where the user was so we can
+                // put them back when the tour closes.
+                preTourModeRef.current = mode
                 setTourOpen(true)
               }}
             />
@@ -442,7 +449,7 @@ function App() {
       </main>
 
       {tourOpen && (
-        <Tour onClose={() => setTourOpen(false)} onRun={handleRun} onStop={handleStop} />
+        <Tour onClose={closeTour} onRun={handleRun} onStop={handleStop} onSetMode={setMode} />
       )}
 
       <FavoritePokemonOnboarding open={showOnboarding} onClose={closeOnboarding} />

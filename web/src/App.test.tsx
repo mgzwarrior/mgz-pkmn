@@ -424,7 +424,7 @@ describe('App: discovery mode switcher', () => {
     expect(screen.queryByRole('button', { name: /Export/i })).not.toBeInTheDocument()
   })
 
-  it('starting the tour from Browse switches back to Search so its targets mount', async () => {
+  it('the tour drives the discovery mode as it advances and restores it on close', async () => {
     renderInSearchMode()
     fireEvent.click(discoveryTabs().getByRole('tab', { name: /Browse/ }))
     expect(discoveryTabs().getByRole('tab', { name: /Browse/ })).toHaveAttribute(
@@ -435,7 +435,24 @@ describe('App: discovery mode switcher', () => {
     fireEvent.click(screen.getByRole('button', { name: /Help/i }))
     fireEvent.click(await screen.findByRole('button', { name: /Take the tour/i }))
 
-    expect(discoveryTabs().getByRole('tab', { name: /Search/ })).toHaveAttribute(
+    // Opens on "Find cards" without disturbing the mode the user was in.
+    const tour = within(screen.getByRole('dialog', { name: /Tour:/i }))
+    expect(screen.getByText(/Step 1 of/)).toBeInTheDocument()
+    expect(discoveryTabs().getByRole('tab', { name: /Browse/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    // Advancing to the Swipe step switches the app into Swipe.
+    fireEvent.click(tour.getByRole('button', { name: /Next/i }))
+    expect(discoveryTabs().getByRole('tab', { name: /Swipe/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    // Closing the tour restores the mode the user started in.
+    fireEvent.click(screen.getByRole('button', { name: /Skip tour/i }))
+    expect(discoveryTabs().getByRole('tab', { name: /Browse/ })).toHaveAttribute(
       'aria-selected',
       'true',
     )

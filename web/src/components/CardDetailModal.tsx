@@ -49,6 +49,13 @@ interface Props {
   index: number | null
   /** Set to `null` to close, or to a new index to navigate. */
   onChangeIndex: (next: number | null) => void
+  /**
+   * Run as a Radix modal layer (focus trap + outside pointer lock). Defaults
+   * to `true` for the normal in-table usage. The guided Tour opens its own
+   * sample instance with `modal={false}` so the tour card's Next/Back/Skip
+   * controls — rendered as siblings, not inside the dialog — stay clickable.
+   */
+  modal?: boolean
 }
 
 function shouldIgnoreModalArrowKey(e: KeyboardEvent) {
@@ -58,7 +65,7 @@ function shouldIgnoreModalArrowKey(e: KeyboardEvent) {
   return target.closest('input, textarea, select, [contenteditable="true"], [role="menu"]') !== null
 }
 
-export function CardDetailModal({ rows, index, onChangeIndex }: Props) {
+export function CardDetailModal({ rows, index, onChangeIndex, modal = true }: Props) {
   const isOpen = index !== null && index >= 0 && index < rows.length
   const row = isOpen ? rows[index] : null
 
@@ -125,11 +132,12 @@ export function CardDetailModal({ rows, index, onChangeIndex }: Props) {
   }
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog.Root open={isOpen} onOpenChange={handleOpenChange} modal={modal}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />
         <Dialog.Content
           aria-describedby={undefined}
+          data-tour="card-detail"
           className="fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[min(960px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-2xl"
         >
           {row ? (
@@ -254,6 +262,7 @@ function CardDetailBody({
             {showActions && card && (
               <section
                 aria-label="Library actions"
+                data-tour="quick-actions"
                 className="rounded-md border border-sand-300 bg-sand-50 p-3 shadow-sm dark:border-husk-50 dark:bg-husk-400"
               >
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
