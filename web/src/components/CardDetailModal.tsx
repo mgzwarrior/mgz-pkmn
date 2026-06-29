@@ -130,6 +130,7 @@ export function CardDetailModal({ rows, index, onChangeIndex }: Props) {
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />
         <Dialog.Content
           aria-describedby={undefined}
+          data-tour="card-detail"
           className="fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[min(960px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-2xl"
         >
           {row ? (
@@ -254,6 +255,7 @@ function CardDetailBody({
             {showActions && card && (
               <section
                 aria-label="Library actions"
+                data-tour="quick-actions"
                 className="rounded-md border border-sand-300 bg-sand-50 p-3 shadow-sm dark:border-husk-50 dark:bg-husk-400"
               >
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

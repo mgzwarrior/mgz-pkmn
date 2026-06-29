@@ -202,7 +202,10 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-sm">
+    <div
+      data-tour="browse"
+      className="flex flex-col overflow-hidden rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-sm"
+    >
       <header className="flex items-center justify-between gap-3 border-b border-sand-200 dark:border-husk-100 px-5 py-4">
         <div className="flex min-w-0 items-center gap-2">
           {drilledIn && (

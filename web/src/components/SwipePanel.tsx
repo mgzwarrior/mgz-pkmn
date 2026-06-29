@@ -263,6 +263,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
   return (
     <section
       aria-label="Swipe mode"
+      data-tour="swipe"
       className="flex flex-col gap-4 rounded-lg border border-sand-300 bg-sand-50 px-5 py-5 dark:border-husk-50 dark:bg-husk-200"
     >
       <SwipeHeader

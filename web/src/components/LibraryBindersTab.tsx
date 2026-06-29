@@ -173,7 +173,7 @@ export function LibraryBindersTab() {
   const visible = filter === 'all' ? rows : rows.filter((r) => r.kind === filter)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-tour="binders">
       <BinderInventory />
 
       <div className="border-t border-sand-200 pt-3 dark:border-husk-100" />
