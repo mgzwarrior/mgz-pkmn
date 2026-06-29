@@ -1,0 +1,83 @@
+---
+import DocsLayout from "../../components/DocsLayout.astro";
+
+const demoUrl = "https://mgz-pkmn.onrender.com";
+
+const decisions = [
+  { key: "←", label: "Pass", body: "Not for you. The card's gone; the next one's up." },
+  { key: "→", label: "Save", body: "Keep it. It lands on your saved pile for this session." },
+  { key: "↑", label: "Love", body: "A favorite. It saves the card and nudges the queue toward more like it." },
+];
+---
+
+<DocsLayout
+  title="Swipe — mgz-pkmn docs"
+  description="Swipe mode in mgz-pkmn: review cards one at a time, pass/save/love by drag, keyboard, or buttons, and build a wishlist from what you saved."
+  current="/docs/swipe"
+>
+  <p class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
+    The three ways in
+  </p>
+  <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50">
+    Swipe
+  </h1>
+  <p class="mt-4 text-lg text-coconut-500 dark:text-sand-200">
+    The lowest-friction way in. Swipe shows you one card at a time and asks a
+    single question — yes, no, or love it? It's for discovery: you don't need a
+    list yet, you're finding out what you're after.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    Three decisions
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    Drag the card, swipe on touch, use the arrow keys, or tap the buttons under
+    the card — whatever's closest.
+  </p>
+  <ul class="mt-5 space-y-3">
+    {
+      decisions.map((d) => (
+        <li class="flex items-start gap-3 rounded-xl border border-sand-300 bg-sand-100 p-4 dark:border-husk-50 dark:bg-husk-200/40">
+          <kbd class="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-sand-300 bg-sand-50 font-mono text-sm text-coconut-700 dark:border-husk-50 dark:bg-husk-400 dark:text-sand-100">
+            {d.key}
+          </kbd>
+          <div>
+            <span class="font-semibold text-coconut-700 dark:text-sand-50">{d.label}</span>
+            <p class="mt-1 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">{d.body}</p>
+          </div>
+        </li>
+      ))
+    }
+  </ul>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    It learns as you go
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    Loved cards and your favorite sets and Pokemon quietly weight what comes
+    next, so the queue drifts toward the cards you actually care about. If you're
+    signed in, those favorites stick around between sessions. There's also an
+    <strong class="font-semibold text-coconut-700 dark:text-sand-50">exclude cards you already own</strong>
+    toggle, so Swipe stops showing you what's already in your collection.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    Turn saves into a plan
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    Once you've saved at least one card, a
+    <strong class="font-semibold text-coconut-700 dark:text-sand-50">Build prep list</strong>
+    button appears. It rolls everything you saved into a new
+    <a href="/docs/search" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">wishlist</a>
+    and clears the session pile, so the next sit-down starts fresh. From there
+    you can price the whole list and export it.
+  </p>
+
+  <div class="mt-10 rounded-xl border border-palm-300 bg-palm-50 p-5 dark:border-sun-300/40 dark:bg-sun-300/5">
+    <p class="text-sm leading-relaxed text-coconut-600 dark:text-sand-200">
+      <strong class="font-semibold text-coconut-700 dark:text-sand-50">Try it:</strong>
+      open the <a href={demoUrl} target="_blank" rel="noopener noreferrer" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">live demo</a>
+      — it opens on Swipe. A few minutes of swiping is the fastest way to feel how it works.
+    </p>
+  </div>
+</DocsLayout>

@@ -1,0 +1,67 @@
+---
+import DocsLayout from "../../components/DocsLayout.astro";
+
+const demoUrl = "https://mgz-pkmn.onrender.com";
+---
+
+<DocsLayout
+  title="Search — mgz-pkmn docs"
+  description="Search mode in mgz-pkmn: paste a wishlist, look up priced results with market and negotiation comps, save the search, and export to xlsx, binder PDF, checklist, or JSON."
+  current="/docs/search"
+>
+  <p class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
+    The three ways in
+  </p>
+  <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50">
+    Search
+  </h1>
+  <p class="mt-4 text-lg text-coconut-500 dark:text-sand-200">
+    For when you already have a list. Paste a wishlist, hit Look up, and get a
+    priced table back — the same engine the CLI runs, in the browser. This is the
+    flow that ends in an export you carry to the show.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    Paste a wishlist
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    Plain text, one card per line. Name a single card, or use a shortcut to pull a
+    whole group — set filters and budgets live on the same line.
+  </p>
+  <div class="mt-4 rounded-md border border-sand-300 bg-sand-50 px-4 py-3 dark:border-husk-50 dark:bg-husk-400">
+    <code class="block font-mono text-xs text-coconut-700 dark:text-sand-100">top:5 Charizard | base set</code>
+    <p class="mt-1.5 text-xs text-sand-500 dark:text-sand-400">
+      The five priciest Charizards from Base Set. The full grammar lives in
+      <a href="/getting-started" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">Getting started</a>.
+    </p>
+  </div>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    Read the results
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    Each matched card comes back with its market price and four negotiation comps
+    — 80%, 85%, 90%, and 95% of market — so you walk in knowing your floor and
+    your ceiling. Pricing runs card by card with a determinate progress bar; you
+    always know how far along it is.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    Save it, export it
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    Export lives in the results — it only applies to matched rows, which is why
+    Browse and Swipe don't surface it. Take the list out as a spreadsheet, a 3×3
+    printable binder PDF, a checklist, or raw JSON. You can also save the search
+    itself to your <a href="/docs/swipe" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">Backpack</a>
+    to rerun it later.
+  </p>
+
+  <div class="mt-10 rounded-xl border border-palm-300 bg-palm-50 p-5 dark:border-sun-300/40 dark:bg-sun-300/5">
+    <p class="text-sm leading-relaxed text-coconut-600 dark:text-sand-200">
+      <strong class="font-semibold text-coconut-700 dark:text-sand-50">See it end to end:</strong>
+      <a href="/getting-started" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">Getting started</a>
+      walks the full loop, or <a href={demoUrl} target="_blank" rel="noopener noreferrer" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">open the demo</a> and switch to the Search tab.
+    </p>
+  </div>
+</DocsLayout>
