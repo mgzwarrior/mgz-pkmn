@@ -119,6 +119,7 @@ const demoClass =
   <aside
     id="drawer-panel"
     aria-label="Menu"
+    inert
     class="fixed inset-y-0 right-0 z-40 flex w-72 max-w-[80vw] translate-x-full flex-col border-l border-sand-300 bg-sand-50 shadow-2xl transition-transform duration-200 ease-out dark:border-husk-200 dark:bg-husk-400"
   >
     <div
@@ -194,6 +195,9 @@ const demoClass =
       backdrop.classList.toggle("pointer-events-none", !open);
       btn.setAttribute("aria-expanded", String(open));
       document.documentElement.classList.toggle("overflow-hidden", open);
+      // Keep the off-screen panel out of the focus order / a11y tree so
+      // keyboard and screen-reader users can't tab into a closed drawer.
+      panel.inert = !open;
     }
 
     btn.addEventListener("click", function () {
