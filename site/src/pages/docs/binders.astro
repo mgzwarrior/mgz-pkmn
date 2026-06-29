@@ -1,0 +1,55 @@
+---
+import DocsLayout from "../../components/DocsLayout.astro";
+---
+
+<DocsLayout
+  title="Binders — mgz-pkmn docs"
+  description="The Binders tab in mgz-pkmn unifies collections (owned) and wishlists (chasing) as binder rows, with an All/Owned/Chasing filter, cover colors, and smart collections."
+  current="/docs/binders"
+>
+  <p class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
+    Your stuff
+  </p>
+  <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50">
+    Binders
+  </h1>
+  <p class="mt-4 text-lg text-coconut-500 dark:text-sand-200">
+    The Binders tab is where the two halves of your library meet. Both your
+    <a href="/docs/collections" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">collections</a>
+    (owned) and your
+    <a href="/docs/wishlists" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">wishlists</a>
+    (chasing) read as binders here — one shelf for everything you keep.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    Owned and chasing, side by side
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    Rows are interleaved newest-first, each card-count visible at a glance. A kind
+    badge tags every row — <strong class="font-semibold text-coconut-700 dark:text-sand-50">Owned</strong>
+    in palm green for collections, <strong class="font-semibold text-coconut-700 dark:text-sand-50">Chasing</strong>
+    in sun yellow for wishlists — and a segmented
+    <strong class="font-semibold text-coconut-700 dark:text-sand-50">All / Owned / Chasing</strong>
+    filter scopes the list when you only want one side. Underneath they stay
+    separate things; the Binders tab just gives them one home.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    Make it yours
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    Give a binder a cover color so the shelf reads at a glance, and use the
+    <strong class="font-semibold text-coconut-700 dark:text-sand-50">New ▾</strong>
+    menu to create a collection, a wishlist, or a
+    <a href="/docs/collections" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">smart collection</a>
+    — a saved rule whose contents keep themselves current.
+  </p>
+
+  <div class="mt-10 rounded-xl border border-palm-300 bg-palm-50 p-5 dark:border-sun-300/40 dark:bg-sun-300/5">
+    <p class="text-sm leading-relaxed text-coconut-600 dark:text-sand-200">
+      Not to be confused with the <strong class="font-semibold text-coconut-700 dark:text-sand-50">printable 3×3 binder</strong>
+      — that's an <a href="/docs/exports" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">export</a> you generate
+      from a priced lookup to carry to a show.
+    </p>
+  </div>
+</DocsLayout>

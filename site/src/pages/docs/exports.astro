@@ -1,0 +1,59 @@
+---
+import DocsLayout from "../../components/DocsLayout.astro";
+
+const formats = [
+  {
+    name: "Spreadsheet (.xlsx)",
+    body: "The full priced table — every matched card with its market price and the 80/85/90/95% comps, the comp cells tinted so the negotiation range reads at a glance. Your live reference at the table.",
+  },
+  {
+    name: "Printable binder (PDF)",
+    body: "A 3×3 binder page with thumbnails, set numbers, and prices — the thing you hand a vendor. A condensed layout is there too when you want more cards per page.",
+  },
+  {
+    name: "Checklist (PDF)",
+    body: "A tick-as-you-go list grouped the way your input was, for walking the floor and marking off cards as you find them.",
+  },
+  {
+    name: "JSON",
+    body: "The full structured payload — every row, price, and comp — for piping into your own tools or a spreadsheet of your own design.",
+  },
+];
+---
+
+<DocsLayout
+  title="Exports — mgz-pkmn docs"
+  description="Export a priced mgz-pkmn lookup as an xlsx spreadsheet, a printable 3×3 binder PDF (or condensed), a checklist PDF, or raw JSON — everything you carry to the show."
+  current="/docs/exports"
+>
+  <p class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
+    Account & output
+  </p>
+  <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50">
+    Exports
+  </h1>
+  <p class="mt-4 text-lg text-coconut-500 dark:text-sand-200">
+    The whole point of a lookup is what you walk out with. Export lives in the
+    <a href="/docs/search" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">Search</a>
+    results — it works on matched, priced rows, which is why Swipe and Browse don't
+    surface it. Pick the shape that fits the day.
+  </p>
+
+  <ul class="mt-8 space-y-4">
+    {
+      formats.map((f) => (
+        <li class="rounded-xl border border-sand-300 bg-sand-100 p-5 dark:border-husk-50 dark:bg-husk-200/40">
+          <h3 class="text-base font-semibold text-coconut-700 dark:text-sand-50">{f.name}</h3>
+          <p class="mt-2 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">{f.body}</p>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="mt-10 rounded-xl border border-palm-300 bg-palm-50 p-5 dark:border-sun-300/40 dark:bg-sun-300/5">
+    <p class="text-sm leading-relaxed text-coconut-600 dark:text-sand-200">
+      One lookup feeds all four — run it once, take what you need. The same exports
+      come out of the <a href="/getting-started" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">CLI</a>, too.
+    </p>
+  </div>
+</DocsLayout>

@@ -1,0 +1,67 @@
+---
+import DocsLayout from "../../components/DocsLayout.astro";
+
+const providers = ["GitHub", "Google", "Discord", "Apple", "Magic link (email)"];
+---
+
+<DocsLayout
+  title="Account & sign-in — mgz-pkmn docs"
+  description="Signing in to mgz-pkmn is optional: use it anonymously, or sign in with GitHub, Google, Discord, Apple, or a magic link to keep your wishlists, collections, and saved searches across devices."
+  current="/docs/account"
+>
+  <p class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
+    Account & output
+  </p>
+  <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50">
+    Account & sign-in
+  </h1>
+  <p class="mt-4 text-lg text-coconut-500 dark:text-sand-200">
+    Signing in is optional. You can swipe, browse, search, and price cards without
+    an account — sign-in only shows up when you ask the app to remember something
+    for you.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    What it unlocks
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    An account gives your stuff a home that follows you. Your
+    <a href="/docs/wishlists" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">wishlists</a>,
+    <a href="/docs/collections" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">collections</a>,
+    and <a href="/docs/saved-searches" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">saved searches</a>
+    become yours, kept across devices. Save a card while signed out and you'll get
+    a gentle "sign in to keep this" nudge — never a wall. Nothing you already had
+    gets taken away.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    Ways to sign in
+  </h2>
+  <ul class="mt-4 flex flex-wrap gap-2">
+    {
+      providers.map((p) => (
+        <li class="rounded-full border border-sand-300 bg-sand-100 px-3 py-1 text-sm text-coconut-600 dark:border-husk-50 dark:bg-husk-200/40 dark:text-sand-200">
+          {p}
+        </li>
+      ))
+    }
+  </ul>
+  <p class="mt-4 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    No passwords to create or remember — each method proves who you are through a
+    provider you already trust, or a one-time link to your email. You can link more
+    than one method to the same account and unlink them later, as long as one stays.
+  </p>
+
+  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+    What's stored, plainly
+  </h2>
+  <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+    The hosted demo keeps a minimal identity — the verified email a provider hands
+    back, and the lists you choose to save. No passwords are stored; there's
+    nothing to pay and no card details ever change hands. Sign-in runs on
+    off-the-shelf auth libraries rather than anything home-rolled. And if you'd
+    rather keep everything local, self-host with auth switched off
+    (<code class="rounded-md border border-sand-300 bg-sand-50 px-1.5 py-0.5 font-mono text-xs text-coconut-700 dark:border-husk-50 dark:bg-husk-400 dark:text-sand-100">MGZ_PKMN_AUTH_ENABLED=0</code>)
+    — then it's anonymous-everywhere and your data lives on your own machine.
+  </p>
+</DocsLayout>
