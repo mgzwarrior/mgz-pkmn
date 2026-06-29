@@ -8,12 +8,14 @@ const demoUrl = "https://mgz-pkmn.onrender.com";
 
 // Primary nav. Vendors lives in the footer, not here — the homepage's
 // vendor-interest callout is the in-page surface for it. Subscribe is a page
-// section (EmailSignup), not a nav destination.
+// section (EmailSignup), not a nav destination. `accent` marks the links that
+// leave the homepage for a separate page (Docs, Contribute) so they read
+// subtly distinct from the in-page anchors (Why, Features, How it works).
 const navLinks = [
+  { href: "/#why", label: "Why", accent: false },
   { href: "/#features", label: "Features", accent: false },
   { href: "/#how-it-works", label: "How it works", accent: false },
-  { href: "/#why", label: "Why", accent: false },
-  { href: "/getting-started", label: "Docs", accent: false },
+  { href: "/getting-started", label: "Docs", accent: true },
   { href: "/contribute", label: "Contribute", accent: true },
 ];
 
@@ -60,21 +62,21 @@ const demoClass =
       />
     </a>
 
-    {/* Desktop primary links */}
-    <ul class="hidden md:flex items-center gap-1 text-sm">
-      {
-        navLinks.map((link) => (
-          <li>
-            <a href={link.href} class={link.accent ? accentLinkClass : linkClass}>
-              {link.label}
-            </a>
-          </li>
-        ))
-      }
-    </ul>
+    {/* Everything right of the logo, right-justified: links then controls */}
+    <div class="flex items-center gap-1 md:gap-2">
+      <ul class="hidden md:flex items-center gap-1 text-sm">
+        {
+          navLinks.map((link) => (
+            <li>
+              <a href={link.href} class={link.accent ? accentLinkClass : linkClass}>
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
 
-    {/* Right-side controls: GitHub · theme · Demo (mobile gets the menu button) */}
-    <div class="flex items-center gap-1">
+      {/* Controls: GitHub · theme · Demo (mobile gets the menu button) */}
       <a href={repoUrl} aria-label="GitHub" class={`hidden md:inline-flex ${githubLinkClass}`}>
         <svg class="h-5 w-5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
           <path d={octocatPath}></path>
