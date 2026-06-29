@@ -29,7 +29,7 @@ Migrations seed the `default` user, so the app boots straight into a usable, emp
 
 ## Fixture / seed strategy
 
-The first smoke flow ([#758](https://github.com/mgzwarrior/mgz-pkmn/issues/758)) is deliberately **external-data-free**: it creates a want-list by name and confirms it persists, exercising the full SPA↔FastAPI↔SQLite seam without any pricing source in the loop. That keeps the foundation fast and flake-proof.
+The first smoke flow ([#758](https://github.com/mgzwarrior/mgz-pkmn/issues/758)) is deliberately **external-data-free**: it creates a wishlist by name and confirms it persists, exercising the full SPA↔FastAPI↔SQLite seam without any pricing source in the loop. That keeps the foundation fast and flake-proof.
 
 Card-dependent journeys (browse a set → save a card → see it in the library) need card data, which the lookup pipeline fetches from external sources (pokemontcg.io et al.). Hitting those live in CI would be slow and flaky, so card data comes from a **cache cassette**: a committed slice of the API disk cache for one small set, [`web/e2e/fixtures/cassette/`](../web/e2e/fixtures). [`boot-api.sh`](../web/e2e/boot-api.sh) copies it into the run's throwaway cache root and `touch`es the files so every read is a HIT — the set list, the set's cards, and their pricing all resolve from disk, so the SPA↔API seam stays real while the external call is short-circuited and a run makes zero outbound fetches. See [`web/e2e/fixtures/README.md`](../web/e2e/fixtures/README.md) for what's in it, why the structural slice has no TTL, and how to regenerate. The remaining flows land one per PR per [#757](https://github.com/mgzwarrior/mgz-pkmn/issues/757).
 

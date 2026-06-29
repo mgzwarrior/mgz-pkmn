@@ -276,7 +276,7 @@ a tight allowlist).
 - **Sentence case** for all UI. Title Case only for product/source names
   (`PriceCharting`, `TCGdex`, `pokemontcg.io`).
 - **Contractions, second person** ("you", never "the user").
-- **Locked terms:** Look up (not Search/Submit), want-list (not wishlist),
+- **Locked terms:** Look up (not Search/Submit), wishlist (not want-list),
   comps, market, walk a set.
 - **Never ships:** unlock, supercharge, powerful, seamless, revolutionary,
   effortless, game-changing, next-gen.

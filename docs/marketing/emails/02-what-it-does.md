@@ -2,7 +2,7 @@
 sequence: 2
 when: signup + 3 days
 audience: collectors prepping for card shows (primary)
-subject: From want-list to printable binder in one command
+subject: From wishlist to printable binder in one command
 preheader: A 60-second tour.
 ---
 
@@ -10,7 +10,7 @@ preheader: A 60-second tour.
 
 A quick tour.
 
-Drop a want-list into the editor — natural language works alongside the canonical `name | set | number` form:
+Drop a wishlist into the editor — plain English works alongside the `name | set | number` form:
 
 ```
 top 5 Mew cards <= $50
@@ -22,10 +22,10 @@ Charizard | Base | 4/102
 Hit **Look up**, and you get back:
 
 - **A printable PDF binder** — thumbnail, set, number, market price, and comp tiers at 80/85/90/95% of market for every card. Fold it up, slip it in a backpack pocket, walk the booths.
-- **A printable checklist** — one row per matched card with a tick box, sectioned per input list (sorted by set + card number within each). Lives in the front of your binder so you can mark cards off by hand as you find them at the booth.
+- **A printable checklist** — one tick box per card, grouped by list and in set order. Lives in the front of your binder so you can mark cards off by hand as you find them.
 - **A spreadsheet** — same data, sortable. Comp tiers included.
 
-Prices come from three open sources layered in priority order — the first usable match wins, and you can override any row by pasting a PriceCharting URL in the input line.
+Prices come from three open sources, checked in order until one has the card — and you can override any row by pasting a PriceCharting link.
 
 [**Try it with my sample list →**](https://mgz-pkmn.onrender.com)
 

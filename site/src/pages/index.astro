@@ -6,9 +6,11 @@ import FeaturesGrid from "../components/FeaturesGrid.astro";
 import OutputGallery from "../components/OutputGallery.astro";
 import HowItWorks from "../components/HowItWorks.astro";
 import WhatsNew from "../components/WhatsNew.astro";
+import MakersStory from "../components/MakersStory.astro";
 import EmailSignup from "../components/EmailSignup.astro";
 import BuiltInTheOpen from "../components/BuiltInTheOpen.astro";
 import RoadmapTeaser from "../components/RoadmapTeaser.astro";
+import VendorInterest from "../components/VendorInterest.astro";
 import Footer from "../components/Footer.astro";
 ---
 
@@ -16,13 +18,15 @@ import Footer from "../components/Footer.astro";
   <Header />
   <main>
     <Hero />
+    <MakersStory />
     <FeaturesGrid />
     <HowItWorks />
     <OutputGallery />
-    <EmailSignup />
+    <VendorInterest />
     <BuiltInTheOpen />
     <RoadmapTeaser />
     <WhatsNew />
+    <EmailSignup />
   </main>
   <Footer />
 </BaseLayout>

@@ -1,0 +1,72 @@
+---
+import DocsLayout from "../../components/DocsLayout.astro";
+
+const demoUrl = "https://mgz-pkmn.onrender.com";
+
+// Skeptic-framed questions, answered straight. Voice: collector-first, crisp,
+// no hype. Avoids the locked-out words ("ROI", "scalpers") on purpose.
+const faqs = [
+  {
+    q: "Isn't this just a spreadsheet?",
+    a: "You can export to one — but the spreadsheet is the finish line, not the tool. mgz-pkmn finds the cards (Swipe, Browse, or Search), prices each against several open data sources, and works out your negotiation comps before you ever open a cell. A blank spreadsheet doesn't know what a Base Set Charizard sold for last week. This does — and hands you the sheet already filled in, plus a printable binder and a checklist.",
+  },
+  {
+    q: "Why should I trust the prices?",
+    a: "They aren't ours to invent. Prices come from open data sources — pokemontcg.io, TCGdex, PriceCharting, and eBay sold/active comps — and every card shows market plus four comps (80, 85, 90, 95% of market) so you see the whole spread, not a single number you have to take on faith. Where a source didn't contribute, you get a dash, not a guess.",
+  },
+  {
+    q: "It's a side project — will it stick around?",
+    a: "It's open source and MIT-licensed, built in the open precisely so it doesn't hinge on one person's spare time. The code, the pricing pipeline, and your exports are all yours. Worst case — I stop tomorrow — you can run it yourself and keep everything. Nothing lives behind a login you can be shut out of.",
+  },
+  {
+    q: "Why not just use one of the big apps?",
+    a: "Use whatever helps. But most of the big apps are walled gardens — your collection goes in and never comes back out in a form you can use anywhere else. (TCGplayer closed its public developer API after the eBay acquisition; most collection apps offer a CSV dump at best.) mgz-pkmn is collector-first and built to be open: real exports today, and first-class pull/push integration endpoints on the roadmap, so your data can move between tools instead of being held hostage.",
+  },
+  {
+    q: "Is this for flipping cards?",
+    a: "No. It's built by a real collector for real collectors. The point is to help you complete the collection you actually want, at a fair price — not to treat cardboard like a ticker symbol. The comps exist so you can negotiate from facts at the table, not so you can day-trade Pikachu.",
+  },
+  {
+    q: "Do I have to install anything?",
+    a: "Not unless you want to. The web app runs in your browser — open the demo and start swiping, no account needed. If you'd rather live in the terminal, there's a CLI that runs the same engine. Same results either way.",
+  },
+  {
+    q: "Is my data locked in?",
+    a: "No, by design. Everything exports — spreadsheet, 3×3 binder PDF, checklist, JSON — and the long-term bet is open, documented integration endpoints so other tools can read and write your data too. Lock-in is the thing we're trying to fix, not add.",
+  },
+  {
+    q: "Is it free?",
+    a: "Yes. Open-source, MIT-licensed, nothing to pay and no account required to try it. If it saves you money at a show, you can buy me a pizza — but you never have to.",
+  },
+];
+---
+
+<DocsLayout
+  title="FAQ — mgz-pkmn docs"
+  description="Straight answers about mgz-pkmn: trust in the prices, lock-in and exports, how it compares to the big apps, whether it's for flipping, and whether it's free."
+  current="/docs/faq"
+  icon="circle-help"
+  accent="sky"
+  eyebrow="Start here"
+  heading="Fair questions."
+  lede="The ones worth asking before you trust a tool with your show prep. Straight answers, no spin."
+>
+  <dl class="mt-2 space-y-4">
+    {
+      faqs.map((item) => (
+        <div class="rounded-xl border border-sand-300 bg-sand-100 p-5 dark:border-husk-50 dark:bg-husk-200/40">
+          <dt class="text-base font-semibold text-coconut-700 dark:text-sand-50">{item.q}</dt>
+          <dd class="mt-2 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">{item.a}</dd>
+        </div>
+      ))
+    }
+  </dl>
+
+  <div class="mt-10 rounded-xl border border-palm-300 bg-palm-50 p-5 dark:border-sun-300/40 dark:bg-sun-300/5">
+    <p class="text-sm leading-relaxed text-coconut-600 dark:text-sand-200">
+      Still wondering something? Ask in
+      <a href="https://github.com/mgzwarrior/mgz-pkmn/discussions" target="_blank" rel="noopener noreferrer" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">Discussions</a>,
+      or just <a href={demoUrl} target="_blank" rel="noopener noreferrer" class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline">try the demo</a> and see for yourself.
+    </p>
+  </div>
+</DocsLayout>

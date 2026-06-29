@@ -1,0 +1,84 @@
+---
+const repoUrl = "https://github.com/mgzwarrior/mgz-pkmn";
+const discussionsUrl = "https://github.com/mgzwarrior/mgz-pkmn/discussions";
+---
+
+<section
+  id="why"
+  class="border-b border-sand-300 dark:border-husk-200/80 px-6 py-20 sm:py-24"
+>
+  <div class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[1fr_15rem] lg:items-start">
+    <div>
+    <p
+      class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 backdrop-blur px-3 py-1 text-xs font-medium text-coconut-500 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-200"
+    >
+      <span class="h-1.5 w-1.5 rounded-full bg-palm-400 dark:bg-sun-300"></span>
+      From the maker
+    </p>
+
+    <h2
+      class="mt-6 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50 text-balance"
+    >
+      Why I built this.
+    </h2>
+
+    <div
+      class="mt-6 space-y-4 text-lg leading-relaxed text-coconut-500 dark:text-sand-200"
+    >
+      <p>
+        I'm Matt — a collector who writes software. mgz-pkmn started with my own
+        binders: I'd map out the collection I wanted, then get the order wrong,
+        miscount, miss a card, and never quite see where the gaps were. What I
+        wanted was one clean list — the cards I'm chasing, with current prices —
+        to carry into a show and set in front of a vendor.
+      </p>
+      <p>
+        So I built it, in the hours around a full-time engineering job. Becoming
+        a parent pulled me further into the hobby, not out of it — and into the
+        community around it.
+      </p>
+      <p>
+        It's collector-first, and built by a real collector for real collectors.
+        The market's been pulled around by speculation and big money, and plenty
+        of people got priced out of their own hobby. This is the opposite bet:
+        make Pokemon accessible to everyone — whatever your age, budget, or reason
+        for collecting.
+      </p>
+      <p>
+        It's MIT-licensed and built in the open — and yes, there's an Exeggutor or
+        two hiding in it.
+      </p>
+    </div>
+
+    <div class="mt-8 flex flex-wrap items-center gap-3">
+      <a
+        href={repoUrl}
+        class="inline-flex items-center gap-2 rounded-md border border-sand-300 bg-sand-100 backdrop-blur px-5 py-3 text-sm font-semibold text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition"
+      >
+        See the code
+      </a>
+      <a
+        href={discussionsUrl}
+        class="inline-flex items-center gap-1 text-sm font-semibold text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200"
+      >
+        Tell me what's missing →
+      </a>
+    </div>
+    </div>
+
+    {/* The favorite — Southern Islands Exeggutor, fittingly tropical. */}
+    <figure class="mx-auto w-40 sm:w-48 lg:mx-0 lg:w-full lg:max-w-[15rem]">
+      <img
+        src="/cards/si1-13.webp"
+        alt="Exeggutor, Southern Islands 13"
+        width="600"
+        height="825"
+        loading="lazy"
+        class="w-full rotate-3 rounded-lg shadow-xl shadow-coconut-700/20 ring-1 ring-sand-300/60 dark:shadow-black/40 dark:ring-white/10"
+      />
+      <figcaption class="mt-3 text-center text-xs text-sand-500 dark:text-sand-400">
+        Exeggutor · Southern Islands
+      </figcaption>
+    </figure>
+  </div>
+</section>
