@@ -45,7 +45,8 @@ vi.mock('../store', () => {
 function makeAnchors() {
   // Each step's CSS selector needs a matching DOM element so the highlight
   // effect can find a target. Tests run in jsdom — these are bare divs.
-  const ids = ['input', 'run', 'settings', 'results', 'exports']
+  // Order mirrors STEPS so makeAnchors()[0] is the first step's target.
+  const ids = ['discovery-modes', 'input', 'run', 'results', 'exports', 'library', 'settings']
   return ids.map((id) => {
     const el = document.createElement('div')
     el.setAttribute('data-tour', id)
@@ -68,16 +69,16 @@ describe('Tour', () => {
   it('renders the first step with a Skip control', () => {
     makeAnchors()
     render(<Tour onClose={vi.fn()} onRun={vi.fn()} onStop={vi.fn()} />)
-    expect(screen.getByText(/Step 1 of 5/)).toBeInTheDocument()
-    expect(screen.getByText('Card list')).toBeInTheDocument()
+    expect(screen.getByText(/Step 1 of 7/)).toBeInTheDocument()
+    expect(screen.getByText('Find cards')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Skip tour' })).toBeInTheDocument()
   })
 
   it('seeds the input on mount when empty and highlights step 1 target', () => {
-    const [inputEl] = makeAnchors()
+    const [firstEl] = makeAnchors()
     render(<Tour onClose={vi.fn()} onRun={vi.fn()} onStop={vi.fn()} />)
     expect(mockSetInputText).toHaveBeenCalledWith('Pikachu | Jungle')
-    expect(inputEl.classList.contains('tour-highlight')).toBe(true)
+    expect(firstEl.classList.contains('tour-highlight')).toBe(true)
   })
 
   it('does not seed the input when it already has user content', () => {
@@ -91,6 +92,9 @@ describe('Tour', () => {
     makeAnchors()
     const onRun = vi.fn()
     render(<Tour onClose={vi.fn()} onRun={onRun} onStop={vi.fn()} />)
+    // Find cards -> Card list -> Look up -> Results: onRun fires on the third
+    // Next, when the user advances past the Look-up step (index 2).
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     expect(onRun).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
@@ -105,10 +109,10 @@ describe('Tour', () => {
     makeAnchors()
     const onClose = vi.fn()
     render(<Tour onClose={onClose} onRun={vi.fn()} onStop={vi.fn()} />)
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       fireEvent.click(screen.getByRole('button', { name: /Next|Done/i }))
     }
-    expect(screen.getByText(/Step 5 of 5/)).toBeInTheDocument()
+    expect(screen.getByText(/Step 7 of 7/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Done/i }))
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -119,10 +123,10 @@ describe('Tour', () => {
     render(<Tour onClose={onClose} onRun={vi.fn()} onStop={vi.fn()} />)
 
     fireEvent.keyDown(window, { key: 'ArrowRight' })
-    expect(screen.getByText(/Step 2 of 5/)).toBeInTheDocument()
+    expect(screen.getByText(/Step 2 of 7/)).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    expect(screen.getByText(/Step 1 of 5/)).toBeInTheDocument()
+    expect(screen.getByText(/Step 1 of 7/)).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
@@ -136,20 +140,22 @@ describe('Tour', () => {
     ta.focus()
 
     fireEvent.keyDown(ta, { key: 'ArrowRight', bubbles: true })
-    expect(screen.getByText(/Step 1 of 5/)).toBeInTheDocument()
+    expect(screen.getByText(/Step 1 of 7/)).toBeInTheDocument()
   })
 
   it('on unmount with seed intact and run fired: aborts request and wipes state', () => {
-    const [inputEl] = makeAnchors()
+    const [firstEl] = makeAnchors()
     const onRun = vi.fn()
     const onStop = vi.fn()
     const { unmount } = render(<Tour onClose={vi.fn()} onRun={onRun} onStop={onStop} />)
+    // Advance past the Look-up step (index 2) so the tour fires its own lookup.
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     expect(onRun).toHaveBeenCalledOnce()
 
     unmount()
-    expect(inputEl.classList.contains('tour-highlight')).toBe(false)
+    expect(firstEl.classList.contains('tour-highlight')).toBe(false)
     expect(mockSetInputText).toHaveBeenLastCalledWith('')
     expect(onStop).toHaveBeenCalledOnce()
     expect(mockClearRows).toHaveBeenCalled()
@@ -163,7 +169,8 @@ describe('Tour', () => {
     const onRun = vi.fn()
     const onStop = vi.fn()
     const { unmount } = render(<Tour onClose={vi.fn()} onRun={onRun} onStop={onStop} />)
-    // Advance past the run step so hasRunRef is set.
+    // Advance past the Look-up step so hasRunRef is set.
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     expect(onRun).toHaveBeenCalledOnce()

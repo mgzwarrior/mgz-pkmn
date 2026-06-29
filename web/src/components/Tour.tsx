@@ -23,9 +23,14 @@ interface Step {
 
 const STEPS: Step[] = [
   {
+    selector: '[data-tour="discovery-modes"]',
+    title: 'Find cards',
+    body: 'Three ways in, from the bar up top: Swipe one card at a time, Browse a whole set, or Search a want-list you paste. New here? Start with Swipe or Browse. This tour walks the Search flow.',
+  },
+  {
     selector: '[data-tour="input"]',
     title: 'Card list',
-    body: 'Paste or type one card per line. Try a precise format like "Charizard | Base Set | 4/102", a bulk lookup like "top:5 Charizard cards", or a name on its own. Blank lines and # comments are skipped.',
+    body: 'In Search, paste or type one card per line. Try a precise "Charizard | Base Set | 4/102", a bulk "top:5 Charizard cards", or a name on its own. Blank lines and # comments are skipped.',
   },
   {
     selector: '[data-tour="run"]',
@@ -33,19 +38,24 @@ const STEPS: Step[] = [
     body: 'Run the lookup. Results stream in as each line resolves — Ctrl/Cmd + Enter is the keyboard shortcut.',
   },
   {
-    selector: '[data-tour="settings"]',
-    title: 'Settings',
-    body: 'Drawer for the API key, source tag, sort order, price cap, dedupe, and image toggles. Settings apply to both the table and every export.',
-  },
-  {
     selector: '[data-tour="results"]',
     title: 'Results',
-    body: 'Matched cards appear here with prices and negotiation comps. Click any column header to sort; use Filter for per-column substring or price ranges.',
+    body: 'Matched cards land here with market price and negotiation comps. Sort by any column header, Filter by text or price range, and click a row for full-size art — ← / → step between cards.',
   },
   {
     selector: '[data-tour="exports"]',
     title: 'Exports',
-    body: 'Download .xlsx, PDF binder, condensed PDF, or per-tag checklist once you have matched rows. "Set ID cards" works without any input.',
+    body: 'Download .xlsx, a PDF binder, a condensed PDF, or a per-tag checklist once you have matched rows. "Set ID cards" works without any input.',
+  },
+  {
+    selector: '[data-tour="library"], [data-tour="library-mobile"]',
+    title: 'Backpack',
+    body: 'Everything you save lives here: Binders — your collections (cards you Own) and wishlists (cards you Want) — plus named Searches and your Recent lookups. Sign in on the demo to keep Binders and Searches.',
+  },
+  {
+    selector: '[data-tour="settings"]',
+    title: 'Settings',
+    body: 'The API key, source tag, sort order, price cap, dedupe, eBay comps, lookup timer, and image toggles. Settings apply to both the table and every export.',
   },
 ]
 
@@ -56,7 +66,7 @@ interface Props {
 }
 
 // 0-indexed step that runs the lookup when the user advances past it.
-const RUN_STEP_INDEX = 1
+const RUN_STEP_INDEX = 2
 
 export function Tour({ onClose, onRun, onStop }: Props) {
   const [stepIndex, setStepIndex] = useState(0)
@@ -69,7 +79,7 @@ export function Tour({ onClose, onRun, onStop }: Props) {
   }, [stepIndex])
 
   // Seed the textarea with a sample line on first mount so disabled-only
-  // elements (Look up button) have a meaningful highlight at step 2.
+  // elements (Look up button) have a meaningful highlight on the Look-up step.
   // On unmount, undo everything the tour put in place: clear the seeded
   // input (only if it's still untouched), and — only if the seed is *still*
   // the input text and the tour kicked off its own lookup — abort any
@@ -97,8 +107,12 @@ export function Tour({ onClose, onRun, onStop }: Props) {
   }, [setInputText, onStop])
 
   // Scroll the target element into view and glow it while this step is active.
+  // A step may list more than one anchor (the Backpack renders as a desktop
+  // sidebar *and* a mobile accordion, only one visible at a time) — prefer the
+  // visible match, falling back to the first so the highlight never no-ops.
   useEffect(() => {
-    const el = document.querySelector<HTMLElement>(STEPS[stepIndex].selector)
+    const els = document.querySelectorAll<HTMLElement>(STEPS[stepIndex].selector)
+    const el = Array.from(els).find((e) => e.offsetParent !== null) ?? els[0]
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     el.classList.add('tour-highlight')
