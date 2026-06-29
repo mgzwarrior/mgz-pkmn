@@ -149,6 +149,24 @@ const SAMPLE_ROWS: Row[] = [
   sampleRow('Venusaur', '15', 102, 150),
 ]
 
+// The Backpack ships as a desktop sidebar and a mobile accordion; both mount,
+// but only one is on screen (the other is display:none → no offsetParent).
+function visibleLibraryRoot(): HTMLElement | null {
+  const roots = document.querySelectorAll<HTMLElement>(
+    '[data-tour="library"], [data-tour="library-mobile"]',
+  )
+  return Array.from(roots).find((e) => e.offsetParent !== null) ?? null
+}
+
+// Open the visible Backpack so its Binders tab can be reached: a collapsed
+// sidebar or a closed mobile accordion exposes a single `aria-expanded="false"`
+// toggle — click it. The tab itself is clicked a frame later, once the
+// expanded panel (and its tab strip) has mounted.
+function openBindersTab() {
+  const root = visibleLibraryRoot()
+  root?.querySelector<HTMLElement>('[aria-expanded="false"]')?.click()
+}
+
 interface Props {
   onClose: () => void
   onRun: (overrideText?: string) => void
@@ -212,29 +230,38 @@ export function Tour({ onClose, onRun, onStop, onSetMode }: Props) {
     }
   }, [setInputText, onStop])
 
-  // Drive the app for the active step (switch mode / flip the Binders tab),
-  // then scroll the target element into view and glow it. The work is deferred
-  // a beat so a mode switch or tab click has rendered its panel before we look
-  // for the target. A step may list more than one anchor (the Backpack renders
-  // as a desktop sidebar *and* a mobile accordion, only one visible at a time)
-  // — prefer the visible match so the highlight never lands on a hidden node.
+  // Drive the app for the active step (switch mode / open the Binders tab),
+  // then scroll the target element into view and glow it. Work is deferred a
+  // beat so a mode switch or tab flip has rendered before we look for the
+  // target, and sequenced across animation frames so the Binders tab is opened
+  // *before* we hunt for its (then-mounted) content. A step may list more than
+  // one anchor (the Backpack renders as a desktop sidebar *and* a mobile
+  // accordion, only one visible at a time) — always prefer the visible match so
+  // neither the tab click nor the highlight lands on a hidden node.
   useEffect(() => {
     if (!step) return
     if (step.mode) onSetMode(step.mode)
+    let raf1 = 0
+    let raf2 = 0
     const timer = window.setTimeout(() => {
-      if (step.openBinders) {
-        document.querySelector<HTMLElement>('[data-tour="binders-tab"]')?.click()
-      }
-      window.requestAnimationFrame(() => {
-        const els = document.querySelectorAll<HTMLElement>(step.selector)
-        const el = Array.from(els).find((e) => e.offsetParent !== null) ?? els[0]
-        if (!el) return
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        el.classList.add('tour-highlight')
+      if (step.openBinders) openBindersTab()
+      raf1 = window.requestAnimationFrame(() => {
+        if (step.openBinders) {
+          visibleLibraryRoot()?.querySelector<HTMLElement>('[data-tour="binders-tab"]')?.click()
+        }
+        raf2 = window.requestAnimationFrame(() => {
+          const els = document.querySelectorAll<HTMLElement>(step.selector)
+          const el = Array.from(els).find((e) => e.offsetParent !== null) ?? els[0]
+          if (!el) return
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.classList.add('tour-highlight')
+        })
       })
     }, 80)
     return () => {
       window.clearTimeout(timer)
+      window.cancelAnimationFrame(raf1)
+      window.cancelAnimationFrame(raf2)
       // Clear every highlight (not just one captured ref) so a deferred add
       // that lands after this cleanup schedules is still torn down next step.
       document.querySelectorAll('.tour-highlight').forEach((e) => e.classList.remove('tour-highlight'))
@@ -290,16 +317,29 @@ export function Tour({ onClose, onRun, onStop, onSetMode }: Props) {
 
   return (
     <>
+      {/* Our own dim backdrop behind the sample modal. The modal runs
+          non-modal (so the tour controls below stay clickable), which means
+          Radix doesn't render its own overlay — this stands in for it, and is
+          pointer-events-none so it never swallows a click on the tour card. */}
+      {detailOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-coconut-700/60 dark:bg-husk-500/70 backdrop-blur-sm pointer-events-none"
+          aria-hidden="true"
+        />
+      )}
+
       {/* The tour's own card-detail modal — controlled, fed canned sample rows
-          so it always shows real content + working ←/→ nav. onChangeIndex(null)
-          (overlay/Esc close attempts) is ignored: the tour owns when it's
-          open so closing it can't strand the walkthrough. */}
+          so it always shows real content + working ←/→ nav. Runs non-modal so
+          the tour card's Next/Back/Skip (rendered as siblings) stay clickable.
+          onChangeIndex(null) (overlay/Esc close attempts) is ignored: the tour
+          owns when it's open so closing it can't strand the walkthrough. */}
       <CardDetailModal
         rows={SAMPLE_ROWS}
         index={detailOpen ? sampleIndex : null}
         onChangeIndex={(n) => {
           if (n !== null) setSampleIndex(n)
         }}
+        modal={false}
       />
 
       <div
