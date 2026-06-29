@@ -33,7 +33,7 @@ list without logging into a third-party tool.
 - **Type:** multi-select (checkboxes)
 - **Required:** no
 - **Options:**
-  - Want-list lookup (CLI / web)
+  - Wishlist lookup (CLI / web)
   - Printable PDF binder
   - Set-completion checklist
   - Xlsx export
@@ -52,7 +52,7 @@ list without logging into a third-party tool.
 - **Type:** single-select (radio)
 - **Required:** no
 - **Options:**
-  - Hobbyist collector — show up with want-lists
+  - Hobbyist collector — show up with wishlists
   - Vendor / reseller — work booths
   - LGS owner / staff
   - Open-source contributor

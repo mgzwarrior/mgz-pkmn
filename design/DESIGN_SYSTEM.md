@@ -11,7 +11,7 @@
 ## What is mgz-pkmn?
 
 [mgz-pkmn](https://github.com/mgzwarrior/mgz-pkmn) is an open-source toolkit that
-helps Pokemon TCG collectors prep for a card show. You hand it a want-list (one
+helps Pokemon TCG collectors prep for a card show. You hand it a wishlist (one
 card per line, with a flexible grammar like `top:5 Charizard | base set`), and it:
 
 1. **Looks each card up** across three open data sources — `pokemontcg.io`,
@@ -139,7 +139,7 @@ One word per concept, enforced everywhere:
 | Say this | Not that | Why |
 |---|---|---|
 | **Look up** | Search · Submit · Go | The core verb of the app. |
-| **Want-list** | wishlist · cart · queue | One term, hyphenated, everywhere. |
+| **Wishlist** | want-list · cart · queue | One term, one word, everywhere. |
 | **Comps** | data · the numbers | Recent comparable sales. |
 | **Market** | value · worth · est. | The headline price. |
 | **Walk a set** | explore · discover | Browse a full set in order. |
@@ -290,7 +290,7 @@ The web app uses **[Lucide](https://lucide.dev)** (`lucide-react@latest`) at
 
 ### Library symbol system
 
-The library surfaces (saved searches, want-lists, collections, binders) each carry a distinct, fixed glyph so the three "save" actions and the durable-inventory views never read as the same thing. This mapping is canonical — reuse the listed icon for that meaning everywhere (result-row actions, bulk actions, detail headers, tab strips, empty-state copy) and don't borrow it for an unrelated concept.
+The library surfaces (saved searches, wishlists, collections, binders) each carry a distinct, fixed glyph so the three "save" actions and the durable-inventory views never read as the same thing. This mapping is canonical — reuse the listed icon for that meaning everywhere (result-row actions, bulk actions, detail headers, tab strips, empty-state copy) and don't borrow it for an unrelated concept.
 
 | Meaning | Icon | Where it shows |
 |---|---|---|
@@ -298,7 +298,7 @@ The library surfaces (saved searches, want-lists, collections, binders) each car
 | Binder | `Library` | Binders tab, binder rows/headers |
 | Smart binder | `Sparkles` | Smart-binder toggle + rows |
 | Collection (save a card you own) | `Book` | Result-row "save to collection", bulk "add as owned" |
-| Chasing / want-list (save a card you're after) | `Footprints` | Result-row "save to wishlist", bulk "add as chasing", want-list header |
+| Wishlist (save a card you're after) | `Footprints` | Result-row "save to wishlist", bulk "add as chasing", wishlist header |
 | Favorite (cards you like best) | `Heart` | Swipe mode (the right-swipe "save") |
 | Saved search | `Bookmark` | Searches tab, "save search" action |
 | Insights | `BarChart3` | Collection insights |

@@ -14,7 +14,7 @@ mgz-pkmn is MIT-licensed and built entirely in the open. The CHANGELOG, the road
 
 **What's next:**
 - A web workspace rethink — saved searches, wishlists, and collections as first-class things, on your phone and your desktop
-- Sharper lookups — free-form want-lists that land the right card more often
+- Sharper lookups — free-form wishlists that land the right card more often
 - Richer exports — an HTML view, customizable binder layouts, and a swipeable flipbook for phone review
 
 (Full committed roadmap: [docs/roadmap.md](https://github.com/mgzwarrior/mgz-pkmn/blob/main/docs/roadmap.md).)

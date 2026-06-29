@@ -2,7 +2,7 @@
 sequence: 2
 when: signup + 3 days
 audience: collectors prepping for card shows (primary)
-subject: From want-list to printable binder in one command
+subject: From wishlist to printable binder in one command
 preheader: A 60-second tour.
 ---
 
@@ -10,7 +10,7 @@ preheader: A 60-second tour.
 
 A quick tour.
 
-Drop a want-list into the editor — plain English works alongside the `name | set | number` form:
+Drop a wishlist into the editor — plain English works alongside the `name | set | number` form:
 
 ```
 top 5 Mew cards <= $50

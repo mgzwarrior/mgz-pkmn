@@ -12,11 +12,11 @@ Hey —
 
 Thanks for signing up.
 
-You know the moment: you're at a card show, three booths deep, holding the want-list you scribbled in the parking lot. Someone behind you sighs. The Wi-Fi crawls. You look up a comp on your phone and the page hangs while the dealer waits.
+You know the moment: you're at a card show, three booths deep, holding the wishlist you scribbled in the parking lot. Someone behind you sighs. The Wi-Fi crawls. You look up a comp on your phone and the page hangs while the dealer waits.
 
 That's the moment I built **mgz-pkmn** for.
 
-It takes a want-list (any format — names, sets, `top 5 Mew cards <= $50`) and gives you back a printable binder with thumbnails, set numbers, market prices, and comp tiers at 80/85/90/95% of market. You walk into the show with a plan instead of doing napkin math at the table.
+It takes a wishlist (any format — names, sets, `top 5 Mew cards <= $50`) and gives you back a printable binder with thumbnails, set numbers, market prices, and comp tiers at 80/85/90/95% of market. You walk into the show with a plan instead of doing napkin math at the table.
 
 [**Try the live demo →**](https://mgz-pkmn.onrender.com)
 
