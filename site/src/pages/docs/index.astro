@@ -1,8 +1,17 @@
 ---
 import DocsLayout from "../../components/DocsLayout.astro";
+import Icon from "../../components/Icon.astro";
 
 const cardClass =
-  "block rounded-xl border border-sand-300 bg-sand-100 p-5 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200/40 dark:hover:border-coconut-400 transition";
+  "flex gap-3 rounded-xl border border-sand-300 bg-sand-100 p-5 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200/40 dark:hover:border-coconut-400 transition";
+
+// Token-only icon-badge accents, matched to each page's own header accent.
+const accents: Record<string, string> = {
+  sun: "bg-sun-100 text-sun-600 dark:bg-sun-400/15 dark:text-sun-300",
+  palm: "bg-palm-100 text-palm-600 dark:bg-palm-500/15 dark:text-palm-300",
+  sky: "bg-sky-500/12 text-sky-500 dark:bg-sky-400/15 dark:text-sky-300",
+  ember: "bg-ember-500/12 text-ember-500 dark:bg-ember-400/15 dark:text-ember-300",
+};
 
 const sections = [
   {
@@ -11,11 +20,15 @@ const sections = [
       {
         href: "/getting-started",
         title: "Getting started",
+        icon: "book-open",
+        accent: "sun",
         body: "The whole loop end to end — paste a wishlist, run the lookup, read the comps, export.",
       },
       {
         href: "/docs/faq",
         title: "FAQ",
+        icon: "circle-help",
+        accent: "sky",
         body: "Straight answers to the questions worth asking before you trust a tool with your prep.",
       },
     ],
@@ -26,16 +39,22 @@ const sections = [
       {
         href: "/docs/swipe",
         title: "Swipe",
+        icon: "layers",
+        accent: "sun",
         body: "Card at a time. Pass, save, or love each one — and let it learn what you're after.",
       },
       {
         href: "/docs/browse",
         title: "Browse",
+        icon: "gallery-horizontal-end",
+        accent: "palm",
         body: "Walk a whole set in order, or every printing of one Pokemon across every set.",
       },
       {
         href: "/docs/search",
         title: "Search",
+        icon: "search",
+        accent: "sky",
         body: "Paste a wishlist and get priced results you can export.",
       },
     ],
@@ -46,26 +65,36 @@ const sections = [
       {
         href: "/docs/backpack",
         title: "Backpack",
+        icon: "backpack",
+        accent: "ember",
         body: "Your library sidebar — binders, saved searches, recent runs, and insights in one place.",
       },
       {
         href: "/docs/wishlists",
         title: "Wishlists",
+        icon: "footprints",
+        accent: "sun",
         body: "Cards you're chasing. One-tap Want, named lists, and an optional price you'd pay.",
       },
       {
         href: "/docs/collections",
         title: "Collections",
+        icon: "book",
+        accent: "palm",
         body: "Cards you own — including smart collections built from a saved rule.",
       },
       {
         href: "/docs/binders",
         title: "Binders",
+        icon: "library",
+        accent: "sky",
         body: "Where owned and chasing meet: one shelf, filtered and color-coded.",
       },
       {
         href: "/docs/saved-searches",
         title: "Saved searches",
+        icon: "bookmark",
+        accent: "ember",
         body: "Name a lookup to keep it, then rerun it against today's market in a click.",
       },
     ],
@@ -76,11 +105,15 @@ const sections = [
       {
         href: "/docs/account",
         title: "Account & sign-in",
+        icon: "circle-user",
+        accent: "palm",
         body: "Optional sign-in to keep your stuff across devices — and a plain note on what's stored.",
       },
       {
         href: "/docs/exports",
         title: "Exports",
+        icon: "download",
+        accent: "sun",
         body: "Spreadsheet, printable binder, checklist, or JSON — everything you carry to the show.",
       },
     ],
@@ -92,27 +125,13 @@ const sections = [
   title="mgz-pkmn docs — how the app works, flow by flow"
   description="Documentation for mgz-pkmn: the three ways in (Swipe, Browse, Search), getting started, and an honest FAQ. Built for collectors."
   current="/docs"
+  icon="compass"
+  accent="palm"
+  eyebrow="Docs"
+  heading="How mgz-pkmn works."
+  lede="The app gives you three ways to find cards — Swipe, Browse, and Search — and a shared place to keep what you find. Start with the loop, then dig into whichever flow fits how you collect."
 >
-  <p
-    class="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-sand-100 px-3 py-1 text-xs font-medium text-coconut-500 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-200"
-  >
-    <span class="h-1.5 w-1.5 rounded-full bg-palm-400 dark:bg-sun-300"></span>
-    Docs
-  </p>
-
-  <h1
-    class="mt-6 text-4xl sm:text-5xl font-bold tracking-tight text-coconut-700 dark:text-sand-50 text-balance"
-  >
-    How mgz-pkmn works.
-  </h1>
-
-  <p class="mt-5 text-lg text-coconut-500 dark:text-sand-200">
-    The app gives you three ways to find cards — Swipe, Browse, and Search — and
-    a shared place to keep what you find. Start with the loop, then dig into
-    whichever flow fits how you collect.
-  </p>
-
-  <div class="mt-10 space-y-10">
+  <div class="space-y-10">
     {
       sections.map((section) => (
         <section>
@@ -122,12 +141,19 @@ const sections = [
           <div class="mt-4 grid gap-4 sm:grid-cols-2">
             {section.items.map((item) => (
               <a href={item.href} class={cardClass}>
-                <h3 class="text-base font-semibold text-coconut-700 dark:text-sand-50">
-                  {item.title}
-                </h3>
-                <p class="mt-2 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
-                  {item.body}
-                </p>
+                <span
+                  class={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accents[item.accent]}`}
+                >
+                  <Icon name={item.icon} class="h-[1.1rem] w-[1.1rem]" />
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-base font-semibold text-coconut-700 dark:text-sand-50">
+                    {item.title}
+                  </span>
+                  <span class="mt-1 block text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
+                    {item.body}
+                  </span>
+                </span>
               </a>
             ))}
           </div>

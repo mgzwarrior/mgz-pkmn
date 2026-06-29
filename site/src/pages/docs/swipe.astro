@@ -14,20 +14,52 @@ const decisions = [
   title="Swipe — mgz-pkmn docs"
   description="Swipe mode in mgz-pkmn: review cards one at a time, pass/save/love by drag, keyboard, or buttons, and build a wishlist from what you saved."
   current="/docs/swipe"
+  icon="layers"
+  accent="sun"
+  eyebrow="The three ways in"
+  heading="Swipe"
+  lede="The lowest-friction way in. Swipe shows you one card at a time and asks a single question — yes, no, or love it? It's for discovery: you don't need a list yet, you're finding out what you're after."
 >
-  <p class="text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
-    The three ways in
-  </p>
-  <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-coconut-700 dark:text-sand-50">
-    Swipe
-  </h1>
-  <p class="mt-4 text-lg text-coconut-500 dark:text-sand-200">
-    The lowest-friction way in. Swipe shows you one card at a time and asks a
-    single question — yes, no, or love it? It's for discovery: you don't need a
-    list yet, you're finding out what you're after.
-  </p>
+  {/* Illustrative UI preview — real card art, annotated. Swap for a real
+      screenshot / demo clip once the mobile + desktop UX settles. */}
+  <figure
+    class="mb-10 overflow-hidden rounded-2xl border border-sand-300 bg-gradient-to-b from-sand-100 to-sand-50 p-6 dark:border-husk-50 dark:from-husk-200/50 dark:to-husk-300/40"
+  >
+    <p class="text-center text-xs font-semibold uppercase tracking-wider text-sand-500 dark:text-sand-400">
+      Swipe mode
+    </p>
+    <div class="relative mx-auto mt-4 w-40">
+      <img
+        src="/cards/sv8-1.webp"
+        alt="A card in the swipe view"
+        width="600"
+        height="825"
+        loading="lazy"
+        class="w-full rotate-3 rounded-lg shadow-xl shadow-coconut-700/20 ring-1 ring-sand-300/60 dark:shadow-black/40 dark:ring-white/10"
+      />
+      <span
+        class="absolute -right-3 top-3 rotate-12 rounded-md border-2 border-palm-500 bg-sand-50/90 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-palm-600 dark:bg-husk-400/90 dark:text-palm-300"
+      >
+        Save →
+      </span>
+    </div>
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+      <span class="inline-flex items-center gap-1.5 rounded-full border border-sand-300 bg-sand-50 px-3 py-1.5 text-xs font-semibold text-coconut-500 dark:border-husk-50 dark:bg-husk-400 dark:text-sand-200">
+        <kbd class="font-mono">←</kbd> Pass
+      </span>
+      <span class="inline-flex items-center gap-1.5 rounded-full border border-sun-200 bg-sun-50 px-3 py-1.5 text-xs font-semibold text-sun-700 dark:border-sun-400/40 dark:bg-sun-400/10 dark:text-sun-300">
+        <kbd class="font-mono">↑</kbd> Love
+      </span>
+      <span class="inline-flex items-center gap-1.5 rounded-full border border-palm-300 bg-palm-50 px-3 py-1.5 text-xs font-semibold text-palm-600 dark:border-palm-500/40 dark:bg-palm-500/10 dark:text-palm-300">
+        <kbd class="font-mono">→</kbd> Save
+      </span>
+    </div>
+    <figcaption class="mt-5 text-center text-xs text-sand-500 dark:text-sand-400">
+      Illustration of the swipe surface — drag the card, use the arrow keys, or tap.
+    </figcaption>
+  </figure>
 
-  <h2 class="mt-10 text-xl font-semibold text-coconut-700 dark:text-sand-50">
+  <h2 class="mt-2 text-xl font-semibold text-coconut-700 dark:text-sand-50">
     Three decisions
   </h2>
   <p class="mt-3 text-sm leading-relaxed text-coconut-500 dark:text-sand-300">
