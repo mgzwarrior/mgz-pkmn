@@ -1,14 +1,15 @@
-"""Tests for the newsletter signup route (#821).
+"""Tests for the newsletter signup route (#821, #826).
 
 Covers:
 
 - `POST /subscribe` 503s when the Resend env vars aren't set.
-- Each of the three reasons → 202 + a Resend contact create with the reason
-  stamped into `properties` (the Resend network call is patched at the
-  `_create_resend_contact` seam — no real request).
+- Each of the three reasons → 202 + a Resend contact create (reason in
+  `properties`) *and* a `New Signup` event (reason in `payload`), both patched
+  at their seams — no real request.
 - An unknown reason → 422 (our own form's contract, not user-enumerable).
-- A Resend failure (non-2xx / network) surfaces as 502.
+- A Resend failure on either call (non-2xx / network) surfaces as 502.
 - CR/LF/whitespace in the email is normalized before it reaches Resend.
+- The contact seam and the event seam each build the request Resend expects.
 """
 
 from __future__ import annotations
@@ -29,7 +30,11 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 from api.routes import subscribe as subscribe_mod
-from api.routes.subscribe import RESEND_API_KEY_ENV, RESEND_AUDIENCE_ID_ENV
+from api.routes.subscribe import (
+    RESEND_API_KEY_ENV,
+    RESEND_AUDIENCE_ID_ENV,
+    RESEND_SIGNUP_EVENT,
+)
 
 SUBSCRIBE_URL = "/api/v1/subscribe"
 
@@ -55,41 +60,56 @@ class SubscribeApiTests(unittest.TestCase):
         resp = self.client.post(SUBSCRIBE_URL, json={"email": "a@b.com", "reason": "collector"})
         self.assertEqual(resp.status_code, 503)
 
-    def test_each_reason_creates_a_resend_contact(self) -> None:
+    def test_each_reason_creates_contact_and_fires_event(self) -> None:
         for reason in ("collector", "show", "builder"):
             with self.subTest(reason=reason):
-                with patch.object(
-                    subscribe_mod, "_create_resend_contact", new=AsyncMock()
-                ) as mock_create:
+                with (
+                    patch.object(
+                        subscribe_mod, "_create_resend_contact", new=AsyncMock()
+                    ) as mock_contact,
+                    patch.object(
+                        subscribe_mod, "_send_resend_event", new=AsyncMock()
+                    ) as mock_event,
+                ):
                     resp = self.client.post(
                         SUBSCRIBE_URL, json={"email": "fan@example.com", "reason": reason}
                     )
                 self.assertEqual(resp.status_code, 202)
                 self.assertEqual(resp.content, b"")
-                mock_create.assert_awaited_once()
-                # Positional args: (api_key, audience_id, email, reason)
-                args = mock_create.await_args.args
-                self.assertEqual(args[0], "re_test_key")
-                self.assertEqual(args[1], "aud_123")
-                self.assertEqual(args[2], "fan@example.com")
-                self.assertEqual(args[3], reason)
+                # Contact create: (api_key, audience_id, email, reason)
+                mock_contact.assert_awaited_once()
+                contact_args = mock_contact.await_args.args
+                self.assertEqual(contact_args[0], "re_test_key")
+                self.assertEqual(contact_args[1], "aud_123")
+                self.assertEqual(contact_args[2], "fan@example.com")
+                self.assertEqual(contact_args[3], reason)
+                # Event send: (api_key, email, reason)
+                mock_event.assert_awaited_once()
+                event_args = mock_event.await_args.args
+                self.assertEqual(event_args[0], "re_test_key")
+                self.assertEqual(event_args[1], "fan@example.com")
+                self.assertEqual(event_args[2], reason)
 
     def test_unknown_reason_is_rejected(self) -> None:
         resp = self.client.post(SUBSCRIBE_URL, json={"email": "a@b.com", "reason": "tourist"})
         self.assertEqual(resp.status_code, 422)
 
     def test_email_is_normalized_before_resend(self) -> None:
-        with patch.object(subscribe_mod, "_create_resend_contact", new=AsyncMock()) as mock_create:
+        with (
+            patch.object(subscribe_mod, "_create_resend_contact", new=AsyncMock()) as mock_contact,
+            patch.object(subscribe_mod, "_send_resend_event", new=AsyncMock()) as mock_event,
+        ):
             resp = self.client.post(
                 SUBSCRIBE_URL,
                 json={"email": "  fan@example.com\r\n", "reason": "collector"},
             )
         self.assertEqual(resp.status_code, 202)
-        self.assertEqual(mock_create.await_args.args[2], "fan@example.com")
+        self.assertEqual(mock_contact.await_args.args[2], "fan@example.com")
+        self.assertEqual(mock_event.await_args.args[1], "fan@example.com")
 
-    def test_resend_failure_surfaces_as_502(self) -> None:
-        # Drive the real seam, but make the Resend HTTP POST fail. The seam maps
-        # any httpx error to a 502 the form can show a retry hint for.
+    def test_contact_failure_surfaces_as_502(self) -> None:
+        # Drive the real seams, but make the first Resend POST (contact create)
+        # fail. Any httpx error becomes a 502 the form can show a retry hint for.
         class _BoomClient:
             async def __aenter__(self):
                 return self
@@ -104,9 +124,81 @@ class SubscribeApiTests(unittest.TestCase):
             resp = self.client.post(SUBSCRIBE_URL, json={"email": "a@b.com", "reason": "collector"})
         self.assertEqual(resp.status_code, 502)
 
-    def test_seam_sends_expected_resend_payload(self) -> None:
-        # Verify the seam itself builds the Resend request correctly: URL,
+    def test_event_failure_surfaces_as_502(self) -> None:
+        # Contact create succeeds; the event send fails. The route must still
+        # 502 — a contact with no drip is a failed signup from the form's view.
+        class _BoomClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, *args, **kwargs):
+                raise httpx.ConnectError("resend unreachable")
+
+        with (
+            patch.object(subscribe_mod, "_create_resend_contact", new=AsyncMock()),
+            patch.object(subscribe_mod.httpx, "AsyncClient", return_value=_BoomClient()),
+        ):
+            resp = self.client.post(SUBSCRIBE_URL, json={"email": "a@b.com", "reason": "collector"})
+        self.assertEqual(resp.status_code, 502)
+
+    def test_contact_seam_sends_expected_resend_payload(self) -> None:
+        # Verify the contact seam builds the Resend request correctly: URL,
         # bearer header, and the reason stamped into `properties`.
+        captured = self._capture_resend_post(
+            lambda: subscribe_mod._create_resend_contact("re_k", "aud_9", "x@y.com", "builder")
+        )
+        self.assertEqual(captured["url"], "https://api.resend.com/audiences/aud_9/contacts")
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer re_k")
+        self.assertEqual(captured["json"]["email"], "x@y.com")
+        self.assertFalse(captured["json"]["unsubscribed"])
+        self.assertEqual(captured["json"]["properties"], {"reason": "builder"})
+
+    def test_event_seam_sends_expected_resend_payload(self) -> None:
+        # Verify the event seam builds the Resend request correctly: URL, bearer
+        # header, the trigger event name, and the reason carried in `payload`.
+        captured = self._capture_resend_post(
+            lambda: subscribe_mod._send_resend_event("re_k", "x@y.com", "show")
+        )
+        self.assertEqual(captured["url"], "https://api.resend.com/events/send")
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer re_k")
+        self.assertEqual(captured["json"]["event"], RESEND_SIGNUP_EVENT)
+        self.assertEqual(captured["json"]["email"], "x@y.com")
+        self.assertEqual(captured["json"]["payload"], {"reason": "show"})
+
+    def test_resend_post_maps_non_2xx_to_http_exception(self) -> None:
+        class _ErrResp:
+            def raise_for_status(self) -> None:
+                raise httpx.HTTPStatusError(
+                    "bad", request=httpx.Request("POST", "http://x"), response=httpx.Response(422)
+                )
+
+        class _ErrClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, *a, **k):
+                return _ErrResp()
+
+        async def run() -> None:
+            with patch.object(subscribe_mod.httpx, "AsyncClient", return_value=_ErrClient()):
+                await subscribe_mod._resend_post("k", "http://x", {}, action="contact create")
+
+        import asyncio
+
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(run())
+        self.assertEqual(ctx.exception.status_code, 502)
+
+    @staticmethod
+    def _capture_resend_post(call) -> dict:
+        """Run an awaitable-returning ``call`` with httpx patched to capture the
+        single Resend POST it issues, returning the captured url/headers/json."""
         captured: dict = {}
 
         class _CaptureResp:
@@ -128,43 +220,12 @@ class SubscribeApiTests(unittest.TestCase):
 
         async def run() -> None:
             with patch.object(subscribe_mod.httpx, "AsyncClient", return_value=_CaptureClient()):
-                await subscribe_mod._create_resend_contact("re_k", "aud_9", "x@y.com", "builder")
+                await call()
 
         import asyncio
 
         asyncio.run(run())
-        self.assertEqual(captured["url"], "https://api.resend.com/audiences/aud_9/contacts")
-        self.assertEqual(captured["headers"]["Authorization"], "Bearer re_k")
-        self.assertEqual(captured["json"]["email"], "x@y.com")
-        self.assertFalse(captured["json"]["unsubscribed"])
-        self.assertEqual(captured["json"]["properties"], {"reason": "builder"})
-
-    def test_create_seam_maps_non_2xx_to_http_exception(self) -> None:
-        class _ErrResp:
-            def raise_for_status(self) -> None:
-                raise httpx.HTTPStatusError(
-                    "bad", request=httpx.Request("POST", "http://x"), response=httpx.Response(422)
-                )
-
-        class _ErrClient:
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *exc):
-                return False
-
-            async def post(self, *a, **k):
-                return _ErrResp()
-
-        async def run() -> None:
-            with patch.object(subscribe_mod.httpx, "AsyncClient", return_value=_ErrClient()):
-                await subscribe_mod._create_resend_contact("k", "a", "x@y.com", "show")
-
-        import asyncio
-
-        with self.assertRaises(HTTPException) as ctx:
-            asyncio.run(run())
-        self.assertEqual(ctx.exception.status_code, 502)
+        return captured
 
 
 if __name__ == "__main__":
