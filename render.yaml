@@ -241,17 +241,21 @@ services:
         sync: false
       - key: MGZ_PKMN_MAGIC_LINK_FROM
         sync: false
-      # Newsletter subscriptions via Resend (#821, ADR-0028 — supersedes the
-      # Buttondown embed in ADR-0014). `POST /api/v1/subscribe`
-      # (api/routes/subscribe.py) creates a Resend contact in the audience and
-      # stamps the chosen reason (collector / show / builder) onto its custom
-      # `properties`; one Resend Automation branches on that reason to send the
-      # matching 3-email welcome track. Both vars must be set — the route
-      # returns 503 from `_resend_config` when either is missing. Operator
-      # runbook (verify domain, create the audience, create the `reason` string
-      # Contact Property — required before the first signup or every create
-      # 502s — and build the branched Automation) lives in ADR-0028. Same Resend account + sending domain as
-      # the magic-link SMTP block above — one vendor, one reputation.
+      # Newsletter subscriptions via Resend (#821, #826, ADR-0028 — supersedes
+      # the Buttondown embed in ADR-0014). `POST /api/v1/subscribe`
+      # (api/routes/subscribe.py) does two writes: it creates a Resend contact
+      # in the audience (reason stamped onto its custom `properties`) and fires
+      # a `New Signup` custom event carrying the reason in the event payload.
+      # One Resend Automation triggers on that event and branches on
+      # `event.reason` (collector / show / builder) to send the matching 3-email
+      # welcome track — the contact-create alone does not start the drip. Both
+      # vars must be set — the route returns 503 from `_resend_config` when
+      # either is missing. Operator runbook (verify domain, create the audience,
+      # create the `reason` string Contact Property — required before the first
+      # signup or every create 502s — and build the event-triggered Automation
+      # whose `event_name` matches `RESEND_SIGNUP_EVENT`) lives in ADR-0028.
+      # Same Resend account + sending domain as the magic-link SMTP block above
+      # — one vendor, one reputation.
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_AUDIENCE_ID
