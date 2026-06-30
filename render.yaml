@@ -241,6 +241,20 @@ services:
         sync: false
       - key: MGZ_PKMN_MAGIC_LINK_FROM
         sync: false
+      # Newsletter subscriptions via Resend (#821, ADR-0028 — supersedes the
+      # Buttondown embed in ADR-0014). `POST /api/v1/subscribe`
+      # (api/routes/subscribe.py) creates a Resend contact in the audience and
+      # stamps the chosen reason (collector / show / builder) onto its custom
+      # `properties`; one Resend Automation branches on that reason to send the
+      # matching 3-email welcome track. Both vars must be set — the route
+      # returns 503 from `_resend_config` when either is missing. Operator
+      # runbook (verify domain, create the audience, build the branched
+      # Automation) lives in ADR-0028. Same Resend account + sending domain as
+      # the magic-link SMTP block above — one vendor, one reputation.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_AUDIENCE_ID
+        sync: false
       # Sign in with Apple credentials (#530). Configure in the Apple
       # Developer portal at https://developer.apple.com/account/resources:
       # (1) Services ID (e.g. `com.mgz-pkmn.web`) with **both** return

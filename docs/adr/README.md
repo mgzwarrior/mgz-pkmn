@@ -24,7 +24,7 @@ not just the shape.
 | [0011](0011-marketing-site-stack.md) | Marketing site under `site/` (Astro + Tailwind, Cloudflare Pages) | Accepted | 2026-05-16 |
 | [0012](0012-open-core-architecture.md) | Open-core architecture for a paid Vendor tier | Proposed | 2026-05-16 |
 | [0013](0013-sqlite-persistence-for-runs-collections-wishlists.md) | SQLite + Alembic persistent store for runs, collections, and wishlists | Proposed | 2026-05-20 |
-| [0014](0014-buttondown-for-email-subscriptions.md) | Buttondown for newsletter / email subscriptions | Accepted | 2026-05-31 |
+| [0014](0014-buttondown-for-email-subscriptions.md) | Buttondown for newsletter / email subscriptions | Superseded by [0028](0028-resend-for-subscriptions-and-automations.md) | 2026-05-31 |
 | [0015](0015-tally-for-surveys.md) | Tally for marketing surveys (with a Buttondown migration clause) | Accepted | 2026-05-31 |
 | [0016](0016-deployment-topology.md) | Production deployment topology — Cloudflare Pages + Render | Accepted | 2026-05-31 |
 | [0017](0017-tropical-design-system.md) | Tropical design system — sun + palm + coconut, paired light/dark tokens | Accepted | 2026-05-31 |
@@ -38,6 +38,7 @@ not just the shape.
 | [0025](0025-collections-data-model-rework.md) | Collections data model rework — separate-but-linked wishlists, promoted card identity, lifecycle as data, first-class snapshots | Accepted | 2026-06-09 |
 | [0026](0026-tropical-export-palette.md) | Source export colors from a parity-tested tropical palette module (light only) | Accepted | 2026-06-09 |
 | [0027](0027-default-card-quick-actions.md) | Default card quick actions for wanted and owned cards | Accepted | 2026-06-22 |
+| [0028](0028-resend-for-subscriptions-and-automations.md) | Resend for newsletter subscriptions + a reason-branched welcome automation (supersedes ADR-0014) | Accepted | 2026-06-29 |
 
 ## Adding a new ADR
 
