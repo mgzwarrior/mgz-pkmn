@@ -1,9 +1,23 @@
 ---
-// Buttondown subscriber username — change here if a different handle is used.
-// The embed endpoint is public, so this is safe to commit.
-const buttondownUser = "mgz-pkmn";
-const formAction = `https://buttondown.com/api/emails/embed-subscribe/${buttondownUser}`;
-const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
+// Newsletter signup — posts to our own API (ADR-0028), which creates a Resend
+// contact stamped with the chosen reason. A single Resend Automation branches
+// on that reason to send one of three 3-email welcome tracks.
+//
+// API origin matches site/src/lib/changelog.ts: `MGZ_PKMN_API_BASE` overrides
+// it (handy for building against a local API), defaulting to the public demo.
+const API_BASE =
+  process.env.MGZ_PKMN_API_BASE?.replace(/\/$/, "") ||
+  "https://mgz-pkmn.onrender.com";
+const subscribeUrl = `${API_BASE}/api/v1/subscribe`;
+
+// Reason chips → the `reason` the API stamps onto the Resend contact. Keep the
+// values in sync with the Literal in api/routes/subscribe.py and the
+// Automation's branch conditions.
+const reasons = [
+  { value: "collector", label: "Collector", hint: "I collect cards" },
+  { value: "show", label: "Show prep", hint: "I buy/sell at shows" },
+  { value: "builder", label: "Builder", hint: "I'm here for the code" },
+];
 ---
 
 <section
@@ -27,42 +41,62 @@ const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
     <p
       class="mt-4 text-lg text-coconut-500 dark:text-sand-300 max-w-xl mx-auto text-balance"
     >
-      Occasional, no-pressure updates when a new version ships — and
-      the odd Pokemon-TCG-meets-open-source note from
-      <a
-        href="https://www.matt-grant.com"
-        class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline"
-        rel="noopener noreferrer"
-        target="_blank">@mgzwarrior</a
-      >. No spam, unsubscribe anytime.
+      Tell us why you're here and we'll send a short welcome that fits — then the
+      odd note when a new version ships. No spam, unsubscribe anytime.
     </p>
 
     <form
       id="email-signup-form"
-      action={formAction}
+      action={subscribeUrl}
       method="post"
-      target="popupwindow"
-      onsubmit={`window.open('${fallbackTarget}','popupwindow')`}
-      class="mt-8 flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
-      data-buttondown-user={buttondownUser}
+      class="mt-8 flex flex-col gap-4 max-w-md mx-auto"
     >
-      <label for="signup-email" class="sr-only">Email address</label>
-      <input
-        id="signup-email"
-        type="email"
-        name="email"
-        required
-        autocomplete="email"
-        placeholder="you@example.com"
-        class="flex-1 rounded-md border border-sand-300 bg-sand-50 px-4 py-3 text-sm text-coconut-700 placeholder:text-coconut-400 focus:outline-none focus:border-palm-400 focus:ring-2 focus:ring-palm-300/40 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-50 dark:placeholder:text-sand-400 dark:focus:border-sun-300 dark:focus:ring-sun-400/30 transition"
-      />
-      <button
-        type="submit"
-        class="inline-flex items-center justify-center gap-2 rounded-md bg-sun-300 px-5 py-3 text-sm font-semibold text-coconut-700 shadow-md hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:shadow-lg dark:shadow-sun-400/20 dark:hover:bg-sun-200 transition disabled:opacity-60 disabled:cursor-not-allowed"
-        data-default-label="Subscribe"
-      >
-        <span data-label>Subscribe</span>
-      </button>
+      <fieldset class="flex flex-col gap-2">
+        <legend class="text-sm font-medium text-coconut-600 dark:text-sand-200">
+          I'm here as a…
+        </legend>
+        <div class="grid grid-cols-3 gap-2">
+          {
+            reasons.map((r, i) => (
+              <label class="group flex cursor-pointer flex-col items-center gap-0.5 rounded-md border border-sand-300 bg-sand-50 px-2 py-2.5 text-center transition has-[:checked]:border-palm-400 has-[:checked]:bg-palm-50 has-[:checked]:ring-2 has-[:checked]:ring-palm-300/40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-palm-300/60 dark:border-husk-50 dark:bg-husk-200/60 dark:has-[:checked]:border-sun-300 dark:has-[:checked]:bg-husk-100 dark:has-[:checked]:ring-sun-400/30">
+                <input
+                  type="radio"
+                  name="reason"
+                  value={r.value}
+                  checked={i === 0}
+                  class="sr-only"
+                />
+                <span class="text-sm font-semibold text-coconut-700 dark:text-sand-50">
+                  {r.label}
+                </span>
+                <span class="text-xs text-coconut-400 dark:text-sand-300">
+                  {r.hint}
+                </span>
+              </label>
+            ))
+          }
+        </div>
+      </fieldset>
+
+      <div class="flex flex-col sm:flex-row gap-3">
+        <label for="signup-email" class="sr-only">Email address</label>
+        <input
+          id="signup-email"
+          type="email"
+          name="email"
+          required
+          autocomplete="email"
+          placeholder="you@example.com"
+          class="flex-1 rounded-md border border-sand-300 bg-sand-50 px-4 py-3 text-sm text-coconut-700 placeholder:text-coconut-400 focus:outline-none focus:border-palm-400 focus:ring-2 focus:ring-palm-300/40 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-50 dark:placeholder:text-sand-400 dark:focus:border-sun-300 dark:focus:ring-sun-400/30 transition"
+        />
+        <button
+          type="submit"
+          class="inline-flex items-center justify-center gap-2 rounded-md bg-sun-300 px-5 py-3 text-sm font-semibold text-coconut-700 shadow-md hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:shadow-lg dark:shadow-sun-400/20 dark:hover:bg-sun-200 transition disabled:opacity-60 disabled:cursor-not-allowed"
+          data-default-label="Subscribe"
+        >
+          <span data-label>Subscribe</span>
+        </button>
+      </div>
     </form>
 
     <p
@@ -72,14 +106,28 @@ const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
       class="mt-4 min-h-[1.5rem] text-sm"
     >
     </p>
+
+    <noscript>
+      <p class="mt-4 text-sm text-coconut-400 dark:text-sand-300">
+        Signing up needs JavaScript. Prefer not to? Email
+        <a
+          href="mailto:mattgrant33@gmail.com?subject=mgz-pkmn%20newsletter"
+          class="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 underline-offset-4 hover:underline"
+          >mattgrant33@gmail.com</a
+        >
+        and say which track you'd like.
+      </p>
+    </noscript>
   </div>
 </section>
 
 <script is:inline>
-  // Progressive enhancement: when JS is available, submit the Buttondown
-  // form via fetch and surface inline success/error feedback so the visitor
-  // never leaves the page. Without JS, the form falls back to Buttondown's
-  // popup window (the `target` + `onsubmit` attributes on the <form>).
+  // Progressive enhancement: submit to the API via fetch and surface inline
+  // success/error feedback so the visitor never leaves the page. Unlike the old
+  // Buttondown embed, this endpoint returns a real status, so the messaging can
+  // be honest about whether the signup actually landed. The endpoint is a JSON
+  // API (no urlencoded form fallback), so a no-JS submit is handled by the
+  // <noscript> note above rather than a broken native POST.
   (function () {
     const form = document.getElementById("email-signup-form");
     if (!form) return;
@@ -87,10 +135,6 @@ const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
     const button = form.querySelector("button[type=submit]");
     const labelEl = button && button.querySelector("[data-label]");
     const input = form.querySelector("input[name=email]");
-
-    // Strip the no-JS fallbacks so the form posts inline.
-    form.removeAttribute("target");
-    form.removeAttribute("onsubmit");
 
     function setStatus(text, tone) {
       if (!status) return;
@@ -109,35 +153,37 @@ const fallbackTarget = `https://buttondown.com/${buttondownUser}`;
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!input || !input.value) return;
+      const checked = form.querySelector("input[name=reason]:checked");
+      const reason = checked ? checked.value : "collector";
 
       button.disabled = true;
       if (labelEl) labelEl.textContent = "Subscribing…";
       setStatus("", "neutral");
 
-      const body = new FormData();
-      body.append("email", input.value);
-
       try {
         const response = await fetch(form.action, {
           method: "POST",
-          body,
-          // Buttondown's embed endpoint sets CORS to allow this, but it
-          // doesn't return a parseable JSON body — opaque response is fine.
-          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: input.value, reason }),
         });
-        // `no-cors` => response.type === "opaque" and status is always 0,
-        // so we can't tell a 200 from a 400 (invalid syntax that slipped
-        // past the HTML5 check, rate limit, server error, etc.) — only
-        // network-layer failures hit the catch below. Soften the copy so
-        // a silently-rejected submission isn't entirely invisible.
-        setStatus(
-          "Thanks — Buttondown should send a confirmation email shortly. If you don't see one in a few minutes, try again.",
-          "success",
-        );
-        form.reset();
+        if (response.ok) {
+          setStatus(
+            "You're in — check your inbox for a welcome note. See you at the next release.",
+            "success",
+          );
+          form.reset();
+        } else if (response.status === 422) {
+          setStatus("That email looks off — give it another try.", "error");
+        } else {
+          // 503 (signups not configured) or 502 (Resend hiccup): same recovery.
+          setStatus(
+            "Couldn't sign you up just now. Try again in a bit, or email mattgrant33@gmail.com.",
+            "error",
+          );
+        }
       } catch (err) {
         setStatus(
-          "Couldn't submit just now. Try again, or email mattgrant33@gmail.com.",
+          "Couldn't reach the server. Try again, or email mattgrant33@gmail.com.",
           "error",
         );
       } finally {

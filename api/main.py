@@ -59,6 +59,7 @@ from .routes import (
     runs,
     set_cards,
     sets,
+    subscribe,
     swipe,
     wishlists,
 )
@@ -518,8 +519,12 @@ app = FastAPI(
 # parse overhead.
 install_session_middleware(app)
 
-# Allow the Vite dev server (and any localhost port) to call the API.
-# In production, restrict this to your actual frontend origin.
+# Allow the Vite dev server (and any localhost port) plus the marketing site
+# to call the API. The SPA is served same-origin from this service so it needs
+# no entry here; the Astro marketing site (Cloudflare Pages, https://mgz-pkmn.com)
+# is a *different* origin and posts to `POST /api/v1/subscribe` at runtime
+# (api/routes/subscribe.py), so its origin must be allow-listed. The
+# `*.pages.dev` regex covers Cloudflare Pages preview deploys of the site.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -527,7 +532,10 @@ app.add_middleware(
         "http://localhost:4173",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:4173",
+        "https://mgz-pkmn.com",
+        "https://www.mgz-pkmn.com",
     ],
+    allow_origin_regex=r"https://.*\.pages\.dev",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -538,6 +546,7 @@ app.include_router(lookup.router, prefix="/api/v1", tags=["lookup"])
 app.include_router(export.router, prefix="/api/v1", tags=["export"])
 app.include_router(sets.router, prefix="/api/v1", tags=["sets"])
 app.include_router(set_cards.router, prefix="/api/v1", tags=["set-cards"])
+app.include_router(subscribe.router, prefix="/api/v1", tags=["subscribe"])
 app.include_router(pokedex.router, prefix="/api/v1", tags=["pokedex"])
 app.include_router(cards.router, prefix="/api/v1", tags=["cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])

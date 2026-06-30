@@ -1,8 +1,15 @@
 # ADR 0014: Buttondown for newsletter / email subscriptions
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0028](0028-resend-for-subscriptions-and-automations.md)
 - **Date:** 2026-05-31
 - **Tags:** marketing, site, infra
+
+> **Superseded (2026-06-29).** Email subscriptions moved to Resend once the
+> project gained a FastAPI backend that can hold the API key server-side and
+> stamp a per-subscriber reason that drives a branched welcome automation —
+> cheaper (Resend Automations are free) and more capable than Buttondown's
+> paid drip. See [ADR-0028](0028-resend-for-subscriptions-and-automations.md).
+> The decision below is kept for the historical record.
 
 ## Context
 
