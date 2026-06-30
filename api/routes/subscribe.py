@@ -12,7 +12,11 @@ tracks: ``collector`` (north star), ``show`` (dealers / show-goers), and
 The contact is created in one audience (``RESEND_AUDIENCE_ID``) with the
 reason carried in Resend's custom ``properties`` map — the same audience and
 sending domain already used for transactional magic-link mail
-([api/auth/magic.py](../auth/magic.py)).
+([api/auth/magic.py](../auth/magic.py)). Resend only accepts a ``properties``
+key that's been pre-defined on the audience, so the ``reason`` Contact Property
+(type ``string``) must exist before the first signup or every create 502s —
+that one-time setup is step 4 of the ADR-0028 runbook, alongside the audience
+and API key.
 
 Configuration mirrors the magic-link posture: a 503 with a setup hint when the
 two env vars are missing (a deploy-time misconfiguration, never a runtime
