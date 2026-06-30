@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.8.0](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.7.0...v1.8.0) (2026-06-30)
+
+
+### Added
+
+* **api:** move the welcome newsletter to Resend with a reason-branched drip ([#825](https://github.com/mgzwarrior/mgz-pkmn/issues/825)) ([67eb819](https://github.com/mgzwarrior/mgz-pkmn/commit/67eb819acb82ffe3016e666d54579982b8acb33b))
+* **web:** lead with Swipe across the app and refresh the Help modal ([#813](https://github.com/mgzwarrior/mgz-pkmn/issues/813)) ([66af3a4](https://github.com/mgzwarrior/mgz-pkmn/commit/66af3a4b98b7d8eb349358b061fb64a2f6af7cca))
+* **web:** refresh the Tour to walk Swipe, Browse, card details, and the Backpack ([#824](https://github.com/mgzwarrior/mgz-pkmn/issues/824)) ([be4d48c](https://github.com/mgzwarrior/mgz-pkmn/commit/be4d48c677ba4799d6c17f24bdbf097a455a762b))
+
+
+### Fixed
+
+* **api:** fire the New Signup event so the Resend welcome drip triggers ([#827](https://github.com/mgzwarrior/mgz-pkmn/issues/827)) ([9ff286b](https://github.com/mgzwarrior/mgz-pkmn/commit/9ff286ba2fdd558cbda4bfffb870f227511e9130)), closes [#826](https://github.com/mgzwarrior/mgz-pkmn/issues/826)
+* **site:** show the Buy Me a Coffee greeting once per session, not every page ([#823](https://github.com/mgzwarrior/mgz-pkmn/issues/823)) ([7583271](https://github.com/mgzwarrior/mgz-pkmn/commit/758327114f6ccbd84f958683a25972049f3b7c59))
+
+
+### Changed
+
+* refresh the collections + wishlists web-flow guides to the shipped SPA ([#818](https://github.com/mgzwarrior/mgz-pkmn/issues/818)) ([840778c](https://github.com/mgzwarrior/mgz-pkmn/commit/840778c0ea9fd937d2b05a9bbaf74be8ae4261fe))
+* sync roadmap to the v1.x cadence and Backlog restructure ([#802](https://github.com/mgzwarrior/mgz-pkmn/issues/802)) ([314e59f](https://github.com/mgzwarrior/mgz-pkmn/commit/314e59f7e47bfbd5e4532c3822819fee759bf42b))
+
 ## [1.7.0] - 2026-06-25
 
 ### Added
