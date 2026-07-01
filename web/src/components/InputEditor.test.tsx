@@ -51,6 +51,48 @@ describe('InputEditor', () => {
     expect(screen.getByRole('button', { name: /look up/i })).toBeInTheDocument()
   })
 
+  it('disables autocapitalize, autocorrect, and spellcheck on the textarea', () => {
+    render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+    const textarea = screen.getByRole('textbox')
+    expect(textarea).toHaveAttribute('autocapitalize', 'off')
+    expect(textarea).toHaveAttribute('autocorrect', 'off')
+    expect(textarea).toHaveAttribute('spellcheck', 'false')
+  })
+
+  it('gates the (⌘↵) hint behind the fine-pointer media query so it stays hidden on touch', () => {
+    render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+    const hint = screen.getByText('(⌘↵)')
+    expect(hint).toHaveClass('hidden', 'pointer-fine:inline')
+  })
+
+  it('pins the toolbar above the keyboard while the textarea is focused, and releases it on blur', () => {
+    render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+    const textarea = screen.getByRole('textbox')
+    const toolbar = screen.getByRole('button', { name: /look up/i }).closest('div')!.parentElement!
+
+    expect(toolbar).not.toHaveClass('pointer-coarse:fixed')
+
+    fireEvent.focus(textarea)
+    expect(toolbar).toHaveClass('pointer-coarse:fixed')
+
+    fireEvent.blur(textarea)
+    expect(toolbar).not.toHaveClass('pointer-coarse:fixed')
+  })
+
+  it('blurs the textarea after submitting a lookup so the on-screen keyboard can dismiss', () => {
+    storeState.inputText = 'Charizard'
+    const onRun = vi.fn()
+    render(<InputEditor onRun={onRun} onStop={vi.fn()} />)
+    const textarea = screen.getByRole('textbox')
+
+    textarea.focus()
+    expect(document.activeElement).toBe(textarea)
+
+    fireEvent.click(screen.getByRole('button', { name: /look up/i }))
+    expect(onRun).toHaveBeenCalled()
+    expect(document.activeElement).not.toBe(textarea)
+  })
+
   describe('example chips', () => {
     it('renders the chip panel when inputText is empty', () => {
       render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
