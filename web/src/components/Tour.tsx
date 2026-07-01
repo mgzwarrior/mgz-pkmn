@@ -43,7 +43,9 @@ interface Step {
   requiresAuth?: boolean
   /** Open the tour's self-contained sample card-detail modal for this step. */
   sampleDetail?: boolean
-  /** Flip the Backpack to its Binders tab as the step activates. */
+  /** Expand the Backpack panel if it's currently collapsed. */
+  revealBackpack?: boolean
+  /** Flip the Backpack to its Binders tab as the step activates (implies `revealBackpack`). */
   openBinders?: boolean
   /** Fire the seeded lookup when advancing past this step. */
   runsLookup?: boolean
@@ -97,6 +99,7 @@ const STEPS: Step[] = [
     title: 'Backpack',
     body: 'Everything you save lives here: Binders (collections you Own and wishlists you Want), named Searches, and your Recent lookups. Sign in on the demo to keep Binders and Searches.',
     mobileTab: 'backpack',
+    revealBackpack: true,
   },
   {
     selector: '[data-tour="binders"]',
@@ -164,11 +167,13 @@ function visibleLibraryRoot(): HTMLElement | null {
   return Array.from(roots).find((e) => e.offsetParent !== null) ?? null
 }
 
-// Open the visible Backpack so its Binders tab can be reached: a collapsed
-// sidebar or a closed mobile accordion exposes a single `aria-expanded="false"`
-// toggle — click it. The tab itself is clicked a frame later, once the
-// expanded panel (and its tab strip) has mounted.
-function openBindersTab() {
+// Expand the visible Backpack so its tab strip is on screen: a collapsed
+// sidebar (auto-collapsed on entering Search mode, #522 follow-up) or a
+// closed mobile accordion exposes a single `aria-expanded="false"` toggle —
+// click it. Used by both the Backpack step (so the panel isn't a bare icon
+// strip) and the Binders step, which then clicks the Binders tab a frame
+// later, once the expanded panel (and its tab strip) has mounted.
+function revealBackpackPanel() {
   const root = visibleLibraryRoot()
   root?.querySelector<HTMLElement>('[aria-expanded="false"]')?.click()
 }
@@ -256,7 +261,7 @@ export function Tour({ onClose, onRun, onStop, onSetMode, onSelectMobileTab }: P
     let raf1 = 0
     let raf2 = 0
     const timer = window.setTimeout(() => {
-      if (step.openBinders) openBindersTab()
+      if (step.revealBackpack || step.openBinders) revealBackpackPanel()
       raf1 = window.requestAnimationFrame(() => {
         if (step.openBinders) {
           visibleLibraryRoot()?.querySelector<HTMLElement>('[data-tour="binders-tab"]')?.click()
