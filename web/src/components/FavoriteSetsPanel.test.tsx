@@ -114,11 +114,13 @@ describe('FavoriteSetsPanel', () => {
     const toggle = await screen.findByRole('button', { name: /favorite sets/i })
     // Collapsed: the header summarizes but the chip isn't rendered.
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).not.toHaveAttribute('aria-controls')
     expect(toggle).toHaveTextContent('1 pinned')
     expect(screen.queryByText('Base')).not.toBeInTheDocument()
 
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveAttribute('aria-controls', 'favorite-sets-body')
     expect(await screen.findByText('Base')).toBeInTheDocument()
   })
 

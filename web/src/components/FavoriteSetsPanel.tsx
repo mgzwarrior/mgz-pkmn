@@ -112,7 +112,7 @@ export function FavoriteSetsPanel() {
           type="button"
           onClick={() => setExpanded((e) => !e)}
           aria-expanded={expanded}
-          aria-controls="favorite-sets-body"
+          aria-controls={expanded ? 'favorite-sets-body' : undefined}
           className="flex w-full items-center gap-1.5 text-left"
         >
           <Star className="h-4 w-4 shrink-0 text-sun-500 dark:text-sun-300" aria-hidden />
