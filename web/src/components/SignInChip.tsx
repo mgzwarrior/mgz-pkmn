@@ -187,7 +187,6 @@ export function SignInChip({ variant = 'header' }: Props = {}) {
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
-          aria-label="Sign in"
           aria-haspopup="dialog"
           aria-expanded={pickerOpen}
           className={`${TAB_TRIGGER_CLASS} ${pickerOpen ? '!text-palm-600 dark:!text-sun-300' : ''}`}

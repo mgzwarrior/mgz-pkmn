@@ -23,10 +23,10 @@ import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import { CardDetailModal } from './CardDetailModal'
+import type { MobileSection } from './MobileTabBar'
 import type { Row } from '../types'
 
 type DiscoveryMode = 'search' | 'browse' | 'swipe'
-type MobileSection = 'discover' | 'backpack'
 
 const TOUR_SEED = 'Pikachu | Jungle'
 

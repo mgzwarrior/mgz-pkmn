@@ -240,7 +240,9 @@ describe('SignInChip (tab variant, #519)', () => {
   it('labels the trigger "Account" for a signed-out visitor', async () => {
     fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
     render(<SignInChip variant="tab" />)
-    const trigger = await screen.findByRole('button', { name: /sign in/i })
+    // Accessible name matches the visible label — no aria-label override,
+    // unlike the icon-only header trigger (#519 review: label/name mismatch).
+    const trigger = await screen.findByRole('button', { name: /^account$/i })
     expect(trigger).toHaveTextContent('Account')
     expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
