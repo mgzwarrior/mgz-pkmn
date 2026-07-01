@@ -441,15 +441,15 @@ function App() {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setMode(m.value)}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors ${
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors ${
                       active
                         ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
                         : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
                     }`}
                   >
-                    <Icon size={15} aria-hidden />
-                    <span className="font-medium">{m.label}</span>
-                    <span className="hidden text-xs text-coconut-400 dark:text-sand-400 sm:inline">
+                    <Icon size={15} className="shrink-0" aria-hidden />
+                    <span className="truncate font-medium">{m.label}</span>
+                    <span className="hidden truncate text-xs text-coconut-400 dark:text-sand-400 sm:inline">
                       · {m.hint}
                     </span>
                   </button>
