@@ -143,6 +143,10 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
   // there's no table to attach one to below `lg`, so a separate boolean
   // drives a bottom sheet instead (#521).
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  // Derived (not synced via effect): resizing to desktop while the sheet is
+  // open should close it immediately, not on a following render — otherwise
+  // Radix's focus trap / scroll lock stays active behind the `lg:hidden` overlay.
+  const mobileFiltersSheetOpen = isMobile && mobileFiltersOpen
 
   const cycleSort = useCallback(
     (column: SortColumn) => {
@@ -673,7 +677,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
       )}
 
       <MobileFiltersSheet
-        open={mobileFiltersOpen}
+        open={mobileFiltersSheetOpen}
         onOpenChange={setMobileFiltersOpen}
         sortColumn={sortColumn}
         sortDir={sortDir}

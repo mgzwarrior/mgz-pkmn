@@ -79,6 +79,7 @@ export function ResultCard({
         !row.matched ? 'opacity-60' : ''
       } ${isOverCap ? 'bg-sun-100 dark:bg-sun-400/15' : ''} ${canOpenDetail ? 'cursor-pointer' : ''}`}
       onClick={canOpenDetail ? handleCardClick : undefined}
+      role={canOpenDetail ? 'button' : undefined}
       tabIndex={canOpenDetail ? 0 : undefined}
       onKeyDown={
         canOpenDetail

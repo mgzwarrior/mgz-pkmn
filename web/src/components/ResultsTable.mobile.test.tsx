@@ -5,7 +5,7 @@
  * relies on.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { ResultsTable } from './ResultsTable'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
@@ -39,17 +39,35 @@ vi.mock('../api/client', () => ({
 
 // Report every media query as matching, so `(max-width: 1023px)` — the same
 // breakpoint the mobile app shell (bottom tab bar, sidebar) gates on — comes
-// back true and ResultsTable takes the card-list branch.
+// back true and ResultsTable takes the card-list branch. `simulateResize`
+// lets a test flip `matches` mid-render and fire the 'change' listener
+// useIsMobileViewport subscribes to, so tests can exercise an actual resize
+// rather than just the two static states.
+let mockMatches = true
+const changeListeners = new Set<(e: MediaQueryListEvent) => void>()
+function simulateResize(matches: boolean) {
+  mockMatches = matches
+  changeListeners.forEach((fn) => fn({ matches } as MediaQueryListEvent))
+}
+
 const realMatchMedia = window.matchMedia
 beforeEach(() => {
+  mockMatches = true
+  changeListeners.clear()
   vi.stubGlobal(
     'matchMedia',
     vi.fn().mockImplementation((query: string) => ({
-      matches: true,
+      get matches() {
+        return mockMatches
+      },
       media: query,
       onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
+      addEventListener: (_type: string, fn: (e: MediaQueryListEvent) => void) => {
+        changeListeners.add(fn)
+      },
+      removeEventListener: (_type: string, fn: (e: MediaQueryListEvent) => void) => {
+        changeListeners.delete(fn)
+      },
       addListener: vi.fn(),
       removeListener: vi.fn(),
       dispatchEvent: vi.fn(),
@@ -140,6 +158,22 @@ describe('ResultsTable — mobile card list (#521)', () => {
     expect(screen.getByRole('dialog', { name: /filters & sort/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Sort column')).toBeInTheDocument()
     expect(screen.getByLabelText('Filter by name')).toBeInTheDocument()
+  })
+
+  it('closes the mobile filters sheet if the viewport resizes to desktop while it is open', async () => {
+    useAppStore.setState({
+      rows: [makeRow({ card: { id: 'a', name: 'Charizard', set: { name: 'Base Set' } } })],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    expect(screen.getByRole('dialog', { name: /filters & sort/i })).toBeInTheDocument()
+
+    act(() => simulateResize(false))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /filters & sort/i })).not.toBeInTheDocument(),
+    )
   })
 
   it('flags a card over the price cap the same way the desktop row does', () => {
