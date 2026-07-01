@@ -80,6 +80,20 @@ function App() {
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('swipe')
+  // The Backpack rail collapses to its icon strip on entering Search mode —
+  // side-by-side editor + results is tight on a non-ultrawide desktop, and
+  // reclaiming the rail's ~250px gives the results pane room to breathe
+  // (#522 follow-up). Detected via a transition (not "while mode is search")
+  // so a manual re-expand mid-session survives a re-run or a saved-search
+  // load, both of which also set mode to 'search'.
+  const [backpackCollapsed, setBackpackCollapsed] = useState(false)
+  const prevModeRef = useRef<DiscoveryMode>('swipe')
+  useEffect(() => {
+    if (mode === 'search' && prevModeRef.current !== 'search') {
+      setBackpackCollapsed(true)
+    }
+    prevModeRef.current = mode
+  }, [mode])
   // Mobile bottom-tab destination (#519). Desktop never renders the bar, so it
   // stays 'discover' there and the layout is unchanged. Insights opens over the
   // last surface tab (Discover/Backpack) and returns to it on close.
@@ -403,6 +417,8 @@ function App() {
               variant="sidebar"
               onRun={handleRun}
               onShowSearch={() => setMode('search')}
+              collapsed={backpackCollapsed}
+              onCollapsedChange={setBackpackCollapsed}
             />
           </div>
           <div className="flex-1 min-w-0 space-y-6">
