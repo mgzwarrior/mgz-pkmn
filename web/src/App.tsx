@@ -89,6 +89,9 @@ function App() {
     if (tab === 'discover' || tab === 'backpack') lastSurfaceRef.current = tab
     setMobileTab(tab)
   }, [])
+  // The mobile "More" sheet holds the only Help trigger on a phone; keep it
+  // controlled so we can close it before launching the tour behind it (#519).
+  const [moreOpen, setMoreOpen] = useState(false)
   // The discovery mode the user was in when they opened the tour, restored when
   // it closes — the tour switches modes as it walks through Swipe/Browse/Search.
   const preTourModeRef = useRef<DiscoveryMode>('swipe')
@@ -98,6 +101,13 @@ function App() {
     preTourModeRef.current = mode
     setTourOpen(true)
   }, [mode])
+  // Mobile Help lives inside the More sheet: close it and land on Discover so
+  // the tour's opening steps have the workspace in view, not the sheet (#519).
+  const startTourFromSheet = useCallback(() => {
+    setMoreOpen(false)
+    selectMobileTab('discover')
+    startTour()
+  }, [selectMobileTab, startTour])
   const closeTour = useCallback(() => {
     setTourOpen(false)
     setMode(preTourModeRef.current)
@@ -366,9 +376,11 @@ function App() {
             <ThemeToggle />
             <SignInChip />
           </div>
-          {/* Mobile: brand + a single "More" affordance holding the utility set. */}
-          <div className="lg:hidden">
-            <MobileUtilitySheet>
+          {/* Mobile: brand + a single "More" affordance holding the utility set.
+              Carries data-tour="settings" so the tour's Settings step lands here
+              (the desktop settings target is display:none at this width). */}
+          <div className="lg:hidden" data-tour="settings">
+            <MobileUtilitySheet open={moreOpen} onOpenChange={setMoreOpen}>
               <UtilityRow label="Appearance">
                 <ThemeToggle />
               </UtilityRow>
@@ -376,7 +388,7 @@ function App() {
                 <SettingsDrawer />
               </UtilityRow>
               <UtilityRow label="Help">
-                <HelpModal onStartTour={startTour} />
+                <HelpModal onStartTour={startTourFromSheet} />
               </UtilityRow>
             </MobileUtilitySheet>
           </div>
@@ -474,7 +486,12 @@ function App() {
               <div className="lg:hidden" data-tour="library-mobile">
                 <LibraryPanel
                   variant="accordion"
-                  onRun={handleRun}
+                  onRun={(text) => {
+                    // Results render in the Discover workspace, so jump there
+                    // before running a Recent/saved lookup from the Backpack.
+                    selectMobileTab('discover')
+                    void handleRun(text)
+                  }}
                   onShowSearch={() => {
                     setMode('search')
                     selectMobileTab('discover')
@@ -506,7 +523,13 @@ function App() {
       <MobileTabBar active={mobileTab} onSelect={selectMobileTab} />
 
       {tourOpen && (
-        <Tour onClose={closeTour} onRun={handleRun} onStop={handleStop} onSetMode={setMode} />
+        <Tour
+          onClose={closeTour}
+          onRun={handleRun}
+          onStop={handleStop}
+          onSetMode={setMode}
+          onSelectMobileTab={selectMobileTab}
+        />
       )}
 
       <FavoritePokemonOnboarding open={showOnboarding} onClose={closeOnboarding} />

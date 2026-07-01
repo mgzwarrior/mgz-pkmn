@@ -17,11 +17,15 @@ import type { ReactNode } from 'react'
 
 interface Props {
   children: ReactNode
+  // Optional controlled open state, so the caller can close the sheet when it
+  // launches something over it (e.g. the tour). Uncontrolled when omitted.
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function MobileUtilitySheet({ children }: Props) {
+export function MobileUtilitySheet({ children, open, onOpenChange }: Props) {
   return (
-    <Dialog.Root>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Trigger asChild>
         <button
           type="button"
