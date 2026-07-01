@@ -72,6 +72,7 @@ describe('WishlistDetail', () => {
     mockFetchWishlists.mockReset()
     mockPromote.mockReset()
     mockDeleteItem.mockReset()
+    mockUpdateWishlist.mockReset()
     mockFetchCollections.mockResolvedValue([])
     mockFetchWishlists.mockResolvedValue([])
   })
