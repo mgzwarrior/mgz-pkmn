@@ -85,9 +85,13 @@ function App() {
   // The discovery mode the user was in when they opened the tour, restored when
   // it closes — the tour switches modes as it walks through Swipe/Browse/Search.
   const preTourModeRef = useRef<DiscoveryMode>('swipe')
+  // Same idea for the mobile section — the tour flips to Backpack for its
+  // Backpack/Binders steps (#519), so restore whatever the visitor had open.
+  const preTourMobileSectionRef = useRef<MobileSection>('discover')
   const closeTour = useCallback(() => {
     setTourOpen(false)
     setMode(preTourModeRef.current)
+    setMobileSection(preTourMobileSectionRef.current)
   }, [])
   const { user: authedUser, refresh: refreshAuth } = useAuth()
 
@@ -354,6 +358,7 @@ function App() {
                 // Search) as it advances. Remember where the user was so we can
                 // put them back when the tour closes.
                 preTourModeRef.current = mode
+                preTourMobileSectionRef.current = mobileSection
                 setTourOpen(true)
               }}
             />
@@ -477,7 +482,13 @@ function App() {
       <MobileTabBar section={mobileSection} onSelectSection={setMobileSection} />
 
       {tourOpen && (
-        <Tour onClose={closeTour} onRun={handleRun} onStop={handleStop} onSetMode={setMode} />
+        <Tour
+          onClose={closeTour}
+          onRun={handleRun}
+          onStop={handleStop}
+          onSetMode={setMode}
+          onSetMobileSection={setMobileSection}
+        />
       )}
 
       <FavoritePokemonOnboarding open={showOnboarding} onClose={closeOnboarding} />

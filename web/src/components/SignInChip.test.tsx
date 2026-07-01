@@ -5,7 +5,7 @@
  * mount-time `fetchMe` resolves synchronously to the test's chosen
  * shape.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { SignInChip } from './SignInChip'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
@@ -257,6 +257,33 @@ describe('SignInChip (tab variant, #519)', () => {
     trigger.focus()
     fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
     expect(await screen.findByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
+  })
+})
+
+describe('SignInChip (/account route auto-open, #519)', () => {
+  afterEach(() => {
+    window.history.pushState({}, '', '/')
+  })
+
+  it('opens the Account panel on mount for the header variant', async () => {
+    fetchMeMock.mockResolvedValue({
+      user: { id: 1, email: 'jane@example.com', display_name: 'Jane Doe' },
+      authEnabled: true,
+    })
+    window.history.pushState({}, '', '/account')
+    render(<SignInChip />)
+    expect(await screen.findByRole('dialog', { name: /account/i })).toBeInTheDocument()
+  })
+
+  it('does not auto-open for the tab variant, avoiding a duplicate dialog alongside the header instance', async () => {
+    fetchMeMock.mockResolvedValue({
+      user: { id: 1, email: 'jane@example.com', display_name: 'Jane Doe' },
+      authEnabled: true,
+    })
+    window.history.pushState({}, '', '/account')
+    render(<SignInChip variant="tab" />)
+    await screen.findByRole('button', { name: /account menu for jane doe/i })
+    expect(screen.queryByRole('dialog', { name: /account/i })).not.toBeInTheDocument()
   })
 })
 

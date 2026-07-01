@@ -54,9 +54,14 @@ export function SignInChip({ variant = 'header' }: Props = {}) {
   const [pickerOpen, setPickerOpen] = useState(false)
   // The link-callback redirects to `/account` so the SPA can land the
   // user back on the linked-providers list; open the panel on first
-  // render when we see that path.
+  // render when we see that path. Gated to the header instance only —
+  // MobileTabBar mounts a second `variant="tab"` SignInChip alongside it
+  // (#519), and both auto-opening would portal two AccountPanel dialogs.
   const [accountOpen, setAccountOpen] = useState(
-    () => typeof window !== 'undefined' && window.location.pathname === '/account',
+    () =>
+      variant === 'header' &&
+      typeof window !== 'undefined' &&
+      window.location.pathname === '/account',
   )
 
   // Self-host (auth off) has no sign-in surface to render — `/me`

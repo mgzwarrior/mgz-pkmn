@@ -26,6 +26,7 @@ import { CardDetailModal } from './CardDetailModal'
 import type { Row } from '../types'
 
 type DiscoveryMode = 'search' | 'browse' | 'swipe'
+type MobileSection = 'discover' | 'backpack'
 
 const TOUR_SEED = 'Pikachu | Jungle'
 
@@ -43,6 +44,10 @@ interface Step {
   openBinders?: boolean
   /** Fire the seeded lookup when advancing past this step. */
   runsLookup?: boolean
+  /** Mobile bottom-tab section this step needs visible (#519). Steps that
+   *  don't set this default to 'discover' — only the Backpack-adjacent
+   *  steps need the mobile Backpack section swapped in. */
+  mobileSection?: MobileSection
 }
 
 const STEPS: Step[] = [
@@ -92,6 +97,7 @@ const STEPS: Step[] = [
     selector: '[data-tour="library"], [data-tour="library-mobile"]',
     title: 'Backpack',
     body: 'Everything you save lives here: Binders (collections you Own and wishlists you Want), named Searches, and your Recent lookups. Sign in on the demo to keep Binders and Searches.',
+    mobileSection: 'backpack',
   },
   {
     selector: '[data-tour="binders"]',
@@ -99,6 +105,7 @@ const STEPS: Step[] = [
     body: 'Open a binder for its detail: a collection tracks the cards you Own with quantities and value; a wishlist tracks what you’re chasing. Filter by Owned or Chasing.',
     requiresAuth: true,
     openBinders: true,
+    mobileSection: 'backpack',
   },
   {
     selector: '[data-tour="settings"]',
@@ -173,9 +180,13 @@ interface Props {
   onStop: () => void
   /** Switch the app's discovery mode — the tour drives this as it advances. */
   onSetMode: (mode: DiscoveryMode) => void
+  /** Switch the mobile bottom-tab section — the Backpack/Binders steps need
+   *  it flipped to 'backpack' so the mobile Backpack is mounted (#519); every
+   *  other step drives it back to 'discover'. */
+  onSetMobileSection: (section: MobileSection) => void
 }
 
-export function Tour({ onClose, onRun, onStop, onSetMode }: Props) {
+export function Tour({ onClose, onRun, onStop, onSetMode, onSetMobileSection }: Props) {
   const { user } = useAuth()
   const signedIn = user !== null
 
@@ -241,6 +252,7 @@ export function Tour({ onClose, onRun, onStop, onSetMode }: Props) {
   useEffect(() => {
     if (!step) return
     if (step.mode) onSetMode(step.mode)
+    onSetMobileSection(step.mobileSection ?? 'discover')
     let raf1 = 0
     let raf2 = 0
     const timer = window.setTimeout(() => {
@@ -266,7 +278,7 @@ export function Tour({ onClose, onRun, onStop, onSetMode }: Props) {
       // that lands after this cleanup schedules is still torn down next step.
       document.querySelectorAll('.tour-highlight').forEach((e) => e.classList.remove('tour-highlight'))
     }
-  }, [step, onSetMode])
+  }, [step, onSetMode, onSetMobileSection])
 
   // Advance one step. The first time the user advances past the step that owns
   // the seeded lookup, kick it off so the Results step has real streaming data.

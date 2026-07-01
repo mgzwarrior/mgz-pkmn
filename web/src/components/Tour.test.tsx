@@ -84,7 +84,13 @@ function makeAnchors() {
 }
 
 function noopProps() {
-  return { onClose: vi.fn(), onRun: vi.fn(), onStop: vi.fn(), onSetMode: vi.fn() }
+  return {
+    onClose: vi.fn(),
+    onRun: vi.fn(),
+    onStop: vi.fn(),
+    onSetMode: vi.fn(),
+    onSetMobileSection: vi.fn(),
+  }
 }
 
 // Click Next `n` times.
@@ -171,6 +177,27 @@ describe('Tour', () => {
     fireEvent.click(screen.getByRole('button', { name: /Back/i }))
     clickNext(1)
     expect(props.onRun).toHaveBeenCalledTimes(1)
+  })
+
+  it('drives the mobile section to Backpack for the Backpack/Binders steps, discover elsewhere (#519)', () => {
+    auth.user = { id: 'u1' }
+    makeAnchors()
+    const props = noopProps()
+    render(<Tour {...props} />)
+    expect(props.onSetMobileSection).toHaveBeenCalledWith('discover')
+    props.onSetMobileSection.mockClear()
+
+    clickNext(7) // Find cards -> ... -> Backpack (index 7, signed in)
+    expect(screen.getByText('Backpack')).toBeInTheDocument()
+    expect(props.onSetMobileSection).toHaveBeenLastCalledWith('backpack')
+
+    clickNext(1) // Collections & wishlists
+    expect(screen.getByText('Collections & wishlists')).toBeInTheDocument()
+    expect(props.onSetMobileSection).toHaveBeenLastCalledWith('backpack')
+
+    clickNext(1) // Settings — back to discover
+    expect(screen.getByText('Settings')).toBeInTheDocument()
+    expect(props.onSetMobileSection).toHaveBeenLastCalledWith('discover')
   })
 
   it('Done on the last step calls onClose', () => {
