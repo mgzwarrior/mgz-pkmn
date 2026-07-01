@@ -107,5 +107,9 @@ describe('InlineRenameTitle', () => {
 
     await waitFor(() => expect(input).toHaveAttribute('aria-invalid', 'true'))
     expect(screen.getByRole('textbox', { name: /wishlist name/i })).toBeInTheDocument()
+
+    // Editing clears the stale error flag so it tracks the current draft.
+    fireEvent.change(input, { target: { value: 'Retry me!' } })
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
   })
 })

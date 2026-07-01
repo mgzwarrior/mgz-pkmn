@@ -280,8 +280,10 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
 
   async function handleRename(next: string) {
     if (!wishlist) return
-    await wishlists.rename(wishlist.id, next)
-    setName(next)
+    // Show the server's stored name (it may normalize whitespace/casing) so the
+    // header can't drift from the cached library row, which is patched the same way.
+    const updated = await wishlists.rename(wishlist.id, next)
+    setName(updated.name)
   }
 
   useEffect(() => {

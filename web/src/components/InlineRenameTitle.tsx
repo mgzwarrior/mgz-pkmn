@@ -90,7 +90,12 @@ export function InlineRenameTitle({ name, fallback, noun, onRename }: Props) {
         disabled={busy}
         aria-label={`${noun} name`}
         aria-invalid={failed || undefined}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          // Clear the error once the user starts correcting, so aria-invalid and
+          // the red border track the current draft rather than a stale attempt.
+          if (failed) setFailed(false)
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()

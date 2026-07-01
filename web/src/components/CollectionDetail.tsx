@@ -65,8 +65,10 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
 
   async function handleRename(next: string) {
     if (!collection) return
-    await update(collection.id, { name: next })
-    setName(next)
+    // Show the server's stored name (it may normalize whitespace/casing) so the
+    // header can't drift from the shared collections cache, patched the same way.
+    const updated = await update(collection.id, { name: next })
+    setName(updated.name)
   }
 
   // A dynamic (smart) collection's membership comes from its rule, so its
