@@ -242,7 +242,10 @@ describe('SignInChip (tab variant, #519)', () => {
     render(<SignInChip variant="tab" />)
     const trigger = await screen.findByRole('button', { name: /sign in/i })
     expect(trigger).toHaveTextContent('Account')
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(await screen.findByRole('link', { name: /continue with github/i })).toBeInTheDocument()
   })
 

@@ -40,7 +40,8 @@ export function InsightsNavButton({ variant = 'header' }: Props = {}) {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Collection insights"
-          aria-current={open ? 'page' : undefined}
+          aria-haspopup="dialog"
+          aria-expanded={open}
           className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors min-w-0 ${
             open
               ? 'text-palm-600 dark:text-sun-300'
