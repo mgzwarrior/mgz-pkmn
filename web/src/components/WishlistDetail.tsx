@@ -10,7 +10,7 @@
  */
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Check, Footprints, ImageOff, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { ArrowUpRight, Check, Footprints, ImageOff, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   deleteWishlistItem,
@@ -30,6 +30,8 @@ interface Props {
   wishlist: WishlistSummary | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  // Jump to a collection's detail view after a card is promoted into it (#789).
+  onViewCollection?: (collectionId: number) => void
 }
 
 function cardImage(item: WishlistItem): string | undefined {
@@ -52,7 +54,7 @@ function GotItPicker({
   onPromote,
   busy,
 }: {
-  onPromote: (collectionId: number) => Promise<void>
+  onPromote: (collectionId: number, collectionName: string) => Promise<void>
   busy: boolean
 }) {
   const { collections, loading, error, create } = useCollections()
@@ -70,7 +72,7 @@ function GotItPicker({
     setSubmitError(null)
     try {
       const created = await create(name)
-      await onPromote(created.id)
+      await onPromote(created.id, created.name)
       setNewName('')
       setNewOpen(false)
       setOpen(false)
@@ -118,7 +120,7 @@ function GotItPicker({
               key={c.id}
               onSelect={(e) => {
                 e.preventDefault()
-                void onPromote(c.id).then(() => setOpen(false))
+                void onPromote(c.id, c.name).then(() => setOpen(false))
               }}
               className="flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm text-coconut-700 outline-none hover:bg-sand-200 dark:text-sand-50 dark:hover:bg-husk-100"
             >
@@ -180,10 +182,16 @@ function ItemRow({
   item,
   onPromote,
   onRemove,
+  promotedCollection,
+  onViewCollection,
 }: {
   item: WishlistItem
-  onPromote: (itemId: number, collectionId: number) => Promise<void>
+  onPromote: (itemId: number, collectionId: number, collectionName: string) => Promise<void>
   onRemove: (itemId: number) => Promise<void>
+  // The collection this item was just promoted into, if it happened this
+  // session — drives the "View in …" deeplink on the acquired row (#789).
+  promotedCollection?: { id: number; name: string }
+  onViewCollection?: (collectionId: number) => void
 }) {
   const [broken, setBroken] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -222,16 +230,29 @@ function ItemRow({
         </div>
       </div>
       {acquired ? (
-        <span className="inline-flex shrink-0 items-center gap-1 rounded bg-palm-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-palm-700 dark:bg-husk-100 dark:text-palm-300">
-          <Check size={10} /> Got it
-        </span>
+        promotedCollection && onViewCollection ? (
+          <button
+            type="button"
+            onClick={() => onViewCollection(promotedCollection.id)}
+            aria-label={`View ${cardLabel(item)} in ${promotedCollection.name}`}
+            className="inline-flex min-w-0 shrink items-center gap-1 rounded bg-palm-100 px-2 py-0.5 text-[10px] font-medium text-palm-700 hover:bg-palm-200 dark:bg-husk-100 dark:text-palm-300 dark:hover:bg-husk-50"
+          >
+            <Check size={10} className="shrink-0" />
+            <span className="truncate">View in {promotedCollection.name}</span>
+            <ArrowUpRight size={10} className="shrink-0" />
+          </button>
+        ) : (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded bg-palm-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-palm-700 dark:bg-husk-100 dark:text-palm-300">
+            <Check size={10} /> Got it
+          </span>
+        )
       ) : (
         <GotItPicker
           busy={busy}
-          onPromote={async (collectionId) => {
+          onPromote={async (collectionId, collectionName) => {
             setBusy(true)
             try {
-              await onPromote(item.id, collectionId)
+              await onPromote(item.id, collectionId, collectionName)
             } finally {
               setBusy(false)
             }
@@ -259,12 +280,15 @@ function ItemRow({
   )
 }
 
-export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
+export function WishlistDetail({ wishlist, open, onOpenChange, onViewCollection }: Props) {
   const collections = useCollections()
   const wishlists = useWishlists()
   const [items, setItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Where each item was promoted this session, so the acquired row can deeplink
+  // to that collection (#789). Keyed by wishlist-item id.
+  const [promotedInto, setPromotedInto] = useState<Record<number, { id: number; name: string }>>({})
   // The name shown in the header. Seeded from the prop and updated locally on
   // rename, since the parent passes a captured summary that a cache patch
   // wouldn't refresh (#787).
@@ -291,6 +315,9 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
     let cancelled = false
     const load = async () => {
       setItems([])
+      // Drop last session's promote deeplinks so a reopened wishlist doesn't
+      // show a stale "View in …" on an acquired-on-load row (#789).
+      setPromotedInto({})
       setError(null)
       setLoading(true)
       try {
@@ -308,11 +335,13 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
     }
   }, [open, wishlist])
 
-  async function handlePromote(itemId: number, collectionId: number) {
+  async function handlePromote(itemId: number, collectionId: number, collectionName: string) {
     if (!wishlist) return
     const res = await promoteWishlistItem(wishlist.id, itemId, { collectionId })
     // Swap the acquired row in place — it stays in the list, struck through.
     setItems((prev) => prev.map((i) => (i.id === itemId ? res.wishlist_item : i)))
+    // Remember where it landed so the acquired row can deeplink there (#789).
+    setPromotedInto((prev) => ({ ...prev, [itemId]: { id: collectionId, name: collectionName } }))
     // The card is now owned: refresh the collection counts and drop the
     // cross-surface ownership badge cache (#576).
     void collections.refresh()
@@ -399,6 +428,8 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
                       item={item}
                       onPromote={handlePromote}
                       onRemove={handleRemove}
+                      promotedCollection={promotedInto[item.id]}
+                      onViewCollection={onViewCollection}
                     />
                   ))}
                 </ul>
