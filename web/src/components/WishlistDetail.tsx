@@ -315,6 +315,9 @@ export function WishlistDetail({ wishlist, open, onOpenChange, onViewCollection 
     let cancelled = false
     const load = async () => {
       setItems([])
+      // Drop last session's promote deeplinks so a reopened wishlist doesn't
+      // show a stale "View in …" on an acquired-on-load row (#789).
+      setPromotedInto({})
       setError(null)
       setLoading(true)
       try {
