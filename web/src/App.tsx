@@ -24,6 +24,7 @@ import { SwipePanel } from './components/SwipePanel'
 import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
 import { LibraryPanel } from './components/LibraryPanel'
+import { MobileTabBar, type MobileSection } from './components/MobileTabBar'
 import { ResultsTable } from './components/ResultsTable'
 import { consumePendingSaveSearch, type PendingSaveSearch } from './components/pendingSaveSearch'
 import { ExportBar } from './components/ExportBar'
@@ -77,6 +78,10 @@ function App() {
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('swipe')
+  // Mobile-only: which bottom-tab destination is showing (#519). Desktop
+  // ignores this — the sidebar Backpack and main content are both always
+  // visible there, so the state has no effect above the `lg` breakpoint.
+  const [mobileSection, setMobileSection] = useState<MobileSection>('discover')
   // The discovery mode the user was in when they opened the tour, restored when
   // it closes — the tour switches modes as it walks through Swipe/Browse/Search.
   const preTourModeRef = useRef<DiscoveryMode>('swipe')
@@ -174,8 +179,11 @@ function App() {
 
     // Results render only in Search mode, and the app now opens on Swipe (#814).
     // A rerun fired from the Backpack's Recent tab must surface the editor +
-    // results rather than leaving them hidden behind the Swipe panel.
+    // results rather than leaving them hidden behind the Swipe panel — on
+    // mobile that also means switching the bottom-tab section back to
+    // Discover, since the Backpack tab hides the Discover content (#519).
     setMode('search')
+    setMobileSection('discover')
 
     clearRows()
     setProcessingLines(nonEmpty.map((line) => ({ line, status: 'pending' })))
@@ -300,6 +308,7 @@ function App() {
     setCacheStatus,
     resetViewState,
     setMode,
+    setMobileSection,
   ])
 
   const handleStop = useCallback(() => {
@@ -364,89 +373,108 @@ function App() {
             <LibraryPanel
               variant="sidebar"
               onRun={handleRun}
-              onShowSearch={() => setMode('search')}
+              onShowSearch={() => {
+                setMode('search')
+                setMobileSection('discover')
+              }}
             />
           </div>
-          <div className="flex-1 min-w-0 space-y-6">
-            <div className="lg:hidden" data-tour="library-mobile">
-              <LibraryPanel
-                variant="accordion"
-                onRun={handleRun}
-                onShowSearch={() => setMode('search')}
-              />
-            </div>
-            <nav
-              role="tablist"
-              aria-label="Discovery mode"
-              data-tour="discovery-modes"
-              className="flex w-full flex-wrap items-center gap-1 rounded-lg border border-sand-300 bg-sand-100 p-1 dark:border-husk-50 dark:bg-husk-200"
-            >
-              {MODES.map((m) => {
-                const Icon = m.icon
-                const active = mode === m.value
-                return (
-                  <button
-                    key={m.value}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setMode(m.value)}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors min-w-[120px] ${
-                      active
-                        ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
-                        : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
-                    }`}
-                  >
-                    <Icon size={15} aria-hidden />
-                    <span className="font-medium">{m.label}</span>
-                    <span className="hidden text-xs text-coconut-400 dark:text-sand-400 sm:inline">
-                      · {m.hint}
-                    </span>
-                  </button>
-                )
-              })}
-            </nav>
+          <div className="flex-1 min-w-0 space-y-6 pb-16 lg:pb-0">
+            {/* Mobile Backpack tab (#519): only mounted while selected, and
+                starts expanded since tapping the tab is the "open" gesture —
+                the accordion's own collapse toggle stays available underneath. */}
+            {mobileSection === 'backpack' && (
+              <div className="lg:hidden" data-tour="library-mobile">
+                <LibraryPanel
+                  variant="accordion"
+                  startOpen
+                  onRun={handleRun}
+                  onShowSearch={() => {
+                    setMode('search')
+                    setMobileSection('discover')
+                  }}
+                />
+              </div>
+            )}
 
-            {mode === 'search' && (
-              <>
-                <section data-tour="input">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-                    Card list
-                  </h2>
-                  <InputEditor onRun={handleRun} onStop={handleStop} />
-                </section>
+            {/* Discover content — always visible at `lg` and up; on mobile,
+                only while the Discover tab is selected (#519). */}
+            <div className={mobileSection === 'discover' ? 'space-y-6' : 'hidden space-y-6 lg:block'}>
+              <nav
+                role="tablist"
+                aria-label="Discovery mode"
+                data-tour="discovery-modes"
+                className="flex w-full flex-wrap items-center gap-1 rounded-lg border border-sand-300 bg-sand-100 p-1 dark:border-husk-50 dark:bg-husk-200"
+              >
+                {MODES.map((m) => {
+                  const Icon = m.icon
+                  const active = mode === m.value
+                  return (
+                    <button
+                      key={m.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setMode(m.value)}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors min-w-[120px] ${
+                        active
+                          ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
+                          : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
+                      }`}
+                    >
+                      <Icon size={15} aria-hidden />
+                      <span className="font-medium">{m.label}</span>
+                      <span className="hidden text-xs text-coconut-400 dark:text-sand-400 sm:inline">
+                        · {m.hint}
+                      </span>
+                    </button>
+                  )
+                })}
+              </nav>
 
-                <section data-tour="results">
-                  <div className="mb-2 flex items-end justify-between gap-2">
-                    <h2 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
-                      Results
+              {mode === 'search' && (
+                <>
+                  <section data-tour="input">
+                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                      Card list
                     </h2>
-                    <div data-tour="exports">
-                      <ExportBar />
+                    <InputEditor onRun={handleRun} onStop={handleStop} />
+                  </section>
+
+                  <section data-tour="results">
+                    <div className="mb-2 flex items-end justify-between gap-2">
+                      <h2 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                        Results
+                      </h2>
+                      <div data-tour="exports">
+                        <ExportBar />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    <ProcessingQueue />
-                    <ResultsTable onRerunLine={handleRerunLine} />
-                  </div>
+                    <div className="flex flex-col gap-3">
+                      <ProcessingQueue />
+                      <ResultsTable onRerunLine={handleRerunLine} />
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {mode === 'browse' && (
+                <section aria-label="Browse cards by set">
+                  <BrowsePanel controller={browseController} />
                 </section>
-              </>
-            )}
+              )}
 
-            {mode === 'browse' && (
-              <section aria-label="Browse cards by set">
-                <BrowsePanel controller={browseController} />
-              </section>
-            )}
-
-            {mode === 'swipe' && (
-              <section aria-label="Swipe cards">
-                <SwipePanel active={mode === 'swipe'} />
-              </section>
-            )}
+              {mode === 'swipe' && (
+                <section aria-label="Swipe cards">
+                  <SwipePanel active={mode === 'swipe'} />
+                </section>
+              )}
+            </div>
           </div>
         </div>
       </main>
+
+      <MobileTabBar section={mobileSection} onSelectSection={setMobileSection} />
 
       {tourOpen && (
         <Tour onClose={closeTour} onRun={handleRun} onStop={handleStop} onSetMode={setMode} />
@@ -515,7 +543,7 @@ function App() {
         </div>
       )}
 
-      <footer className="border-t border-sand-300 dark:border-husk-200 py-4 text-center text-xs text-coconut-400 dark:text-sand-400">
+      <footer className="border-t border-sand-300 dark:border-husk-200 py-4 pb-20 text-center text-xs text-coconut-400 dark:text-sand-400 lg:pb-4">
         <p>
           mgz-pkmn · a personal card-show prep tool ·{' '}
           <a

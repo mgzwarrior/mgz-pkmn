@@ -41,7 +41,15 @@ function initialsFor(user: Me): string {
   return source.slice(0, 2).toUpperCase()
 }
 
-export function SignInChip() {
+interface Props {
+  /** `tab` renders as a labeled bottom-tab item (#519) instead of the header icon chip. */
+  variant?: 'header' | 'tab'
+}
+
+const TAB_TRIGGER_CLASS =
+  'flex flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 text-[11px] font-medium text-coconut-400 transition-colors min-w-0 hover:text-coconut-600 data-[state=open]:text-palm-600 dark:text-sand-300 dark:hover:text-sand-100 dark:data-[state=open]:text-sun-300'
+
+export function SignInChip({ variant = 'header' }: Props = {}) {
   const { user, authEnabled, loading, refresh, signOut } = useAuth()
   const [pickerOpen, setPickerOpen] = useState(false)
   // The link-callback redirects to `/account` so the SPA can land the
@@ -60,8 +68,19 @@ export function SignInChip() {
   }
 
   if (loading) {
-    // Reserve the icon-button footprint so the header doesn't reflow
+    // Reserve the icon-button footprint so the header/tab bar doesn't reflow
     // when /me resolves. Aria-busy lets screen readers skip the placeholder.
+    if (variant === 'tab') {
+      return (
+        <div
+          aria-busy="true"
+          aria-label="Loading account state"
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-1.5 min-w-0"
+        >
+          <div className="h-5 w-5 animate-pulse rounded-full bg-sand-200 dark:bg-husk-100" />
+        </div>
+      )
+    }
     return (
       <div
         aria-busy="true"
@@ -77,20 +96,37 @@ export function SignInChip() {
       <>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-coconut-500 hover:bg-sand-100 hover:text-coconut-700 dark:text-sand-200 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition"
-              aria-label={`Account menu for ${label}`}
-              title={label}
-              data-tour="account"
-            >
-              <span
-                aria-hidden="true"
-                className="flex h-6 w-6 items-center justify-center rounded-full bg-palm-300 text-[10px] font-semibold text-coconut-700 dark:bg-palm-500 dark:text-sand-50"
+            {variant === 'tab' ? (
+              <button
+                type="button"
+                className={TAB_TRIGGER_CLASS}
+                aria-label={`Account menu for ${label}`}
+                title={label}
               >
-                {initialsFor(user)}
-              </span>
-            </button>
+                <span
+                  aria-hidden="true"
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-palm-300 text-[9px] font-semibold text-coconut-700 dark:bg-palm-500 dark:text-sand-50"
+                >
+                  {initialsFor(user)}
+                </span>
+                Account
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-coconut-500 hover:bg-sand-100 hover:text-coconut-700 dark:text-sand-200 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition"
+                aria-label={`Account menu for ${label}`}
+                title={label}
+                data-tour="account"
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-palm-300 text-[10px] font-semibold text-coconut-700 dark:bg-palm-500 dark:text-sand-50"
+                >
+                  {initialsFor(user)}
+                </span>
+              </button>
+            )}
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
@@ -136,6 +172,24 @@ export function SignInChip() {
           user={user}
           refresh={refresh}
         />
+      </>
+    )
+  }
+
+  if (variant === 'tab') {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          aria-label="Sign in"
+          aria-current={pickerOpen ? 'page' : undefined}
+          className={`${TAB_TRIGGER_CLASS} ${pickerOpen ? '!text-palm-600 dark:!text-sun-300' : ''}`}
+        >
+          <LogIn size={20} aria-hidden />
+          Account
+        </button>
+        <ProviderPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
       </>
     )
   }

@@ -46,12 +46,16 @@ interface Props {
   /** Surface the Search editor + results — the app opens on Swipe, so loading
    *  a saved search has to switch modes for its rows to be visible (#814). */
   onShowSearch: () => void
+  /** Accordion variant only: mount already expanded (e.g. the mobile Backpack
+   *  tab, #519, where tapping the tab bar item should show its contents
+   *  immediately rather than requiring a second tap to expand). */
+  startOpen?: boolean
 }
 
-export function LibraryPanel({ variant, onRun, onShowSearch }: Props) {
+export function LibraryPanel({ variant, onRun, onShowSearch, startOpen = false }: Props) {
   const [activeTab, setActiveTab] = useState<LibraryTab>('searches')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [accordionOpen, setAccordionOpen] = useState(false)
+  const [accordionOpen, setAccordionOpen] = useState(startOpen)
 
   const runs = useAppStore((s) => s.runs)
   const recentCount = useAppStore((s) => s.recentRuns.length)

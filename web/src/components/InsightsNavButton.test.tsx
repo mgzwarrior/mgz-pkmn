@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { InsightsNavButton, INSIGHTS_NAV_THRESHOLD } from './InsightsNavButton'
-import { fetchCollections, type CollectionSummary } from '../api/client'
+import { fetchCollections, fetchCollectionInsights, type CollectionSummary } from '../api/client'
 import { _resetCollectionsCacheForTests } from './useCollections'
 
 vi.mock('../api/client', () => ({
@@ -12,6 +12,7 @@ vi.mock('../api/client', () => ({
 }))
 
 const mockFetch = vi.mocked(fetchCollections)
+const mockFetchInsights = vi.mocked(fetchCollectionInsights)
 
 function summary(overrides: Partial<CollectionSummary>): CollectionSummary {
   return {
@@ -58,5 +59,28 @@ describe('InsightsNavButton (#741)', () => {
     render(<InsightsNavButton />)
     await waitFor(() => expect(mockFetch).toHaveBeenCalled())
     expect(screen.queryByRole('button', { name: /Collection insights/i })).not.toBeInTheDocument()
+  })
+
+  it('renders a labeled tab and opens the dialog on tap (#519)', async () => {
+    mockFetch.mockResolvedValue([summary({ total_quantity: INSIGHTS_NAV_THRESHOLD })])
+    mockFetchInsights.mockResolvedValue({
+      totals: { collections: 1, unique_cards: 3, total_quantity: INSIGHTS_NAV_THRESHOLD, estimated_value: 100 },
+      top_types: [],
+      top_rarities: [],
+      top_sets: [],
+      top_value_cards: [],
+      value_by_set: [],
+      value_by_collection: [],
+      duplicate_multiples: [],
+      cross_collection: [],
+      already_owned_chasing: [],
+    })
+    render(<InsightsNavButton variant="tab" />)
+    const tab = await screen.findByRole('button', { name: /Collection insights/i })
+    expect(tab).toHaveTextContent('Insights')
+    expect(tab).not.toHaveAttribute('aria-current')
+    fireEvent.click(tab)
+    expect(tab).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
   })
 })

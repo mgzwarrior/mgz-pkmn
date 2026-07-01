@@ -236,6 +236,30 @@ describe('SignInChip (loading)', () => {
   })
 })
 
+describe('SignInChip (tab variant, #519)', () => {
+  it('labels the trigger "Account" for a signed-out visitor', async () => {
+    fetchMeMock.mockResolvedValue({ user: null, authEnabled: true })
+    render(<SignInChip variant="tab" />)
+    const trigger = await screen.findByRole('button', { name: /sign in/i })
+    expect(trigger).toHaveTextContent('Account')
+    fireEvent.click(trigger)
+    expect(await screen.findByRole('link', { name: /continue with github/i })).toBeInTheDocument()
+  })
+
+  it('labels the trigger "Account" and opens the dropdown for a signed-in visitor', async () => {
+    fetchMeMock.mockResolvedValue({
+      user: { id: 1, email: 'jane@example.com', display_name: 'Jane Doe' },
+      authEnabled: true,
+    })
+    render(<SignInChip variant="tab" />)
+    const trigger = await screen.findByRole('button', { name: /account menu for jane doe/i })
+    expect(trigger).toHaveTextContent('Account')
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+    expect(await screen.findByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
+  })
+})
+
 describe('SignInChip (self-host)', () => {
   it('renders nothing when auth is disabled on the deploy', async () => {
     // Self-host: /me returns the default user but auth_enabled is false.
