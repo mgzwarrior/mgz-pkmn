@@ -41,14 +41,24 @@ function useKeyboardInset(active: boolean) {
   useEffect(() => {
     if (!active || typeof window === 'undefined' || !window.visualViewport) return
     const vv = window.visualViewport
-    const update = () => setInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop))
-    const raf = requestAnimationFrame(update)
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
+    // resize/scroll can fire many times per frame while the keyboard
+    // animates — coalesce them into at most one setInset per frame instead
+    // of re-rendering on every event.
+    let raf: number | null = null
+    const update = () => {
+      raf = null
+      setInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop))
+    }
+    const schedule = () => {
+      if (raf === null) raf = requestAnimationFrame(update)
+    }
+    schedule()
+    vv.addEventListener('resize', schedule)
+    vv.addEventListener('scroll', schedule)
     return () => {
-      cancelAnimationFrame(raf)
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
+      if (raf !== null) cancelAnimationFrame(raf)
+      vv.removeEventListener('resize', schedule)
+      vv.removeEventListener('scroll', schedule)
       setInset(0)
     }
   }, [active])
