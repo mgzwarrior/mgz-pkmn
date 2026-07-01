@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { CollectionDetail } from './CollectionDetail'
 import { _resetCollectionsCacheForTests } from './useCollections'
-import { fetchCollection, fetchCollections, updateCollectionItem } from '../api/client'
+import {
+  fetchCollection,
+  fetchCollections,
+  updateCollection,
+  updateCollectionItem,
+} from '../api/client'
 import type { Collection, CollectionItem, CollectionSummary } from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -19,6 +24,7 @@ vi.mock('../api/client', () => ({
 
 const mockFetch = vi.mocked(fetchCollection)
 const mockFetchList = vi.mocked(fetchCollections)
+const mockUpdate = vi.mocked(updateCollection)
 const mockUpdateItem = vi.mocked(updateCollectionItem)
 
 const SUMMARY: CollectionSummary = {
@@ -64,6 +70,7 @@ beforeEach(() => {
   mockFetch.mockReset()
   mockFetchList.mockReset()
   mockFetchList.mockResolvedValue([])
+  mockUpdate.mockReset()
   mockUpdateItem.mockReset()
 })
 
@@ -195,5 +202,22 @@ describe('CollectionDetail', () => {
       screen.queryByRole('button', { name: /increase quantity/i }),
     ).not.toBeInTheDocument()
     expect(screen.getByLabelText(/owned quantity/i)).toHaveTextContent('4x')
+  })
+
+  it('renames the collection from the header and reflects it live (#787)', async () => {
+    mockFetch.mockResolvedValue(collectionWith([]))
+    mockUpdate.mockResolvedValue({ ...collectionWith([]), name: 'Vintage holos' })
+    render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
+
+    await waitFor(() => expect(screen.getByText('Base Set holos')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /rename collection/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: /collection name/i }), {
+      target: { value: 'Vintage holos' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save collection name/i }))
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(3, { name: 'Vintage holos' }))
+    await waitFor(() => expect(screen.getByText('Vintage holos')).toBeInTheDocument())
   })
 })

@@ -20,6 +20,7 @@ import {
   type WishlistSummary,
 } from '../api/client'
 import { ExportBar } from './ExportBar'
+import { InlineRenameTitle } from './InlineRenameTitle'
 import { itemsToExportRows } from './exportRows'
 import { invalidateOwnership } from './useCardOwnership'
 import { useCollections } from './useCollections'
@@ -264,6 +265,24 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
   const [items, setItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The name shown in the header. Seeded from the prop and updated locally on
+  // rename, since the parent passes a captured summary that a cache patch
+  // wouldn't refresh (#787).
+  const [name, setName] = useState(wishlist?.name ?? '')
+  // Reseed when a different wishlist opens — the modal instance is reused across
+  // selections. Adjusting state during render is React's documented "reset on
+  // prop change" pattern, and avoids a set-state-in-effect.
+  const [syncedId, setSyncedId] = useState(wishlist?.id)
+  if (wishlist?.id !== syncedId) {
+    setSyncedId(wishlist?.id)
+    setName(wishlist?.name ?? '')
+  }
+
+  async function handleRename(next: string) {
+    if (!wishlist) return
+    await wishlists.rename(wishlist.id, next)
+    setName(next)
+  }
 
   useEffect(() => {
     if (!open || !wishlist) return
@@ -325,13 +344,16 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
           <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
             <div className="flex min-w-0 items-center gap-2">
               <Footprints size={18} className="shrink-0 text-coconut-600 dark:text-sand-200" />
-              <Dialog.Title className="truncate text-lg font-semibold text-coconut-700 dark:text-sand-50">
-                {wishlist?.name ?? 'Wishlist'}
-              </Dialog.Title>
+              <InlineRenameTitle
+                name={name}
+                fallback="Wishlist"
+                noun="wishlist"
+                onRename={handleRename}
+              />
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {items.length > 0 && (
-                <ExportBar rows={exportRows} title={wishlist?.name} showSetIdCards={false} />
+                <ExportBar rows={exportRows} title={name} showSetIdCards={false} />
               )}
               <Dialog.Close asChild>
                 <button

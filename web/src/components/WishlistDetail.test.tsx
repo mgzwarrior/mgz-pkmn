@@ -9,6 +9,7 @@ import {
   fetchWishlists,
   promoteWishlistItem,
   deleteWishlistItem,
+  updateWishlist,
 } from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -21,6 +22,7 @@ vi.mock('../api/client', () => ({
   fetchWishlists: vi.fn(),
   createWishlist: vi.fn(),
   addCardToWishlist: vi.fn(),
+  updateWishlist: vi.fn(),
   deleteWishlist: vi.fn(),
 }))
 
@@ -29,6 +31,7 @@ const mockFetchCollections = vi.mocked(fetchCollections)
 const mockFetchWishlists = vi.mocked(fetchWishlists)
 const mockPromote = vi.mocked(promoteWishlistItem)
 const mockDeleteItem = vi.mocked(deleteWishlistItem)
+const mockUpdateWishlist = vi.mocked(updateWishlist)
 
 const WISHLIST = {
   id: 7,
@@ -160,5 +163,22 @@ describe('WishlistDetail', () => {
     await waitFor(() => expect(screen.queryByText('Charizard')).not.toBeInTheDocument())
     // The other card stays.
     expect(screen.getByText('Blastoise')).toBeInTheDocument()
+  })
+
+  it('renames the wishlist from the header and reflects it live (#787)', async () => {
+    mockFetchWishlist.mockResolvedValue({ ...WISHLIST, items: [] })
+    mockUpdateWishlist.mockResolvedValue({ ...WISHLIST, name: 'Chase board', items: [] })
+    render(<WishlistDetail wishlist={WISHLIST} open onOpenChange={() => {}} />)
+
+    await waitFor(() => expect(screen.getByText('Mew hunt')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /rename wishlist/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: /wishlist name/i }), {
+      target: { value: 'Chase board' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save wishlist name/i }))
+
+    await waitFor(() => expect(mockUpdateWishlist).toHaveBeenCalledWith(7, { name: 'Chase board' }))
+    await waitFor(() => expect(screen.getByText('Chase board')).toBeInTheDocument())
   })
 })
