@@ -10,9 +10,24 @@
  * inputs — text match for strings, min/max for the Market column. The
  * column sort/filter is view-only; exports still honor the sort mode
  * in Settings.
+ *
+ * Below the `lg` breakpoint the table gives way to a stacked list of
+ * {@link ResultCard}s (#521) — seven columns don't fit a phone, and Swipe
+ * already established the card shape for this same data. Sort/filter move
+ * from the inline header row into a bottom sheet opened from a sticky
+ * "Filters" trigger, since there's no table to attach an inline row to.
  */
-import { useCallback, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, AlertCircle, Filter } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ExternalLink,
+  AlertCircle,
+  Filter,
+  X,
+} from 'lucide-react'
 import { addOverride } from '../api/client'
 import { BulkActionBar } from './BulkActionBar'
 import { useAuth } from '../hooks/useAuth'
@@ -22,6 +37,7 @@ import { formatComp, formatMoney } from '../utils/format'
 import { QuickActions } from './QuickActions'
 import { AffiliateLinks } from './AffiliateLinks'
 import { CardDetailModal } from './CardDetailModal'
+import { ResultCard } from './ResultCard'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import type { CardOwnership } from '../api/client'
@@ -35,6 +51,37 @@ import {
   type SortColumn,
   type SortDir,
 } from './resultsTableFilter'
+
+const SORT_COLUMNS: { value: SortColumn; label: string }[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'set', label: 'Set' },
+  { value: 'rarity', label: 'Rarity' },
+  { value: 'market', label: 'Market' },
+  { value: 'source', label: 'Source' },
+]
+
+// Mirrors the app shell's `lg` mobile/desktop split (App.tsx's sidebar,
+// bottom tab bar, etc. all gate on the same breakpoint). Real conditional
+// rendering rather than a CSS `hidden`/`lg:hidden` pair — otherwise both the
+// table and the card list would mount every row's DOM twice.
+const MOBILE_QUERY = '(max-width: 1023px)'
+
+function useIsMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false
+    return window.matchMedia(MOBILE_QUERY).matches
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia(MOBILE_QUERY)
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  return isMobile
+}
 
 /**
  * Pull the promoted `(set_id, number)` identity off a matched row for the
@@ -82,10 +129,15 @@ export function ResultsTable({ onRerunLine }: Props) {
   // care about "should I render save buttons" not "who is the user".
   const auth = useAuth()
   const showSavedActions = auth.user !== null
+  const isMobile = useIsMobileViewport()
   // Index into `displayedRows` for the row whose detail modal is open;
   // `null` keeps the modal closed. Tracking the index (not the row) lets
   // ←/→ navigation in the modal stay synced with the live filter+sort.
   const [detailIndex, setDetailIndex] = useState<number | null>(null)
+  // Mobile-only: the desktop Filter toggle reveals an inline table row, but
+  // there's no table to attach one to below `lg`, so a separate boolean
+  // drives a bottom sheet instead (#521).
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   const cycleSort = useCallback(
     (column: SortColumn) => {
@@ -100,6 +152,24 @@ export function ResultsTable({ onRerunLine }: Props) {
     },
     [setViewState],
   )
+
+  // Mobile sheet's sort control is a direct column picker + a plain
+  // asc/desc toggle, not the desktop header's 3-state cycle (asc → desc →
+  // off) — a dedicated direction button that could suddenly clear sorting
+  // on a second tap would be a confusing model for that control.
+  const setSort = useCallback(
+    (column: SortColumn | null) => {
+      const current = useAppStore.getState().viewState
+      setViewState({ ...current, sortColumn: column, sortDir: column ? 'asc' : null })
+    },
+    [setViewState],
+  )
+
+  const toggleSortDir = useCallback(() => {
+    const current = useAppStore.getState().viewState
+    if (!current.sortColumn) return
+    setViewState({ ...current, sortDir: current.sortDir === 'asc' ? 'desc' : 'asc' })
+  }, [setViewState])
 
   const setFilterValue = useCallback(
     <K extends keyof ResultsFilters>(key: K, value: ResultsFilters[K]) => {
@@ -316,19 +386,38 @@ export function ResultsTable({ onRerunLine }: Props) {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={toggleFilters}
-          aria-pressed={showFilters}
-          className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
-            showFilters
-              ? 'border-palm-400 bg-palm-50 text-palm-700 dark:border-sun-300/60 dark:bg-sun-400/15 dark:text-sun-300'
-              : 'border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100'
-          }`}
-        >
-          <Filter size={12} />
-          {showFilters ? 'Hide filters' : 'Filter'}
-        </button>
+        {isMobile ? (
+          // Opens the Filters + Sort bottom sheet — there's no table row
+          // for an inline toggle to reveal.
+          <button
+            type="button"
+            onClick={() => setMobileFiltersOpen(true)}
+            aria-expanded={mobileFiltersOpen}
+            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
+              sortColumn || hasActiveFilters(filters)
+                ? 'border-palm-400 bg-palm-50 text-palm-700 dark:border-sun-300/60 dark:bg-sun-400/15 dark:text-sun-300'
+                : 'border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100'
+            }`}
+          >
+            <Filter size={12} />
+            Filters
+          </button>
+        ) : (
+          // Toggles the inline table filter row below.
+          <button
+            type="button"
+            onClick={toggleFilters}
+            aria-pressed={showFilters}
+            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
+              showFilters
+                ? 'border-palm-400 bg-palm-50 text-palm-700 dark:border-sun-300/60 dark:bg-sun-400/15 dark:text-sun-300'
+                : 'border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100'
+            }`}
+          >
+            <Filter size={12} />
+            {showFilters ? 'Hide filters' : 'Filter'}
+          </button>
+        )}
         <div className="flex items-center gap-3">
           {selectedRows.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-coconut-400 dark:text-sand-300 cursor-pointer select-none">
@@ -365,7 +454,8 @@ export function ResultsTable({ onRerunLine }: Props) {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table — desktop only; mobile renders ResultCards below (#521). */}
+      {!isMobile && (
       <div className="overflow-x-auto rounded-md border border-sand-300 dark:border-husk-50">
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -557,6 +647,42 @@ export function ResultsTable({ onRerunLine }: Props) {
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* Card list — mobile only (#521). No multi-select here: bulk actions
+          stay a desktop-table affordance, so BulkActionBar only ever shows
+          alongside the table. */}
+      {isMobile && (
+      <ul className="flex flex-col gap-2">
+        {visibleRows.map((row, displayedIdx) => (
+          <ResultCard
+            key={rowKeys.get(row) ?? -1}
+            row={row}
+            showImage={!settings.noImages}
+            showSavedActions={showSavedActions}
+            ownership={ownershipForRow(row, lookupOwnership)}
+            onRerunLine={onRerunLine}
+            onOpenDetail={() => setDetailIndex(displayedIdx)}
+          />
+        ))}
+        {isRunning && (
+          <li className="h-1 w-24 animate-pulse rounded bg-sand-200 dark:bg-husk-100" />
+        )}
+      </ul>
+      )}
+
+      <MobileFiltersSheet
+        open={mobileFiltersOpen}
+        onOpenChange={setMobileFiltersOpen}
+        sortColumn={sortColumn}
+        sortDir={sortDir}
+        onSetSort={setSort}
+        onToggleSortDir={toggleSortDir}
+        filters={filters}
+        onFilterChange={setFilterValue}
+        onClear={resetViewState}
+        hasActive={!!sortColumn || hasActiveFilters(filters)}
+      />
 
       {(selectedRows.length > 0 || undoSnapshot !== null) && (
         <BulkActionBar
@@ -653,6 +779,159 @@ function FilterInput({
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded border border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 px-1.5 py-0.5 text-xs text-coconut-600 dark:text-sand-200 placeholder:text-coconut-300 dark:placeholder:text-sand-500 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:focus:ring-sun-300"
     />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Mobile filters + sort sheet (#521)
+// ---------------------------------------------------------------------------
+
+function MobileFiltersSheet({
+  open,
+  onOpenChange,
+  sortColumn,
+  sortDir,
+  onSetSort,
+  onToggleSortDir,
+  filters,
+  onFilterChange,
+  onClear,
+  hasActive,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  sortColumn: SortColumn | null
+  sortDir: SortDir | null
+  onSetSort: (c: SortColumn | null) => void
+  onToggleSortDir: () => void
+  filters: ResultsFilters
+  onFilterChange: <K extends keyof ResultsFilters>(key: K, value: ResultsFilters[K]) => void
+  onClear: () => void
+  hasActive: boolean
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 backdrop-blur-sm lg:hidden dark:bg-husk-500/70" />
+        <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col gap-3 overflow-y-auto rounded-t-2xl border-t border-sand-300 bg-sand-50 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 shadow-2xl lg:hidden dark:border-husk-50 dark:bg-husk-200">
+          <div className="flex items-center justify-between">
+            <Dialog.Title className="text-sm font-semibold text-coconut-700 dark:text-sand-50">
+              Filters &amp; sort
+            </Dialog.Title>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                aria-label="Close"
+                className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </Dialog.Close>
+          </div>
+          <Dialog.Description className="sr-only">
+            Sort the results and filter by name, set, rarity, price, or source.
+          </Dialog.Description>
+
+          <SheetField label="Sort by">
+            <div className="flex gap-2">
+              <select
+                aria-label="Sort column"
+                value={sortColumn ?? ''}
+                onChange={(e) => onSetSort(e.target.value === '' ? null : (e.target.value as SortColumn))}
+                className="flex-1 rounded border border-sand-300 bg-sand-100 px-2 py-1.5 text-sm text-coconut-700 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-50 dark:focus:ring-sun-300"
+              >
+                <option value="">None</option>
+                {SORT_COLUMNS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              {sortColumn && (
+                <button
+                  type="button"
+                  onClick={onToggleSortDir}
+                  aria-label={`Sort direction: ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
+                  className="flex items-center gap-1 rounded border border-sand-300 bg-sand-100 px-2 py-1.5 text-xs text-coconut-600 dark:border-husk-50 dark:bg-husk-100 dark:text-sand-200"
+                >
+                  {sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                </button>
+              )}
+            </div>
+          </SheetField>
+
+          <SheetField label="Name">
+            <FilterInput
+              aria-label="Filter by name"
+              placeholder="contains…"
+              value={filters.name}
+              onChange={(v) => onFilterChange('name', v)}
+            />
+          </SheetField>
+          <SheetField label="Set">
+            <FilterInput
+              aria-label="Filter by set"
+              placeholder="contains…"
+              value={filters.set}
+              onChange={(v) => onFilterChange('set', v)}
+            />
+          </SheetField>
+          <SheetField label="Rarity">
+            <FilterInput
+              aria-label="Filter by rarity"
+              placeholder="contains…"
+              value={filters.rarity}
+              onChange={(v) => onFilterChange('rarity', v)}
+            />
+          </SheetField>
+          <SheetField label="Market price">
+            <div className="flex gap-2">
+              <FilterInput
+                aria-label="Min market price"
+                type="number"
+                placeholder="min"
+                value={filters.marketMin}
+                onChange={(v) => onFilterChange('marketMin', v)}
+              />
+              <FilterInput
+                aria-label="Max market price"
+                type="number"
+                placeholder="max"
+                value={filters.marketMax}
+                onChange={(v) => onFilterChange('marketMax', v)}
+              />
+            </div>
+          </SheetField>
+          <SheetField label="Source">
+            <FilterInput
+              aria-label="Filter by source"
+              placeholder="contains…"
+              value={filters.source}
+              onChange={(v) => onFilterChange('source', v)}
+            />
+          </SheetField>
+
+          {hasActive && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="mt-1 text-sm text-coconut-400 hover:text-coconut-600 dark:text-sand-300 dark:hover:text-sand-200"
+            >
+              Clear sort &amp; filters
+            </button>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+function SheetField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-coconut-400 dark:text-sand-300">
+      {label}
+      {children}
+    </label>
   )
 }
 
