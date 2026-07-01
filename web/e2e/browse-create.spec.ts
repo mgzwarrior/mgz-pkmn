@@ -40,9 +40,9 @@ test('browse a set, create a want-list seeded from it, and see it in the Backpac
   // menu and dialog render in a portal at the document root, so they're queried
   // off `page` rather than the browse region.
   await browse.getByRole('button', { name: 'New', exact: true }).click()
-  await page.getByRole('menuitem', { name: /Want-list/i }).click()
+  await page.getByRole('menuitem', { name: /Wishlist/i }).click()
 
-  const dialog = page.getByRole('dialog', { name: 'New want-list' })
+  const dialog = page.getByRole('dialog', { name: 'New wishlist' })
   await expect(dialog).toBeVisible()
 
   // Replace the set-derived prefill with a unique per-run name so the Backpack
@@ -67,7 +67,7 @@ test('browse a set, create a want-list seeded from it, and see it in the Backpac
   // suppress the default-list provisioning the quick-action specs assert (e.g.
   // browse-save's first Want on a card this list already chases). The two-step
   // delete cascades the seeded cards back out, leaving the shared DB as found.
-  await row.getByRole('button', { name: `Delete want-list "${name}"` }).click()
-  await row.getByRole('button', { name: `Confirm delete want-list "${name}"` }).click()
+  await row.getByRole('button', { name: `Delete wishlist "${name}"` }).click()
+  await row.getByRole('button', { name: `Confirm delete wishlist "${name}"` }).click()
   await expect(row).toBeHidden()
 })
