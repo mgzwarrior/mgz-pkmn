@@ -427,7 +427,7 @@ function LibraryLocations({
       {wls.length > 0 && (
         <LocationLine
           label="Want:"
-          noun="want-list"
+          noun="wishlist"
           chips={wls.map((w) => ({ id: w.id, name: w.name, display: w.name }))}
           removingKey={removing}
           keyPrefix="wishlist"

@@ -675,7 +675,7 @@ describe('CardDetailModal — library actions (#699)', () => {
     render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
     const locations = await screen.findByLabelText(/Library locations/i)
     fireEvent.click(
-      within(locations).getByRole('button', { name: /Remove from want-list Chase list/i }),
+      within(locations).getByRole('button', { name: /Remove from wishlist Chase list/i }),
     )
 
     await waitFor(() => expect(removeSpy).toHaveBeenCalledWith(9, 'base1', '4'))

@@ -478,7 +478,7 @@ function SwipeHeader({
           />
           <LibraryToggle
             label="chasing"
-            title="Don't show cards already on your want-lists"
+            title="Don't show cards already on your wishlists"
             checked={excludeChasing}
             onChange={onExcludeChasingChange}
           />

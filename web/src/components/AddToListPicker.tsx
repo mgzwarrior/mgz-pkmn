@@ -157,19 +157,19 @@ export function AddToListPicker({
           />
           <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
           <ListSection
-            label="Add to want-list"
+            label="Add to wishlist"
             icon={<Footprints size={12} />}
             items={addableWishlists}
             loading={loading}
-            emptyHint="On every want-list already."
+            emptyHint="On every wishlist already."
             onPick={addToWishlist}
             creating={creating === 'wishlist'}
             onStartCreate={() => {
               setCreating('wishlist')
               setNewName('')
             }}
-            createLabel="New want-list…"
-            placeholder="Want-list name"
+            createLabel="New wishlist…"
+            placeholder="Wishlist name"
             newName={newName}
             onNewName={setNewName}
             onSubmit={createAndAdd}

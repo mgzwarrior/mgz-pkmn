@@ -32,7 +32,7 @@ function filedSummary(collections: number, wishlists: number): string {
   if (collections === 0 && wishlists === 0) return 'Empty'
   const parts: string[] = []
   if (collections > 0) parts.push(`${collections} ${collections === 1 ? 'collection' : 'collections'}`)
-  if (wishlists > 0) parts.push(`${wishlists} ${wishlists === 1 ? 'want-list' : 'want-lists'}`)
+  if (wishlists > 0) parts.push(`${wishlists} ${wishlists === 1 ? 'wishlist' : 'wishlists'}`)
   return parts.join(' · ')
 }
 
@@ -317,7 +317,7 @@ export function BinderInventory() {
                         {w.name}
                         <span className="text-coconut-400 dark:text-sand-400">
                           {' '}
-                          · want-list · {w.item_count} {w.item_count === 1 ? 'card' : 'cards'}
+                          · wishlist · {w.item_count} {w.item_count === 1 ? 'card' : 'cards'}
                         </span>
                       </li>
                     ))}

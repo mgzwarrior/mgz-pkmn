@@ -56,19 +56,19 @@ describe('SmartCollectionTarget', () => {
     expect(screen.getByText(/Missing.*\(2\)/)).toBeInTheDocument()
   })
 
-  it('chases the missing cards onto a new want-list named after the collection', async () => {
+  it('chases the missing cards onto a new wishlist named after the collection', async () => {
     mockTarget.mockResolvedValue(TARGET)
     mockChase.mockResolvedValue({ wishlist_id: 3, added: 2, skipped: 0, total_missing: 2 })
     render(<SmartCollectionTarget collection={COLLECTION} open onOpenChange={() => {}} />)
 
     await waitFor(() => expect(screen.getByText(/of 3 owned/)).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: /add 2 missing to want-list/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add 2 missing to wishlist/i }))
 
     await waitFor(() =>
       expect(mockChase).toHaveBeenCalledWith(7, { wishlistName: 'All Eevees' }, undefined),
     )
     await waitFor(() =>
-      expect(screen.getByText(/added 2 to your want-list/i)).toBeInTheDocument(),
+      expect(screen.getByText(/added 2 to your wishlist/i)).toBeInTheDocument(),
     )
   })
 
@@ -80,7 +80,7 @@ describe('SmartCollectionTarget', () => {
     render(<SmartCollectionTarget collection={COLLECTION} open onOpenChange={() => {}} />)
 
     await waitFor(() => expect(screen.getByText(/of 3 owned/)).toBeInTheDocument())
-    const btn = screen.getByRole('button', { name: /add 2 missing to want-list/i })
+    const btn = screen.getByRole('button', { name: /add 2 missing to wishlist/i })
     fireEvent.click(btn)
     await waitFor(() => expect(mockChase).toHaveBeenCalledTimes(1))
     fireEvent.click(btn)

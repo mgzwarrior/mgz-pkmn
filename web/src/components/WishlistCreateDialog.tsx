@@ -95,7 +95,7 @@ function CreateForm({
     <>
       <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
         <Dialog.Title className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
-          New want-list
+          New wishlist
         </Dialog.Title>
         <Dialog.Close asChild>
           <button
@@ -107,7 +107,7 @@ function CreateForm({
         </Dialog.Close>
       </header>
       <Dialog.Description className="sr-only">
-        Name the want-list and optionally file it into one of your binders.
+        Name the wishlist and optionally file it into one of your binders.
       </Dialog.Description>
 
       <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">

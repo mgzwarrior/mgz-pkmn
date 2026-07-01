@@ -84,8 +84,8 @@ function emptyMessage(filter: BinderFilter): string {
   if (filter === 'owned')
     return "No owned binders yet. Hit New binder to make one, or click the book icon on a matched row to start a collection."
   if (filter === 'chasing')
-    return "No want-lists yet. Run a lookup, then click the footprints icon on a matched row to start chasing a card."
-  return "You don't have any binders yet. Hit New binder to make one, or run a lookup and click the book icon to save a card or the footprints icon to start a want-list."
+    return "No wishlists yet. Run a lookup, then click the footprints icon on a matched row to start chasing a card."
+  return "You don't have any binders yet. Hit New binder to make one, or run a lookup and click the book icon to save a card or the footprints icon to start a wishlist."
 }
 
 export function LibraryBindersTab() {
@@ -180,7 +180,7 @@ export function LibraryBindersTab() {
 
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
-          Collections &amp; want-lists
+          Collections &amp; wishlists
         </span>
         <div className="flex items-center gap-0.5">
           <button
@@ -216,7 +216,7 @@ export function LibraryBindersTab() {
                 />
                 <NewMenuItem
                   icon={<Star size={13} />}
-                  label="Want-list"
+                  label="Wishlist"
                   blurb="Cards you're chasing."
                   onSelect={() => setCreateDialog('wishlist')}
                 />
@@ -632,9 +632,9 @@ function WishlistRow({
       </button>
       {/* A want-list files into a binder too (#774) — same control as a row. */}
       {binders.length > 0 && (
-        <FileIntoBinderControl item={w} noun="want-list" binders={binders} onFile={onFile} />
+        <FileIntoBinderControl item={w} noun="wishlist" binders={binders} onFile={onFile} />
       )}
-      <DeleteBinderControl label={`want-list "${w.name}"`} onDelete={() => onDelete(w.id)} />
+      <DeleteBinderControl label={`wishlist "${w.name}"`} onDelete={() => onDelete(w.id)} />
     </li>
   )
 }
@@ -653,7 +653,7 @@ function FileIntoBinderControl({
   onFile,
 }: {
   item: { id: number; name: string; binder_id?: number | null }
-  noun?: 'collection' | 'want-list'
+  noun?: 'collection' | 'wishlist'
   binders: BinderSummary[]
   onFile: (id: number, binderId: number | null) => Promise<void>
 }) {

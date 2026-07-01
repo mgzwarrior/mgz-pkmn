@@ -130,10 +130,10 @@ export function SmartCollectionTarget({ collection, open, onOpenChange }: Props)
       void wishlists.refresh()
       setChaseMsg(
         res.added > 0
-          ? `Added ${res.added} to your want-list.`
+          ? `Added ${res.added} to your wishlist.`
           : res.total_missing === 0
             ? 'You already own every card here.'
-            : 'All missing cards are already on your want-list.',
+            : 'All missing cards are already on your wishlist.',
       )
     } catch (e) {
       setChaseMsg(e instanceof Error ? e.message : String(e))
@@ -217,7 +217,7 @@ export function SmartCollectionTarget({ collection, open, onOpenChange }: Props)
                       ) : (
                         <Plus size={13} />
                       )}
-                      Add {missing.length} missing to want-list
+                      Add {missing.length} missing to wishlist
                     </button>
                     {chaseMsg && (
                       <span className="text-[11px] text-coconut-500 dark:text-sand-300">

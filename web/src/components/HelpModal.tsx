@@ -354,7 +354,7 @@ export function HelpModal({ onStartTour }: Props) {
               </p>
               <Definitions
                 rows={[
-                  ['Binders', 'Your collections (cards you own) and want-lists (cards you’re chasing), together. Filter by Owned or Chasing.'],
+                  ['Binders', 'Your collections (cards you own) and wishlists (cards you’re chasing), together. Filter by Owned or Chasing.'],
                   ['Searches', 'Lookups you saved with a name. Click one to reload its cards, sort, and filters.'],
                   ['Recent', 'Your last few lookups, kept on this device. One tap re-runs them.'],
                 ]}
