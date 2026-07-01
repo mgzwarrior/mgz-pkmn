@@ -5,26 +5,23 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.8.0](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.7.0...v1.8.0) (2026-06-30)
+## [1.8.0] - 2026-06-30
 
+The "make it honest" release: the app now leads with Swipe, the Tour and Help walk the surfaces that actually shipped, the end-user docs match the live SPA, and the welcome email moved to a reason-branched drip on Resend.
 
 ### Added
 
-* **api:** move the welcome newsletter to Resend with a reason-branched drip ([#825](https://github.com/mgzwarrior/mgz-pkmn/issues/825)) ([67eb819](https://github.com/mgzwarrior/mgz-pkmn/commit/67eb819acb82ffe3016e666d54579982b8acb33b))
-* **web:** lead with Swipe across the app and refresh the Help modal ([#813](https://github.com/mgzwarrior/mgz-pkmn/issues/813)) ([66af3a4](https://github.com/mgzwarrior/mgz-pkmn/commit/66af3a4b98b7d8eb349358b061fb64a2f6af7cca))
-* **web:** refresh the Tour to walk Swipe, Browse, card details, and the Backpack ([#824](https://github.com/mgzwarrior/mgz-pkmn/issues/824)) ([be4d48c](https://github.com/mgzwarrior/mgz-pkmn/commit/be4d48c677ba4799d6c17f24bdbf097a455a762b))
-
-
-### Fixed
-
-* **api:** fire the New Signup event so the Resend welcome drip triggers ([#827](https://github.com/mgzwarrior/mgz-pkmn/issues/827)) ([9ff286b](https://github.com/mgzwarrior/mgz-pkmn/commit/9ff286ba2fdd558cbda4bfffb870f227511e9130)), closes [#826](https://github.com/mgzwarrior/mgz-pkmn/issues/826)
-* **site:** show the Buy Me a Coffee greeting once per session, not every page ([#823](https://github.com/mgzwarrior/mgz-pkmn/issues/823)) ([7583271](https://github.com/mgzwarrior/mgz-pkmn/commit/758327114f6ccbd84f958683a25972049f3b7c59))
-
+- Web: **The app now opens on Swipe, the gentlest way in for a collector** ([#792](https://github.com/mgzwarrior/mgz-pkmn/issues/792), [#813](https://github.com/mgzwarrior/mgz-pkmn/issues/813), [#814](https://github.com/mgzwarrior/mgz-pkmn/issues/814)). The discovery bar reads Swipe → Browse → Search and opens on Swipe by default, Swipe picked up a card-deck icon to match the stack you flip through, and the Help modal was rebuilt around a plain-language intro and a real sample card that points newcomers to Swipe first — with an accuracy pass over Browse's By Pokédex # view, the one-tap Want / Own quick actions, and the eBay-comps / hide-owned / lookup-timer settings.
+- Web: **The guided Tour drives the app through every surface instead of narrating it** ([#317](https://github.com/mgzwarrior/mgz-pkmn/issues/317), [#824](https://github.com/mgzwarrior/mgz-pkmn/issues/824)). As it advances the Tour switches discovery modes live (Swipe → Browse → Search), opens a self-contained sample card-detail modal with working ←/→ navigation and the Want / Own quick actions, and points at the Backpack's Binders, Searches, and Recent — adapting from 8 steps signed out to 10 signed in and restoring the visitor's starting mode when it closes.
+- API + Site: **A reason-branched welcome drip on Resend** ([#821](https://github.com/mgzwarrior/mgz-pkmn/issues/821), [#825](https://github.com/mgzwarrior/mgz-pkmn/issues/825), [#826](https://github.com/mgzwarrior/mgz-pkmn/issues/826), [#827](https://github.com/mgzwarrior/mgz-pkmn/issues/827)). The marketing signup now asks why you're here — Collector, Show prep, or Builder — and `POST /api/v1/subscribe` creates a Resend contact and fires a New Signup event so a three-email track tailored to that reason begins, consolidating email onto the vendor that already relays magic links and retiring the paid Buttondown drip (ADR-0028 supersedes ADR-0014).
 
 ### Changed
 
-* refresh the collections + wishlists web-flow guides to the shipped SPA ([#818](https://github.com/mgzwarrior/mgz-pkmn/issues/818)) ([840778c](https://github.com/mgzwarrior/mgz-pkmn/commit/840778c0ea9fd937d2b05a9bbaf74be8ae4261fe))
-* sync roadmap to the v1.x cadence and Backlog restructure ([#802](https://github.com/mgzwarrior/mgz-pkmn/issues/802)) ([314e59f](https://github.com/mgzwarrior/mgz-pkmn/commit/314e59f7e47bfbd5e4532c3822819fee759bf42b))
+- Docs: **The collections, wishlists, and roadmap docs were brought back in line with the shipped app** ([#793](https://github.com/mgzwarrior/mgz-pkmn/issues/793), [#802](https://github.com/mgzwarrior/mgz-pkmn/issues/802), [#818](https://github.com/mgzwarrior/mgz-pkmn/issues/818)). The collections and wishlists guides now describe the one-tap Own / Want quick actions, the Backpack's Binders tab, and the New ▾ create menus instead of the retired bookmark/heart picker, and the roadmap tracks the current v1.x cadence — the v1.10–v1.15 themed minors and the Backlog pool — with no committed v2.
+
+### Fixed
+
+- Site: **The Buy Me a Coffee greeting shows once per session, not on every page** ([#822](https://github.com/mgzwarrior/mgz-pkmn/issues/822), [#823](https://github.com/mgzwarrior/mgz-pkmn/issues/823)). The floating widget no longer re-opens its "thanks for stopping by" bubble on every navigation across the multi-page site; a one-time greeting gated on a session flag replaces the auto-open, and clicking it still opens the panel.
 
 ## [1.7.0] - 2026-06-25
 
@@ -256,6 +253,7 @@ Foundation release. Establishes the full CLI pipeline, a FastAPI / React web UI,
 - Parser ReDoS vulnerabilities were eliminated across multiple regex passes.
 - URL substring sanitization and workflow permissions were hardened in response to CodeQL alerts.
 
+[1.8.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.5.0...v1.6.0
