@@ -442,15 +442,20 @@ function App() {
             </nav>
 
             {mode === 'search' && (
-              <>
-                <section data-tour="input">
+              // Above ~1100px there's room for editor + results side by side
+              // (rail · editor · results, #522). Editor holds a fixed-ish
+              // column so the textarea doesn't stretch to fill the pane;
+              // results takes the rest. Below the breakpoint this falls back
+              // to the stacked column the narrower/mobile layout already used.
+              <div className="flex flex-col gap-6 min-[1100px]:flex-row min-[1100px]:items-start">
+                <section data-tour="input" className="min-[1100px]:w-[500px] min-[1100px]:flex-shrink-0">
                   <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
                     Card list
                   </h2>
                   <InputEditor onRun={handleRun} onStop={handleStop} />
                 </section>
 
-                <section data-tour="results">
+                <section data-tour="results" className="min-[1100px]:min-w-0 min-[1100px]:flex-1">
                   <div className="mb-2 flex items-end justify-between gap-2">
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
                       Results
@@ -464,7 +469,7 @@ function App() {
                     <ResultsTable onRerunLine={handleRerunLine} />
                   </div>
                 </section>
-              </>
+              </div>
             )}
 
             {mode === 'browse' && (
