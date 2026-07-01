@@ -314,6 +314,14 @@ export function LibraryBindersTab() {
         onOpenChange={(o) => {
           if (!o) setOpenWishlist(null)
         }}
+        onViewCollection={(collectionId) => {
+          // Hand off from the wishlist to the collection it was promoted into,
+          // swapping one detail modal for the other (#789).
+          const target = collections.find((c) => c.id === collectionId)
+          if (!target) return
+          setOpenWishlist(null)
+          setOpenCollection(target)
+        }}
       />
       <CollectionInsights open={insightsOpen} onOpenChange={setInsightsOpen} />
       <BinderModal

@@ -143,6 +143,55 @@ describe('WishlistDetail', () => {
     )
   })
 
+  it('deeplinks to the collection a card was promoted into (#789)', async () => {
+    mockFetchWishlist.mockResolvedValue({
+      ...WISHLIST,
+      items: [item({ id: 1, card_name: 'Charizard' })],
+    })
+    mockFetchCollections.mockResolvedValue([
+      {
+        id: 3,
+        name: 'Show Binder',
+        description: null,
+        created_at: '2026-06-06T00:00:00',
+        item_count: 5,
+      },
+    ])
+    mockPromote.mockResolvedValue({
+      wishlist_item: item({
+        id: 1,
+        card_name: 'Charizard',
+        acquired_at: '2026-06-08T00:00:00',
+        acquired_collection_item_id: 42,
+      }),
+      collection_item: {} as never,
+    })
+    const onViewCollection = vi.fn()
+    render(
+      <WishlistDetail
+        wishlist={WISHLIST}
+        open
+        onOpenChange={() => {}}
+        onViewCollection={onViewCollection}
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByText('Charizard')).toBeInTheDocument())
+
+    const trigger = screen.getByRole('button', { name: /got it/i })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+    const target = (await screen.findByText('Show Binder')).closest('[role="menuitem"]')!
+    fireEvent.click(target)
+
+    // The acquired row now offers a one-click jump to the collection it landed in.
+    const view = await screen.findByRole('button', {
+      name: /view Charizard in Show Binder/i,
+    })
+    fireEvent.click(view)
+    expect(onViewCollection).toHaveBeenCalledWith(3)
+  })
+
   it('removes a card from the want-list', async () => {
     mockFetchWishlist.mockResolvedValue({
       ...WISHLIST,
