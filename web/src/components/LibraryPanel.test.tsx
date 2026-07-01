@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { LibraryPanel } from './LibraryPanel'
@@ -6,6 +7,19 @@ import * as client from '../api/client'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { _resetWishlistsCacheForTests } from './useWishlists'
+
+// Collapse state now lives in the parent (App auto-collapses the rail on
+// entering Search mode, #522 follow-up) — this wrapper stands in for that
+// parent so the collapse test can exercise real toggle behavior.
+function ControlledSidebar(props: {
+  onRun: (overrideText: string) => void
+  onShowSearch: () => void
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  return (
+    <LibraryPanel variant="sidebar" collapsed={collapsed} onCollapsedChange={setCollapsed} {...props} />
+  )
+}
 
 function resetStore() {
   useAppStore.setState({
@@ -78,7 +92,7 @@ describe('LibraryPanel', () => {
   })
 
   it('sidebar collapse toggles a compact rail and announces state via aria-expanded', async () => {
-    render(<LibraryPanel variant="sidebar" onRun={vi.fn()} onShowSearch={vi.fn()} />)
+    render(<ControlledSidebar onRun={vi.fn()} onShowSearch={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByText(/No saved searches yet/i)).toBeInTheDocument(),
     )
