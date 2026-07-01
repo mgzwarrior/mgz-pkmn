@@ -133,7 +133,7 @@ export function InputEditor({ onRun, onStop }: Props) {
       <div
         className={
           isTextareaFocused
-            ? 'flex items-center justify-between gap-2 pointer-coarse:fixed pointer-coarse:inset-x-0 pointer-coarse:bottom-0 pointer-coarse:z-40 pointer-coarse:border-t pointer-coarse:border-sand-300 pointer-coarse:bg-sand-50 pointer-coarse:px-4 pointer-coarse:py-2 pointer-coarse:shadow-2xl dark:pointer-coarse:border-husk-50 dark:pointer-coarse:bg-husk-200'
+            ? 'flex items-center justify-between pointer-coarse:fixed pointer-coarse:inset-x-0 pointer-coarse:bottom-0 pointer-coarse:z-40 pointer-coarse:border-t pointer-coarse:border-sand-300 pointer-coarse:bg-sand-50 pointer-coarse:px-4 pointer-coarse:py-2 pointer-coarse:shadow-2xl dark:pointer-coarse:border-husk-50 dark:pointer-coarse:bg-husk-200'
             : 'flex items-center justify-between'
         }
         // Safari doesn't reliably reflow `top`/`bottom` on a `position: fixed`
@@ -206,7 +206,11 @@ export function InputEditor({ onRun, onStop }: Props) {
         autoCorrect="off"
         rows={12}
         placeholder={`One card per line, e.g.:\nCharizard | Base Set | 4/102\nPikachu | Jungle\ntop:5 Charizard cards\nMew ex | Scarlet & Violet`}
-        className="w-full resize-y rounded-md border border-sand-300 bg-sand-50 px-3 py-2.5 font-mono text-sm text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
+        // pointer-coarse:text-base bumps this to 16px on touch devices only:
+        // iOS Safari auto-zooms the page when a focused field's computed
+        // font-size is under 16px, which was shoving the pinned toolbar off
+        // to the side. Desktop keeps the tighter 14px monospace look.
+        className="w-full resize-y rounded-md border border-sand-300 bg-sand-50 px-3 py-2.5 font-mono text-sm pointer-coarse:text-base text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
       />
 
       {/* Example query chips — guided empty-state */}
