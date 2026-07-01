@@ -16,9 +16,13 @@
  * Set ids resolve to friendly names via the baked catalog. The panel hides
  * itself when there's nothing pinned and nothing to suggest, so a cold
  * account doesn't carry an empty shell.
+ *
+ * It's **collapsed by default** (#735): the header summarizes what's inside so
+ * it stays a one-line strip in Swipe, and expands on click to reveal the chips
+ * and suggestions.
  */
-import { useMemo } from 'react'
-import { Plus, Star, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronDown, Plus, Star, X } from 'lucide-react'
 import { BAKED_SETS } from '../data/sets'
 import { useFavoriteSets } from './useFavoriteSets'
 import { useSwipeProfile } from './useSwipeProfile'
@@ -31,7 +35,7 @@ function setName(setId: string): string {
 }
 
 /** How many suggestions to surface — enough to act on, short of a long tail. */
-const MAX_SUGGESTIONS = 6
+const MAX_SUGGESTIONS = 5
 
 interface Suggestion {
   setId: string
@@ -54,6 +58,8 @@ function reason(s: Suggestion): string {
 export function FavoriteSetsPanel() {
   const { favorites, suggestions, pin, unpin } = useFavoriteSets()
   const { profile } = useSwipeProfile()
+  // Collapsed by default so it stays a one-line strip in Swipe (#735).
+  const [expanded, setExpanded] = useState(false)
 
   const pinnedIds = useMemo(
     () => new Set(favorites.map((f) => f.set_id)),
@@ -90,70 +96,96 @@ export function FavoriteSetsPanel() {
   // Nothing pinned and nothing worth suggesting — stay out of the way.
   if (favorites.length === 0 && merged.length === 0) return null
 
+  // Collapsed-state summary so the one-line strip still says what's inside.
+  const summaryParts: string[] = []
+  if (favorites.length > 0) summaryParts.push(`${favorites.length} pinned`)
+  if (merged.length > 0) summaryParts.push(`${merged.length} suggested`)
+  const summary = summaryParts.join(' · ')
+
   return (
     <section
       aria-label="Favorite sets"
       className="flex flex-col gap-3 rounded-lg border border-sand-300 bg-sand-50 px-4 py-3 dark:border-husk-50 dark:bg-husk-100"
     >
-      <div className="flex items-center gap-1.5">
-        <Star
-          className="h-4 w-4 text-sun-500 dark:text-sun-300"
-          aria-hidden
-        />
-        <h3 className="text-sm font-semibold text-coconut-700 dark:text-sand-50">
-          Favorite sets
-        </h3>
-      </div>
+      <h3 className="m-0">
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-controls={expanded ? 'favorite-sets-body' : undefined}
+          className="flex w-full items-center gap-1.5 text-left"
+        >
+          <Star className="h-4 w-4 shrink-0 text-sun-500 dark:text-sun-300" aria-hidden />
+          <span className="text-sm font-semibold text-coconut-700 dark:text-sand-50">
+            Favorite sets
+          </span>
+          {summary && (
+            <span className="text-xs font-normal text-coconut-400 dark:text-sand-300">
+              {summary}
+            </span>
+          )}
+          <ChevronDown
+            className={`ml-auto h-4 w-4 shrink-0 text-coconut-400 transition-transform dark:text-sand-300 ${
+              expanded ? 'rotate-180' : ''
+            }`}
+            aria-hidden
+          />
+        </button>
+      </h3>
 
-      {favorites.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
-          {favorites.map((f) => (
-            <li key={f.set_id}>
-              <span className="inline-flex items-center gap-1 rounded-full border border-sun-500/40 bg-sun-500/10 py-1 pl-3 pr-1 text-sm text-coconut-700 dark:border-sun-300/40 dark:bg-sun-300/15 dark:text-sand-50">
-                {setName(f.set_id)}
-                <button
-                  type="button"
-                  aria-label={`Unpin ${setName(f.set_id)}`}
-                  onClick={() => void unpin(f.set_id)}
-                  className="rounded-full p-0.5 text-coconut-400 hover:bg-ember-500/15 hover:text-ember-400 dark:text-sand-300 dark:hover:bg-ember-500/25 dark:hover:text-ember-300"
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden />
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {merged.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <p className="text-xs text-coconut-400 dark:text-sand-300">
-            {favorites.length > 0 ? 'More to pin' : 'You seem to love'}
-          </p>
-          <ul className="flex flex-col gap-1">
-            {merged.map((s) => (
-              <li
-                key={s.setId}
-                className="flex items-center justify-between gap-2 text-sm text-coconut-700 dark:text-sand-50"
-              >
-                <span className="min-w-0 flex-1 truncate">
-                  {setName(s.setId)}
-                  <span className="ml-2 text-xs text-coconut-400 dark:text-sand-300">
-                    {reason(s)}
+      {expanded && (
+        <div id="favorite-sets-body" className="flex flex-col gap-3">
+          {favorites.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {favorites.map((f) => (
+                <li key={f.set_id}>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-sun-500/40 bg-sun-500/10 py-1 pl-3 pr-1 text-sm text-coconut-700 dark:border-sun-300/40 dark:bg-sun-300/15 dark:text-sand-50">
+                    {setName(f.set_id)}
+                    <button
+                      type="button"
+                      aria-label={`Unpin ${setName(f.set_id)}`}
+                      onClick={() => void unpin(f.set_id)}
+                      className="rounded-full p-0.5 text-coconut-400 hover:bg-ember-500/15 hover:text-ember-400 dark:text-sand-300 dark:hover:bg-ember-500/25 dark:hover:text-ember-300"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </button>
                   </span>
-                </span>
-                <button
-                  type="button"
-                  aria-label={`Pin ${setName(s.setId)}`}
-                  onClick={() => void pin(s.setId)}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-sand-300 px-2 py-1 text-xs text-coconut-700 hover:border-sun-500 hover:text-sun-600 dark:border-husk-50 dark:text-sand-50 dark:hover:border-sun-300 dark:hover:text-sun-300"
-                >
-                  <Plus className="h-3.5 w-3.5" aria-hidden />
-                  Pin
-                </button>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {merged.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs text-coconut-400 dark:text-sand-300">
+                {favorites.length > 0 ? 'More to pin' : 'You seem to love'}
+              </p>
+              <ul className="flex flex-col gap-1">
+                {merged.map((s) => (
+                  <li
+                    key={s.setId}
+                    className="flex items-center justify-between gap-2 text-sm text-coconut-700 dark:text-sand-50"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {setName(s.setId)}
+                      <span className="ml-2 text-xs text-coconut-400 dark:text-sand-300">
+                        {reason(s)}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Pin ${setName(s.setId)}`}
+                      onClick={() => void pin(s.setId)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-sand-300 px-2 py-1 text-xs text-coconut-700 hover:border-sun-500 hover:text-sun-600 dark:border-husk-50 dark:text-sand-50 dark:hover:border-sun-300 dark:hover:text-sun-300"
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden />
+                      Pin
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </section>
