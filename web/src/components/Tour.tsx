@@ -49,6 +49,10 @@ interface Step {
   openBinders?: boolean
   /** Fire the seeded lookup when advancing past this step. */
   runsLookup?: boolean
+  /** Expand the editor if a prior lookup left it collapsed to its one-line
+   *  summary (#523) — the step's copy describes the textarea, so it needs
+   *  to actually be on screen. */
+  expandsEditor?: boolean
 }
 
 const STEPS: Step[] = [
@@ -88,6 +92,7 @@ const STEPS: Step[] = [
     body: 'Search mode: paste or type one card per line. Try a precise "Charizard | Base Set | 4/102", a bulk "top:5 Charizard cards", or a name on its own. Look up runs them — Ctrl/Cmd + Enter is the shortcut.',
     mode: 'search',
     runsLookup: true,
+    expandsEditor: true,
   },
   {
     selector: '[data-tour="results"]',
@@ -178,6 +183,12 @@ function revealBackpackPanel() {
   root?.querySelector<HTMLElement>('[aria-expanded="false"]')?.click()
 }
 
+// Expand the editor if a prior lookup left it collapsed to its one-line
+// summary (#523) — a no-op (element absent) when it's already expanded.
+function expandInputEditor() {
+  document.querySelector<HTMLElement>('[data-tour="input-collapsed"]')?.click()
+}
+
 interface Props {
   onClose: () => void
   onRun: (overrideText?: string) => void
@@ -262,6 +273,7 @@ export function Tour({ onClose, onRun, onStop, onSetMode, onSelectMobileTab }: P
     let raf2 = 0
     const timer = window.setTimeout(() => {
       if (step.revealBackpack || step.openBinders) revealBackpackPanel()
+      if (step.expandsEditor) expandInputEditor()
       raf1 = window.requestAnimationFrame(() => {
         if (step.openBinders) {
           visibleLibraryRoot()?.querySelector<HTMLElement>('[data-tour="binders-tab"]')?.click()

@@ -10,24 +10,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Trash2, X } from 'lucide-react'
-import { deleteRun, getRun, listRuns } from '../api/client'
+import { deleteRun, listRuns } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import { EMPTY_VIEW_STATE, useAppStore } from '../store'
+import { useAppStore } from '../store'
+import { loadSavedRun } from './loadSavedRun'
 import { formatMoney, formatRelativeTime } from '../utils/format'
-import type { RunDetail, RunRowDetail, RunSummary, Row } from '../types'
+import type { RunSummary } from '../types'
 
 const RUN_LIST_LIMIT = 50
-
-function runRowToRow(rr: RunRowDetail): Row {
-  return {
-    query: rr.query,
-    card: rr.card,
-    pricing: rr.pricing,
-    tag: rr.tag,
-    matched: rr.card !== null,
-    reason: '',
-  }
-}
 
 function summaryTotal(run: RunSummary): { amount: number; currency: string } | null {
   const entries = Object.entries(run.summary.totals_by_currency ?? {})
@@ -38,21 +28,7 @@ function summaryTotal(run: RunSummary): { amount: number; currency: string } | n
 
 export function LibrarySearchesTab({ onShowSearch }: { onShowSearch: () => void }) {
   const auth = useAuth()
-  const {
-    runs,
-    setRuns,
-    currentRunId,
-    setCurrentRunId,
-    isRunning,
-    setInputText,
-    setRows,
-    clearRows,
-    setProgress,
-    setProcessingLines,
-    setRunStartedAt,
-    setRunEndedAt,
-    setViewState,
-  } = useAppStore()
+  const { runs, setRuns, currentRunId, setCurrentRunId, isRunning } = useAppStore()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null)
@@ -104,24 +80,7 @@ export function LibrarySearchesTab({ onShowSearch }: { onShowSearch: () => void 
       setLoadingRunId(run.id)
       setError(null)
       try {
-        const detail: RunDetail = await getRun(run.id)
-        setInputText(detail.input_text)
-        clearRows()
-        setRows(detail.rows.map(runRowToRow))
-        setProgress(null)
-        setProcessingLines([])
-        setRunStartedAt(null)
-        setRunEndedAt(null)
-        setCurrentRunId(detail.id)
-        setViewState(
-          detail.view_state ?? {
-            ...EMPTY_VIEW_STATE,
-            filters: { ...EMPTY_VIEW_STATE.filters },
-          },
-        )
-        // The app opens on Swipe (#814); the loaded rows live in the Search
-        // editor/results, so surface that mode or they stay hidden.
-        onShowSearch()
+        await loadSavedRun(run, onShowSearch)
       } catch (err) {
         setError(err instanceof Error ? err.message : `Failed to load run ${run.id}`)
       } finally {
@@ -129,19 +88,7 @@ export function LibrarySearchesTab({ onShowSearch }: { onShowSearch: () => void 
         loadInFlightRef.current = false
       }
     },
-    [
-      isRunning,
-      setInputText,
-      clearRows,
-      setRows,
-      setProgress,
-      setProcessingLines,
-      setRunStartedAt,
-      setRunEndedAt,
-      setCurrentRunId,
-      setViewState,
-      onShowSearch,
-    ],
+    [isRunning, onShowSearch],
   )
 
   // Optimistic delete: drop the row immediately, restore it (and surface the

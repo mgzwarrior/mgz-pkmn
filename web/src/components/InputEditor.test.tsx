@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { InputEditor } from './InputEditor'
+import type { Row } from '../types'
 
 vi.mock('../api/client', () => ({
   parseLine: vi.fn(),
@@ -12,6 +13,7 @@ const { mockSetInputText, mockClearRows, storeState } = vi.hoisted(() => ({
   storeState: {
     inputText: '',
     isRunning: false,
+    rows: [] as unknown[],
   },
 }))
 
@@ -33,7 +35,7 @@ vi.mock('../store', () => ({
     },
     runStartedAt: null,
     runEndedAt: null,
-    rows: [],
+    rows: storeState.rows,
   }),
 }))
 
@@ -43,6 +45,7 @@ describe('InputEditor', () => {
     mockClearRows.mockClear()
     storeState.inputText = ''
     storeState.isRunning = false
+    storeState.rows = []
   })
 
   it('renders the textarea and run button', () => {
@@ -83,6 +86,82 @@ describe('InputEditor', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Pikachu | Jungle' }))
       expect(mockSetInputText).toHaveBeenCalledWith('Pikachu | Jungle')
       expect(onRun).toHaveBeenCalledWith('Pikachu | Jungle')
+    })
+  })
+
+  describe('post-lookup collapse (#523)', () => {
+    it('collapses to a one-line summary once a run finishes with rows', () => {
+      storeState.inputText = 'Charizard'
+      storeState.isRunning = true
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      expect(screen.getByRole('textbox')).toBeInTheDocument()
+
+      storeState.isRunning = false
+      storeState.rows = [{} as Row]
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /1 card line/i })).toBeInTheDocument()
+    })
+
+    it('does not collapse when the run finished with zero rows', () => {
+      storeState.inputText = 'top:5 Charizard cards'
+      storeState.isRunning = true
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+
+      storeState.isRunning = false
+      storeState.rows = []
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+
+      expect(screen.getByRole('textbox')).toBeInTheDocument()
+    })
+
+    it('clicking the collapsed summary expands the editor again', () => {
+      storeState.inputText = 'Charizard'
+      storeState.isRunning = true
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      storeState.isRunning = false
+      storeState.rows = [{} as Row]
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /1 card line/i }))
+
+      expect(screen.getByRole('textbox')).toBeInTheDocument()
+    })
+
+    it('a new run re-expands a collapsed editor', () => {
+      storeState.inputText = 'Charizard'
+      storeState.isRunning = true
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      storeState.isRunning = false
+      storeState.rows = [{} as Row]
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+
+      // Re-running (e.g. from the Backpack's Recent tab) flips isRunning
+      // back on without the user clicking the summary bar first.
+      storeState.isRunning = true
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+
+      expect(screen.getByRole('textbox')).toBeInTheDocument()
+    })
+
+    it('Clear resets a collapsed editor back to expanded', () => {
+      storeState.inputText = 'Charizard'
+      storeState.isRunning = true
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      storeState.isRunning = false
+      storeState.rows = [{} as Row]
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+
+      // The collapsed view hides the toolbar's own Clear button, so expand
+      // first — the same path a user takes.
+      fireEvent.click(screen.getByRole('button', { name: /1 card line/i }))
+      fireEvent.click(screen.getByRole('button', { name: /clear/i }))
+
+      expect(mockClearRows).toHaveBeenCalled()
+      expect(mockSetInputText).toHaveBeenCalledWith('')
     })
   })
 })
