@@ -927,12 +927,16 @@ function MobileFiltersSheet({
   )
 }
 
+// Not a <label> — several fields group more than one labelable control (the
+// sort column + direction button, the min/max market inputs), and a <label>
+// wrapping multiple controls is invalid HTML that confuses assistive tech.
+// Each inner input already carries its own aria-label.
 function SheetField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-coconut-400 dark:text-sand-300">
-      {label}
+    <div className="flex flex-col gap-1 text-xs text-coconut-400 dark:text-sand-300">
+      <span>{label}</span>
       {children}
-    </label>
+    </div>
   )
 }
 
