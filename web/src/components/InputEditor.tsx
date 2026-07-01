@@ -49,6 +49,7 @@ function useKeyboardInset(active: boolean) {
       cancelAnimationFrame(raf)
       vv.removeEventListener('resize', update)
       vv.removeEventListener('scroll', update)
+      setInset(0)
     }
   }, [active])
 
@@ -142,7 +143,7 @@ export function InputEditor({ onRun, onStop }: Props) {
         </span>
         <div className="flex items-center gap-2">
           <button
-            onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
             onClick={() => {
               clearRows()
               setInputText('')
@@ -155,7 +156,7 @@ export function InputEditor({ onRun, onStop }: Props) {
           </button>
           {isRunning ? (
             <button
-              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}
               onClick={onStop}
               className="flex items-center gap-1.5 rounded-md bg-ember-500 px-3 py-1.5 text-sm font-medium text-sand-50 hover:bg-ember-400 dark:bg-ember-500 dark:hover:bg-ember-400 transition-colors"
             >
@@ -164,7 +165,7 @@ export function InputEditor({ onRun, onStop }: Props) {
             </button>
           ) : (
             <button
-              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => onRun()}
               disabled={lineCount === 0}
               data-tour="run"
