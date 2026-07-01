@@ -429,7 +429,7 @@ function App() {
               role="tablist"
               aria-label="Discovery mode"
               data-tour="discovery-modes"
-              className="flex w-full flex-wrap items-center gap-1 rounded-lg border border-sand-300 bg-sand-100 p-1 dark:border-husk-50 dark:bg-husk-200"
+              className="flex w-full items-center gap-1 rounded-lg border border-sand-300 bg-sand-100 p-1 dark:border-husk-50 dark:bg-husk-200"
             >
               {MODES.map((m) => {
                 const Icon = m.icon
@@ -441,15 +441,15 @@ function App() {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setMode(m.value)}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors min-w-[120px] ${
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-1 text-sm transition-colors ${
                       active
                         ? 'bg-sand-50 text-coconut-700 shadow-sm dark:bg-husk-400 dark:text-sand-50'
                         : 'text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100'
                     }`}
                   >
-                    <Icon size={15} aria-hidden />
-                    <span className="font-medium">{m.label}</span>
-                    <span className="hidden text-xs text-coconut-400 dark:text-sand-400 sm:inline">
+                    <Icon size={15} className="shrink-0" aria-hidden />
+                    <span className="truncate font-medium">{m.label}</span>
+                    <span className="hidden truncate text-xs text-coconut-400 dark:text-sand-400 sm:inline">
                       · {m.hint}
                     </span>
                   </button>
