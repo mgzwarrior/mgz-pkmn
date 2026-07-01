@@ -486,3 +486,46 @@ describe('App: discovery mode switcher', () => {
     )
   })
 })
+
+describe('App: mobile bottom-tab nav (#519)', () => {
+  beforeEach(() => {
+    resetStore()
+    _resetAuthStoreForTests()
+    mockBulkLookup.mockReset()
+  })
+
+  function primaryTabs() {
+    return within(screen.getByRole('tablist', { name: 'Primary' }))
+  }
+
+  it('renders the four labeled destinations in the bottom bar', () => {
+    render(<App />)
+    for (const label of ['Discover', 'Backpack', 'Insights', 'Account']) {
+      expect(primaryTabs().getByRole('tab', { name: label })).toBeInTheDocument()
+    }
+    expect(primaryTabs().getByRole('tab', { name: 'Discover' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  it('the Account tab reveals the account surface; Discover returns to the workspace', () => {
+    render(<App />)
+    expect(screen.queryByText('Your account')).not.toBeInTheDocument()
+
+    fireEvent.click(primaryTabs().getByRole('tab', { name: 'Account' }))
+    expect(screen.getByText('Your account')).toBeInTheDocument()
+    expect(primaryTabs().getByRole('tab', { name: 'Account' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    fireEvent.click(primaryTabs().getByRole('tab', { name: 'Discover' }))
+    expect(screen.queryByText('Your account')).not.toBeInTheDocument()
+  })
+
+  it('collapses the header utility behind a single More trigger', () => {
+    render(<App />)
+    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
+  })
+})
