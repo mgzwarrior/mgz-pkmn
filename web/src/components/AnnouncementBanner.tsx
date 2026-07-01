@@ -51,7 +51,7 @@ export function AnnouncementBanner() {
       aria-label="Site announcement"
       className="border-b border-sun-400/40 bg-sun-300 text-coconut-700 dark:border-sun-400/40 dark:bg-sun-400/15 dark:text-sun-100"
     >
-      <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2 text-sm">
+      <div className="flex items-center gap-3 px-4 py-2 text-sm">
         <span aria-hidden="true" className="text-base">
           📣
         </span>
