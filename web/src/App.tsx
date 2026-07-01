@@ -50,7 +50,7 @@ type DiscoveryMode = 'search' | 'browse' | 'swipe'
 const MODES: { value: DiscoveryMode; label: string; icon: typeof Search; hint: string }[] = [
   { value: 'swipe', label: 'Swipe', icon: Layers, hint: 'Card-at-a-time' },
   { value: 'browse', label: 'Browse', icon: GalleryHorizontalEnd, hint: 'Walk a set' },
-  { value: 'search', label: 'Search', icon: Search, hint: 'Paste a want-list' },
+  { value: 'search', label: 'Search', icon: Search, hint: 'Paste a wishlist' },
 ]
 
 function App() {

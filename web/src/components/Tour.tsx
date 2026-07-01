@@ -49,7 +49,7 @@ const STEPS: Step[] = [
   {
     selector: '[data-tour="discovery-modes"]',
     title: 'Find cards',
-    body: 'Three ways in: Swipe one card at a time, Browse a whole set, or Search a want-list you paste. This tour walks through each — new here, Swipe and Browse are the easiest start.',
+    body: 'Three ways in: Swipe one card at a time, Browse a whole set, or Search a wishlist you paste. This tour walks through each — new here, Swipe and Browse are the easiest start.',
   },
   {
     selector: '[data-tour="swipe"]',

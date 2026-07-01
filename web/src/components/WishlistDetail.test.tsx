@@ -153,7 +153,7 @@ describe('WishlistDetail', () => {
     await waitFor(() => expect(screen.getByText('Charizard')).toBeInTheDocument())
 
     fireEvent.click(
-      screen.getByRole('button', { name: /remove Charizard from this want-list/i }),
+      screen.getByRole('button', { name: /remove Charizard from this wishlist/i }),
     )
 
     await waitFor(() => expect(mockDeleteItem).toHaveBeenCalledWith(7, 1))

@@ -128,7 +128,7 @@ describe('BinderInventory', () => {
     ])
     render(<BinderInventory />)
     // The summary line counts both kinds, and the want-list shows in contents.
-    expect(await screen.findByText(/1 collection · 1 want-list/i)).toBeInTheDocument()
+    expect(await screen.findByText(/1 collection · 1 wishlist/i)).toBeInTheDocument()
     expect(screen.getByText('Mew hunt')).toBeInTheDocument()
   })
 

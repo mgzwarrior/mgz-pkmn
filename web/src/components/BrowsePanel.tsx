@@ -382,7 +382,7 @@ function BrowseCreateMenu({
           />
           <BrowseCreateItem
             icon={<Star size={13} />}
-            label="Want-list"
+            label="Wishlist"
             blurb={seedLoading ? 'Loading cards…' : `The ${noun}'s cards you're chasing.`}
             disabled={seedLoading}
             onSelect={() => onCreate('wishlist')}

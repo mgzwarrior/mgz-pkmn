@@ -358,7 +358,7 @@ describe('LibraryBindersTab', () => {
       expect(screen.getByText(/of 3 owned/)).toBeInTheDocument(),
     )
     expect(
-      screen.getByRole('button', { name: /add 2 missing to want-list/i }),
+      screen.getByRole('button', { name: /add 2 missing to wishlist/i }),
     ).toBeInTheDocument()
   })
 
@@ -481,8 +481,8 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(screen.getByText('Mew hunt')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: /^delete want-list "Mew hunt"/i }))
-    fireEvent.click(screen.getByRole('button', { name: /confirm delete want-list "Mew hunt"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^delete wishlist "Mew hunt"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm delete wishlist "Mew hunt"/i }))
 
     await waitFor(() => expect(mockDeleteWishlist).toHaveBeenCalledWith(2))
     await waitFor(() => expect(screen.queryByText('Mew hunt')).not.toBeInTheDocument())
@@ -519,7 +519,7 @@ describe('LibraryBindersTab', () => {
 
   // ---- #703: New ▾ menu + file-into-binder -------------------------------
 
-  it('New ▾ lists Collection / Want-list / Smart collection and no plain binder', async () => {
+  it('New ▾ lists Collection / Wishlist / Smart collection and no plain binder', async () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
@@ -528,7 +528,7 @@ describe('LibraryBindersTab', () => {
     fireEvent.keyDown(trigger, { key: 'Enter' })
 
     expect(await screen.findByRole('menuitem', { name: /^collection/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /want-list/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /wishlist/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /smart collection/i })).toBeInTheDocument()
     // No standalone "binder" create — physical binders come from "Add binder".
     expect(screen.queryByRole('menuitem', { name: /^binder$/i })).not.toBeInTheDocument()
@@ -569,7 +569,7 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockCollections).toHaveBeenCalled())
 
-    await openNewMenu(/want-list/i)
+    await openNewMenu(/wishlist/i)
     fireEvent.change(screen.getByPlaceholderText('Chase cards'), {
       target: { value: 'Chase list' },
     })
@@ -656,7 +656,7 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
 
     const fileBtn = await screen.findByRole('button', {
-      name: /file want-list "Mew hunt" into a binder/i,
+      name: /file wishlist "Mew hunt" into a binder/i,
     })
     fileBtn.focus()
     fireEvent.keyDown(fileBtn, { key: 'Enter' })
@@ -675,7 +675,7 @@ describe('LibraryBindersTab', () => {
     render(<LibraryBindersTab />)
     await waitFor(() => expect(mockBinders).toHaveBeenCalled())
 
-    await openNewMenu(/want-list/i)
+    await openNewMenu(/wishlist/i)
     fireEvent.change(screen.getByPlaceholderText('Chase cards'), {
       target: { value: 'Chase list' },
     })

@@ -240,7 +240,7 @@ function ItemRow({
       <button
         type="button"
         disabled={removing}
-        aria-label={`Remove ${cardLabel(item)} from this want-list`}
+        aria-label={`Remove ${cardLabel(item)} from this wishlist`}
         onClick={async () => {
           setRemoving(true)
           try {
@@ -344,7 +344,7 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
             </div>
           </header>
           <Dialog.Description className="sr-only">
-            Cards on this want-list. Mark one &ldquo;got it&rdquo; to move it into a
+            Cards on this wishlist. Mark one &ldquo;got it&rdquo; to move it into a
             collection.
           </Dialog.Description>
 
@@ -360,7 +360,7 @@ export function WishlistDetail({ wishlist, open, onOpenChange }: Props) {
               </div>
             ) : items.length === 0 ? (
               <p className="text-xs text-coconut-500 dark:text-sand-300">
-                This want-list is empty. Click the footprints icon on a matched row to add a
+                This wishlist is empty. Click the footprints icon on a matched row to add a
                 chase.
               </p>
             ) : (

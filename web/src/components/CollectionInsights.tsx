@@ -209,7 +209,7 @@ function AlreadyOwnedSection({ data }: { data: Insights }) {
         <Sparkles size={12} /> Already in a binder
       </h3>
       <p className="mb-2 mt-1 text-[11px] text-coconut-500 dark:text-sand-300">
-        These cards are on a want-list but you already own them — clear them off when you get a
+        These cards are on a wishlist but you already own them — clear them off when you get a
         chance.
       </p>
       <ul className="divide-y divide-sand-200 dark:divide-husk-100">
@@ -286,7 +286,7 @@ export function CollectionInsights({ open, onOpenChange }: Props) {
           </header>
           <Dialog.Description className="sr-only">
             Headline totals, top types, rarities and sets, your most valuable cards, value by set
-            and binder, duplicates, and want-list cards you already own, across all your
+            and binder, duplicates, and wishlist cards you already own, across all your
             collections.
           </Dialog.Description>
 

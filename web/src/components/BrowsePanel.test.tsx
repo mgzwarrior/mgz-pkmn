@@ -363,7 +363,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
       .mockResolvedValue({ added: [], skipped: [] } as never)
 
     render(<Harness />)
-    await openSetCreate(/want-list/i)
+    await openSetCreate(/wishlist/i)
 
     // The want-list dialog opens pre-seeded with the set's name; create it.
     const dialog = await screen.findByRole('dialog')

@@ -78,7 +78,7 @@ describe('AddToListPicker (#762)', () => {
     expect(screen.queryByRole('menuitem', { name: /Chase list/i })).toBeNull()
     // Create-and-add stays available — a brand-new list can't already hold it.
     expect(screen.getByRole('menuitem', { name: /New collection/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /New want-list/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /New wishlist/i })).toBeInTheDocument()
   })
 
   it('adds the card to a chosen collection', async () => {
