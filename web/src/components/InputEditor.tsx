@@ -170,7 +170,14 @@ export function InputEditor({ onRun, onStop }: Props) {
           ) : (
             <button
               onPointerDown={(e) => e.preventDefault()}
-              onClick={() => onRun()}
+              onClick={() => {
+                onRun()
+                // Dismiss the keyboard once the lookup is under way — the
+                // pointerdown guard above keeps the textarea focused for the
+                // tap itself, but staying focused after submit would leave
+                // the keyboard covering the results streaming in below.
+                textareaRef.current?.blur()
+              }}
               disabled={lineCount === 0}
               data-tour="run"
               className="flex items-center gap-1.5 rounded-md bg-sun-300 px-3 py-1.5 text-sm font-medium text-coconut-700 shadow-sm hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"

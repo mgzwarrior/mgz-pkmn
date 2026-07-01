@@ -79,6 +79,20 @@ describe('InputEditor', () => {
     expect(toolbar).not.toHaveClass('pointer-coarse:fixed')
   })
 
+  it('blurs the textarea after submitting a lookup so the on-screen keyboard can dismiss', () => {
+    storeState.inputText = 'Charizard'
+    const onRun = vi.fn()
+    render(<InputEditor onRun={onRun} onStop={vi.fn()} />)
+    const textarea = screen.getByRole('textbox')
+
+    textarea.focus()
+    expect(document.activeElement).toBe(textarea)
+
+    fireEvent.click(screen.getByRole('button', { name: /look up/i }))
+    expect(onRun).toHaveBeenCalled()
+    expect(document.activeElement).not.toBe(textarea)
+  })
+
   describe('example chips', () => {
     it('renders the chip panel when inputText is empty', () => {
       render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
