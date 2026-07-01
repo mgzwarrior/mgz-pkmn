@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { AlertCircle, ExternalLink, ImageOff } from 'lucide-react'
 import { addOverride } from '../api/client'
 import type { CardOwnership } from '../api/client'
+import { useAppStore } from '../store'
 import type { Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
 import { AffiliateLinks } from './AffiliateLinks'
@@ -44,6 +45,10 @@ export function ResultCard({
 
   const imgUrl = card?.images?.small as string | undefined
   const setName = (card?.set as { name?: string } | undefined)?.name
+  const isOverCap =
+    useAppStore.getState().settings.maxPrice != null &&
+    p.market != null &&
+    p.market > (useAppStore.getState().settings.maxPrice ?? Infinity)
 
   async function handleSaveOverride() {
     if (!overrideUrl.trim()) return
@@ -72,7 +77,7 @@ export function ResultCard({
     <li
       className={`rounded-lg border border-sand-300 bg-sand-50 p-3 dark:border-husk-50 dark:bg-husk-200 ${
         !row.matched ? 'opacity-60' : ''
-      } ${canOpenDetail ? 'cursor-pointer' : ''}`}
+      } ${isOverCap ? 'bg-sun-100 dark:bg-sun-400/15' : ''} ${canOpenDetail ? 'cursor-pointer' : ''}`}
       onClick={canOpenDetail ? handleCardClick : undefined}
       tabIndex={canOpenDetail ? 0 : undefined}
       onKeyDown={
@@ -115,7 +120,15 @@ export function ResultCard({
                 <div className="truncate font-medium text-coconut-700 dark:text-sand-50">
                   {card?.name as string}
                 </div>
-                <span className="shrink-0 font-mono text-sm tabular-nums text-palm-500 dark:text-palm-200">
+                <span
+                  className={`shrink-0 font-mono text-sm tabular-nums ${
+                    isOverCap
+                      ? 'font-bold text-sun-600 dark:text-sun-300'
+                      : p.market
+                        ? 'text-palm-500 dark:text-palm-200'
+                        : 'text-coconut-400 dark:text-sand-300'
+                  }`}
+                >
                   {formatMoney(p.market, p.currency)}
                 </span>
               </div>

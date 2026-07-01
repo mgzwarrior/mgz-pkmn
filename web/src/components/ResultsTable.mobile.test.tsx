@@ -142,6 +142,23 @@ describe('ResultsTable — mobile card list (#521)', () => {
     expect(screen.getByLabelText('Filter by name')).toBeInTheDocument()
   })
 
+  it('flags a card over the price cap the same way the desktop row does', () => {
+    useAppStore.setState({
+      settings: { ...useAppStore.getState().settings, maxPrice: 100 },
+      rows: [
+        makeRow({
+          card: { id: 'a', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    const price = screen.getByText('$250.00')
+    expect(price).toHaveClass('text-sun-600', 'dark:text-sun-300', 'font-bold')
+  })
+
   it('filtering from the sheet narrows the card list', () => {
     useAppStore.setState({
       rows: [
