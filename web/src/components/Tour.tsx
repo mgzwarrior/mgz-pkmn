@@ -23,6 +23,7 @@ import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import { CardDetailModal } from './CardDetailModal'
+import type { MobileTab } from './MobileTabBar'
 import type { Row } from '../types'
 
 type DiscoveryMode = 'search' | 'browse' | 'swipe'
@@ -35,6 +36,9 @@ interface Step {
   body: string
   /** Switch the app into this discovery mode as the step activates. */
   mode?: DiscoveryMode
+  /** Select this mobile bottom-tab as the step activates, so the target is
+   *  mounted + on screen at phone widths. Defaults to 'discover'. */
+  mobileTab?: MobileTab
   /** Drop the step for anonymous visitors (the surface only renders signed in). */
   requiresAuth?: boolean
   /** Open the tour's self-contained sample card-detail modal for this step. */
@@ -92,6 +96,7 @@ const STEPS: Step[] = [
     selector: '[data-tour="library"], [data-tour="library-mobile"]',
     title: 'Backpack',
     body: 'Everything you save lives here: Binders (collections you Own and wishlists you Want), named Searches, and your Recent lookups. Sign in on the demo to keep Binders and Searches.',
+    mobileTab: 'backpack',
   },
   {
     selector: '[data-tour="binders"]',
@@ -99,6 +104,7 @@ const STEPS: Step[] = [
     body: 'Open a binder for its detail: a collection tracks the cards you Own with quantities and value; a wishlist tracks what you’re chasing. Filter by Owned or Chasing.',
     requiresAuth: true,
     openBinders: true,
+    mobileTab: 'backpack',
   },
   {
     selector: '[data-tour="settings"]',
@@ -173,9 +179,12 @@ interface Props {
   onStop: () => void
   /** Switch the app's discovery mode — the tour drives this as it advances. */
   onSetMode: (mode: DiscoveryMode) => void
+  /** Select a mobile bottom-tab so each step's target is on screen at phone
+   *  widths. A no-op on desktop, where every surface is already mounted. */
+  onSelectMobileTab?: (tab: MobileTab) => void
 }
 
-export function Tour({ onClose, onRun, onStop, onSetMode }: Props) {
+export function Tour({ onClose, onRun, onStop, onSetMode, onSelectMobileTab }: Props) {
   const { user } = useAuth()
   const signedIn = user !== null
 
@@ -241,6 +250,9 @@ export function Tour({ onClose, onRun, onStop, onSetMode }: Props) {
   useEffect(() => {
     if (!step) return
     if (step.mode) onSetMode(step.mode)
+    // Put the right mobile surface on screen before we hunt for the target
+    // (no-op on desktop). Defaults to the Discover workspace.
+    onSelectMobileTab?.(step.mobileTab ?? 'discover')
     let raf1 = 0
     let raf2 = 0
     const timer = window.setTimeout(() => {
@@ -266,7 +278,7 @@ export function Tour({ onClose, onRun, onStop, onSetMode }: Props) {
       // that lands after this cleanup schedules is still torn down next step.
       document.querySelectorAll('.tour-highlight').forEach((e) => e.classList.remove('tour-highlight'))
     }
-  }, [step, onSetMode])
+  }, [step, onSetMode, onSelectMobileTab])
 
   // Advance one step. The first time the user advances past the step that owns
   // the seeded lookup, kick it off so the Results step has real streaming data.

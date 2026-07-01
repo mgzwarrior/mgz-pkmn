@@ -35,6 +35,9 @@ import { HelpModal } from './components/HelpModal'
 import { SignInChip } from './components/SignInChip'
 import { ThemeToggle } from './components/ThemeToggle'
 import { Tour } from './components/Tour'
+import { CollectionInsights } from './components/CollectionInsights'
+import { MobileTabBar, type MobileTab } from './components/MobileTabBar'
+import { MobileUtilitySheet, UtilityRow } from './components/MobileUtilitySheet'
 import { useAuth } from './hooks/useAuth'
 import { useAppStore } from './store'
 import type { BulkEvent } from './types'
@@ -77,9 +80,34 @@ function App() {
   const abortRef = useRef<AbortController | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   const [mode, setMode] = useState<DiscoveryMode>('swipe')
+  // Mobile bottom-tab destination (#519). Desktop never renders the bar, so it
+  // stays 'discover' there and the layout is unchanged. Insights opens over the
+  // last surface tab (Discover/Backpack) and returns to it on close.
+  const [mobileTab, setMobileTab] = useState<MobileTab>('discover')
+  const lastSurfaceRef = useRef<MobileTab>('discover')
+  const selectMobileTab = useCallback((tab: MobileTab) => {
+    if (tab === 'discover' || tab === 'backpack') lastSurfaceRef.current = tab
+    setMobileTab(tab)
+  }, [])
+  // The mobile "More" sheet holds the only Help trigger on a phone; keep it
+  // controlled so we can close it before launching the tour behind it (#519).
+  const [moreOpen, setMoreOpen] = useState(false)
   // The discovery mode the user was in when they opened the tour, restored when
   // it closes — the tour switches modes as it walks through Swipe/Browse/Search.
   const preTourModeRef = useRef<DiscoveryMode>('swipe')
+  // The tour drives the discovery mode itself (Swipe → Browse → Search) as it
+  // advances. Remember where the user was so we can put them back on close.
+  const startTour = useCallback(() => {
+    preTourModeRef.current = mode
+    setTourOpen(true)
+  }, [mode])
+  // Mobile Help lives inside the More sheet: close it and land on Discover so
+  // the tour's opening steps have the workspace in view, not the sheet (#519).
+  const startTourFromSheet = useCallback(() => {
+    setMoreOpen(false)
+    selectMobileTab('discover')
+    startTour()
+  }, [selectMobileTab, startTour])
   const closeTour = useCallback(() => {
     setTourOpen(false)
     setMode(preTourModeRef.current)
@@ -337,28 +365,38 @@ function App() {
             <img src={logoLightUrl} alt="mgz-pkmn" className="h-8 w-auto dark:hidden" />
             <img src={logoDarkUrl} alt="" aria-hidden="true" className="hidden h-8 w-auto dark:block" />
           </button>
-          <div className="flex items-center gap-2">
+          {/* Desktop: the full header cluster. On mobile these split by type —
+              destinations move to the bottom tab bar, utility to the More sheet. */}
+          <div className="hidden items-center gap-2 lg:flex">
             <InsightsNavButton />
-            <HelpModal
-              onStartTour={() => {
-                // The tour drives the discovery mode itself (Swipe → Browse →
-                // Search) as it advances. Remember where the user was so we can
-                // put them back when the tour closes.
-                preTourModeRef.current = mode
-                setTourOpen(true)
-              }}
-            />
+            <HelpModal onStartTour={startTour} />
             <div data-tour="settings">
               <SettingsDrawer />
             </div>
             <ThemeToggle />
             <SignInChip />
           </div>
+          {/* Mobile: brand + a single "More" affordance holding the utility set.
+              Carries data-tour="settings" so the tour's Settings step lands here
+              (the desktop settings target is display:none at this width). */}
+          <div className="lg:hidden" data-tour="settings">
+            <MobileUtilitySheet open={moreOpen} onOpenChange={setMoreOpen}>
+              <UtilityRow label="Appearance">
+                <ThemeToggle />
+              </UtilityRow>
+              <UtilityRow label="Settings">
+                <SettingsDrawer />
+              </UtilityRow>
+              <UtilityRow label="Help">
+                <HelpModal onStartTour={startTourFromSheet} />
+              </UtilityRow>
+            </MobileUtilitySheet>
+          </div>
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="mx-auto max-w-7xl px-4 py-6">
+      {/* Main content. Extra bottom padding on mobile clears the fixed tab bar. */}
+      <main className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:pb-6">
         <div className="flex gap-4">
           <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="library">
             <LibraryPanel
@@ -368,13 +406,9 @@ function App() {
             />
           </div>
           <div className="flex-1 min-w-0 space-y-6">
-            <div className="lg:hidden" data-tour="library-mobile">
-              <LibraryPanel
-                variant="accordion"
-                onRun={handleRun}
-                onShowSearch={() => setMode('search')}
-              />
-            </div>
+            {/* Discover: the discovery workspace. On mobile it's the Discover
+                tab; desktop always shows it (the bottom bar never renders). */}
+            <div className={`space-y-6 ${mobileTab === 'discover' ? '' : 'hidden'} lg:block`}>
             <nav
               role="tablist"
               aria-label="Discovery mode"
@@ -444,12 +478,58 @@ function App() {
                 <SwipePanel active={mode === 'swipe'} />
               </section>
             )}
+            </div>
+
+            {/* Backpack: the library as a mobile destination. Desktop keeps the
+                left rail; this only renders under the breakpoint. */}
+            {mobileTab === 'backpack' && (
+              <div className="lg:hidden" data-tour="library-mobile">
+                <LibraryPanel
+                  variant="accordion"
+                  onRun={(text) => {
+                    // Results render in the Discover workspace, so jump there
+                    // before running a Recent/saved lookup from the Backpack.
+                    selectMobileTab('discover')
+                    void handleRun(text)
+                  }}
+                  onShowSearch={() => {
+                    setMode('search')
+                    selectMobileTab('discover')
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Account: sign-in / account as a mobile destination. Desktop keeps
+                the header chip. */}
+            {mobileTab === 'account' && (
+              <div className="flex flex-col items-center gap-3 rounded-lg border border-sand-300 bg-sand-50 px-4 py-8 lg:hidden dark:border-husk-50 dark:bg-husk-100">
+                <p className="text-sm text-coconut-500 dark:text-sand-300">Your account</p>
+                <SignInChip />
+              </div>
+            )}
           </div>
         </div>
       </main>
 
+      {/* Insights opens the existing dashboard over the current surface and
+          returns to it on close (#519). Desktop uses the header button instead. */}
+      <CollectionInsights
+        open={mobileTab === 'insights'}
+        onOpenChange={(o) => {
+          if (!o) selectMobileTab(lastSurfaceRef.current)
+        }}
+      />
+      <MobileTabBar active={mobileTab} onSelect={selectMobileTab} />
+
       {tourOpen && (
-        <Tour onClose={closeTour} onRun={handleRun} onStop={handleStop} onSetMode={setMode} />
+        <Tour
+          onClose={closeTour}
+          onRun={handleRun}
+          onStop={handleStop}
+          onSetMode={setMode}
+          onSelectMobileTab={selectMobileTab}
+        />
       )}
 
       <FavoritePokemonOnboarding open={showOnboarding} onClose={closeOnboarding} />
