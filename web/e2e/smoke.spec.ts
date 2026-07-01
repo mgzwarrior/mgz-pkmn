@@ -31,9 +31,9 @@ test('create a want-list and see it in the Backpack', async ({ page }) => {
   await backpack.getByRole('tab', { name: 'Binders' }).click()
 
   await backpack.getByRole('button', { name: 'New' }).click()
-  await page.getByRole('menuitem', { name: 'Want-list' }).click()
+  await page.getByRole('menuitem', { name: 'Wishlist' }).click()
 
-  const dialog = page.getByRole('dialog', { name: 'New want-list' })
+  const dialog = page.getByRole('dialog', { name: 'New wishlist' })
   await expect(dialog).toBeVisible()
 
   // Unique per run so re-runs (and retries) never collide on the assertion.

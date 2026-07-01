@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchCollection, type CollectionItem, type CollectionSummary } from '../api/client'
 import { coverSwatch } from './binderIdentity'
 import { ExportBar } from './ExportBar'
+import { InlineRenameTitle } from './InlineRenameTitle'
 import { itemsToExportRows } from './exportRows'
 import { useCollections } from './useCollections'
 import { formatMoney } from '../utils/format'
@@ -40,15 +41,35 @@ function cardLabel(item: CollectionItem): string {
 }
 
 export function CollectionDetail({ collection, open, onOpenChange }: Props) {
-  const { setItemQuantity } = useCollections()
+  const { setItemQuantity, update } = useCollections()
   const [items, setItems] = useState<CollectionItem[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
+  // The name shown in the header. Seeded from the prop and updated locally on
+  // rename, since the parent passes a captured summary that a cache patch
+  // wouldn't refresh (#787).
+  const [name, setName] = useState(collection?.name ?? '')
+  // Reseed when a different collection opens — the modal instance is reused
+  // across selections. Adjusting state during render is React's documented
+  // "reset on prop change" pattern, and avoids a set-state-in-effect.
+  const [syncedId, setSyncedId] = useState(collection?.id)
+  if (collection?.id !== syncedId) {
+    setSyncedId(collection?.id)
+    setName(collection?.name ?? '')
+  }
   // The item whose quantity PATCH is in flight, if any. Gating per-item edits
   // keeps the absolute updates from racing — a stale response can't land after
   // a newer one and overwrite the server (#769).
   const [pendingId, setPendingId] = useState<number | null>(null)
+
+  async function handleRename(next: string) {
+    if (!collection) return
+    // Show the server's stored name (it may normalize whitespace/casing) so the
+    // header can't drift from the shared collections cache, patched the same way.
+    const updated = await update(collection.id, { name: next })
+    setName(updated.name)
+  }
 
   // A dynamic (smart) collection's membership comes from its rule, so its
   // counts aren't hand-editable — only manual/set collections get the stepper.
@@ -128,15 +149,18 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
               ) : (
                 <Wallet size={18} className="shrink-0 text-coconut-600 dark:text-sand-200" />
               )}
-              <Dialog.Title className="truncate text-lg font-semibold text-coconut-700 dark:text-sand-50">
-                {collection?.name ?? 'Collection'}
-              </Dialog.Title>
+              <InlineRenameTitle
+                name={name}
+                fallback="Collection"
+                noun="collection"
+                onRename={handleRename}
+              />
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {items && items.length > 0 && (
                 <ExportBar
                   rows={exportRows}
-                  title={collection?.name}
+                  title={name}
                   showSetIdCards={false}
                 />
               )}

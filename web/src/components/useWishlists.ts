@@ -108,6 +108,19 @@ export function useWishlists() {
     })
   }, [])
 
+  // Rename a wishlist and patch the cached summary in place so the library
+  // list updates without a refetch (#787). A name-only PATCH leaves is_default
+  // and every other field intact (#762).
+  const rename = useCallback(async (wishlistId: number, name: string) => {
+    const updated = await updateWishlist(wishlistId, { name })
+    set({
+      wishlists: state.wishlists.map((w) =>
+        w.id === wishlistId ? { ...w, name: updated.name } : w,
+      ),
+    })
+    return updated
+  }, [])
+
   const addCard = useCallback(
     async (
       wishlistId: number,
@@ -160,6 +173,7 @@ export function useWishlists() {
     refresh,
     create,
     file,
+    rename,
     addCard,
     bulkAdd,
     remove,
