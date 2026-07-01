@@ -38,6 +38,7 @@ import { QuickActions } from './QuickActions'
 import { AffiliateLinks } from './AffiliateLinks'
 import { CardDetailModal } from './CardDetailModal'
 import { ResultCard } from './ResultCard'
+import { ResultsEmptyState } from './ResultsEmptyState'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import type { CardOwnership } from '../api/client'
@@ -118,9 +119,13 @@ function isOwned(ownership: CardOwnership | null | undefined): boolean {
 
 interface Props {
   onRerunLine?: (line: string) => void
+  /** Run an example query from the empty state (#523). */
+  onRun?: (text: string) => void
+  /** Switch to Browse mode from the empty state's "Walk a set" entry point. */
+  onBrowse?: () => void
 }
 
-export function ResultsTable({ onRerunLine }: Props) {
+export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
   const { rows, setRows, progress, isRunning, settings, viewState, setViewState, resetViewState } =
     useAppStore()
   const { sortColumn, sortDir, showFilters, filters } = viewState
@@ -356,11 +361,7 @@ export function ResultsTable({ onRerunLine }: Props) {
   )
 
   if (rows.length === 0 && !isRunning) {
-    return (
-      <div className="flex items-center justify-center rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 py-16 text-coconut-400 dark:text-sand-300 text-sm">
-        Results will appear here after you run a lookup.
-      </div>
-    )
+    return <ResultsEmptyState onRun={onRun} onBrowse={onBrowse} />
   }
 
   const pct = progress && progress.total > 0 ? (progress.done / progress.total) * 100 : 0
