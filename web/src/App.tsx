@@ -383,7 +383,7 @@ function App() {
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-sand-300 bg-sand-50/80 dark:border-husk-200/80 dark:bg-husk-400/80 backdrop-blur">
         <h1 className="sr-only">mgz-pkmn — Pokemon card lookup</h1>
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+        <div className="flex items-center justify-between px-4 py-3">
           <button
             type="button"
             onClick={handleBrandClick}
@@ -423,8 +423,13 @@ function App() {
         </div>
       </header>
 
-      {/* Main content. Extra bottom padding on mobile clears the fixed tab bar. */}
-      <main className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:pb-6">
+      {/* Main content. Extra bottom padding on mobile clears the fixed tab bar.
+          No outer width cap (#524) — the results table wants the full
+          workspace on a wide monitor, not a 1200px well. Sections that need a
+          reading-width cap own it themselves: the editor pane is a fixed
+          ~500px column (#522), the rail is fixed-width, Swipe's card caps at
+          max-w-xs, and Browse's grids cap their column count per breakpoint. */}
+      <main className="px-4 py-6 pb-24 lg:pb-6">
         <div className="flex gap-4">
           <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="library">
             <LibraryPanel
