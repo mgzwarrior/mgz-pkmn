@@ -21,6 +21,41 @@ interface Props {
   onStop: () => void
 }
 
+// Tracks how much the on-screen keyboard eats into the layout viewport so a
+// pinned toolbar can sit just above it instead of underneath it (iOS Safari
+// doesn't shrink the layout viewport for the keyboard, so `fixed` elements
+// need the visualViewport offset to stay clear of it).
+function useKeyboardInset(active: boolean) {
+  const [inset, setInset] = useState(0)
+
+  useEffect(() => {
+    if (!active || typeof window === 'undefined' || !window.visualViewport) return
+    const vv = window.visualViewport
+    // resize/scroll can fire many times per frame while the keyboard
+    // animates — coalesce them into at most one setInset per frame instead
+    // of re-rendering on every event.
+    let raf: number | null = null
+    const update = () => {
+      raf = null
+      setInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop))
+    }
+    const schedule = () => {
+      if (raf === null) raf = requestAnimationFrame(update)
+    }
+    schedule()
+    vv.addEventListener('resize', schedule)
+    vv.addEventListener('scroll', schedule)
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf)
+      vv.removeEventListener('resize', schedule)
+      vv.removeEventListener('scroll', schedule)
+      setInset(0)
+    }
+  }, [active])
+
+  return inset
+}
+
 // Very simple parse-preview: call /api/v1/parse for the currently focused line.
 function useLineParse(line: string) {
   const trimmed = line.trim()
@@ -51,8 +86,10 @@ function useLineParse(line: string) {
 export function InputEditor({ onRun, onStop }: Props) {
   const { inputText, setInputText, isRunning, clearRows, rows } = useAppStore()
   const [activeLine, setActiveLine] = useState('')
+  const [isTextareaFocused, setIsTextareaFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const parsedPreview = useLineParse(activeLine)
+  const keyboardInset = useKeyboardInset(isTextareaFocused)
 
   // Auto-grow the textarea from its `rows` baseline up to a max height,
   // scrolling past that (#523) — a 3-line want-list used to float in a
@@ -133,13 +170,27 @@ export function InputEditor({ onRun, onStop }: Props) {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between">
+      {/* Toolbar. Pinned above the on-screen keyboard while the textarea is
+          focused on a touch device (pointer-fine devices keep the normal
+          in-flow layout — there's no keyboard fighting for space). */}
+      <div
+        className={
+          isTextareaFocused
+            ? 'flex items-center justify-between pointer-coarse:fixed pointer-coarse:inset-x-0 pointer-coarse:bottom-0 pointer-coarse:z-40 pointer-coarse:border-t pointer-coarse:border-sand-300 pointer-coarse:bg-sand-50 pointer-coarse:px-4 pointer-coarse:py-2 pointer-coarse:shadow-2xl dark:pointer-coarse:border-husk-50 dark:pointer-coarse:bg-husk-200'
+            : 'flex items-center justify-between'
+        }
+        // Safari doesn't reliably reflow `top`/`bottom` on a `position: fixed`
+        // element while the keyboard is open — it keeps painting against a
+        // stale layout snapshot. `transform` bypasses that: it's handled by
+        // the compositor and tracks visualViewport changes correctly.
+        style={isTextareaFocused ? { transform: `translateY(-${keyboardInset}px)` } : undefined}
+      >
         <span className="text-xs text-coconut-400 dark:text-sand-300">
           {lineCount > 0 ? `${lineCount} card line${lineCount !== 1 ? 's' : ''}` : 'Enter card lines below'}
         </span>
         <div className="flex items-center gap-2">
           <button
+            onPointerDown={(e) => e.preventDefault()}
             onClick={() => {
               clearRows()
               setInputText('')
@@ -153,6 +204,7 @@ export function InputEditor({ onRun, onStop }: Props) {
           </button>
           {isRunning ? (
             <button
+              onPointerDown={(e) => e.preventDefault()}
               onClick={onStop}
               className="flex items-center gap-1.5 rounded-md bg-ember-500 px-3 py-1.5 text-sm font-medium text-sand-50 hover:bg-ember-400 dark:bg-ember-500 dark:hover:bg-ember-400 transition-colors"
             >
@@ -161,14 +213,22 @@ export function InputEditor({ onRun, onStop }: Props) {
             </button>
           ) : (
             <button
-              onClick={() => onRun()}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onRun()
+                // Dismiss the keyboard once the lookup is under way — the
+                // pointerdown guard above keeps the textarea focused for the
+                // tap itself, but staying focused after submit would leave
+                // the keyboard covering the results streaming in below.
+                textareaRef.current?.blur()
+              }}
               disabled={lineCount === 0}
               data-tour="run"
               className="flex items-center gap-1.5 rounded-md bg-sun-300 px-3 py-1.5 text-sm font-medium text-coconut-700 shadow-sm hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Play size={13} fill="currentColor" />
               Look up&nbsp;
-              <span className="text-xs opacity-80">(⌘↵)</span>
+              <span className="text-xs opacity-80 hidden pointer-fine:inline">(⌘↵)</span>
             </button>
           )}
         </div>
@@ -190,10 +250,18 @@ export function InputEditor({ onRun, onStop }: Props) {
         onKeyDown={handleKeyDown}
         onSelect={handleSelectionChange}
         onClick={handleSelectionChange}
+        onFocus={() => setIsTextareaFocused(true)}
+        onBlur={() => setIsTextareaFocused(false)}
         spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
         rows={6}
         placeholder={`One card per line, e.g.:\nCharizard | Base Set | 4/102\nPikachu | Jungle\ntop:5 Charizard cards\nMew ex | Scarlet & Violet`}
-        className="w-full max-h-[28rem] resize-none overflow-y-auto rounded-md border border-sand-300 bg-sand-50 px-3 py-2.5 font-mono text-sm text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
+        // pointer-coarse:text-base bumps this to 16px on touch devices only:
+        // iOS Safari auto-zooms the page when a focused field's computed
+        // font-size is under 16px, which was shoving the pinned toolbar off
+        // to the side. Desktop keeps the tighter 14px monospace look.
+        className="w-full max-h-[28rem] resize-none overflow-y-auto rounded-md border border-sand-300 bg-sand-50 px-3 py-2.5 font-mono text-sm pointer-coarse:text-base text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
       />
 
       {/* Example query chips — guided empty-state */}
