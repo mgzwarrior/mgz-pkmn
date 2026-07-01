@@ -133,10 +133,14 @@ export function InputEditor({ onRun, onStop }: Props) {
       <div
         className={
           isTextareaFocused
-            ? 'flex items-center justify-between gap-2 pointer-coarse:fixed pointer-coarse:inset-x-0 pointer-coarse:z-40 pointer-coarse:border-t pointer-coarse:border-sand-300 pointer-coarse:bg-sand-50 pointer-coarse:px-4 pointer-coarse:py-2 pointer-coarse:shadow-2xl dark:pointer-coarse:border-husk-50 dark:pointer-coarse:bg-husk-200'
+            ? 'flex items-center justify-between gap-2 pointer-coarse:fixed pointer-coarse:inset-x-0 pointer-coarse:bottom-0 pointer-coarse:z-40 pointer-coarse:border-t pointer-coarse:border-sand-300 pointer-coarse:bg-sand-50 pointer-coarse:px-4 pointer-coarse:py-2 pointer-coarse:shadow-2xl dark:pointer-coarse:border-husk-50 dark:pointer-coarse:bg-husk-200'
             : 'flex items-center justify-between'
         }
-        style={isTextareaFocused ? { bottom: keyboardInset } : undefined}
+        // Safari doesn't reliably reflow `top`/`bottom` on a `position: fixed`
+        // element while the keyboard is open — it keeps painting against a
+        // stale layout snapshot. `transform` bypasses that: it's handled by
+        // the compositor and tracks visualViewport changes correctly.
+        style={isTextareaFocused ? { transform: `translateY(-${keyboardInset}px)` } : undefined}
       >
         <span className="text-xs text-coconut-400 dark:text-sand-300">
           {lineCount > 0 ? `${lineCount} card line${lineCount !== 1 ? 's' : ''}` : 'Enter card lines below'}
