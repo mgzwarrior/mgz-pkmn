@@ -46,11 +46,16 @@ interface Props {
   /** Surface the Search editor + results — the app opens on Swipe, so loading
    *  a saved search has to switch modes for its rows to be visible (#814). */
   onShowSearch: () => void
+  /** Collapse state for `variant="sidebar"` only, lifted to the parent so it
+   *  can auto-collapse the rail on entering Search mode (#522 follow-up) —
+   *  the split editor/results layout is tight on a non-ultrawide desktop.
+   *  Ignored by `variant="accordion"`, which has its own open/close state. */
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
 }
 
-export function LibraryPanel({ variant, onRun, onShowSearch }: Props) {
+export function LibraryPanel({ variant, onRun, onShowSearch, collapsed, onCollapsedChange }: Props) {
   const [activeTab, setActiveTab] = useState<LibraryTab>('searches')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [accordionOpen, setAccordionOpen] = useState(false)
 
   const runs = useAppStore((s) => s.runs)
@@ -76,7 +81,7 @@ export function LibraryPanel({ variant, onRun, onShowSearch }: Props) {
   const savedSearchCount = showUserScoped ? runs.length : 0
 
   if (variant === 'sidebar') {
-    if (sidebarCollapsed) {
+    if (collapsed) {
       return (
         <aside
           aria-label="Backpack (collapsed)"
@@ -84,7 +89,7 @@ export function LibraryPanel({ variant, onRun, onShowSearch }: Props) {
         >
           <button
             type="button"
-            onClick={() => setSidebarCollapsed(false)}
+            onClick={() => onCollapsedChange?.(false)}
             aria-label="Expand Backpack"
             aria-expanded={false}
             className="flex h-7 w-7 items-center justify-center rounded text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
@@ -113,7 +118,7 @@ export function LibraryPanel({ variant, onRun, onShowSearch }: Props) {
           </h2>
           <button
             type="button"
-            onClick={() => setSidebarCollapsed(true)}
+            onClick={() => onCollapsedChange?.(true)}
             aria-label="Collapse Backpack"
             aria-expanded={true}
             className="rounded p-1 text-coconut-400 dark:text-sand-400 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-600 dark:hover:text-sand-200"
