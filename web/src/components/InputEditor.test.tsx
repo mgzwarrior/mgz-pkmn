@@ -7,15 +7,23 @@ vi.mock('../api/client', () => ({
   parseLine: vi.fn(),
 }))
 
-const { mockSetInputText, mockClearRows, storeState } = vi.hoisted(() => ({
-  mockSetInputText: vi.fn(),
-  mockClearRows: vi.fn(),
-  storeState: {
+// `editorCollapsed` moved from InputEditor's own local state into the store
+// (#523 follow-up, so `loadSavedRun` can re-expand it directly) — the mock
+// setter mutates `storeState` synchronously so a *second* `rerender()` call
+// (this mock has no real reactivity of its own) picks up the change, same
+// as every other field here.
+const { mockSetInputText, mockClearRows, mockSetEditorCollapsed, storeState } = vi.hoisted(() => {
+  const storeState = {
     inputText: '',
     isRunning: false,
     rows: [] as unknown[],
-  },
-}))
+    editorCollapsed: false,
+  }
+  const mockSetEditorCollapsed = vi.fn((v: boolean) => {
+    storeState.editorCollapsed = v
+  })
+  return { mockSetInputText: vi.fn(), mockClearRows: vi.fn(), mockSetEditorCollapsed, storeState }
+})
 
 vi.mock('../store', () => ({
   useAppStore: () => ({
@@ -23,6 +31,8 @@ vi.mock('../store', () => ({
     setInputText: mockSetInputText,
     isRunning: storeState.isRunning,
     clearRows: mockClearRows,
+    editorCollapsed: storeState.editorCollapsed,
+    setEditorCollapsed: mockSetEditorCollapsed,
     // LookupTimer (rendered under the toolbar) reads these fields.
     settings: {
       apiKey: '',
@@ -43,9 +53,11 @@ describe('InputEditor', () => {
   beforeEach(() => {
     mockSetInputText.mockClear()
     mockClearRows.mockClear()
+    mockSetEditorCollapsed.mockClear()
     storeState.inputText = ''
     storeState.isRunning = false
     storeState.rows = []
+    storeState.editorCollapsed = false
   })
 
   it('renders the textarea and run button', () => {
@@ -140,8 +152,15 @@ describe('InputEditor', () => {
 
       storeState.isRunning = false
       storeState.rows = [{} as Row]
+      // First rerender: the effect sees the isRunning transition and calls
+      // the mock setter, which mutates storeState — but this mock has no
+      // reactivity of its own, so the render it's already mid-flight for
+      // still shows the pre-collapse UI. A second rerender re-reads the
+      // now-mutated storeState.
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
       rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
 
+      expect(mockSetEditorCollapsed).toHaveBeenCalledWith(true)
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: /1 card line/i })).toBeInTheDocument()
     })
@@ -154,56 +173,62 @@ describe('InputEditor', () => {
       storeState.isRunning = false
       storeState.rows = []
       rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
 
+      expect(mockSetEditorCollapsed).not.toHaveBeenCalled()
       expect(screen.getByRole('textbox')).toBeInTheDocument()
     })
 
     it('clicking the collapsed summary expands the editor again', () => {
+      storeState.editorCollapsed = true
       storeState.inputText = 'Charizard'
-      storeState.isRunning = true
-      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
-      storeState.isRunning = false
       storeState.rows = [{} as Row]
-      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
 
       fireEvent.click(screen.getByRole('button', { name: /1 card line/i }))
+      expect(mockSetEditorCollapsed).toHaveBeenCalledWith(false)
+      storeState.editorCollapsed = false
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
 
       expect(screen.getByRole('textbox')).toBeInTheDocument()
     })
 
     it('a new run re-expands a collapsed editor', () => {
+      storeState.editorCollapsed = true
       storeState.inputText = 'Charizard'
-      storeState.isRunning = true
-      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
-      storeState.isRunning = false
       storeState.rows = [{} as Row]
-      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
 
       // Re-running (e.g. from the Backpack's Recent tab) flips isRunning
       // back on without the user clicking the summary bar first.
       storeState.isRunning = true
       rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      storeState.editorCollapsed = false
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
 
+      expect(mockSetEditorCollapsed).toHaveBeenCalledWith(false)
       expect(screen.getByRole('textbox')).toBeInTheDocument()
     })
 
     it('Clear resets a collapsed editor back to expanded', () => {
+      storeState.editorCollapsed = true
       storeState.inputText = 'Charizard'
-      storeState.isRunning = true
-      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
-      storeState.isRunning = false
       storeState.rows = [{} as Row]
-      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
 
       // The collapsed view hides the toolbar's own Clear button, so expand
       // first — the same path a user takes.
       fireEvent.click(screen.getByRole('button', { name: /1 card line/i }))
+      storeState.editorCollapsed = false
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+
       fireEvent.click(screen.getByRole('button', { name: /clear/i }))
 
       expect(mockClearRows).toHaveBeenCalled()
       expect(mockSetInputText).toHaveBeenCalledWith('')
+      expect(mockSetEditorCollapsed).toHaveBeenCalledWith(false)
     })
   })
 })

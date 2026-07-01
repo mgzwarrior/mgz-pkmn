@@ -84,7 +84,15 @@ function useLineParse(line: string) {
 }
 
 export function InputEditor({ onRun, onStop }: Props) {
-  const { inputText, setInputText, isRunning, clearRows, rows } = useAppStore()
+  const {
+    inputText,
+    setInputText,
+    isRunning,
+    clearRows,
+    rows,
+    editorCollapsed: collapsed,
+    setEditorCollapsed: setCollapsed,
+  } = useAppStore()
   const [activeLine, setActiveLine] = useState('')
   const [isTextareaFocused, setIsTextareaFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -106,7 +114,9 @@ export function InputEditor({ onRun, onStop }: Props) {
   // something to show, so the results pane takes the stage (#523). A new
   // run (however it was started — Recent tab, a saved search, Look up)
   // re-expands it so progress and Stop stay visible while it's in flight.
-  const [collapsed, setCollapsed] = useState(false)
+  // Collapse state lives in the store, not local state — loading a saved
+  // search re-expands it directly there (see loadSavedRun) since that path
+  // never touches `isRunning` and so wouldn't otherwise trip this effect.
   const wasRunningRef = useRef(isRunning)
   useEffect(() => {
     const wasRunning = wasRunningRef.current
@@ -116,7 +126,7 @@ export function InputEditor({ onRun, onStop }: Props) {
       setCollapsed(true)
     }
     wasRunningRef.current = isRunning
-  }, [isRunning, rows.length])
+  }, [isRunning, rows.length, setCollapsed])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {

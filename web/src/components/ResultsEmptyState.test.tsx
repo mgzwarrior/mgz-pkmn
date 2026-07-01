@@ -60,7 +60,7 @@ function makeDetail(id: number): RunDetail {
 }
 
 function resetStore() {
-  useAppStore.setState({ runs: [], inputText: '', rows: [], currentRunId: null })
+  useAppStore.setState({ runs: [], inputText: '', rows: [], currentRunId: null, editorCollapsed: false })
 }
 
 describe('ResultsEmptyState', () => {
@@ -130,12 +130,12 @@ describe('ResultsEmptyState', () => {
     expect(screen.queryByText('Fourth')).not.toBeInTheDocument()
   })
 
-  it('clicking a saved search hydrates the store from getRun', async () => {
+  it('clicking a saved search hydrates the store from getRun and re-expands a collapsed editor', async () => {
     vi.mocked(client.fetchMe).mockResolvedValue({
       user: { id: 1, email: 'u@e.com', display_name: 'U' },
       authEnabled: true,
     })
-    useAppStore.setState({ runs: [makeRun(7, { name: 'Show prep' })] })
+    useAppStore.setState({ runs: [makeRun(7, { name: 'Show prep' })], editorCollapsed: true })
     vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(7))
     render(<ResultsEmptyState />)
 
@@ -144,5 +144,48 @@ describe('ResultsEmptyState', () => {
     await waitFor(() => expect(useAppStore.getState().currentRunId).toBe(7))
     expect(useAppStore.getState().inputText).toBe('Charizard')
     expect(useAppStore.getState().rows).toHaveLength(1)
+    expect(useAppStore.getState().editorCollapsed).toBe(false)
+  })
+
+  it('surfaces an error and re-enables the button when getRun rejects', async () => {
+    vi.mocked(client.fetchMe).mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+    useAppStore.setState({ runs: [makeRun(7, { name: 'Show prep' })] })
+    vi.spyOn(client, 'getRun').mockRejectedValue(new Error('boom'))
+    render(<ResultsEmptyState />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Show prep/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('boom')
+    expect(screen.getByRole('button', { name: /Show prep/i })).not.toBeDisabled()
+  })
+
+  it('disables the example chips, Walk a set, and other saved searches while a load is in flight', async () => {
+    vi.mocked(client.fetchMe).mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+    useAppStore.setState({
+      runs: [makeRun(7, { name: 'First' }), makeRun(8, { name: 'Second' })],
+    })
+    let resolveGetRun: (detail: RunDetail) => void = () => {}
+    vi.spyOn(client, 'getRun').mockReturnValue(
+      new Promise((resolve) => {
+        resolveGetRun = resolve
+      }),
+    )
+    render(<ResultsEmptyState onRun={vi.fn()} onBrowse={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /First/i }))
+
+    expect(screen.getByRole('button', { name: 'top:5 Charizard cards' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /walk a set/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Second/i })).toBeDisabled()
+
+    resolveGetRun(makeDetail(7))
+    await waitFor(() => expect(useAppStore.getState().currentRunId).toBe(7))
+    expect(screen.getByRole('button', { name: 'top:5 Charizard cards' })).not.toBeDisabled()
   })
 })

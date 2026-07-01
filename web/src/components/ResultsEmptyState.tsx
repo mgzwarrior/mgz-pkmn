@@ -28,21 +28,30 @@ export function ResultsEmptyState({ onRun, onBrowse }: Props) {
   const auth = useAuth()
   const runs = useAppStore((s) => s.runs)
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const savedSearches = auth.user !== null ? runs.slice(0, SAVED_SEARCH_LIMIT) : []
+  // A saved-search load is a multi-step store hydration (input, rows, view
+  // state, ...) — running an example query or switching to Browse mid-load
+  // would race those writes, so the rest of the panel disables while one is
+  // in flight.
+  const loading = loadingRunId !== null
 
   const handleLoadSaved = useCallback(
     async (run: RunSummary) => {
-      if (loadingRunId !== null) return
+      if (loading) return
       setLoadingRunId(run.id)
+      setError(null)
       try {
         // Already in Search mode (this pane only renders there) — no mode
         // switch needed on load, unlike the Backpack's Searches tab.
         await loadSavedRun(run, () => {})
+      } catch (err) {
+        setError(err instanceof Error ? err.message : `Failed to load run ${run.id}`)
       } finally {
         setLoadingRunId(null)
       }
     },
-    [loadingRunId],
+    [loading],
   )
 
   return (
@@ -63,7 +72,8 @@ export function ResultsEmptyState({ onRun, onBrowse }: Props) {
                   key={example}
                   type="button"
                   onClick={() => onRun(example)}
-                  className="rounded-full border border-sand-300 bg-sand-100 px-2.5 py-1 font-mono text-xs text-coconut-600 hover:border-palm-400 hover:bg-sand-200 hover:text-coconut-700 dark:border-husk-50 dark:bg-husk-300 dark:text-sand-200 dark:hover:border-sun-300 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition-colors"
+                  disabled={loading}
+                  className="rounded-full border border-sand-300 bg-sand-100 px-2.5 py-1 font-mono text-xs text-coconut-600 hover:border-palm-400 hover:bg-sand-200 hover:text-coconut-700 dark:border-husk-50 dark:bg-husk-300 dark:text-sand-200 dark:hover:border-sun-300 dark:hover:bg-husk-100 dark:hover:text-sand-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {example}
                 </button>
@@ -72,7 +82,8 @@ export function ResultsEmptyState({ onRun, onBrowse }: Props) {
               <button
                 type="button"
                 onClick={onBrowse}
-                className="flex items-center gap-1 rounded-full border border-sand-300 bg-sand-100 px-2.5 py-1 text-xs text-coconut-600 hover:border-palm-400 hover:bg-sand-200 hover:text-coconut-700 dark:border-husk-50 dark:bg-husk-300 dark:text-sand-200 dark:hover:border-sun-300 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition-colors"
+                disabled={loading}
+                className="flex items-center gap-1 rounded-full border border-sand-300 bg-sand-100 px-2.5 py-1 text-xs text-coconut-600 hover:border-palm-400 hover:bg-sand-200 hover:text-coconut-700 dark:border-husk-50 dark:bg-husk-300 dark:text-sand-200 dark:hover:border-sun-300 dark:hover:bg-husk-100 dark:hover:text-sand-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <GalleryHorizontalEnd size={12} aria-hidden />
                 Walk a set
@@ -87,13 +98,18 @@ export function ResultsEmptyState({ onRun, onBrowse }: Props) {
           <span className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
             Your saved searches
           </span>
+          {error && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-300">
+              {error}
+            </p>
+          )}
           <div className="flex flex-col gap-1">
             {savedSearches.map((run) => (
               <button
                 key={run.id}
                 type="button"
                 onClick={() => handleLoadSaved(run)}
-                disabled={loadingRunId !== null}
+                disabled={loading}
                 className="flex items-center justify-between gap-2 rounded-md border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-left text-xs text-coconut-600 hover:border-palm-400 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-300 dark:text-sand-200 dark:hover:border-sun-300 dark:hover:bg-husk-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="truncate font-medium">{run.name ?? `Run ${run.id}`}</span>

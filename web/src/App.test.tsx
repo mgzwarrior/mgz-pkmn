@@ -97,6 +97,7 @@ function resetStore() {
     isRunning: false,
     runStartedAt: null,
     runEndedAt: null,
+    editorCollapsed: false,
   })
   useAppStore.getState().resetSettings()
 }

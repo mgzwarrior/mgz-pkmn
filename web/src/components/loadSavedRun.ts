@@ -34,6 +34,11 @@ export async function loadSavedRun(run: RunSummary, onShowSearch: () => void): P
   store.setViewState(
     detail.view_state ?? { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters } },
   )
+  // A prior lookup may have left the editor collapsed to its one-line
+  // summary; this path never touches `isRunning` (the only other trigger
+  // that re-expands it), so without this the loaded input would sit hidden
+  // behind a stale line-count bar (#523).
+  store.setEditorCollapsed(false)
   // The app opens on Swipe (#814); the loaded rows live in the Search
   // editor/results, so surface that mode or they stay hidden.
   onShowSearch()
