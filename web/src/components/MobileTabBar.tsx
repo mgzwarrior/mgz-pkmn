@@ -28,9 +28,11 @@ interface Props {
 }
 
 export function MobileTabBar({ active, onSelect }: Props) {
+  // Navigation semantics (nav + aria-current), not the ARIA tabs pattern: this
+  // is primary navigation between app sections, so it shouldn't take on the
+  // arrow-key roving / tabpanel expectations that role="tab" implies.
   return (
     <nav
-      role="tablist"
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-sand-300 bg-sand-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden dark:border-husk-200/80 dark:bg-husk-400/95"
     >
@@ -41,8 +43,7 @@ export function MobileTabBar({ active, onSelect }: Props) {
           <button
             key={t.value}
             type="button"
-            role="tab"
-            aria-selected={selected}
+            aria-current={selected ? 'page' : undefined}
             onClick={() => onSelect(t.value)}
             className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors ${
               selected

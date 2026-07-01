@@ -494,18 +494,18 @@ describe('App: mobile bottom-tab nav (#519)', () => {
     mockBulkLookup.mockReset()
   })
 
-  function primaryTabs() {
-    return within(screen.getByRole('tablist', { name: 'Primary' }))
+  function primaryNav() {
+    return within(screen.getByRole('navigation', { name: 'Primary' }))
   }
 
   it('renders the four labeled destinations in the bottom bar', () => {
     render(<App />)
     for (const label of ['Discover', 'Backpack', 'Insights', 'Account']) {
-      expect(primaryTabs().getByRole('tab', { name: label })).toBeInTheDocument()
+      expect(primaryNav().getByRole('button', { name: label })).toBeInTheDocument()
     }
-    expect(primaryTabs().getByRole('tab', { name: 'Discover' })).toHaveAttribute(
-      'aria-selected',
-      'true',
+    expect(primaryNav().getByRole('button', { name: 'Discover' })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
   })
 
@@ -513,14 +513,14 @@ describe('App: mobile bottom-tab nav (#519)', () => {
     render(<App />)
     expect(screen.queryByText('Your account')).not.toBeInTheDocument()
 
-    fireEvent.click(primaryTabs().getByRole('tab', { name: 'Account' }))
+    fireEvent.click(primaryNav().getByRole('button', { name: 'Account' }))
     expect(screen.getByText('Your account')).toBeInTheDocument()
-    expect(primaryTabs().getByRole('tab', { name: 'Account' })).toHaveAttribute(
-      'aria-selected',
-      'true',
+    expect(primaryNav().getByRole('button', { name: 'Account' })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
 
-    fireEvent.click(primaryTabs().getByRole('tab', { name: 'Discover' }))
+    fireEvent.click(primaryNav().getByRole('button', { name: 'Discover' }))
     expect(screen.queryByText('Your account')).not.toBeInTheDocument()
   })
 
