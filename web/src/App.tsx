@@ -59,6 +59,7 @@ const MODES: { value: DiscoveryMode; label: string; icon: typeof Search; hint: s
 function App() {
   const {
     inputText,
+    setInputText,
     appendRow,
     clearRows,
     settings,
@@ -344,6 +345,19 @@ function App() {
     setMode,
   ])
 
+  // Run an example query from the results pane's empty state (#523). Sets
+  // the input text too (not just the override `handleRun` takes) so the
+  // editor reflects what actually ran — mirrors InputEditor's own chip
+  // click, which otherwise would leave the post-lookup collapse summary
+  // reading "0 card lines" against a results pane full of Charizards.
+  const handleRunExample = useCallback(
+    (text: string) => {
+      setInputText(text)
+      void handleRun(text)
+    },
+    [setInputText, handleRun],
+  )
+
   const handleStop = useCallback(() => {
     // Just abort the stream. `bulkLookup`'s abort path will fire
     // `onDone(aborted=true)` which the handleRun-side guard stamps
@@ -482,7 +496,11 @@ function App() {
                   </div>
                   <div className="flex flex-col gap-3">
                     <ProcessingQueue />
-                    <ResultsTable onRerunLine={handleRerunLine} />
+                    <ResultsTable
+                      onRerunLine={handleRerunLine}
+                      onRun={handleRunExample}
+                      onBrowse={() => setMode('browse')}
+                    />
                   </div>
                 </section>
               </div>

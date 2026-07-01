@@ -14,22 +14,12 @@ import { useAppStore } from '../store'
 import type { CardQuery } from '../types'
 import { LookupTimer } from './LookupTimer'
 import { CacheSourceChip } from './CacheSourceChip'
+import { EXAMPLE_QUERIES } from './exampleQueries'
 
 interface Props {
   onRun: (overrideText?: string) => void
   onStop: () => void
 }
-
-const EXAMPLE_QUERIES = [
-  'Charizard | Base Set | 4/102',
-  'Pikachu | Jungle',
-  'Squirtle | 7/102',
-  'Mew ex',
-  'Charizard [holo]',
-  'top:5 Charizard cards',
-  'All Charizard cards | Base Set',
-  'Pikachu >=20 <=50',
-]
 
 // Tracks how much the on-screen keyboard eats into the layout viewport so a
 // pinned toolbar can sit just above it instead of underneath it (iOS Safari
@@ -94,12 +84,49 @@ function useLineParse(line: string) {
 }
 
 export function InputEditor({ onRun, onStop }: Props) {
-  const { inputText, setInputText, isRunning, clearRows } = useAppStore()
+  const {
+    inputText,
+    setInputText,
+    isRunning,
+    clearRows,
+    rows,
+    editorCollapsed: collapsed,
+    setEditorCollapsed: setCollapsed,
+  } = useAppStore()
   const [activeLine, setActiveLine] = useState('')
   const [isTextareaFocused, setIsTextareaFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const parsedPreview = useLineParse(activeLine)
   const keyboardInset = useKeyboardInset(isTextareaFocused)
+
+  // Auto-grow the textarea from its `rows` baseline up to a max height,
+  // scrolling past that (#523) — a 3-line want-list used to float in a
+  // fixed 12-row box. Resetting to 'auto' before reading scrollHeight lets
+  // the box shrink back down when text is deleted, not just grow.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [inputText])
+
+  // Collapse the editor to a one-line summary once a lookup finishes with
+  // something to show, so the results pane takes the stage (#523). A new
+  // run (however it was started — Recent tab, a saved search, Look up)
+  // re-expands it so progress and Stop stay visible while it's in flight.
+  // Collapse state lives in the store, not local state — loading a saved
+  // search re-expands it directly there (see loadSavedRun) since that path
+  // never touches `isRunning` and so wouldn't otherwise trip this effect.
+  const wasRunningRef = useRef(isRunning)
+  useEffect(() => {
+    const wasRunning = wasRunningRef.current
+    if (!wasRunning && isRunning) {
+      setCollapsed(false)
+    } else if (wasRunning && !isRunning && rows.length > 0) {
+      setCollapsed(true)
+    }
+    wasRunningRef.current = isRunning
+  }, [isRunning, rows.length, setCollapsed])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -135,6 +162,22 @@ export function InputEditor({ onRun, onStop }: Props) {
     [isRunning, setInputText, onRun],
   )
 
+  if (collapsed && !isEmpty) {
+    return (
+      <button
+        type="button"
+        onClick={() => setCollapsed(false)}
+        data-tour="input-collapsed"
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-sand-300 bg-sand-100 px-3 py-2 text-sm text-coconut-600 hover:border-palm-400 hover:bg-sand-200 dark:border-husk-50 dark:bg-husk-200/60 dark:text-sand-200 dark:hover:border-sun-300 dark:hover:bg-husk-100 transition-colors"
+      >
+        <span>
+          {lineCount} card line{lineCount !== 1 ? 's' : ''}
+        </span>
+        <span className="text-xs text-palm-500 dark:text-sun-300">Edit</span>
+      </button>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {/* Toolbar. Pinned above the on-screen keyboard while the textarea is
@@ -161,6 +204,7 @@ export function InputEditor({ onRun, onStop }: Props) {
             onClick={() => {
               clearRows()
               setInputText('')
+              setCollapsed(false)
             }}
             className="flex items-center gap-1 rounded px-2 py-1 text-xs text-coconut-400 hover:text-coconut-700 hover:bg-sand-200 dark:text-sand-300 dark:hover:text-sand-50 dark:hover:bg-husk-100 transition-colors"
             title="Clear input and results"
@@ -221,13 +265,13 @@ export function InputEditor({ onRun, onStop }: Props) {
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
-        rows={12}
+        rows={6}
         placeholder={`One card per line, e.g.:\nCharizard | Base Set | 4/102\nPikachu | Jungle\ntop:5 Charizard cards\nMew ex | Scarlet & Violet`}
         // pointer-coarse:text-base bumps this to 16px on touch devices only:
         // iOS Safari auto-zooms the page when a focused field's computed
         // font-size is under 16px, which was shoving the pinned toolbar off
         // to the side. Desktop keeps the tighter 14px monospace look.
-        className="w-full resize-y rounded-md border border-sand-300 bg-sand-50 px-3 py-2.5 font-mono text-sm pointer-coarse:text-base text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
+        className="w-full max-h-[28rem] resize-none overflow-y-auto rounded-md border border-sand-300 bg-sand-50 px-3 py-2.5 font-mono text-sm pointer-coarse:text-base text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
       />
 
       {/* Example query chips — guided empty-state */}

@@ -91,6 +91,19 @@ interface AppState {
   setIsRunning: (v: boolean) => void
 
   /**
+   * Whether [InputEditor](../components/InputEditor.tsx) is collapsed to
+   * its one-line "N card lines · Edit" summary (#523). Lives in the store
+   * (not local component state) so [loadSavedRun](../components/loadSavedRun.ts)
+   * — called from both the Backpack's Searches tab and the results pane's
+   * empty state — can re-expand it directly; a saved search can land while
+   * the editor is collapsed from a prior run, and the isRunning-transition
+   * effect that drives collapse never fires for a load (it doesn't touch
+   * isRunning), so nothing else would flip it back.
+   */
+  editorCollapsed: boolean
+  setEditorCollapsed: (v: boolean) => void
+
+  /**
    * Wall-clock timestamps (Date.now()) bracketing the most recent bulk run.
    * `runStartedAt` is set when the first SSE event arrives so the elapsed
    * value reflects user-felt latency (network + SSE overhead included).
@@ -226,6 +239,9 @@ export const useAppStore = create<AppState>()(
 
       isRunning: false,
       setIsRunning: (isRunning) => set({ isRunning }),
+
+      editorCollapsed: false,
+      setEditorCollapsed: (editorCollapsed) => set({ editorCollapsed }),
 
       runStartedAt: null,
       runEndedAt: null,
