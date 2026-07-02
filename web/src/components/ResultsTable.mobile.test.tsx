@@ -176,6 +176,47 @@ describe('ResultsTable — mobile card list (#521)', () => {
     )
   })
 
+  it('does not reopen the filters sheet immediately after resizing back into mobile', async () => {
+    useAppStore.setState({
+      rows: [makeRow({ card: { id: 'a', name: 'Charizard', set: { name: 'Base Set' } } })],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    expect(screen.getByRole('dialog', { name: /filters & sort/i })).toBeInTheDocument()
+
+    act(() => simulateResize(false))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /filters & sort/i })).not.toBeInTheDocument(),
+    )
+
+    act(() => simulateResize(true))
+    expect(screen.queryByRole('dialog', { name: /filters & sort/i })).not.toBeInTheDocument()
+  })
+
+  it('clears a desktop selection when resizing into the mobile card list, so BulkActionBar cannot act on a hidden selection', async () => {
+    mockMatches = false
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'a', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    fireEvent.click(screen.getByLabelText('Select Charizard'))
+    expect(screen.getByRole('region', { name: /bulk actions/i })).toBeInTheDocument()
+
+    act(() => simulateResize(true))
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: /bulk actions/i })).not.toBeInTheDocument(),
+    )
+  })
+
   it('flags a card over the price cap the same way the desktop row does', () => {
     useAppStore.setState({
       settings: { ...useAppStore.getState().settings, maxPrice: 100 },

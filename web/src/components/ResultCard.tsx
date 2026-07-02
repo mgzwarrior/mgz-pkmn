@@ -79,7 +79,12 @@ export function ResultCard({
         !row.matched ? 'opacity-60' : ''
       } ${isOverCap ? 'bg-sun-100 dark:bg-sun-400/15' : ''} ${canOpenDetail ? 'cursor-pointer' : ''}`}
       onClick={canOpenDetail ? handleCardClick : undefined}
-      role={canOpenDetail ? 'button' : undefined}
+      // No role="button" here (unlike SwipePanel's card, which has no
+      // interactive descendants): this card nests real buttons and links
+      // (save/wishlist actions, buy links), and a button role can't
+      // legally contain focusable children per the ARIA button pattern.
+      // Keyboard/mouse activation still works via tabIndex + handlers
+      // below, same as the desktop table row.
       tabIndex={canOpenDetail ? 0 : undefined}
       onKeyDown={
         canOpenDetail

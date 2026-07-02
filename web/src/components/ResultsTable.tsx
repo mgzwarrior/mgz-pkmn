@@ -286,6 +286,25 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
     }
   }
 
+  // Crossing the mobile/desktop breakpoint: multi-select is a desktop-table
+  // affordance (the card list has no checkboxes), so a selection made before
+  // resizing down would otherwise sit invisibly behind BulkActionBar, which
+  // isn't gated on `isMobile` and would still be able to act on it. Going the
+  // other way, an open mobile filters sheet should reset rather than silently
+  // reopening next time the viewport crosses back under `lg`.
+  const [prevIsMobile, setPrevIsMobile] = useState(isMobile)
+  if (isMobile !== prevIsMobile) {
+    setPrevIsMobile(isMobile)
+    if (isMobile) {
+      if (selected.size > 0 || anchorIdx !== null) {
+        setSelected(new Set())
+        setAnchorIdx(null)
+      }
+    } else if (mobileFiltersOpen) {
+      setMobileFiltersOpen(false)
+    }
+  }
+
   const toggleRow = useCallback(
     (displayedIdx: number, shiftKey: boolean) => {
       setSelected((prev) => {
