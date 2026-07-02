@@ -264,7 +264,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
     <section
       aria-label="Swipe mode"
       data-tour="swipe"
-      className="flex flex-col gap-4 rounded-lg border border-sand-300 bg-sand-50 px-5 py-5 dark:border-husk-50 dark:bg-husk-200"
+      className="flex flex-col gap-3 rounded-lg border border-sand-300 bg-sand-50 px-4 py-4 lg:gap-4 lg:px-5 lg:py-5 dark:border-husk-50 dark:bg-husk-200"
     >
       <SwipeHeader
         savedCount={profile.saved.length}
@@ -288,16 +288,28 @@ export function SwipePanel({ active }: SwipePanelProps) {
           signed-in user like the other user-scoped Swipe controls — an
           anonymous mount would otherwise read/write the default user's
           favorites. The taste profile below is browser-local, so it shows
-          for everyone. */}
-      {showSavedActions && <FavoriteSetsPanel />}
+          for everyone.
 
-      <SwipeProfilePanel />
-
-      {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
-        <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
+          Under the mobile-IA breakpoint both tuning panels drop below the
+          deck via flex order so the card and its actions land in the first
+          viewport (#845); desktop keeps them up top. */}
+      {showSavedActions && (
+        <div className="order-3 lg:order-none">
+          <FavoriteSetsPanel />
+        </div>
       )}
 
-      <div className="flex flex-col items-center gap-3">
+      <div className="order-4 lg:order-none">
+        <SwipeProfilePanel />
+      </div>
+
+      {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
+        <div className="order-1 lg:order-none">
+          <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
+        </div>
+      )}
+
+      <div className="order-2 flex flex-col items-center gap-3 lg:order-none">
         {error && (
           <p
             role="alert"
@@ -320,8 +332,10 @@ export function SwipePanel({ active }: SwipePanelProps) {
           // keeps its DOM node as it's promoted from peek to top — it
           // *rises* into place rather than the old node being reused and
           // sliding back in from off-screen. `pb-4` reserves room for the
-          // deepest peek, which is translated below the top card.
-          <div className="w-full max-w-xs pb-4">
+          // deepest peek, which is translated below the top card. The
+          // narrower phone cap keeps the card + action row inside a
+          // 375×812 first viewport (#845).
+          <div className="w-full max-w-[280px] pb-4 lg:max-w-xs">
             <div className="relative">
               {[current, ...upcoming].slice(0, STACK_SIZE).map((cand, depth) =>
                 depth === 0 ? (
@@ -389,7 +403,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
           />
         )}
 
-        <KeyboardHint />
+        <SwipeHint />
       </div>
 
       <CardDetailModal
@@ -434,14 +448,9 @@ function SwipeHeader({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
-            Swipe
-          </h2>
-          <p className="text-xs text-coconut-400 dark:text-sand-300">
-            One card at a time — right to save, left to pass, up for more like this.
-          </p>
-        </div>
+        <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
+          Swipe
+        </h2>
         <div className="flex shrink-0 items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs text-coconut-400 dark:text-sand-300">
             <span className="sr-only sm:not-sr-only">Show</span>
@@ -467,6 +476,12 @@ function SwipeHeader({
           </button>
         </div>
       </div>
+      {/* Full-width so it doesn't squeeze beside the controls; on phones the
+          gesture guidance moves below the deck (see SwipeHint) so the card
+          lands in the first viewport (#845). */}
+      <p className="hidden text-xs text-coconut-400 lg:block dark:text-sand-300">
+        One card at a time — right to save, left to pass, up for more like this.
+      </p>
       {showLibraryToggles && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-coconut-400 dark:text-sand-300">
           <span className="text-coconut-300 dark:text-sand-400">Hide</span>
@@ -781,22 +796,32 @@ function ActionButton({
   )
 }
 
-function KeyboardHint() {
+/**
+ * Guidance under the action row. Phones get the gesture sentence (the
+ * header hides it there to keep the card above the fold, #845); larger
+ * screens get the arrow-key legend, since that's where keyboards live.
+ */
+function SwipeHint() {
   return (
-    <p className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-coconut-400 dark:text-sand-400">
-      <KeyChip>
-        <ArrowLeft size={11} />
-      </KeyChip>
-      pass
-      <KeyChip>
-        <ArrowUp size={11} />
-      </KeyChip>
-      more like this
-      <KeyChip>
-        <ArrowRight size={11} />
-      </KeyChip>
-      save
-    </p>
+    <>
+      <p className="text-xs text-coconut-400 lg:hidden dark:text-sand-400">
+        Right to save, left to pass, up for more like this.
+      </p>
+      <p className="hidden flex-wrap items-center justify-center gap-1.5 text-[11px] text-coconut-400 lg:flex dark:text-sand-400">
+        <KeyChip>
+          <ArrowLeft size={11} />
+        </KeyChip>
+        pass
+        <KeyChip>
+          <ArrowUp size={11} />
+        </KeyChip>
+        more like this
+        <KeyChip>
+          <ArrowRight size={11} />
+        </KeyChip>
+        save
+      </p>
+    </>
   )
 }
 
@@ -811,7 +836,7 @@ function KeyChip({ children }: { children: React.ReactNode }) {
 function LoadingCard({ loading }: { loading: boolean }) {
   return (
     <div
-      className="flex aspect-[245/342] w-full max-w-xs items-center justify-center rounded-xl border border-dashed border-sand-300 bg-sand-50 text-sm text-coconut-400 dark:border-husk-50 dark:bg-husk-400 dark:text-sand-300"
+      className="flex aspect-[245/342] w-full max-w-[280px] items-center justify-center rounded-xl border border-dashed border-sand-300 bg-sand-50 text-sm text-coconut-400 lg:max-w-xs dark:border-husk-50 dark:bg-husk-400 dark:text-sand-300"
       role="status"
       aria-live="polite"
     >
@@ -829,7 +854,7 @@ function LoadingCard({ loading }: { loading: boolean }) {
 function ExhaustedState({ onReset }: { onReset: () => void }) {
   return (
     <div
-      className="flex w-full max-w-xs flex-col items-center gap-3 rounded-xl border border-dashed border-sand-300 bg-sand-50 px-4 py-8 text-center text-sm text-coconut-500 dark:border-husk-50 dark:bg-husk-400 dark:text-sand-200"
+      className="flex w-full max-w-[280px] flex-col items-center gap-3 rounded-xl border border-dashed border-sand-300 bg-sand-50 px-4 py-8 text-center text-sm text-coconut-500 lg:max-w-xs dark:border-husk-50 dark:bg-husk-400 dark:text-sand-200"
       role="status"
     >
       <p>You’ve seen every card in the recent sets.</p>
