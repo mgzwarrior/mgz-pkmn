@@ -18,11 +18,30 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'alpha', label: 'Card name (alphabetical)' },
 ]
 
-export function SettingsDrawer() {
+interface Props {
+  /** Lift open state to the parent (the command palette's "Open Settings",
+   *  #525). Omit for the usual self-contained trigger-button behavior. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp }: Props = {}) {
   const { settings, updateSettings, resetSettings } = useAppStore()
+  // Controlled only when `open` itself is supplied — a caller passing just
+  // one of the pair (e.g. `onOpenChange` alone) would otherwise strand the
+  // drawer: falling back open to `internalOpen` while routing writes to the
+  // caller's handler (which the caller may not feed back) never updates the
+  // value Dialog.Root actually reads. Always notify the caller either way.
+  const isControlled = openProp !== undefined
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = isControlled ? openProp : internalOpen
+  function setOpen(next: boolean) {
+    if (!isControlled) setInternalOpen(next)
+    onOpenChangeProp?.(next)
+  }
 
   return (
-    <Dialog.Root>
+    <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
         <button
           className="flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1.5 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors sm:px-3"

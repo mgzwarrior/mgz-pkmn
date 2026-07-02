@@ -20,10 +20,11 @@ import { bulkLookup, completeOnboarding, listRuns, lookupLine, saveRun } from '.
 import { AnnouncementBanner } from './components/AnnouncementBanner'
 import { SaveSearchNameDialog } from './components/SaveSearchNameDialog'
 import { BrowsePanel } from './components/BrowsePanel'
+import { CommandPalette } from './components/CommandPalette'
 import { SwipePanel } from './components/SwipePanel'
 import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
-import { LibraryPanel } from './components/LibraryPanel'
+import { LibraryPanel, type LibraryTab } from './components/LibraryPanel'
 import { ResultsTable } from './components/ResultsTable'
 import { consumePendingSaveSearch, type PendingSaveSearch } from './components/pendingSaveSearch'
 import { ExportBar } from './components/ExportBar'
@@ -44,7 +45,7 @@ import type { BulkEvent } from './types'
 import logoLightUrl from '../../assets/logo.svg'
 import logoDarkUrl from '../../assets/logo-dark.svg'
 
-type DiscoveryMode = 'search' | 'browse' | 'swipe'
+export type DiscoveryMode = 'search' | 'browse' | 'swipe'
 
 // Ordered newcomer-first to match the Help modal (#792, #814): Swipe is the
 // lowest-friction way in, so it leads; text Search sits last. The Swipe icon
@@ -108,6 +109,24 @@ function App() {
   // The mobile "More" sheet holds the only Help trigger on a phone; keep it
   // controlled so we can close it before launching the tour behind it (#519).
   const [moreOpen, setMoreOpen] = useState(false)
+  // Desktop Settings/Help are normally self-contained (their own trigger
+  // button owns open state) — lifted here only so the command palette's
+  // "Open Settings"/"Open Help" can trigger them without a mouse (#525).
+  // The mobile "More" sheet's copies stay self-contained; the palette is a
+  // desktop-power-user surface.
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  // Which Backpack tab is showing, lifted for the same reason — the palette's
+  // "Open Collections"/"Open Wishlists" jump straight to the merged Binders
+  // tab (#525).
+  const [libraryTab, setLibraryTab] = useState<LibraryTab>('searches')
+  // Command-palette "Open Collections"/"Open Wishlists": expand the rail,
+  // land on Binders, and (on mobile) surface the Backpack destination.
+  const openLibrary = useCallback(() => {
+    setBackpackCollapsed(false)
+    setLibraryTab('binders')
+    selectMobileTab('backpack')
+  }, [selectMobileTab])
   // The discovery mode the user was in when they opened the tour, restored when
   // it closes — the tour switches modes as it walks through Swipe/Browse/Search.
   const preTourModeRef = useRef<DiscoveryMode>('swipe')
@@ -398,9 +417,9 @@ function App() {
               destinations move to the bottom tab bar, utility to the More sheet. */}
           <div className="hidden items-center gap-2 lg:flex">
             <InsightsNavButton />
-            <HelpModal onStartTour={startTour} />
+            <HelpModal onStartTour={startTour} open={helpOpen} onOpenChange={setHelpOpen} />
             <div data-tour="settings">
-              <SettingsDrawer />
+              <SettingsDrawer open={settingsOpen} onOpenChange={setSettingsOpen} />
             </div>
             <ThemeToggle />
             <SignInChip />
@@ -441,6 +460,8 @@ function App() {
               onShowSearch={() => setMode('search')}
               collapsed={backpackCollapsed}
               onCollapsedChange={setBackpackCollapsed}
+              activeTab={libraryTab}
+              onActiveTabChange={setLibraryTab}
             />
           </div>
           <div className="flex-1 min-w-0 space-y-6">
@@ -548,6 +569,8 @@ function App() {
                     setMode('search')
                     selectMobileTab('discover')
                   }}
+                  activeTab={libraryTab}
+                  onActiveTabChange={setLibraryTab}
                 />
               </div>
             )}
@@ -573,6 +596,14 @@ function App() {
         }}
       />
       <MobileTabBar active={mobileTab} onSelect={selectMobileTab} />
+
+      <CommandPalette
+        mode={mode}
+        onSetMode={setMode}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
+        onOpenLibrary={openLibrary}
+      />
 
       {tourOpen && (
         <Tour
