@@ -83,6 +83,17 @@ interface ScoredCommand {
   score: number
 }
 
+// Duck-typed rather than `instanceof Promise` so a thenable that isn't a
+// native Promise (unlikely here, but cheap to handle correctly) still gets
+// awaited instead of treated as a synchronous, already-finished command.
+function isThenable(value: unknown): value is PromiseLike<void> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === 'function'
+  )
+}
+
 export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, onOpenLibrary }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -103,6 +114,8 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'k') return
+      // Held-down key repeat would otherwise rapid-toggle open/closed.
+      if (e.repeat) return
       e.preventDefault()
       setOpen((was) => {
         if (was) {
@@ -281,11 +294,20 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
   const invoke = useCallback(
     (command: PaletteCommand) => {
       if (command.disabled || busyId) return
-      const result = command.run()
-      if (result instanceof Promise) {
+      let result: void | PromiseLike<void>
+      try {
+        result = command.run()
+      } catch (e) {
+        // A command callback throwing synchronously (a bug in one of the
+        // App-level handlers, say) shouldn't crash the palette — surface it
+        // the same way an async command's rejection does.
+        setAsyncError(e instanceof Error ? e.message : String(e))
+        return
+      }
+      if (isThenable(result)) {
         setBusyId(command.id)
         setAsyncError(null)
-        result
+        Promise.resolve(result)
           .then(() => {
             setRecentIds(recordRecentCommandId(command.id))
             close()

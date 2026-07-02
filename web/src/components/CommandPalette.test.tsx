@@ -137,6 +137,20 @@ describe('CommandPalette (#525)', () => {
 
     fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Ctrl+K is the Windows/Linux equivalent — openPalette() above only
+    // exercises metaKey, so cover ctrlKey here too.
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('ignores a held-down repeat of the shortcut instead of rapidly toggling open/closed', () => {
+    renderPalette()
+    fireEvent.keyDown(window, { key: 'k', metaKey: true })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'k', metaKey: true, repeat: true })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
   it('opens even while another input is focused — the shortcut requires the modifier, so it never collides with typing', () => {
@@ -301,6 +315,20 @@ describe('CommandPalette (#525)', () => {
     // Settings/Help have no user-scoped surface, so they stay available.
     expect(screen.getByRole('option', { name: 'Open Settings' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Open Help' })).toBeInTheDocument()
+  })
+
+  it('surfaces a synchronous throw from a command callback as an error instead of crashing', () => {
+    const onOpenSettings = vi.fn(() => {
+      throw new Error('boom')
+    })
+    renderPalette({ onOpenSettings })
+    openPalette()
+
+    fireEvent.click(screen.getByRole('option', { name: 'Open Settings' }))
+
+    expect(screen.getByText('boom')).toBeInTheDocument()
+    // Stays open on failure — same as an async command's rejection.
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
   it('filters commands by fuzzy label match as the query changes', async () => {

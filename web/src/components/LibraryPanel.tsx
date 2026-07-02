@@ -68,9 +68,16 @@ export function LibraryPanel({
   activeTab: activeTabProp,
   onActiveTabChange,
 }: Props) {
+  // Controlled only when `activeTab` itself is supplied — see
+  // SettingsDrawer's identical open/onOpenChange pair for why a bare `??`
+  // fallback strands tab switching if a caller passes just one of the two.
+  const isActiveTabControlled = activeTabProp !== undefined
   const [internalActiveTab, setInternalActiveTab] = useState<LibraryTab>('searches')
-  const activeTab = activeTabProp ?? internalActiveTab
-  const setActiveTab = onActiveTabChange ?? setInternalActiveTab
+  const activeTab = isActiveTabControlled ? activeTabProp : internalActiveTab
+  function setActiveTab(next: LibraryTab) {
+    if (!isActiveTabControlled) setInternalActiveTab(next)
+    onActiveTabChange?.(next)
+  }
   const [accordionOpen, setAccordionOpen] = useState(false)
 
   const runs = useAppStore((s) => s.runs)

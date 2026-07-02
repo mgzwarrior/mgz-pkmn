@@ -27,9 +27,18 @@ interface Props {
 
 export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp }: Props = {}) {
   const { settings, updateSettings, resetSettings } = useAppStore()
+  // Controlled only when `open` itself is supplied — a caller passing just
+  // one of the pair (e.g. `onOpenChange` alone) would otherwise strand the
+  // drawer: falling back open to `internalOpen` while routing writes to the
+  // caller's handler (which the caller may not feed back) never updates the
+  // value Dialog.Root actually reads. Always notify the caller either way.
+  const isControlled = openProp !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
-  const open = openProp ?? internalOpen
-  const setOpen = onOpenChangeProp ?? setInternalOpen
+  const open = isControlled ? openProp : internalOpen
+  function setOpen(next: boolean) {
+    if (!isControlled) setInternalOpen(next)
+    onOpenChangeProp?.(next)
+  }
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>

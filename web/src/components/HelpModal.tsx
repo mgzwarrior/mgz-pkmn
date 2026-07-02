@@ -89,9 +89,16 @@ interface Props {
 }
 
 export function HelpModal({ onStartTour, open: openProp, onOpenChange: onOpenChangeProp }: Props) {
+  // Controlled only when `open` itself is supplied — see SettingsDrawer's
+  // identical pair for why a bare `??` fallback strands the modal if a
+  // caller passes just one of the two props.
+  const isControlled = openProp !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
-  const open = openProp ?? internalOpen
-  const setOpenState = onOpenChangeProp ?? setInternalOpen
+  const open = isControlled ? openProp : internalOpen
+  function setOpenState(next: boolean) {
+    if (!isControlled) setInternalOpen(next)
+    onOpenChangeProp?.(next)
+  }
   const [hint, setHint] = useState(() => !readSeenHelp())
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
   const [releases, setReleases] = useState<ChangelogRelease[] | null>(null)
