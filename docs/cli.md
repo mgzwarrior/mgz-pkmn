@@ -62,6 +62,7 @@ boundary.
 | `--pdf PATH` | (none) | Also write a 3×3 binder-style PDF (9 cards/page) — image-forward, sized to print and slip into 9-pocket pages as physical placeholders. See [PDF binder](binder-pdf.md). |
 | `--condensed-pdf PATH` | (none) | Also write a denser binder PDF (6×4 grid, 24 cards/page) with the same caption block as `--pdf`. See [PDF binder](binder-pdf.md#condensed-binder). |
 | `--checklist PATH` | (none) | Also write a printable checklist PDF (one section per input file). See [Checklist PDF](checklist.md). |
+| `--writer NAME=PATH` | (none) | Also send the resolved rows to an installed writer plugin (repeatable), e.g. `--writer csv=cards.csv`. Writers come from packages registering a `mgz_pkmn.writers` entry point. See [Plugins](plugins.md). |
 | `--no-cache` | off | Skip the disk cache; force every lookup to hit the network and don't write back. Equivalent to exporting `MGZ_PKMN_NO_CACHE=1` for non-CLI callers (FastAPI service, library use). See [Cache → Environment variables](cache.md#environment-variables). |
 | `--clear-cache` | off | Wipe the API response cache before the run, then continue normally so fresh data is re-cached. URL overrides preserved. |
 | `--lang CODE` | (none) | Default TCGdex language for lines that don't name one. Per-line keywords (`japanese`, `chinese`, …) still take priority. See [Languages](languages.md). |
