@@ -18,11 +18,21 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'alpha', label: 'Card name (alphabetical)' },
 ]
 
-export function SettingsDrawer() {
+interface Props {
+  /** Lift open state to the parent (the command palette's "Open Settings",
+   *  #525). Omit for the usual self-contained trigger-button behavior. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp }: Props = {}) {
   const { settings, updateSettings, resetSettings } = useAppStore()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = openProp ?? internalOpen
+  const setOpen = onOpenChangeProp ?? setInternalOpen
 
   return (
-    <Dialog.Root>
+    <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
         <button
           className="flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1.5 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors sm:px-3"

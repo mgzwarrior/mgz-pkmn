@@ -26,7 +26,7 @@ import { LibrarySearchesTab } from './LibrarySearchesTab'
 import { LibraryRecentTab } from './LibraryRecentTab'
 import { LibraryBindersTab } from './LibraryBindersTab'
 
-type LibraryTab = 'searches' | 'recent' | 'binders'
+export type LibraryTab = 'searches' | 'recent' | 'binders'
 
 const ALL_TABS: { value: LibraryTab; label: string; icon: typeof Search }[] = [
   { value: 'searches', label: 'Searches', icon: Bookmark },
@@ -52,10 +52,25 @@ interface Props {
    *  Ignored by `variant="accordion"`, which has its own open/close state. */
   collapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
+  /** Lift the active tab to the parent (e.g. the command palette's "Open
+   *  Collections"/"Open Wishlists" jumping straight to Binders, #525).
+   *  Omit for the usual self-contained tab-click behavior. */
+  activeTab?: LibraryTab
+  onActiveTabChange?: (tab: LibraryTab) => void
 }
 
-export function LibraryPanel({ variant, onRun, onShowSearch, collapsed, onCollapsedChange }: Props) {
-  const [activeTab, setActiveTab] = useState<LibraryTab>('searches')
+export function LibraryPanel({
+  variant,
+  onRun,
+  onShowSearch,
+  collapsed,
+  onCollapsedChange,
+  activeTab: activeTabProp,
+  onActiveTabChange,
+}: Props) {
+  const [internalActiveTab, setInternalActiveTab] = useState<LibraryTab>('searches')
+  const activeTab = activeTabProp ?? internalActiveTab
+  const setActiveTab = onActiveTabChange ?? setInternalActiveTab
   const [accordionOpen, setAccordionOpen] = useState(false)
 
   const runs = useAppStore((s) => s.runs)

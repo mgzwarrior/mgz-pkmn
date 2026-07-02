@@ -82,10 +82,16 @@ function formatDate(iso: string | null): string {
 
 interface Props {
   onStartTour: () => void
+  /** Lift open state to the parent (the command palette's "Open Help",
+   *  #525). Omit for the usual self-contained trigger-button behavior. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function HelpModal({ onStartTour }: Props) {
-  const [open, setOpen] = useState(false)
+export function HelpModal({ onStartTour, open: openProp, onOpenChange: onOpenChangeProp }: Props) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = openProp ?? internalOpen
+  const setOpenState = onOpenChangeProp ?? setInternalOpen
   const [hint, setHint] = useState(() => !readSeenHelp())
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
   const [releases, setReleases] = useState<ChangelogRelease[] | null>(null)
@@ -133,7 +139,7 @@ export function HelpModal({ onStartTour }: Props) {
   }, [whatsNewOpen, latest, lastSeen, setLastSeen])
 
   function handleOpenChange(next: boolean) {
-    setOpen(next)
+    setOpenState(next)
     if (next && hint) {
       setHint(false)
       markSeenHelp()
@@ -147,7 +153,7 @@ export function HelpModal({ onStartTour }: Props) {
   }
 
   function handleTakeTour() {
-    setOpen(false)
+    setOpenState(false)
     onStartTour()
   }
 
@@ -414,6 +420,10 @@ export function HelpModal({ onStartTour }: Props) {
             <Section title="Shortcuts">
               <Definitions
                 rows={[
+                  [
+                    <Kbd key="palette">Ctrl/Cmd + K</Kbd>,
+                    'Open the command palette — jump to a saved search, switch mode, export, or open a panel',
+                  ],
                   [<Kbd key="run">Ctrl/Cmd + Enter</Kbd>, 'Run the lookup in Search mode'],
                   [
                     <span key="swipe" className="flex gap-1">
