@@ -76,6 +76,7 @@ function App() {
     setCacheStatus,
     resetViewState,
     setRuns,
+    editorCollapsed,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -426,8 +427,10 @@ function App() {
       {/* Main content. Extra bottom padding on mobile clears the fixed tab bar.
           No outer width cap (#524) — the results table wants the full
           workspace on a wide monitor, not a 1200px well. Sections that need a
-          reading-width cap own it themselves: the editor pane is a fixed
-          ~500px column (#522), the rail is fixed-width, Swipe's card caps at
+          reading-width cap own it themselves: the editor pane is a ~500px
+          column while expanded (#522), shrinking to fit its collapsed
+          one-line summary once a lookup finishes (#523) so results can
+          reclaim that width; the rail is fixed-width, Swipe's card caps at
           max-w-xs, and Browse's grids cap their column count per breakpoint. */}
       <main className="px-4 py-6 pb-24 lg:pb-6">
         <div className="flex gap-4">
@@ -483,7 +486,12 @@ function App() {
               // results takes the rest. Below the breakpoint this falls back
               // to the stacked column the narrower/mobile layout already used.
               <div className="flex flex-col gap-6 min-[1100px]:flex-row min-[1100px]:items-start">
-                <section data-tour="input" className="min-[1100px]:w-[500px] min-[1100px]:flex-shrink-0">
+                <section
+                  data-tour="input"
+                  className={`min-[1100px]:flex-shrink-0 ${
+                    editorCollapsed ? '' : 'min-[1100px]:w-[500px]'
+                  }`}
+                >
                   <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
                     Card list
                   </h2>

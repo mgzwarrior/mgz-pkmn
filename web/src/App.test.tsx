@@ -488,6 +488,30 @@ describe('App: discovery mode switcher', () => {
   })
 })
 
+describe('App: editor pane width follows collapse state (#524 follow-up)', () => {
+  beforeEach(() => {
+    resetStore()
+    _resetAuthStoreForTests()
+    mockBulkLookup.mockReset()
+  })
+
+  it('holds the editor pane to its ~500px column while expanded', () => {
+    renderInSearchMode()
+    const editorSection = screen.getByRole('textbox', { name: /Card list/i }).closest('section')
+    expect(editorSection?.className).toMatch(/min-\[1100px\]:w-\[500px\]/)
+  })
+
+  it('drops the fixed width once the editor collapses to its one-line summary, so results can reclaim the space', () => {
+    useAppStore.setState({
+      inputText: 'Charizard',
+      editorCollapsed: true,
+    })
+    renderInSearchMode()
+    const editorSection = screen.getByRole('button', { name: /card line/i }).closest('section')
+    expect(editorSection?.className).not.toMatch(/min-\[1100px\]:w-\[500px\]/)
+  })
+})
+
 describe('App: mobile bottom-tab nav (#519)', () => {
   beforeEach(() => {
     resetStore()
