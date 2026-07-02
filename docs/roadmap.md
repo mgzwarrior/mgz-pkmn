@@ -82,8 +82,9 @@ live demo), see <https://mgz-pkmn.com>.
   and the eBay / TCGPlayer pricing epics blocked on developer access —
   waits in the Backlog pool until it's promoted into one of those minors.
 - **The real V2 cut is gated on vendor interest.** A major bump happens
-  only when a genuinely breaking commitment lands — the entry-point
-  plugin surface that [ADR-0012](adr/0012-open-core-architecture.md)
+  only when a genuinely breaking commitment lands — the
+  [entry-point plugin surface](plugins.md) that
+  [ADR-0012](adr/0012-open-core-architecture.md)
   requires for `mgz-pkmn-vendor` to register `pkmn vendor <subcommand>`
   becoming a public API, or hosted-demo identity becoming *required*
   (anonymous lookups stop working on the demo). Both are tracked under
