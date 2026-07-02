@@ -139,6 +139,13 @@ class ResolveWriterSpecsTests(unittest.TestCase):
             resolved = plugins.resolve_writer_specs(("csv=out.csv",))
         self.assertEqual(resolved, [("csv", writer, Path("out.csv"))])
 
+    def test_path_expands_user_home(self) -> None:
+        eps = [FakeEntryPoint("csv", lambda rows, path: None)]
+        with _patch_group(plugins.WRITERS_GROUP, eps):
+            resolved = plugins.resolve_writer_specs(("csv=~/out.csv",))
+        self.assertEqual(resolved[0][2], Path("~/out.csv").expanduser())
+        self.assertNotIn("~", str(resolved[0][2]))
+
     def test_malformed_spec_raises(self) -> None:
         with _patch_group(plugins.WRITERS_GROUP, []), self.assertRaises(click.BadParameter) as ctx:
             plugins.resolve_writer_specs(("just-a-name",))
@@ -172,7 +179,15 @@ class RunPluginWriterTests(unittest.TestCase):
 
         with self.assertRaises(click.ClickException) as ctx:
             _run_plugin_writer("csv", bad, [self._row()], Path("out.csv"))
-        self.assertIn("disk full", str(ctx.exception.message))
+        self.assertIn("ValueError: disk full", str(ctx.exception.message))
+
+    def test_writer_failure_with_empty_message_still_names_the_type(self) -> None:
+        def bad(rows, path):
+            raise ValueError
+
+        with self.assertRaises(click.ClickException) as ctx:
+            _run_plugin_writer("csv", bad, [self._row()], Path("out.csv"))
+        self.assertIn("ValueError", str(ctx.exception.message))
 
 
 class LookupWriterOptionTests(unittest.TestCase):

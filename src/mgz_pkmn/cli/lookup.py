@@ -374,7 +374,8 @@ def _run_plugin_writer(name: str, write: plugins.Writer, rows: list[Row], path: 
         # Unlike a plugin that fails to *load* (warn and skip), a writer the
         # user named on the command line failing to produce its artifact is a
         # hard error.
-        raise click.ClickException(f"writer {name!r} failed: {exc}") from exc
+        detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        raise click.ClickException(f"writer {name!r} failed: {detail}") from exc
     click.secho("  ✓ ", fg="green", nl=False)
     click.echo(f"{path}  " + click.style(f"({name} writer)", fg="bright_black"))
 

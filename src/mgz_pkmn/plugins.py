@@ -26,16 +26,19 @@ from __future__ import annotations
 from collections.abc import Callable
 from importlib.metadata import EntryPoint, entry_points
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import click
+
+if TYPE_CHECKING:
+    from .spreadsheet import Row
 
 COMMANDS_GROUP = "mgz_pkmn.commands"
 WRITERS_GROUP = "mgz_pkmn.writers"
 SOURCES_GROUP = "mgz_pkmn.sources"
 
 # A writer receives the resolved rows and a destination path.
-Writer = Callable[[list, Path], Any]
+Writer = Callable[["list[Row]", Path], Any]
 
 
 def _iter_entry_points(group: str) -> list[EntryPoint]:
@@ -116,5 +119,5 @@ def resolve_writer_specs(specs: tuple[str, ...]) -> list[tuple[str, Writer, Path
             raise click.BadParameter(
                 f"unknown writer {name!r} (available: {available})", param_hint="'--writer'"
             )
-        resolved.append((name, writers[name], Path(raw_path)))
+        resolved.append((name, writers[name], Path(raw_path).expanduser()))
     return resolved
