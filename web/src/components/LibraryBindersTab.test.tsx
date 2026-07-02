@@ -250,6 +250,50 @@ describe('LibraryBindersTab', () => {
     expect(screen.getByDisplayValue('Trade binder')).toBeInTheDocument()
   })
 
+  it('wraps row content instead of overflowing on narrow viewports (#844)', async () => {
+    // A master-set binder stacks the most identity chips a row can carry
+    // (storage type + format + master-set) alongside a capacity-fill widget
+    // and four action icons — the exact combination that overflowed the
+    // 375px viewport before this fix, clipping the trailing delete icon
+    // off-canvas and squeezing badges into the capacity-fill column.
+    mockCollections.mockResolvedValue([
+      {
+        id: 2,
+        name: 'Charlotte show binder',
+        description: null,
+        created_at: '2026-06-12T00:00:00',
+        item_count: 0,
+        kind: 'binder',
+        source_set_id: null,
+        rule: null,
+        binder_color: 'ember',
+        binder_type: 'toploader',
+        binder_format: '9-pocket',
+        capacity: 360,
+        is_master_set: true,
+      },
+    ])
+    render(<LibraryBindersTab />)
+    await waitFor(() =>
+      expect(screen.getByText('Charlotte show binder')).toBeInTheDocument(),
+    )
+
+    // The row wraps its trailing action icons onto a new line instead of
+    // pushing them past the viewport edge.
+    const row = screen.getByText('Charlotte show binder').closest('li')!
+    expect(row).toHaveClass('flex-wrap')
+
+    // The flexible name button shrinks (rather than forcing its badge row
+    // to overflow into the capacity-fill widget beside it).
+    const nameButton = screen.getByText('Charlotte show binder').closest('button')!
+    expect(nameButton).toHaveClass('min-w-0')
+
+    // The badge/chip cluster (swatch, name, storage type, format, master
+    // set) wraps independently so it can't spill past its own box.
+    const badgeRow = screen.getByText('Charlotte show binder').parentElement!
+    expect(badgeRow).toHaveClass('flex-wrap')
+  })
+
   it('creates a dynamic collection from the smart-collection path in the binder modal', async () => {
     mockCreate.mockResolvedValue({
       id: 9,
