@@ -264,7 +264,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
     <section
       aria-label="Swipe mode"
       data-tour="swipe"
-      className="flex flex-col gap-4 rounded-lg border border-sand-300 bg-sand-50 px-5 py-5 dark:border-husk-50 dark:bg-husk-200"
+      className="flex flex-col gap-2 rounded-lg border border-sand-300 bg-sand-50 px-4 py-3 dark:border-husk-50 dark:bg-husk-200 sm:gap-4 sm:px-5 sm:py-5"
     >
       <SwipeHeader
         savedCount={profile.saved.length}
@@ -288,16 +288,24 @@ export function SwipePanel({ active }: SwipePanelProps) {
           signed-in user like the other user-scoped Swipe controls — an
           anonymous mount would otherwise read/write the default user's
           favorites. The taste profile below is browser-local, so it shows
-          for everyone. */}
-      {showSavedActions && <FavoriteSetsPanel />}
+          for everyone.
 
-      <SwipeProfilePanel />
+          Both are personalization aids, not required for the core swipe
+          loop, so `order-last` drops them below the card on mobile — two
+          extra collapsed strips were pushing the card and its pass/save
+          buttons well past the first screen (#845). `sm:contents` unwraps
+          this at the `sm` breakpoint and up so desktop keeps its original
+          interleaved order and spacing untouched. */}
+      <div className="order-last flex flex-col gap-3 sm:order-none sm:contents">
+        {showSavedActions && <FavoriteSetsPanel />}
+        <SwipeProfilePanel />
+      </div>
 
       {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
         <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
       )}
 
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-2 sm:gap-3">
         {error && (
           <p
             role="alert"
@@ -320,8 +328,11 @@ export function SwipePanel({ active }: SwipePanelProps) {
           // keeps its DOM node as it's promoted from peek to top — it
           // *rises* into place rather than the old node being reused and
           // sliding back in from off-screen. `pb-4` reserves room for the
-          // deepest peek, which is translated below the top card.
-          <div className="w-full max-w-xs pb-4">
+          // deepest peek, which is translated below the top card. A
+          // slightly narrower cap on mobile gives the card + its pass/save
+          // buttons enough headroom to land in the first viewport (#845) —
+          // still a prominent hero element, just not edge-to-edge.
+          <div className="w-full max-w-[260px] pb-4 sm:max-w-xs">
             <div className="relative">
               {[current, ...upcoming].slice(0, STACK_SIZE).map((cand, depth) =>
                 depth === 0 ? (
@@ -438,8 +449,15 @@ function SwipeHeader({
           <h2 className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
             Swipe
           </h2>
-          <p className="text-xs text-coconut-400 dark:text-sand-300">
+          {/* Shorter on mobile — the full sentence wraps to four lines at
+              narrow widths, pushing the card itself well below the fold. The
+              swipe-up gesture (save) still isn't obvious from the button row
+              alone, so mobile keeps the directions, just not the preamble. */}
+          <p className="hidden text-xs text-coconut-400 dark:text-sand-300 sm:block">
             One card at a time — right to save, left to pass, up for more like this.
+          </p>
+          <p className="text-xs text-coconut-400 dark:text-sand-300 sm:hidden">
+            Right to save, left to pass, up for more like this.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
