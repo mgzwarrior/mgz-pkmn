@@ -12,6 +12,7 @@
 - [PDF binder](binder-pdf)
 - [Checklist PDF](checklist)
 - [Cache](cache)
+- [Plugins](plugins)
 - [Accessibility](accessibility)
 - [Deployment](deployment)
 

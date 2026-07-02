@@ -16,6 +16,7 @@ point — start there, then drill into a topic below.
 | [PDF binder](binder-pdf.md) | Standard 3×3 (placeholder cards) and condensed 6×4 (visual scan) layouts. |
 | [Checklist PDF](checklist.md) | Front-of-binder checklist output and how `--sort` shapes its order. |
 | [Cache](cache.md) | Disk cache layout, TTLs, URL overrides, and when to use `--no-cache` / `--clear-cache`. |
+| [Plugins](plugins.md) | Entry-point groups for third-party subcommands and output writers, with a minimal example package. |
 | [Accessibility](accessibility.md) | What we commit to, how we enforce it (axe-core in CI + live-browser scan), keyboard reference, and how to add new UI without regressing. |
 | [Deployment](deployment.md) | Production recipes: Render, Docker, env vars, reverse-proxy config. |
 
