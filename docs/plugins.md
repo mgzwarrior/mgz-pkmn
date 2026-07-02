@@ -10,6 +10,10 @@ The `pkmn` CLI has a deliberate plugin surface: separately installed packages ca
 | `mgz_pkmn.writers` | a callable `write(rows, path)` | Receives the resolved lookup rows (`list[mgz_pkmn.spreadsheet.Row]`) and a destination `Path`. Invoked with `pkmn lookup --writer NAME=PATH`. |
 | `mgz_pkmn.sources` | *(reserved)* | Lookup-source adapters. Discovery works (`mgz_pkmn.plugins.load_sources()`), but the lookup pipeline doesn't consume plugin sources yet — the wiring into the source ensemble ([ADR-0023](adr/0023-source-ensemble-pricing.md)) is tracked separately. |
 
+## Security model
+
+A plugin is a Python package you install, and it runs with your full privileges — the same trust decision as any other dependency. There is deliberately no approval list or vetting gate: an installed package can run arbitrary code with or without registering an entry point, so a gate here would add friction without adding safety. Install plugins only from authors you trust, exactly as you would any package from PyPI. What the CLI does guarantee is core integrity: a plugin that fails to load can't take `pkmn` down, and a plugin can never shadow a built-in command (see failure semantics below). Plugin discovery runs only in the CLI — the API service never loads plugins.
+
 ## Failure semantics
 
 A broken plugin must never take the core CLI down. A plugin that fails to import, loads to the wrong type, or collides with an existing command name is skipped with a warning on stderr — built-ins always win a collision. The one deliberate exception: a writer you named on the command line (`--writer csv=out.csv`) failing to *write* is a hard error, because you asked for that artifact. Writer specs are also resolved before any lookups run, so a typo'd name fails fast instead of after a long network run.
