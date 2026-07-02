@@ -79,6 +79,7 @@ def cli(ctx: click.Context) -> None:
 # (not at module top) so each submodule can import names back from this
 # package — e.g. `from .cli import cli` from a test helper — without
 # circular-import pain.
+from .. import plugins as _plugins  # noqa: E402
 from . import cache as _cache_module  # noqa: E402
 from . import lookup as _lookup_module  # noqa: E402
 from . import set_cards as _set_cards_module  # noqa: E402
@@ -86,6 +87,10 @@ from . import set_cards as _set_cards_module  # noqa: E402
 _lookup_module.register(cli)
 _set_cards_module.register(cli)
 _cache_module.register(cli)
+
+# Plugin commands mount last so built-ins win any name collision
+# (docs/plugins.md, ADR-0012).
+_plugins.register_plugin_commands(cli)
 
 
 __all__ = [
