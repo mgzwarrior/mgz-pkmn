@@ -18,10 +18,11 @@ export function SetIdCardsButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
+        aria-label="Set ID cards"
         className="inline-flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1 text-xs text-coconut-600 dark:text-sand-200 hover:bg-sand-50 dark:hover:bg-husk-200"
       >
         <Tags size={14} />
-        Set ID cards…
+        <span className="hidden sm:inline">Set ID cards…</span>
       </button>
       <SetPickerModal open={open} onOpenChange={setOpen} />
     </>
