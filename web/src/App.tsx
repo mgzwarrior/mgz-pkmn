@@ -507,9 +507,13 @@ function App() {
               // results takes the rest. Below the breakpoint this falls back
               // to the stacked column the narrower/mobile layout already used.
               <div className="flex flex-col gap-6 min-[1100px]:flex-row min-[1100px]:items-start">
+                {/* Sticky beside a long results scroll (#527) so the Look
+                    up / Clear controls stay reachable — same top offset as
+                    the Backpack rail. Capped + scrollable so an editor
+                    taller than the viewport can still reach its bottom. */}
                 <section
                   data-tour="input"
-                  className={`min-[1100px]:flex-shrink-0 ${
+                  className={`min-[1100px]:sticky min-[1100px]:top-20 min-[1100px]:max-h-[calc(100vh-6rem)] min-[1100px]:flex-shrink-0 min-[1100px]:overflow-y-auto ${
                     editorCollapsed ? '' : 'min-[1100px]:w-[500px]'
                   }`}
                 >
