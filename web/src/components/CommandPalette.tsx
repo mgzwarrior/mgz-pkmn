@@ -140,20 +140,31 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
   }, [open, auth.loading, auth.authEnabled, auth.user, setRuns])
 
   const matchedRowCount = useMemo(() => rows.filter((r) => r.matched).length, [rows])
+  const isRunning = useAppStore((s) => s.isRunning)
 
   const commands = useMemo<PaletteCommand[]>(() => {
     const list: PaletteCommand[] = []
 
-    for (const run of runs) {
-      const label = run.name ?? `Run #${run.id}`
-      list.push({
-        id: `jump:${run.id}`,
-        group: 'Jump to a saved search',
-        label,
-        hint: `${run.row_count} card${run.row_count === 1 ? '' : 's'}`,
-        icon: Bookmark,
-        run: () => loadSavedRun(run, () => onSetMode('search')),
-      })
+    // `runs` stays cached in the store across sign-out (only `auth.user`
+    // clears) — mirror LibrarySearchesTab's own gate so the palette can't
+    // leak a previous or different signed-in user's saved-search names.
+    const showSavedSearches = !(auth.authEnabled && auth.user === null)
+    if (showSavedSearches) {
+      for (const run of runs) {
+        const label = run.name ?? `Run #${run.id}`
+        list.push({
+          id: `jump:${run.id}`,
+          group: 'Jump to a saved search',
+          label,
+          hint: `${run.row_count} card${run.row_count === 1 ? '' : 's'}`,
+          icon: Bookmark,
+          // Same guard the Backpack's own saved-search rows apply — loading
+          // one mid-stream would clobber the in-flight run's rows out from
+          // under the SSE handler still appending to them.
+          disabled: isRunning,
+          run: () => loadSavedRun(run, () => onSetMode('search')),
+        })
+      }
     }
 
     for (const opt of MODE_OPTIONS) {
@@ -193,7 +204,20 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
     )
 
     return list
-  }, [runs, mode, onSetMode, matchedRowCount, rows, settings, onOpenSettings, onOpenHelp, onOpenLibrary])
+  }, [
+    runs,
+    auth.authEnabled,
+    auth.user,
+    isRunning,
+    mode,
+    onSetMode,
+    matchedRowCount,
+    rows,
+    settings,
+    onOpenSettings,
+    onOpenHelp,
+    onOpenLibrary,
+  ])
 
   const filtered = useMemo<ScoredCommand[]>(() => {
     const q = query.trim()

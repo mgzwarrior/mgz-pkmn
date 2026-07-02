@@ -168,11 +168,32 @@ describe('CommandPalette (#525)', () => {
     renderPalette({ onSetMode })
     openPalette()
 
+    await waitFor(() => screen.getByRole('option', { name: /My Charizards/ }))
     fireEvent.click(screen.getByRole('option', { name: /My Charizards/ }))
 
     await waitFor(() => expect(useAppStore.getState().inputText).toBe('Charizard'))
     expect(onSetMode).toHaveBeenCalledWith('search')
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('hides saved-search commands when signed out, even if runs are cached from a previous session', async () => {
+    vi.spyOn(client, 'fetchMe').mockResolvedValue({ user: null, authEnabled: true })
+    useAppStore.setState({ runs: [makeRun(1, { name: 'Stale Search' })] })
+    renderPalette()
+    openPalette()
+
+    expect(screen.queryByText(/Stale Search/)).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Browse$/ })).toBeInTheDocument()
+  })
+
+  it('disables jump-to-search commands while a lookup is running, matching the Backpack list', async () => {
+    useAppStore.setState({ runs: [makeRun(1, { name: 'My Charizards' })], isRunning: true })
+    renderPalette()
+    openPalette()
+
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /My Charizards/ })).toBeDisabled(),
+    )
   })
 
   it('disables export commands with no matched rows, and runs an export with the matched rows once there are some', async () => {
