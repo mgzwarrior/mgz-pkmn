@@ -206,7 +206,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
       data-tour="browse"
       className="flex flex-col overflow-hidden rounded-lg border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200 shadow-sm"
     >
-      <header className="flex items-center justify-between gap-3 border-b border-sand-200 dark:border-husk-100 px-5 py-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-sand-200 dark:border-husk-100 px-5 py-4">
         <div className="flex min-w-0 items-center gap-2">
           {drilledIn && (
             <button
@@ -231,7 +231,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             </span>
           )}
         </div>
-        <div className="flex flex-none items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {viewMode === 'pokedex' && activePokemon && showSavedActions && (
             <FavoriteToggle
               favorited={isFavorite(activePokemon.number)}
