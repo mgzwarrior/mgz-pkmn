@@ -185,7 +185,10 @@ describe('CommandPalette (#525)', () => {
   })
 
   it('lists saved searches under "Jump to a saved search" and loads one on select', async () => {
-    useAppStore.setState({ runs: [makeRun(1, { name: 'My Charizards' })] })
+    vi.spyOn(client, 'listRuns').mockResolvedValueOnce({
+      items: [makeRun(1, { name: 'My Charizards' })],
+      total: 1,
+    })
     vi.spyOn(client, 'getRun').mockResolvedValue(makeDetail(1))
     const onSetMode = vi.fn()
     renderPalette({ onSetMode })
@@ -200,10 +203,13 @@ describe('CommandPalette (#525)', () => {
   })
 
   it('refetches saved searches when a different user signs in without a page reload, instead of leaking the previous user\'s list', async () => {
-    useAppStore.setState({ runs: [makeRun(1, { name: "A's search" })] })
+    vi.spyOn(client, 'listRuns').mockResolvedValueOnce({
+      items: [makeRun(1, { name: "A's search" })],
+      total: 1,
+    })
     renderPalette()
     openPalette()
-    await waitFor(() => expect(client.fetchMe).toHaveBeenCalledTimes(1))
+    await waitFor(() => screen.getByRole('option', { name: /A's search/ }))
     fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' })
 
     // A different user signs in — no unmount, no page reload — the shared
@@ -239,7 +245,11 @@ describe('CommandPalette (#525)', () => {
   })
 
   it('disables jump-to-search commands while a lookup is running, matching the Backpack list', async () => {
-    useAppStore.setState({ runs: [makeRun(1, { name: 'My Charizards' })], isRunning: true })
+    vi.spyOn(client, 'listRuns').mockResolvedValueOnce({
+      items: [makeRun(1, { name: 'My Charizards' })],
+      total: 1,
+    })
+    useAppStore.setState({ isRunning: true })
     renderPalette()
     openPalette()
 

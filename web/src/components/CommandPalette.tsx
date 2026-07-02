@@ -133,23 +133,20 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
   // own fetch, but a keyboard-only session may never have expanded it — and
   // that sidebar fetch is the only thing that currently refreshes `runs` on
   // a user switch, so a mouse-free session would otherwise keep showing the
-  // previous user's cached list forever. `runs` isn't persisted across page
-  // loads (see store's `partialize`), so the only way it's already
-  // populated the first time this component observes a resolved identity is
-  // the sidebar having correctly fetched it for that same identity — trust
-  // that once, then track whose it is so a later switch (without a reload)
-  // is caught by re-fetching instead of leaking the previous user's list.
+  // previous user's cached list forever. `runs` carries no marker of which
+  // identity it was fetched for, and a user switch can happen without the
+  // palette ever having been open in between, so a pre-populated list can't
+  // be trusted just because it's non-empty — fetch fresh the first time
+  // this component observes each resolved identity (tracked in a ref) and
+  // whenever it changes, accepting a redundant request on a session where
+  // the sidebar already fetched correctly as the cost of never leaking one
+  // user's saved-search names to another.
   const fetchedForUserRef = useRef<string | null>(null)
   useEffect(() => {
     if (!open) return
     if (auth.loading || (auth.authEnabled && auth.user === null)) return
     const userKey = String(auth.user?.id ?? 'self-host')
-    const alreadyPopulated = useAppStore.getState().runs.length > 0
-    if (fetchedForUserRef.current === null && alreadyPopulated) {
-      fetchedForUserRef.current = userKey
-      return
-    }
-    if (alreadyPopulated && fetchedForUserRef.current === userKey) return
+    if (fetchedForUserRef.current === userKey) return
     let cancelled = false
     void listRuns(50)
       .then(({ items }) => {
