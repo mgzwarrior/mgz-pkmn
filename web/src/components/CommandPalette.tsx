@@ -117,17 +117,32 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
   }, [])
 
   // Saved searches normally load into the store via the Backpack sidebar's
-  // own fetch, but a keyboard-only session may never have expanded it.
-  // Fetch once on first open if nothing's there yet, so "Jump to a saved
-  // search" isn't empty for a visitor who never touched the mouse.
+  // own fetch, but a keyboard-only session may never have expanded it — and
+  // that sidebar fetch is the only thing that currently refreshes `runs` on
+  // a user switch, so a mouse-free session would otherwise keep showing the
+  // previous user's cached list forever. `runs` isn't persisted across page
+  // loads (see store's `partialize`), so the only way it's already
+  // populated the first time this component observes a resolved identity is
+  // the sidebar having correctly fetched it for that same identity — trust
+  // that once, then track whose it is so a later switch (without a reload)
+  // is caught by re-fetching instead of leaking the previous user's list.
+  const fetchedForUserRef = useRef<string | null>(null)
   useEffect(() => {
     if (!open) return
     if (auth.loading || (auth.authEnabled && auth.user === null)) return
-    if (useAppStore.getState().runs.length > 0) return
+    const userKey = String(auth.user?.id ?? 'self-host')
+    const alreadyPopulated = useAppStore.getState().runs.length > 0
+    if (fetchedForUserRef.current === null && alreadyPopulated) {
+      fetchedForUserRef.current = userKey
+      return
+    }
+    if (alreadyPopulated && fetchedForUserRef.current === userKey) return
     let cancelled = false
     void listRuns(50)
       .then(({ items }) => {
-        if (!cancelled) setRuns(items)
+        if (cancelled) return
+        setRuns(items)
+        fetchedForUserRef.current = userKey
       })
       .catch(() => {
         // Best-effort — Jump-to-search just shows nothing if this fails;
@@ -145,11 +160,13 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
   const commands = useMemo<PaletteCommand[]>(() => {
     const list: PaletteCommand[] = []
 
-    // `runs` stays cached in the store across sign-out (only `auth.user`
-    // clears) — mirror LibrarySearchesTab's own gate so the palette can't
-    // leak a previous or different signed-in user's saved-search names.
-    const showSavedSearches = !(auth.authEnabled && auth.user === null)
-    if (showSavedSearches) {
+    // Signed-out on an auth-enabled deploy has no identified user — same
+    // gate LibrarySearchesTab and LibraryPanel's Binders tab already apply.
+    // `runs` also stays cached in the store across sign-out (only
+    // `auth.user` clears), so this doubles as the leak guard for a
+    // previous or different signed-in user's saved-search names.
+    const showUserScoped = !(auth.authEnabled && auth.user === null)
+    if (showUserScoped) {
       for (const run of runs) {
         const label = run.name ?? `Run #${run.id}`
         list.push({
@@ -199,9 +216,16 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
     list.push(
       { id: 'open:settings', group: 'Open', label: 'Open Settings', icon: SettingsIcon, run: onOpenSettings },
       { id: 'open:help', group: 'Open', label: 'Open Help', icon: CircleHelp, run: onOpenHelp },
-      { id: 'open:collections', group: 'Open', label: 'Open Collections', icon: Library, run: onOpenLibrary },
-      { id: 'open:wishlists', group: 'Open', label: 'Open Wishlists', icon: Heart, run: onOpenLibrary },
     )
+    // Signed-out on an auth-enabled deploy has no Binders tab to land on
+    // (LibraryPanel filters it out of the tab list) — offering these would
+    // advertise an action that can't reach the surface it names.
+    if (showUserScoped) {
+      list.push(
+        { id: 'open:collections', group: 'Open', label: 'Open Collections', icon: Library, run: onOpenLibrary },
+        { id: 'open:wishlists', group: 'Open', label: 'Open Wishlists', icon: Heart, run: onOpenLibrary },
+      )
+    }
 
     return list
   }, [

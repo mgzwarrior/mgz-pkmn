@@ -5,10 +5,10 @@
  * recent-commands-first ordering.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react'
 import { CommandPalette } from './CommandPalette'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
-import { _resetAuthStoreForTests } from '../hooks/useAuth'
+import { _resetAuthStoreForTests, useAuth } from '../hooks/useAuth'
 import * as client from '../api/client'
 import type { RunDetail, RunRowDetail, RunSummary, SavedViewState } from '../types'
 
@@ -102,6 +102,15 @@ function openPalette() {
   fireEvent.keyDown(window, { key: 'k', metaKey: true })
 }
 
+// Mounting this anywhere kicks a fresh `refresh()` cycle on the shared
+// `useAuth` store, simulating a different user signing in without a page
+// reload — every already-mounted `useAuth()` consumer (including a
+// still-mounted CommandPalette) reactively picks up the new `user`.
+function AuthPulse() {
+  useAuth()
+  return null
+}
+
 describe('CommandPalette (#525)', () => {
   beforeEach(() => {
     resetStore()
@@ -176,6 +185,35 @@ describe('CommandPalette (#525)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('refetches saved searches when a different user signs in without a page reload, instead of leaking the previous user\'s list', async () => {
+    useAppStore.setState({ runs: [makeRun(1, { name: "A's search" })] })
+    renderPalette()
+    openPalette()
+    await waitFor(() => expect(client.fetchMe).toHaveBeenCalledTimes(1))
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' })
+
+    // A different user signs in — no unmount, no page reload — the shared
+    // auth store just resolves a new identity, same as an in-page OAuth
+    // redirect landing back on `/`.
+    vi.spyOn(client, 'fetchMe').mockResolvedValue({
+      user: { id: 42, email: 'b@example.com', display_name: 'B' },
+      authEnabled: true,
+    })
+    vi.spyOn(client, 'listRuns').mockResolvedValueOnce({
+      items: [makeRun(2, { name: "B's search" })],
+      total: 1,
+    })
+    act(() => {
+      _resetAuthStoreForTests()
+    })
+    render(<AuthPulse />)
+    await waitFor(() => expect(client.fetchMe).toHaveBeenCalledTimes(2))
+
+    openPalette()
+    await waitFor(() => screen.getByRole('option', { name: /B's search/ }))
+    expect(screen.queryByText(/A's search/)).not.toBeInTheDocument()
+  })
+
   it('hides saved-search commands when signed out, even if runs are cached from a previous session', async () => {
     vi.spyOn(client, 'fetchMe').mockResolvedValue({ user: null, authEnabled: true })
     useAppStore.setState({ runs: [makeRun(1, { name: 'Stale Search' })] })
@@ -228,7 +266,7 @@ describe('CommandPalette (#525)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('invokes the Open callbacks for Settings, Help, and Collections/Wishlists', () => {
+  it('invokes the Open callbacks for Settings, Help, and Collections/Wishlists', async () => {
     const onOpenSettings = vi.fn()
     const onOpenHelp = vi.fn()
     const onOpenLibrary = vi.fn()
@@ -244,15 +282,31 @@ describe('CommandPalette (#525)', () => {
     expect(onOpenHelp).toHaveBeenCalledTimes(1)
 
     openPalette()
+    await waitFor(() => screen.getByRole('option', { name: 'Open Collections' }))
     fireEvent.click(screen.getByRole('option', { name: 'Open Collections' }))
     openPalette()
     fireEvent.click(screen.getByRole('option', { name: 'Open Wishlists' }))
     expect(onOpenLibrary).toHaveBeenCalledTimes(2)
   })
 
-  it('filters commands by fuzzy label match as the query changes', () => {
+  it('hides "Open Collections"/"Open Wishlists" when signed out on an auth-enabled deploy, matching the Backpack Binders tab', async () => {
+    vi.spyOn(client, 'fetchMe').mockResolvedValue({ user: null, authEnabled: true })
     renderPalette()
     openPalette()
+
+    await waitFor(() =>
+      expect(screen.queryByRole('option', { name: 'Open Collections' })).not.toBeInTheDocument(),
+    )
+    expect(screen.queryByRole('option', { name: 'Open Wishlists' })).not.toBeInTheDocument()
+    // Settings/Help have no user-scoped surface, so they stay available.
+    expect(screen.getByRole('option', { name: 'Open Settings' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Open Help' })).toBeInTheDocument()
+  })
+
+  it('filters commands by fuzzy label match as the query changes', async () => {
+    renderPalette()
+    openPalette()
+    await waitFor(() => screen.getByRole('option', { name: 'Open Wishlists' }))
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'wsh' } })
     expect(screen.getByRole('option', { name: 'Open Wishlists' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Open Settings' })).not.toBeInTheDocument()
