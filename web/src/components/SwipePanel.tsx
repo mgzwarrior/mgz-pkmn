@@ -65,6 +65,32 @@ const PREP_LIST_NUDGE_THRESHOLD = 3
  *  the multiplier cap, without zeroing out the rest of the catalog. */
 const FAVORITE_SET_BONUS = 12
 
+/** Matches Tailwind's `sm` breakpoint (640px) — below it, the personalization
+ *  panels move below the card in the actual DOM, not just visually. */
+const MOBILE_QUERY = '(max-width: 639px)'
+
+/** Tracks the `sm` breakpoint so the personalization panels can move in the
+ *  DOM (not just visually) on mobile — CSS `order` alone reorders paint but
+ *  leaves tab/reading order unchanged, which would land keyboard and
+ *  screen-reader focus on Favorite sets / Your taste before the now-visible
+ *  card (#845 review). Mirrors `useIsMobileViewport` in ResultsTable.tsx. */
+function useIsMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false
+    return window.matchMedia(MOBILE_QUERY).matches
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia(MOBILE_QUERY)
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  return isMobile
+}
+
 interface Drag {
   startX: number
   startY: number
@@ -84,6 +110,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
   const { settings, updateSettings } = useAppStore()
   const { user } = useAuth()
   const showSavedActions = user !== null
+  const isMobile = useIsMobileViewport()
   // Favorite sets feed the candidate weighting; gate the fetch on a signed-in
   // user (they're per-user) so a signed-out deck isn't biased by — and doesn't
   // hit the endpoint as — the default user.
@@ -260,6 +287,26 @@ export function SwipePanel({ active }: SwipePanelProps) {
     [commit],
   )
 
+  // Favorite sets are durable + per-user, so gate the panel on a signed-in
+  // user like the other user-scoped Swipe controls — an anonymous mount
+  // would otherwise read/write the default user's favorites. The taste
+  // profile below is browser-local, so it shows for everyone.
+  //
+  // Both are personalization aids, not required for the core swipe loop, so
+  // they move below the card on mobile — two extra collapsed strips were
+  // pushing the card and its pass/save buttons well past the first screen
+  // (#845). This has to be an actual DOM move (rendered in one spot or the
+  // other via `isMobile`), not a CSS `order` reorder: `order` only changes
+  // paint position, so keyboard tab order and screen-reader reading order
+  // would still hit these before the now-visually-later card (review
+  // feedback on the first pass at this fix).
+  const personalizationPanels = (
+    <div className="flex flex-col gap-3 sm:gap-4">
+      {showSavedActions && <FavoriteSetsPanel />}
+      <SwipeProfilePanel />
+    </div>
+  )
+
   return (
     <section
       aria-label="Swipe mode"
@@ -284,22 +331,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
         }
       />
 
-      {/* Favorite sets are durable + per-user, so gate the panel on a
-          signed-in user like the other user-scoped Swipe controls — an
-          anonymous mount would otherwise read/write the default user's
-          favorites. The taste profile below is browser-local, so it shows
-          for everyone.
-
-          Both are personalization aids, not required for the core swipe
-          loop, so `order-last` drops them below the card on mobile — two
-          extra collapsed strips were pushing the card and its pass/save
-          buttons well past the first screen (#845). `sm:contents` unwraps
-          this at the `sm` breakpoint and up so desktop keeps its original
-          interleaved order and spacing untouched. */}
-      <div className="order-last flex flex-col gap-3 sm:order-none sm:contents">
-        {showSavedActions && <FavoriteSetsPanel />}
-        <SwipeProfilePanel />
-      </div>
+      {!isMobile && personalizationPanels}
 
       {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
         <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
@@ -403,6 +435,8 @@ export function SwipePanel({ active }: SwipePanelProps) {
         <KeyboardHint />
       </div>
 
+      {isMobile && personalizationPanels}
+
       <CardDetailModal
         rows={detailRows}
         index={detailOpen && current ? 0 : null}
@@ -451,8 +485,9 @@ function SwipeHeader({
           </h2>
           {/* Shorter on mobile — the full sentence wraps to four lines at
               narrow widths, pushing the card itself well below the fold. The
-              swipe-up gesture (save) still isn't obvious from the button row
-              alone, so mobile keeps the directions, just not the preamble. */}
+              swipe-up gesture (more like this / love) still isn't obvious
+              from the button row alone, so mobile keeps the directions,
+              just not the preamble. */}
           <p className="hidden text-xs text-coconut-400 dark:text-sand-300 sm:block">
             One card at a time — right to save, left to pass, up for more like this.
           </p>
