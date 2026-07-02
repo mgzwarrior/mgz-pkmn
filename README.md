@@ -154,6 +154,7 @@ push to `main`.
 | Standard 3×3 + condensed 6×4 layouts | [PDF binder](docs/binder-pdf.md) |
 | Front-of-binder set checklist | [Checklist PDF](docs/checklist.md) |
 | Disk cache + URL overrides | [Cache](docs/cache.md) |
+| Extending `pkmn` with plugin subcommands + writers | [Plugins](docs/plugins.md) |
 | Render / Docker / production recipe | [Deployment](docs/deployment.md) |
 | Marketing site (Astro + Tailwind, Cloudflare Pages) | [site/README.md](site/README.md) |
 | Design system, tokens, and styleguide | [Design system](design/DESIGN_SYSTEM.md) · hosted at <https://styleguide.mgz-pkmn.com> |

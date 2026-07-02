@@ -11,7 +11,7 @@ from pathlib import Path
 import click
 import requests
 
-from .. import __version__
+from .. import __version__, plugins
 from .. import cache as disk_cache
 from ..binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from ..checklist import write_checklist_pdf
@@ -334,6 +334,7 @@ def _write_lookup_artifacts(
     overall_elapsed: float,
     deduped_rows: int,
     sort_mode: str,
+    plugin_writers: list[tuple[str, plugins.Writer, Path]],
 ) -> None:
     _print_section("Writing outputs")
     write_spreadsheet(rows, output, max_price=max_price)
@@ -362,6 +363,21 @@ def _write_lookup_artifacts(
             deduped_rows=deduped_rows,
             sort_mode=sort_mode,
         )
+    for name, write, writer_path in plugin_writers:
+        _run_plugin_writer(name, write, rows, writer_path)
+
+
+def _run_plugin_writer(name: str, write: plugins.Writer, rows: list[Row], path: Path) -> None:
+    try:
+        write(rows, path)
+    except Exception as exc:
+        # Unlike a plugin that fails to *load* (warn and skip), a writer the
+        # user named on the command line failing to produce its artifact is a
+        # hard error.
+        detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        raise click.ClickException(f"writer {name!r} failed: {detail}") from exc
+    click.secho("  ✓ ", fg="green", nl=False)
+    click.echo(f"{path}  " + click.style(f"({name} writer)", fg="bright_black"))
 
 
 def _write_binder(
@@ -489,6 +505,17 @@ def register(cli: click.Group) -> None:
         help="Also write a 3x3 binder-style PDF for vendor scanning.",
     )
     @click.option(
+        "--writer",
+        "writer_specs",
+        multiple=True,
+        metavar="NAME=PATH",
+        help=(
+            "Also send the resolved rows to an installed writer plugin, e.g. "
+            "--writer csv=cards.csv. Repeatable. Writers come from packages "
+            "registering a `mgz_pkmn.writers` entry point; see docs/plugins.md."
+        ),
+    )
+    @click.option(
         "--condensed-pdf",
         "condensed_pdf_path",
         type=click.Path(dir_okay=False, writable=True, path_type=Path),
@@ -587,6 +614,7 @@ def register(cli: click.Group) -> None:
         dedupe: bool,
         report_json: Path | None,
         pdf: Path | None,
+        writer_specs: tuple[str, ...],
         condensed_pdf_path: Path | None,
         checklist_path: Path | None,
         no_cache: bool,
@@ -608,6 +636,9 @@ def register(cli: click.Group) -> None:
         """
         if no_cache:
             os.environ["MGZ_PKMN_NO_CACHE"] = "1"
+        # Resolve writer plugins before any lookups run so a typo'd
+        # --writer fails fast instead of after a long network run.
+        plugin_writers = plugins.resolve_writer_specs(writer_specs)
         _print_banner(__version__)
         _warn_if_cache_large()
         disk_cache.reset_api_counters()
@@ -732,6 +763,7 @@ def register(cli: click.Group) -> None:
                 overall_elapsed=overall_elapsed,
                 deduped_rows=deduped_rows,
                 sort_mode=sort_mode,
+                plugin_writers=plugin_writers,
             )
 
         missing = sum(1 for r in rows if r.card is None)
