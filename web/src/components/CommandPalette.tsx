@@ -164,7 +164,14 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
     }
   }, [open, auth.loading, auth.authEnabled, auth.user, setRuns])
 
-  const matchedRowCount = useMemo(() => rows.filter((r) => r.matched).length, [rows])
+  // `rows` updates frequently while a bulk lookup streams in, and this
+  // component stays mounted (and subscribed) whether or not the palette is
+  // open — skip the filter() pass entirely while closed, since the export
+  // commands' disabled state it feeds isn't visible anyway.
+  const matchedRowCount = useMemo(
+    () => (open ? rows.filter((r) => r.matched).length : 0),
+    [open, rows],
+  )
   const isRunning = useAppStore((s) => s.isRunning)
 
   const commands = useMemo<PaletteCommand[]>(() => {
