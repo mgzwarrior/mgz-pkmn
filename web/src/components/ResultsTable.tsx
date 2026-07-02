@@ -17,7 +17,7 @@
  * from the inline header row into a bottom sheet opened from a sticky
  * "Filters" trigger, since there's no table to attach an inline row to.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   ArrowDown,
@@ -40,6 +40,7 @@ import { CardDetailModal } from './CardDetailModal'
 import { ResultCard } from './ResultCard'
 import { ResultsEmptyState } from './ResultsEmptyState'
 import { useCardOwnership } from './useCardOwnership'
+import { useIsMobileViewport } from './useIsMobileViewport'
 import { OwnershipBadge } from './OwnershipBadge'
 import type { CardOwnership } from '../api/client'
 import { EbaySparkline } from './EbaySparkline'
@@ -60,29 +61,6 @@ const SORT_COLUMNS: { value: SortColumn; label: string }[] = [
   { value: 'market', label: 'Market' },
   { value: 'source', label: 'Source' },
 ]
-
-// Mirrors the app shell's `lg` mobile/desktop split (App.tsx's sidebar,
-// bottom tab bar, etc. all gate on the same breakpoint). Real conditional
-// rendering rather than a CSS `hidden`/`lg:hidden` pair — otherwise both the
-// table and the card list would mount every row's DOM twice.
-const MOBILE_QUERY = '(max-width: 1023px)'
-
-function useIsMobileViewport(): boolean {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return false
-    return window.matchMedia(MOBILE_QUERY).matches
-  })
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return
-    const mq = window.matchMedia(MOBILE_QUERY)
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
-
-  return isMobile
-}
 
 /**
  * Pull the promoted `(set_id, number)` identity off a matched row for the

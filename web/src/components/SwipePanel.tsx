@@ -45,6 +45,7 @@ import {
   type SwipeAction,
 } from './useSwipeProfile'
 import { SwipeProfilePanel } from './SwipeProfilePanel'
+import { useIsMobileViewport } from './useIsMobileViewport'
 import { STACK_SIZE, useSwipeCandidates } from './useSwipeCandidates'
 import { useSwipeExclusions } from './useSwipeExclusions'
 import { useWishlists } from './useWishlists'
@@ -83,6 +84,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
     useSwipeProfile()
   const { settings, updateSettings } = useAppStore()
   const { user } = useAuth()
+  const isMobile = useIsMobileViewport()
   const showSavedActions = user !== null
   // Favorite sets feed the candidate weighting; gate the fetch on a signed-in
   // user (they're per-user) so a signed-out deck isn't biased by — and doesn't
@@ -284,32 +286,17 @@ export function SwipePanel({ active }: SwipePanelProps) {
         }
       />
 
-      {/* Favorite sets are durable + per-user, so gate the panel on a
-          signed-in user like the other user-scoped Swipe controls — an
-          anonymous mount would otherwise read/write the default user's
-          favorites. The taste profile below is browser-local, so it shows
-          for everyone.
-
-          Under the mobile-IA breakpoint both tuning panels drop below the
-          deck via flex order so the card and its actions land in the first
-          viewport (#845); desktop keeps them up top. */}
-      {showSavedActions && (
-        <div className="order-3 lg:order-none">
-          <FavoriteSetsPanel />
-        </div>
-      )}
-
-      <div className="order-4 lg:order-none">
-        <SwipeProfilePanel />
-      </div>
+      {/* On phones both tuning panels drop below the deck so the card and
+          its actions land in the first viewport (#845). Rendered
+          conditionally (not flex `order`) so tab and screen-reader order
+          match the visual order. */}
+      {!isMobile && <TuningPanels showFavoriteSets={showSavedActions} />}
 
       {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
-        <div className="order-1 lg:order-none">
-          <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
-        </div>
+        <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
       )}
 
-      <div className="order-2 flex flex-col items-center gap-3 lg:order-none">
+      <div className="flex flex-col items-center gap-3">
         {error && (
           <p
             role="alert"
@@ -406,12 +393,31 @@ export function SwipePanel({ active }: SwipePanelProps) {
         <SwipeHint />
       </div>
 
+      {isMobile && <TuningPanels showFavoriteSets={showSavedActions} />}
+
       <CardDetailModal
         rows={detailRows}
         index={detailOpen && current ? 0 : null}
         onChangeIndex={(next) => setDetailOpen(next !== null)}
       />
     </section>
+  )
+}
+
+/**
+ * The Favorite sets + Your taste accordions — above the deck on desktop,
+ * below it on phones (#845). Favorite sets are durable + per-user, so that
+ * panel is gated on a signed-in user like the other user-scoped Swipe
+ * controls — an anonymous mount would otherwise read/write the default
+ * user's favorites. The taste profile is browser-local, so it shows for
+ * everyone.
+ */
+function TuningPanels({ showFavoriteSets }: { showFavoriteSets: boolean }) {
+  return (
+    <>
+      {showFavoriteSets && <FavoriteSetsPanel />}
+      <SwipeProfilePanel />
+    </>
   )
 }
 
