@@ -6,9 +6,17 @@
  * callback redirect.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { BrowserRouter } from 'react-router'
 import { AccountPanel } from './AccountPanel'
 import type { Me, MeIdentity } from '../api/client'
+
+// AccountPanel reads the URL through react-router hooks (#864); a real
+// BrowserRouter keeps the tests' jsdom `history.replaceState` setup working.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: BrowserRouter })
+}
 
 const { requestAccountMagicLinkMock, unlinkIdentityMock } = vi.hoisted(() => ({
   requestAccountMagicLinkMock: vi.fn(),

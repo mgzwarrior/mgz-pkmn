@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import * as Dialog from '@radix-ui/react-dialog'
 import { LogOut, X } from 'lucide-react'
 import {
@@ -69,6 +70,8 @@ interface AccountPanelProps {
 }
 
 export function AccountPanel({ open, onOpenChange, user, refresh, onSignOut }: AccountPanelProps) {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [busyIdentityId, setBusyIdentityId] = useState<number | null>(null)
   const [signingOut, setSigningOut] = useState(false)
   const [magicMode, setMagicMode] = useState<MagicMode>('collapsed')
@@ -100,8 +103,10 @@ export function AccountPanel({ open, onOpenChange, user, refresh, onSignOut }: A
     if (!next) {
       setMagicMode('collapsed')
       setMagicEmail('')
-      if (typeof window !== 'undefined' && window.location.pathname === '/account') {
-        window.history.replaceState({}, '', '/')
+      // Leaving the panel retires the link-callback landing URL so a reload
+      // doesn't reopen it; `replace` keeps `/account` out of back history.
+      if (location.pathname === '/account') {
+        void navigate('/', { replace: true })
       }
     }
     onOpenChange(next)

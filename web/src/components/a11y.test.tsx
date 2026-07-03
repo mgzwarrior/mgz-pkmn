@@ -12,9 +12,10 @@
  * matcher globally.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, fireEvent, screen } from '@testing-library/react'
+import { render as rtlRender, fireEvent, screen } from '@testing-library/react'
 import { axe } from 'vitest-axe'
 import type { ReactElement } from 'react'
+import { BrowserRouter } from 'react-router'
 
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -26,6 +27,12 @@ import { ResultsTable } from './ResultsTable'
 import { SettingsDrawer } from './SettingsDrawer'
 import { SignInChip } from './SignInChip'
 import type { Row } from '../types'
+
+// SignInChip reads the URL through react-router hooks (#864); wrap every
+// mount in a BrowserRouter so the shared render stays uniform.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: BrowserRouter })
+}
 
 vi.mock('../api/client', () => ({
   exportFile: vi.fn(),
