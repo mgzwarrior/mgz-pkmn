@@ -161,7 +161,7 @@ export function SignInChip() {
 interface ProviderPickerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  intent?: 'default' | 'save-search'
+  intent?: 'default' | 'save-search' | 'insights'
 }
 
 export function ProviderPickerModal({
@@ -207,11 +207,17 @@ export function ProviderPickerModal({
   }
 
   const title =
-    intent === 'save-search' ? 'Sign in to save this search' : 'Sign in to mgz-pkmn'
+    intent === 'save-search'
+      ? 'Sign in to save this search'
+      : intent === 'insights'
+        ? 'Sign in to see your collection insights'
+        : 'Sign in to mgz-pkmn'
   const description =
     intent === 'save-search'
       ? 'Saved searches are tied to your account. Lookups and exports stay available without signing in.'
-      : 'Sign in to keep saved searches across sessions. Lookups and exports don\'t require an account.'
+      : intent === 'insights'
+        ? 'Insights rolls up totals, top types, and your most valuable cards across every binder you save cards to.'
+        : 'Sign in to keep saved searches across sessions. Lookups and exports don\'t require an account.'
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>

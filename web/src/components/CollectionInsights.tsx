@@ -20,7 +20,9 @@ import {
   type LabeledCount,
   type LabeledValue,
 } from '../api/client'
+import { useAuth } from '../hooks/useAuth'
 import { detailDialogContentClass } from './responsiveDialog'
+import { ProviderPickerModal } from './SignInChip'
 import { formatMoney } from '../utils/format'
 
 interface Props {
@@ -236,12 +238,22 @@ function AlreadyOwnedSection({ data }: { data: Insights }) {
 }
 
 export function CollectionInsights({ open, onOpenChange }: Props) {
+  const auth = useAuth()
   const [data, setData] = useState<Insights | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  // Signed out on an auth-on deploy — the endpoint would just 401. Skip the
+  // fetch entirely and show a sign-in prompt instead of surfacing that as a
+  // generic error (matches LibrarySearchesTab's gate for the same case).
+  const signedOut = auth.authEnabled && !auth.loading && auth.user === null
 
   useEffect(() => {
-    if (!open) return
+    // Also wait out `auth.loading` — otherwise this races ahead of
+    // `signedOut` (which needs `!auth.loading` to mean anything) and fetches
+    // before the sign-in state is known.
+    if (!open || auth.loading || signedOut) return
     let cancelled = false
     const load = async () => {
       setData(null)
@@ -250,8 +262,10 @@ export function CollectionInsights({ open, onOpenChange }: Props) {
       try {
         const resolved = await fetchCollectionInsights()
         if (!cancelled) setData(resolved)
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      } catch {
+        if (!cancelled) {
+          setError("Couldn't load your insights right now. Try again in a moment.")
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -260,83 +274,104 @@ export function CollectionInsights({ open, onOpenChange }: Props) {
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, auth.loading, signedOut])
 
   const empty = data !== null && data.totals.unique_cards === 0
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 backdrop-blur-sm dark:bg-husk-500/70" />
-        <Dialog.Content
-          className={detailDialogContentClass('lg:max-h-[85vh] lg:w-[min(760px,94vw)]')}
-        >
-          <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
-            <div className="flex min-w-0 items-center gap-2">
-              <BarChart3 size={18} className="shrink-0 text-coconut-600 dark:text-sand-200" />
-              <Dialog.Title className="truncate text-lg font-semibold text-coconut-700 dark:text-sand-50">
-                Collection insights
-              </Dialog.Title>
+    <>
+      <Dialog.Root open={open} onOpenChange={onOpenChange}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 backdrop-blur-sm dark:bg-husk-500/70" />
+          <Dialog.Content
+            className={detailDialogContentClass('lg:max-h-[85vh] lg:w-[min(760px,94vw)]')}
+          >
+            <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
+              <div className="flex min-w-0 items-center gap-2">
+                <BarChart3 size={18} className="shrink-0 text-coconut-600 dark:text-sand-200" />
+                <Dialog.Title className="truncate text-lg font-semibold text-coconut-700 dark:text-sand-50">
+                  Collection insights
+                </Dialog.Title>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  aria-label="Close"
+                  className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
+                >
+                  <X size={18} />
+                </button>
+              </Dialog.Close>
+            </header>
+            <Dialog.Description className="sr-only">
+              Headline totals, top types, rarities and sets, your most valuable cards, value by
+              set and binder, duplicates, and wishlist cards you already own, across all your
+              collections.
+            </Dialog.Description>
+
+            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+              {signedOut ? (
+                <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-sand-300 px-4 py-8 text-center dark:border-husk-100">
+                  <BarChart3 size={22} className="text-coconut-400 dark:text-sand-300" aria-hidden />
+                  <p className="text-sm text-coconut-600 dark:text-sand-200">
+                    Sign in to see your collection insights.
+                  </p>
+                  <p className="max-w-xs text-xs text-coconut-400 dark:text-sand-300">
+                    Save cards to a binder and this dashboard fills in with your totals, top
+                    types, and most valuable cards.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(true)}
+                    className="rounded-md bg-palm-500 px-3.5 py-1.5 text-xs font-medium text-coconut-50 hover:bg-palm-600 dark:text-husk-300"
+                  >
+                    Sign in
+                  </button>
+                </div>
+              ) : auth.loading || loading ? (
+                <div className="flex items-center gap-2 text-xs text-coconut-400 dark:text-sand-300">
+                  <Loader2 size={14} className="animate-spin" />
+                  Crunching your collections…
+                </div>
+              ) : error ? (
+                <div role="alert" className="text-xs text-sun-600 dark:text-sun-300">
+                  {error}
+                </div>
+              ) : empty ? (
+                <p className="text-xs text-coconut-500 dark:text-sand-300">
+                  No collection data yet. Add cards to a collection — click the book icon on a
+                  matched row — and your stats will show up here.
+                </p>
+              ) : data ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <StatTile label="Collections" value={String(data.totals.collections)} />
+                    <StatTile label="Unique cards" value={String(data.totals.unique_cards)} />
+                    <StatTile label="Total copies" value={String(data.totals.total_quantity)} />
+                    <StatTile label="Est. value" value={formatMoney(data.totals.estimated_value)} />
+                  </div>
+
+                  <div className="grid gap-5 sm:grid-cols-3">
+                    <BarList title="Top types" items={data.top_types} />
+                    <BarList title="Top rarities" items={data.top_rarities} />
+                    <BarList title="Top sets" items={data.top_sets} />
+                  </div>
+
+                  <TopValueCards data={data} />
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <ValueBarList title="Value by set" items={data.value_by_set} />
+                    <ValueBarList title="Value by binder" items={data.value_by_collection} />
+                  </div>
+
+                  <DuplicatesSection data={data} />
+                  <AlreadyOwnedSection data={data} />
+                </>
+              ) : null}
             </div>
-            <Dialog.Close asChild>
-              <button
-                aria-label="Close"
-                className="rounded p-1 text-coconut-500 hover:bg-sand-200 dark:text-sand-300 dark:hover:bg-husk-100"
-              >
-                <X size={18} />
-              </button>
-            </Dialog.Close>
-          </header>
-          <Dialog.Description className="sr-only">
-            Headline totals, top types, rarities and sets, your most valuable cards, value by set
-            and binder, duplicates, and wishlist cards you already own, across all your
-            collections.
-          </Dialog.Description>
-
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            {loading ? (
-              <div className="flex items-center gap-2 text-xs text-coconut-400 dark:text-sand-300">
-                <Loader2 size={14} className="animate-spin" />
-                Crunching your collections…
-              </div>
-            ) : error ? (
-              <div role="alert" className="text-xs text-sun-600 dark:text-sun-300">
-                {error}
-              </div>
-            ) : empty ? (
-              <p className="text-xs text-coconut-500 dark:text-sand-300">
-                No collection data yet. Add cards to a collection — click the book icon on a
-                matched row — and your stats will show up here.
-              </p>
-            ) : data ? (
-              <>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <StatTile label="Collections" value={String(data.totals.collections)} />
-                  <StatTile label="Unique cards" value={String(data.totals.unique_cards)} />
-                  <StatTile label="Total copies" value={String(data.totals.total_quantity)} />
-                  <StatTile label="Est. value" value={formatMoney(data.totals.estimated_value)} />
-                </div>
-
-                <div className="grid gap-5 sm:grid-cols-3">
-                  <BarList title="Top types" items={data.top_types} />
-                  <BarList title="Top rarities" items={data.top_rarities} />
-                  <BarList title="Top sets" items={data.top_sets} />
-                </div>
-
-                <TopValueCards data={data} />
-
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <ValueBarList title="Value by set" items={data.value_by_set} />
-                  <ValueBarList title="Value by binder" items={data.value_by_collection} />
-                </div>
-
-                <DuplicatesSection data={data} />
-                <AlreadyOwnedSection data={data} />
-              </>
-            ) : null}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <ProviderPickerModal open={pickerOpen} onOpenChange={setPickerOpen} intent="insights" />
+    </>
   )
 }
