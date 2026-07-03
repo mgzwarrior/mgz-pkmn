@@ -18,6 +18,7 @@
  * shape without the SPA having to thread anything through the URL.
  */
 import { useRef, useState } from 'react'
+import { useLocation } from 'react-router'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { LogIn, LogOut, UserRound, X } from 'lucide-react'
@@ -44,13 +45,12 @@ function initialsFor(user: Me): string {
 
 export function SignInChip() {
   const { user, authEnabled, loading, refresh, signOut } = useAuth()
+  const location = useLocation()
   const [pickerOpen, setPickerOpen] = useState(false)
   // The link-callback redirects to `/account` so the SPA can land the
   // user back on the linked-providers list; open the panel on first
   // render when we see that path.
-  const [accountOpen, setAccountOpen] = useState(
-    () => typeof window !== 'undefined' && window.location.pathname === '/account',
-  )
+  const [accountOpen, setAccountOpen] = useState(() => location.pathname === '/account')
 
   // Self-host (auth off) has no sign-in surface to render — `/me`
   // already attaches the sentinel default user so collections /

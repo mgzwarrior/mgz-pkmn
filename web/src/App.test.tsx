@@ -12,12 +12,20 @@
  * just enough of the UI to set inputText + click Look up / Stop.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, act, screen, waitFor, within } from '@testing-library/react'
+import { render as rtlRender, fireEvent, act, screen, waitFor, within } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { BrowserRouter } from 'react-router'
 import App from './App'
 import { useAppStore } from './store'
 import { _resetAuthStoreForTests } from './hooks/useAuth'
 import { fetchMe, logout } from './api/client'
 import type { BulkEvent } from './types'
+
+// App mounts SignInChip/AccountPanel, which read the URL through
+// react-router hooks (#864); render under a real BrowserRouter like main.tsx.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: BrowserRouter })
+}
 
 const { mockBulkLookup, mockLookupLine, mockParseLine } = vi.hoisted(() => ({
   mockBulkLookup: vi.fn(),
