@@ -50,9 +50,15 @@ async function gotoApp(page: Page) {
 
 test('idle page has no critical or serious axe violations', async ({ page }) => {
   await gotoApp(page)
-  // The app opens on Swipe; wait for the deck to settle (card or empty state)
-  // so the scan sees the loaded surface, not a loading placeholder.
-  await expect(page.getByRole('tablist', { name: 'Discovery mode' })).toBeVisible()
+  // The app opens on Swipe; wait for a dealt card so the scan sees the loaded
+  // surface, not the LoadingCard placeholder. Same convergence as
+  // swipe-triage.spec.ts: the deck walks random sets and cache_only empties
+  // every non-cassette one, so it settles on an mcd19 card — eventually.
+  const swipe = page.getByRole('region', { name: 'Swipe mode' })
+  await expect(swipe).toBeVisible()
+  await expect(swipe.getByRole('button', { name: /^View details for / })).toBeVisible({
+    timeout: 30_000,
+  })
   await expectNoSeriousViolations(page)
 })
 
