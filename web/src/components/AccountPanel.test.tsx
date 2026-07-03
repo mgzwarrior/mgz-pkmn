@@ -88,6 +88,32 @@ describe('AccountPanel', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
+  it('has no Sign out affordance when onSignOut is omitted (the desktop SignInChip dropdown owns it there)', async () => {
+    const user = makeUser([makeIdentity({ id: 1, provider: 'github' })])
+    render(<AccountPanel open onOpenChange={() => {}} user={user} refresh={async () => {}} />)
+    await screen.findByText('GitHub')
+    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
+  })
+
+  it('calls onSignOut when Sign out is clicked — the only sign-out path once a caller (e.g. the mobile Account tab, #857) renders this panel directly', async () => {
+    const user = makeUser([makeIdentity({ id: 1, provider: 'github' })])
+    const onSignOut = vi.fn().mockResolvedValue(undefined)
+    render(
+      <AccountPanel
+        open
+        onOpenChange={() => {}}
+        user={user}
+        refresh={async () => {}}
+        onSignOut={onSignOut}
+      />,
+    )
+    const signOutBtn = await screen.findByRole('button', { name: /sign out/i })
+    fireEvent.click(signOutBtn)
+    await waitFor(() => {
+      expect(onSignOut).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('disables Disconnect when only one identity remains', async () => {
     const user = makeUser([makeIdentity({ id: 1, provider: 'github' })])
     render(<AccountPanel open onOpenChange={() => {}} user={user} refresh={async () => {}} />)

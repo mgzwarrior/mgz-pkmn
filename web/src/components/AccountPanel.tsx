@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X } from 'lucide-react'
+import { LogOut, X } from 'lucide-react'
 import {
   requestAccountMagicLink,
   unlinkIdentity,
@@ -57,10 +57,20 @@ interface AccountPanelProps {
   onOpenChange: (open: boolean) => void
   user: Me
   refresh: () => Promise<void>
+  /**
+   * Sign-out is normally reached through the desktop header avatar's own
+   * dropdown (SignInChip), which never mounts this panel's `open` state.
+   * The mobile Account tab renders this panel directly with no such
+   * dropdown behind it, so it needs its own sign-out affordance — pass
+   * `useAuth().signOut` from any call site that isn't already backed by
+   * one (#857 follow-up from Codex review on #858).
+   */
+  onSignOut?: () => Promise<void>
 }
 
-export function AccountPanel({ open, onOpenChange, user, refresh }: AccountPanelProps) {
+export function AccountPanel({ open, onOpenChange, user, refresh, onSignOut }: AccountPanelProps) {
   const [busyIdentityId, setBusyIdentityId] = useState<number | null>(null)
+  const [signingOut, setSigningOut] = useState(false)
   const [magicMode, setMagicMode] = useState<MagicMode>('collapsed')
   const [magicEmail, setMagicEmail] = useState('')
   const [providerError, setProviderError] = useState<{ provider: Provider; message: string } | null>(
@@ -128,6 +138,16 @@ export function AccountPanel({ open, onOpenChange, user, refresh }: AccountPanel
     }
   }
 
+  async function handleSignOut() {
+    if (!onSignOut) return
+    setSigningOut(true)
+    try {
+      await onSignOut()
+    } finally {
+      setSigningOut(false)
+    }
+  }
+
   const label = user.display_name?.trim() || user.email || 'Account'
 
   return (
@@ -142,15 +162,28 @@ export function AccountPanel({ open, onOpenChange, user, refresh }: AccountPanel
             <Dialog.Title className="text-base font-semibold text-coconut-700 dark:text-sand-50">
               Account
             </Dialog.Title>
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                className="rounded p-1 text-coconut-400 hover:bg-sand-200 hover:text-coconut-700 dark:text-sand-300 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition-colors"
-                aria-label="Close"
-              >
-                <X size={16} />
-              </button>
-            </Dialog.Close>
+            <div className="flex shrink-0 items-center gap-1">
+              {onSignOut && (
+                <button
+                  type="button"
+                  disabled={signingOut}
+                  onClick={() => void handleSignOut()}
+                  className="flex items-center gap-1.5 rounded-md border border-sand-300 px-2.5 py-1.5 text-xs font-medium text-coconut-700 hover:bg-sand-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-husk-50 dark:text-sand-50 dark:hover:bg-husk-50"
+                >
+                  <LogOut size={14} />
+                  {signingOut ? 'Signing out…' : 'Sign out'}
+                </button>
+              )}
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="rounded p-1 text-coconut-400 hover:bg-sand-200 hover:text-coconut-700 dark:text-sand-300 dark:hover:bg-husk-100 dark:hover:text-sand-50 transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={16} />
+                </button>
+              </Dialog.Close>
+            </div>
           </div>
 
           <div className="space-y-5 overflow-y-auto px-5 py-5">

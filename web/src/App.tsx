@@ -148,7 +148,13 @@ function App() {
     setTourOpen(false)
     setMode(preTourModeRef.current)
   }, [])
-  const { user: authedUser, authEnabled, loading: authLoading, refresh: refreshAuth } = useAuth()
+  const {
+    user: authedUser,
+    authEnabled,
+    loading: authLoading,
+    refresh: refreshAuth,
+    signOut: signOutAuth,
+  } = useAuth()
 
   // First-login onboarding survey (#742): the favorite-Pokémon pop-up shows
   // once per account, gated server-side via `onboardingCompleted`. Dismissing
@@ -602,7 +608,12 @@ function App() {
       {/* Account: opens directly over the current surface the moment the tab
           is selected, same as Insights above — no stub, no second tap into a
           nested dialog (#857). Desktop keeps the header avatar's own trigger,
-          which mounts its own AccountPanel/picker instance in SignInChip. */}
+          which mounts its own AccountPanel/picker instance in SignInChip —
+          that instance already has a sign-out path via the avatar dropdown,
+          so it doesn't need `onSignOut` too. This one does: it's the only
+          sign-out affordance a signed-in mobile visitor has once the tab
+          renders AccountPanel directly instead of the old SignInChip stub
+          (Codex review on #858). */}
       {!authLoading && authEnabled &&
         (authedUser ? (
           <AccountPanel
@@ -612,6 +623,7 @@ function App() {
             }}
             user={authedUser}
             refresh={refreshAuth}
+            onSignOut={signOutAuth}
           />
         ) : (
           <ProviderPickerModal

@@ -16,7 +16,7 @@ import { render, fireEvent, act, screen, waitFor, within } from '@testing-librar
 import App from './App'
 import { useAppStore } from './store'
 import { _resetAuthStoreForTests } from './hooks/useAuth'
-import { fetchMe } from './api/client'
+import { fetchMe, logout } from './api/client'
 import type { BulkEvent } from './types'
 
 const { mockBulkLookup, mockLookupLine, mockParseLine } = vi.hoisted(() => ({
@@ -588,7 +588,19 @@ describe('App: mobile bottom-tab nav (#519)', () => {
     const dialog = await screen.findByRole('dialog', { name: /^account$/i })
     expect(within(dialog).getByRole('heading', { name: /linked sign-in methods/i })).toBeInTheDocument()
 
-    await closeDialogAndAwaitNavRestored(dialog)
+    // The desktop avatar dropdown's own "Sign out" item never mounts here —
+    // this tab renders AccountPanel directly, so it's the only sign-out
+    // path a signed-in mobile visitor has (Codex review on #858).
+    fireEvent.click(within(dialog).getByRole('button', { name: /sign out/i }))
+    await waitFor(() => {
+      expect(logout).toHaveBeenCalledTimes(1)
+    })
+
+    // Signing out flips `authedUser` to null, which swaps this same tab
+    // over to the sign-in picker (still open, same mobileTab) — close that
+    // one to get back to Discover.
+    const signInDialog = await screen.findByRole('dialog', { name: /sign in to mgz-pkmn/i })
+    await closeDialogAndAwaitNavRestored(signInDialog)
   })
 
   it('collapses the header utility behind a single More trigger', () => {
