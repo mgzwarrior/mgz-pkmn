@@ -25,6 +25,7 @@ import { requestMagicLink, type Me } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { AccountPanel } from './AccountPanel'
 import { providerIcon } from './providerIcons'
+import { detailDialogContentClass } from './responsiveDialog'
 
 const GITHUB_LOGIN_URL = '/api/v1/auth/github/login'
 const GOOGLE_LOGIN_URL = '/api/v1/auth/google/login'
@@ -160,7 +161,7 @@ export function SignInChip() {
 interface ProviderPickerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  intent?: 'default' | 'save-search'
+  intent?: 'default' | 'save-search' | 'insights'
 }
 
 export function ProviderPickerModal({
@@ -206,11 +207,17 @@ export function ProviderPickerModal({
   }
 
   const title =
-    intent === 'save-search' ? 'Sign in to save this search' : 'Sign in to mgz-pkmn'
+    intent === 'save-search'
+      ? 'Sign in to save this search'
+      : intent === 'insights'
+        ? 'Sign in to see your collection insights'
+        : 'Sign in to mgz-pkmn'
   const description =
     intent === 'save-search'
       ? 'Saved searches are tied to your account. Lookups and exports stay available without signing in.'
-      : 'Sign in to keep saved searches across sessions. Lookups and exports don\'t require an account.'
+      : intent === 'insights'
+        ? 'Insights rolls up totals, top types, and your most valuable cards across every binder you save cards to.'
+        : 'Sign in to keep saved searches across sessions. Lookups and exports don\'t require an account.'
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -218,7 +225,7 @@ export function ProviderPickerModal({
         <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 dark:bg-husk-500/70 backdrop-blur-sm" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-50 flex w-[min(420px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200"
+          className={detailDialogContentClass('lg:w-[min(420px,92vw)]')}
         >
           <div className="flex items-center justify-between border-b border-sand-300 px-5 py-4 dark:border-husk-50">
             <Dialog.Title className="text-base font-semibold text-coconut-700 dark:text-sand-50">

@@ -1,13 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { CollectionInsights } from './CollectionInsights'
-import { fetchCollectionInsights, type CollectionInsights as Insights } from '../api/client'
+import { fetchCollectionInsights, fetchMe, type CollectionInsights as Insights } from '../api/client'
+import { _resetAuthStoreForTests } from '../hooks/useAuth'
 
 vi.mock('../api/client', () => ({
   fetchCollectionInsights: vi.fn(),
+  // useAuth() (now called unconditionally to gate the fetch on sign-in
+  // state, #860) and the nested ProviderPickerModal both reach into this
+  // module — stub the rest of what they need alongside the mock this file
+  // already had for the insights fetch itself.
+  fetchMe: vi.fn(() => Promise.resolve({ user: null, authEnabled: true })),
+  logout: vi.fn(() => Promise.resolve()),
+  requestMagicLink: vi.fn(() => Promise.resolve()),
 }))
 
 const mockFetch = vi.mocked(fetchCollectionInsights)
+const mockFetchMe = vi.mocked(fetchMe)
+
+function signedIn() {
+  mockFetchMe.mockResolvedValue({
+    user: { id: 1, email: 'alice@example.com', display_name: 'Alice' },
+    authEnabled: true,
+  })
+}
 
 function insights(overrides: Partial<Insights> = {}): Insights {
   return {
@@ -31,6 +47,9 @@ function insights(overrides: Partial<Insights> = {}): Insights {
 describe('CollectionInsights', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    mockFetchMe.mockReset()
+    _resetAuthStoreForTests()
+    signedIn()
   })
 
   it('renders headline totals and breakdown bars', async () => {
@@ -125,5 +144,29 @@ describe('CollectionInsights', () => {
   it('does not fetch while closed', () => {
     render(<CollectionInsights open={false} onOpenChange={() => {}} />)
     expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('prompts sign-in instead of fetching when signed out, and opens the picker on click (#860)', async () => {
+    mockFetchMe.mockResolvedValue({ user: null, authEnabled: true })
+    render(<CollectionInsights open onOpenChange={() => {}} />)
+
+    expect(
+      await screen.findByText(/Sign in to see your collection insights/i),
+    ).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
+    expect(
+      await screen.findByRole('dialog', { name: /Sign in to see your collection insights/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a friendly message instead of the raw error on a fetch failure', async () => {
+    mockFetch.mockRejectedValue(new Error('collection insights failed: 500'))
+    render(<CollectionInsights open onOpenChange={() => {}} />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/couldn.t load your insights/i)
+    expect(alert).not.toHaveTextContent(/collection insights failed/i)
   })
 })

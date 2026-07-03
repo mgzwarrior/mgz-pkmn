@@ -30,6 +30,7 @@ import type {
 import { BinderFilePicker } from './BinderFilePicker'
 import { useBinderFiling } from './useBinderFiling'
 import { BINDER_FORMAT_OPTIONS } from './binderIdentity'
+import { detailDialogContentClass } from './responsiveDialog'
 import { SetCombobox } from './SetCombobox'
 import { useCollections } from './useCollections'
 
@@ -204,7 +205,9 @@ export function BinderModal({ open, onOpenChange, editing, prefill, smartOnly }:
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 backdrop-blur-sm dark:bg-husk-500/70" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(460px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200">
+        <Dialog.Content
+          className={detailDialogContentClass('lg:max-h-[88vh] lg:w-[min(460px,92vw)]')}
+        >
           <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
             <Dialog.Title className="text-lg font-semibold text-coconut-700 dark:text-sand-50">
               {isEdit
