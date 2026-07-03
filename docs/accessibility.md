@@ -33,7 +33,7 @@ The rest of this page is web-UI only.
 
 ## How we enforce it
 
-Two layers.
+Three layers.
 
 **1. Per-component axe-core assertions** in
 [`web/src/components/a11y.test.tsx`](../web/src/components/a11y.test.tsx).
@@ -43,11 +43,22 @@ asserts no axe violations. The matcher fails on **any** violation, not
 just critical — so the regression bar is stricter than the policy
 statement above. Runs as part of `npm test` and CI's `web` job.
 
-**2. Live-browser scan.** During the original audit ([#62][issue-62] /
+**2. Browser-level axe scan in CI** in
+[`web/e2e/a11y.spec.ts`](../web/e2e/a11y.spec.ts). JSDOM doesn't compute
+color, so axe's `color-contrast` rule is effectively disabled in layer 1.
+This Playwright suite re-runs axe in a real Chromium against the major UI
+states — idle page, open Help modal, open Settings drawer, populated
+results table with the filter row expanded — and fails CI's `e2e` job on
+any **critical or serious** violation. It runs inside the standard e2e
+harness (throwaway API + cache cassette, see [docs/e2e.md](e2e.md)), so
+no real backend or network is involved.
+
+**3. Manual live-browser scan.** During the original audit ([#62][issue-62] /
 [PR #220][pr-220]), axe-core 4.10 was injected into the running dev
-server and re-run against every UI state — including states JSDOM
-can't fully model (modal portals, real color contrast computation,
-scrollable region detection). Use this when adding new UI surfaces:
+server and re-run against every UI state. Layer 2 now automates that for
+the states it covers; the manual snippet is still the fastest way to scan
+a brand-new surface (or a state the CI suite doesn't visit yet) while
+you're building it:
 
 ```bash
 make dev-api & make dev-web
@@ -113,8 +124,10 @@ When you add a new component or interactive surface:
    `a11y.test.tsx`. If the component has meaningfully different states
    (closed vs. open, empty vs. populated), cover each. The
    `ResultsTable` block is the most complete example.
-2. Run the live-browser scan above against the new surface — JSDOM
-   doesn't compute color, so contrast regressions don't show up in CI.
+2. Run the manual live-browser scan above against the new surface —
+   JSDOM doesn't compute color, so contrast regressions only show up in
+   a real browser. If the surface is a major UI state a user lands on,
+   add a scan for it to `web/e2e/a11y.spec.ts` so CI keeps covering it.
 3. If the new component is rendered into a portal (Radix Dialog,
    Tooltip, DropdownMenu) and the test mounts a closed trigger, scan
    `document.body` rather than the mount `container` so the portal
