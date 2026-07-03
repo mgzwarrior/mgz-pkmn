@@ -8,6 +8,7 @@ import {
   type MeIdentity,
 } from '../api/client'
 import { providerIcon, type AuthProvider } from './providerIcons'
+import { detailDialogContentClass } from './responsiveDialog'
 
 type Provider = AuthProvider
 type MagicMode = 'collapsed' | 'form' | 'sent' | 'error'
@@ -135,7 +136,7 @@ export function AccountPanel({ open, onOpenChange, user, refresh }: AccountPanel
         <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 dark:bg-husk-500/70 backdrop-blur-sm" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(520px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200"
+          className={detailDialogContentClass('lg:max-h-[88vh] lg:w-[min(520px,94vw)]')}
         >
           <div className="flex items-center justify-between border-b border-sand-300 px-5 py-4 dark:border-husk-50">
             <Dialog.Title className="text-base font-semibold text-coconut-700 dark:text-sand-50">

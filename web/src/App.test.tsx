@@ -16,6 +16,7 @@ import { render, fireEvent, act, screen, waitFor, within } from '@testing-librar
 import App from './App'
 import { useAppStore } from './store'
 import { _resetAuthStoreForTests } from './hooks/useAuth'
+import { fetchMe } from './api/client'
 import type { BulkEvent } from './types'
 
 const { mockBulkLookup, mockLookupLine, mockParseLine } = vi.hoisted(() => ({
@@ -534,19 +535,60 @@ describe('App: mobile bottom-tab nav (#519)', () => {
     )
   })
 
-  it('the Account tab reveals the account surface; Discover returns to the workspace', () => {
+  // A modal Dialog aria-hides the rest of the app while open (correct
+  // a11y behavior, matching Insights) — so the bottom nav is legitimately
+  // unqueryable until the dialog's own Close button is used, same as a real
+  // user would have to on mobile (the nav sits behind the full-screen
+  // dialog, z-30 under z-40+). Closing via `Discover` isn't reachable;
+  // close via the dialog and let `onOpenChange` land back on Discover.
+  // Radix also defers the aria-hide-siblings *cleanup* a tick past the
+  // dialog unmounting, so every test below waits for the nav to actually
+  // lose `aria-hidden` before finishing — otherwise the next test inherits
+  // a hidden nav and every query in it fails (#857).
+  async function closeDialogAndAwaitNavRestored(dialog: HTMLElement) {
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    await waitFor(() => {
+      expect(screen.getByRole('navigation', { name: 'Primary' })).not.toHaveAttribute('aria-hidden')
+    })
+  }
+
+  it('the Account tab opens the account surface directly (no stub, no second tap); closing it returns to the workspace (#857)', async () => {
     render(<App />)
-    expect(screen.queryByText('Your account')).not.toBeInTheDocument()
+    // fetchMe resolves to the auth-on-but-anonymous envelope (see the
+    // module mock above), so the tab should surface the sign-in picker
+    // rather than a signed-in AccountPanel.
+    expect(screen.queryByRole('dialog', { name: /sign in to mgz-pkmn/i })).not.toBeInTheDocument()
 
     fireEvent.click(primaryNav().getByRole('button', { name: 'Account' }))
-    expect(screen.getByText('Your account')).toBeInTheDocument()
-    expect(primaryNav().getByRole('button', { name: 'Account' })).toHaveAttribute(
+    const dialog = await screen.findByRole('dialog', { name: /sign in to mgz-pkmn/i })
+    expect(dialog).toBeInTheDocument()
+
+    await closeDialogAndAwaitNavRestored(dialog)
+    expect(screen.queryByRole('dialog', { name: /sign in to mgz-pkmn/i })).not.toBeInTheDocument()
+    expect(primaryNav().getByRole('button', { name: 'Discover' })).toHaveAttribute(
       'aria-current',
       'page',
     )
+  })
 
-    fireEvent.click(primaryNav().getByRole('button', { name: 'Discover' }))
-    expect(screen.queryByText('Your account')).not.toBeInTheDocument()
+  it('shows the signed-in AccountPanel content directly on the Account tab (#857)', async () => {
+    vi.mocked(fetchMe).mockResolvedValueOnce({
+      user: {
+        id: 1,
+        email: 'alice@example.com',
+        display_name: 'Alice',
+        identities: [],
+        onboardingCompleted: true,
+      },
+      authEnabled: true,
+    })
+    render(<App />)
+
+    fireEvent.click(primaryNav().getByRole('button', { name: 'Account' }))
+    const dialog = await screen.findByRole('dialog', { name: /^account$/i })
+    expect(within(dialog).getByRole('heading', { name: /linked sign-in methods/i })).toBeInTheDocument()
+
+    await closeDialogAndAwaitNavRestored(dialog)
   })
 
   it('collapses the header utility behind a single More trigger', () => {

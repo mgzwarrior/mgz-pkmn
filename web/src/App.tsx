@@ -33,7 +33,8 @@ import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { FavoritePokemonOnboarding } from './components/FavoritePokemonOnboarding'
 import { HelpModal } from './components/HelpModal'
-import { SignInChip } from './components/SignInChip'
+import { AccountPanel } from './components/AccountPanel'
+import { ProviderPickerModal, SignInChip } from './components/SignInChip'
 import { ThemeToggle } from './components/ThemeToggle'
 import { Tour } from './components/Tour'
 import { CollectionInsights } from './components/CollectionInsights'
@@ -147,7 +148,7 @@ function App() {
     setTourOpen(false)
     setMode(preTourModeRef.current)
   }, [])
-  const { user: authedUser, refresh: refreshAuth } = useAuth()
+  const { user: authedUser, authEnabled, loading: authLoading, refresh: refreshAuth } = useAuth()
 
   // First-login onboarding survey (#742): the favorite-Pokémon pop-up shows
   // once per account, gated server-side via `onboardingCompleted`. Dismissing
@@ -579,12 +580,11 @@ function App() {
               </div>
             )}
 
-            {/* Account: sign-in / account as a mobile destination. Desktop keeps
-                the header chip. */}
-            {mobileTab === 'account' && (
+            {mobileTab === 'account' && !authEnabled && !authLoading && (
               <div className="flex flex-col items-center gap-3 rounded-lg border border-sand-300 bg-sand-50 px-4 py-8 lg:hidden dark:border-husk-50 dark:bg-husk-100">
-                <p className="text-sm text-coconut-500 dark:text-sand-300">Your account</p>
-                <SignInChip />
+                <p className="text-sm text-coconut-500 dark:text-sand-300">
+                  Accounts aren&apos;t available on this deployment.
+                </p>
               </div>
             )}
           </div>
@@ -599,6 +599,28 @@ function App() {
           if (!o) selectMobileTab(lastSurfaceRef.current)
         }}
       />
+      {/* Account: opens directly over the current surface the moment the tab
+          is selected, same as Insights above — no stub, no second tap into a
+          nested dialog (#857). Desktop keeps the header avatar's own trigger,
+          which mounts its own AccountPanel/picker instance in SignInChip. */}
+      {!authLoading && authEnabled &&
+        (authedUser ? (
+          <AccountPanel
+            open={mobileTab === 'account'}
+            onOpenChange={(o) => {
+              if (!o) selectMobileTab(lastSurfaceRef.current)
+            }}
+            user={authedUser}
+            refresh={refreshAuth}
+          />
+        ) : (
+          <ProviderPickerModal
+            open={mobileTab === 'account'}
+            onOpenChange={(o) => {
+              if (!o) selectMobileTab(lastSurfaceRef.current)
+            }}
+          />
+        ))}
       <MobileTabBar active={mobileTab} onSelect={selectMobileTab} />
 
       <CommandPalette
