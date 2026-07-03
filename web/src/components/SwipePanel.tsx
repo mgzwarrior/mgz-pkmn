@@ -490,7 +490,7 @@ function SwipeHeader({
       </p>
       {showLibraryToggles && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-coconut-400 dark:text-sand-300">
-          <span className="text-coconut-300 dark:text-sand-400">Hide</span>
+          <span className="text-coconut-400 dark:text-sand-400">Hide</span>
           <LibraryToggle
             label="owned"
             title="Don't show cards already in your collections"
