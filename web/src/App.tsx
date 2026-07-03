@@ -691,7 +691,7 @@ function App() {
                 EGG-EXEGGCUTE
               </code>
             </p>
-            <p className="mb-6 text-xs text-sand-500 dark:text-sand-400">
+            <p className="mb-6 text-xs text-sand-600 dark:text-sand-400">
               The Wall of Eggs is hidden somewhere in the repo. Find it
               to claim what you&apos;ve collected.
             </p>
@@ -723,7 +723,7 @@ function App() {
             href="https://mgz-pkmn.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+            className="text-palm-500 underline hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
           >
             mgz-pkmn.com
           </a>{' '}
@@ -732,7 +732,7 @@ function App() {
             href="https://github.com/mgzwarrior/mgz-pkmn"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+            className="text-palm-500 underline hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
           >
             GitHub
           </a>{' '}
@@ -741,12 +741,12 @@ function App() {
             href="https://www.buymeacoffee.com/mgz.pkmn"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+            className="text-palm-500 underline hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
           >
             Buy me a pizza
           </a>
         </p>
-        <p className="mt-2 px-4 text-[11px] leading-relaxed text-sand-500 dark:text-sand-400">
+        <p className="mt-2 px-4 text-[11px] leading-relaxed text-sand-600 dark:text-sand-400">
           Affiliate disclosure: mgz-pkmn may earn from qualifying purchases through eBay and
           TCGplayer links.
         </p>
