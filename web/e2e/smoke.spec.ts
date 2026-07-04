@@ -28,7 +28,6 @@ test('create a want-list and see it in the Backpack', async ({ page }) => {
   const backpack = page.getByRole('complementary', { name: 'Backpack', exact: true })
   await expect(backpack).toBeVisible()
 
-  await backpack.getByRole('tab', { name: 'Binders' }).click()
 
   await backpack.getByRole('button', { name: 'New' }).click()
   await page.getByRole('menuitem', { name: 'Wishlist' }).click()

@@ -8,7 +8,7 @@
  * actually sees each surface: it switches discovery modes (Swipe → Browse →
  * Search), opens a self-contained sample card-detail modal (so the modal +
  * ←/→ navigation + Want/Own quick actions are always demonstrable, no API
- * round-trip required), and flips the Backpack to its Binders tab. Steps that
+ * round-trip required), and expands the Backpack's binders. Steps that
  * only exist for a signed-in user (the Want/Own quick actions, the
  * collections/wishlists detail) are filtered out for anonymous visitors so the
  * tour never highlights an empty sign-in panel.
@@ -45,8 +45,6 @@ interface Step {
   sampleDetail?: boolean
   /** Expand the Backpack panel if it's currently collapsed. */
   revealBackpack?: boolean
-  /** Flip the Backpack to its Binders tab as the step activates (implies `revealBackpack`). */
-  openBinders?: boolean
   /** Fire the seeded lookup when advancing past this step. */
   runsLookup?: boolean
   /** Expand the editor if a prior lookup left it collapsed to its one-line
@@ -89,7 +87,7 @@ const STEPS: Step[] = [
   {
     selector: '[data-tour="input"]',
     title: 'Card list',
-    body: 'Search mode: paste or type one card per line. Try a precise "Charizard | Base Set | 4/102", a bulk "top:5 Charizard cards", or a name on its own. Look up runs them — Ctrl/Cmd + Enter is the shortcut.',
+    body: 'Search mode: paste or type one card per line. Try a precise "Charizard | Base Set | 4/102", a bulk "top:5 Charizard cards", or a name on its own. Look up runs them — Ctrl/Cmd + Enter is the shortcut. Your saved searches and recent lookups sit just below the editor.',
     mode: 'search',
     runsLookup: true,
     expandsEditor: true,
@@ -102,7 +100,7 @@ const STEPS: Step[] = [
   {
     selector: '[data-tour="library"], [data-tour="library-mobile"]',
     title: 'Backpack',
-    body: 'Everything you save lives here: Binders (collections you Own and wishlists you Want), named Searches, and your Recent lookups. Sign in on the demo to keep Binders and Searches.',
+    body: 'Your Binders live here: collections of cards you Own and wishlists you’re chasing. Sign in on the demo to keep them.',
     mobileTab: 'backpack',
     revealBackpack: true,
   },
@@ -111,7 +109,7 @@ const STEPS: Step[] = [
     title: 'Collections & wishlists',
     body: 'Open a binder for its detail: a collection tracks the cards you Own with quantities and value; a wishlist tracks what you’re chasing. Filter by Owned or Chasing.',
     requiresAuth: true,
-    openBinders: true,
+    revealBackpack: true,
     mobileTab: 'backpack',
   },
   {
@@ -172,12 +170,10 @@ function visibleLibraryRoot(): HTMLElement | null {
   return Array.from(roots).find((e) => e.offsetParent !== null) ?? null
 }
 
-// Expand the visible Backpack so its tab strip is on screen: a collapsed
-// sidebar (auto-collapsed on entering Search mode, #522 follow-up) or a
-// closed mobile accordion exposes a single `aria-expanded="false"` toggle —
-// click it. Used by both the Backpack step (so the panel isn't a bare icon
-// strip) and the Binders step, which then clicks the Binders tab a frame
-// later, once the expanded panel (and its tab strip) has mounted.
+// Expand the visible Backpack so its binders are on screen: a collapsed
+// sidebar (auto-collapsed on entering Search mode, #522 follow-up) exposes
+// a single `aria-expanded="false"` toggle — click it. Used by the Backpack
+// and Binders steps so neither highlights a bare icon strip.
 function revealBackpackPanel() {
   const root = visibleLibraryRoot()
   root?.querySelector<HTMLElement>('[aria-expanded="false"]')?.click()
@@ -272,12 +268,9 @@ export function Tour({ onClose, onRun, onStop, onSetMode, onSelectMobileTab }: P
     let raf1 = 0
     let raf2 = 0
     const timer = window.setTimeout(() => {
-      if (step.revealBackpack || step.openBinders) revealBackpackPanel()
+      if (step.revealBackpack) revealBackpackPanel()
       if (step.expandsEditor) expandInputEditor()
       raf1 = window.requestAnimationFrame(() => {
-        if (step.openBinders) {
-          visibleLibraryRoot()?.querySelector<HTMLElement>('[data-tour="binders-tab"]')?.click()
-        }
         raf2 = window.requestAnimationFrame(() => {
           const els = document.querySelectorAll<HTMLElement>(step.selector)
           const el = Array.from(els).find((e) => e.offsetParent !== null) ?? els[0]
