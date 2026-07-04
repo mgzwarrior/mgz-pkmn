@@ -14,31 +14,68 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from . import branding, palette
+from .export_fields import (
+    COMP_80,
+    COMP_85,
+    COMP_90,
+    COMP_95,
+    MARKET,
+    NAME,
+    NUMBER,
+    RARITY,
+    SET,
+    SOURCE,
+    SOURCE_URL,
+    THUMBNAIL,
+    VARIANT,
+)
 from .images import THUMB_H, THUMB_W, make_thumbnail
 from .parser import CardQuery
 from .pricing import COMP_PERCENTS, Pricing
 
-HEADERS = [
-    "Image",  # A
-    "Source",  # B  — the input file's tag
-    "Input",  # C
-    "Name",  # D
-    "Set",  # E
-    "Series",  # F
-    "Number",  # G
-    "Rarity",  # H
-    "Variant",  # I
-    "Database",  # J
-    "Market",  # K
-    "80%",  # L
-    "85%",  # M
-    "90%",  # N
-    "95%",  # O
-    "eBay Sold (median)",  # P
-    "eBay Active (floor)",  # Q
-    "Price Source",  # R
-    "Listing URL",  # S
-]
+
+@dataclass(frozen=True)
+class _ColumnSpec:
+    id: str
+    field: str | None  # toggle key this column answers to; None = always on
+    header: str
+    width: int
+
+
+# Column order as it appears left-to-right in the sheet. `field=None` marks
+# columns that aren't part of the configurable-fields toggle (#262) and
+# always render regardless of what a caller passes for `fields`.
+_COLUMNS: tuple[_ColumnSpec, ...] = (
+    _ColumnSpec("thumbnail", THUMBNAIL, "Image", 16),
+    _ColumnSpec("src_tag", None, "Source", 14),  # the input file's tag
+    _ColumnSpec("input", None, "Input", 28),
+    _ColumnSpec("name", NAME, "Name", 24),
+    _ColumnSpec("set", SET, "Set", 22),
+    _ColumnSpec("series", None, "Series", 18),
+    _ColumnSpec("number", NUMBER, "Number", 10),
+    _ColumnSpec("rarity", RARITY, "Rarity", 14),
+    _ColumnSpec("variant", VARIANT, "Variant", 16),
+    _ColumnSpec("database", None, "Database", 18),
+    _ColumnSpec("market", MARKET, "Market", 12),
+    _ColumnSpec("comp_80", COMP_80, "80%", 10),
+    _ColumnSpec("comp_85", COMP_85, "85%", 10),
+    _ColumnSpec("comp_90", COMP_90, "90%", 10),
+    _ColumnSpec("comp_95", COMP_95, "95%", 10),
+    _ColumnSpec("ebay_sold", None, "eBay Sold (median)", 16),
+    _ColumnSpec("ebay_active", None, "eBay Active (floor)", 16),
+    _ColumnSpec("source", SOURCE, "Price Source", 14),
+    _ColumnSpec("source_url", SOURCE_URL, "Listing URL", 38),
+)
+
+# Preserved for callers that just want the full default header list (tests,
+# docs) — always the unfiltered set, in sheet order.
+HEADERS = [c.header for c in _COLUMNS]
+
+
+def _active_columns(fields: frozenset[str] | None) -> list[_ColumnSpec]:
+    if fields is None:
+        return list(_COLUMNS)
+    return [c for c in _COLUMNS if c.field is None or c.field in fields]
 
 
 @dataclass
@@ -50,29 +87,6 @@ class Row:
     tag: str = ""  # input-file stem so rows stay grouped per source list
 
 
-COLUMN_WIDTHS = {
-    "A": 16,  # Image
-    "B": 14,  # Source (tag)
-    "C": 28,  # Input
-    "D": 24,  # Name
-    "E": 22,  # Set
-    "F": 18,  # Series
-    "G": 10,  # Number
-    "H": 14,  # Rarity
-    "I": 16,  # Variant
-    "J": 18,  # Database
-    "K": 12,  # Market
-    "L": 10,
-    "M": 10,
-    "N": 10,
-    "O": 10,
-    "P": 16,  # eBay Sold (median)
-    "Q": 16,  # eBay Active (floor)
-    "R": 14,  # Price Source
-    "S": 38,  # Listing URL
-}
-
-
 def _money_format(currency: str) -> str:
     if currency == "EUR":
         return '"€"#,##0.00'
@@ -81,7 +95,21 @@ def _money_format(currency: str) -> str:
     return '"$"#,##0.00'
 
 
-def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None = None) -> None:
+def write_spreadsheet(
+    rows: list[Row],
+    out_path: Path,
+    max_price: float | None = None,
+    fields: frozenset[str] | None = None,
+) -> None:
+    """Render `rows` into an xlsx workbook.
+
+    `fields` restricts which of the configurable columns (#262) appear —
+    `None` (the CLI default) renders every column, matching pre-#262
+    behavior. Columns outside the toggle set (Source tag, Input, Series,
+    Database, eBay comps) always render."""
+    columns = _active_columns(fields)
+    col_idx = {c.id: i for i, c in enumerate(columns, start=1)}
+
     wb = Workbook()
     _apply_workbook_branding(wb, out_path)
     ws = wb.active
@@ -89,118 +117,163 @@ def write_spreadsheet(rows: list[Row], out_path: Path, max_price: float | None =
 
     over_cap_fill = PatternFill("solid", fgColor=palette.hex("warning-bg"))  # above-cap rows
 
-    _write_header_row(ws)
-    _apply_column_widths(ws)
+    _write_header_row(ws, columns)
+    _apply_column_widths(ws, columns)
 
     for i, row in enumerate(rows, start=2):
-        _write_data_row(ws, i, row, max_price, over_cap_fill)
+        _write_data_row(ws, i, row, max_price, over_cap_fill, col_idx)
 
-    ws.freeze_panes = "C2"
-    _write_totals_footer(ws, len(rows))
+    if "src_tag" in col_idx:
+        freeze_col = get_column_letter(col_idx["src_tag"] + 1)
+        ws.freeze_panes = f"{freeze_col}2"
+    _write_totals_footer(ws, len(rows), col_idx)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
 
 
-def _write_header_row(ws: Any) -> None:
+def _write_header_row(ws: Any, columns: list[_ColumnSpec]) -> None:
     header_font = Font(bold=True, color=palette.hex("fg-on-dark"))
     header_fill = PatternFill("solid", fgColor=palette.hex(palette.HEADER_BAND))
-    ws.append(HEADERS)
-    for col_idx, _ in enumerate(HEADERS, start=1):
+    ws.append([c.header for c in columns])
+    for col_idx, _ in enumerate(columns, start=1):
         cell = ws.cell(row=1, column=col_idx)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
 
-def _apply_column_widths(ws: Any) -> None:
-    for col, w in COLUMN_WIDTHS.items():
-        ws.column_dimensions[col].width = w
+def _apply_column_widths(ws: Any, columns: list[_ColumnSpec]) -> None:
+    for i, c in enumerate(columns, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = c.width
     ws.row_dimensions[1].height = 22
 
 
-def _write_data_row(ws: Any, i: int, row: Row, max_price: float | None, over_cap_fill: Any) -> None:
+def _write_data_row(
+    ws: Any,
+    i: int,
+    row: Row,
+    max_price: float | None,
+    over_cap_fill: Any,
+    col_idx: dict[str, int],
+) -> None:
     ws.row_dimensions[i].height = THUMB_H * 0.78  # excel "points", approx px*0.75
 
     card = row.card or {}
     card_set = card.get("set") or {}
     money_fmt = _money_format(row.pricing.currency)
 
-    _write_card_cells(ws, i, row, card, card_set)
-    _write_pricing_cells(ws, i, row, money_fmt, max_price, over_cap_fill)
-    _embed_thumbnail(ws, i, row)
+    _write_card_cells(ws, i, row, card, card_set, col_idx)
+    _write_pricing_cells(ws, i, row, money_fmt, max_price, over_cap_fill, col_idx)
+    _embed_thumbnail(ws, i, row, col_idx)
 
 
-def _write_card_cells(ws: Any, i: int, row: Row, card: dict[str, Any], card_set: dict) -> None:
-    ws.cell(row=i, column=2, value=row.tag)
-    ws.cell(row=i, column=3, value=row.query.raw)
-    ws.cell(row=i, column=4, value=card.get("name") or "(not found)")
-    ws.cell(row=i, column=5, value=card_set.get("name"))
-    ws.cell(row=i, column=6, value=card_set.get("series"))
-    ws.cell(row=i, column=7, value=card.get("number"))
-    ws.cell(row=i, column=8, value=card.get("rarity"))
-    ws.cell(row=i, column=9, value=row.pricing.variant)
-    ws.cell(row=i, column=10, value=card.get("_database") or "")
+def _write_card_cells(
+    ws: Any, i: int, row: Row, card: dict[str, Any], card_set: dict, col_idx: dict[str, int]
+) -> None:
+    values = {
+        "src_tag": row.tag,
+        "input": row.query.raw,
+        "name": card.get("name") or "(not found)",
+        "set": card_set.get("name"),
+        "series": card_set.get("series"),
+        "number": card.get("number"),
+        "rarity": card.get("rarity"),
+        "variant": row.pricing.variant,
+        "database": card.get("_database") or "",
+    }
+    for col_id, value in values.items():
+        if col_id in col_idx:
+            ws.cell(row=i, column=col_idx[col_id], value=value)
 
 
 def _write_pricing_cells(
-    ws: Any, i: int, row: Row, money_fmt: str, max_price: float | None, over_cap_fill: Any
+    ws: Any,
+    i: int,
+    row: Row,
+    money_fmt: str,
+    max_price: float | None,
+    over_cap_fill: Any,
+    col_idx: dict[str, int],
 ) -> None:
     market = row.pricing.market
     is_over_cap = max_price is not None and market is not None and market > max_price
 
-    if market is not None:
-        market_cell = ws.cell(row=i, column=11, value=market)
-        market_cell.number_format = money_fmt
-        if is_over_cap:
-            market_cell.fill = over_cap_fill
-            market_cell.font = Font(bold=True, color=palette.hex("warning-fg"))
+    if "market" in col_idx:
+        if market is not None:
+            market_cell = ws.cell(row=i, column=col_idx["market"], value=market)
+            market_cell.number_format = money_fmt
+            if is_over_cap:
+                market_cell.fill = over_cap_fill
+                market_cell.font = Font(bold=True, color=palette.hex("warning-fg"))
+            else:
+                # In-budget market in brand green, matching the binder/checklist.
+                market_cell.font = Font(bold=True, color=palette.hex("success-fg"))
         else:
-            # In-budget market in brand green, matching the binder/checklist.
-            market_cell.font = Font(bold=True, color=palette.hex("success-fg"))
-        for offset, pct in enumerate(COMP_PERCENTS):
-            cell = ws.cell(row=i, column=12 + offset, value=round(market * pct / 100, 2))
+            ws.cell(row=i, column=col_idx["market"], value="—")
+
+    if market is not None:
+        for col_id, pct in zip(
+            ("comp_80", "comp_85", "comp_90", "comp_95"), COMP_PERCENTS, strict=True
+        ):
+            if col_id not in col_idx:
+                continue
+            cell = ws.cell(row=i, column=col_idx[col_id], value=round(market * pct / 100, 2))
             cell.number_format = money_fmt
             if is_over_cap:
                 cell.fill = over_cap_fill
-    else:
-        ws.cell(row=i, column=11, value="—")
 
-    for offset, value in enumerate((row.pricing.ebay_sold_median, row.pricing.ebay_active_floor)):
-        cell = ws.cell(row=i, column=16 + offset, value=value if value is not None else "—")
+    for col_id, value in (
+        ("ebay_sold", row.pricing.ebay_sold_median),
+        ("ebay_active", row.pricing.ebay_active_floor),
+    ):
+        if col_id not in col_idx:
+            continue
+        cell = ws.cell(row=i, column=col_idx[col_id], value=value if value is not None else "—")
         if value is not None:
             cell.number_format = money_fmt
 
-    ws.cell(row=i, column=18, value=row.pricing.source or "")
-    if row.pricing.url:
-        link_cell = ws.cell(row=i, column=19, value=row.pricing.url)
+    if "source" in col_idx:
+        ws.cell(row=i, column=col_idx["source"], value=row.pricing.source or "")
+    if "source_url" in col_idx and row.pricing.url:
+        link_cell = ws.cell(row=i, column=col_idx["source_url"], value=row.pricing.url)
         link_cell.hyperlink = row.pricing.url
         link_cell.font = Font(color=palette.hex("fg-link"), underline="single")
 
 
-def _embed_thumbnail(ws: Any, i: int, row: Row) -> None:
+def _embed_thumbnail(ws: Any, i: int, row: Row, col_idx: dict[str, int]) -> None:
+    if "thumbnail" not in col_idx:
+        return
     if not (row.image_path and row.image_path.exists()):
         return
+    col_letter = get_column_letter(col_idx["thumbnail"])
     try:
         thumb_bytes = make_thumbnail(row.image_path, (THUMB_W, THUMB_H))
         xl_img = XLImage(io.BytesIO(thumb_bytes))
         xl_img.width = THUMB_W
         xl_img.height = THUMB_H
-        anchor_cell = f"A{i}"
+        anchor_cell = f"{col_letter}{i}"
         ws.add_image(xl_img, anchor_cell)
-        ws.column_dimensions["A"].width = max(ws.column_dimensions["A"].width or 16, THUMB_W / 7)
+        ws.column_dimensions[col_letter].width = max(
+            ws.column_dimensions[col_letter].width or 16, THUMB_W / 7
+        )
         ws.row_dimensions[i].height = THUMB_H * 0.78
     except Exception as exc:
         print(f"  ! thumbnail embed failed for {row.query}: {exc}", file=sys.stderr)
 
 
-def _write_totals_footer(ws: Any, row_count: int) -> None:
+def _write_totals_footer(ws: Any, row_count: int, col_idx: dict[str, int]) -> None:
     # Summary footer. Note: SUM aggregates all rows regardless of currency, so
     # mixed-currency runs will produce an arithmetic-but-not-meaningful total.
     last = row_count + 2
-    ws.cell(row=last + 1, column=10, value="Totals:").font = Font(bold=True)
-    for offset, _pct in enumerate([100, *COMP_PERCENTS]):
-        col = 11 + offset
+    pricing_cols = [
+        col_idx[col_id]
+        for col_id in ("market", "comp_80", "comp_85", "comp_90", "comp_95")
+        if col_id in col_idx
+    ]
+    if "database" in col_idx:
+        ws.cell(row=last + 1, column=col_idx["database"], value="Totals:").font = Font(bold=True)
+    for col in pricing_cols:
         col_letter = get_column_letter(col)
         formula = f"=SUM({col_letter}2:{col_letter}{last - 1})"
         cell = ws.cell(row=last + 1, column=col, value=formula)
@@ -209,9 +282,10 @@ def _write_totals_footer(ws: Any, row_count: int) -> None:
 
     # Branding mark in the totals row — clickable link back to the project
     # site so a recipient can trace where the file came from.
-    brand_cell = ws.cell(row=last + 1, column=2, value=branding.PROJECT_NAME)
-    brand_cell.hyperlink = branding.PROJECT_URL
-    brand_cell.font = Font(bold=True, color=palette.hex("fg-link"), underline="single")
+    if "src_tag" in col_idx:
+        brand_cell = ws.cell(row=last + 1, column=col_idx["src_tag"], value=branding.PROJECT_NAME)
+        brand_cell.hyperlink = branding.PROJECT_URL
+        brand_cell.font = Font(bold=True, color=palette.hex("fg-link"), underline="single")
 
 
 def _apply_workbook_branding(wb: Workbook, out_path: Path) -> None:
@@ -238,7 +312,7 @@ def _apply_workbook_branding(wb: Workbook, out_path: Path) -> None:
     try:
         logo = XLImage(io.BytesIO(logo_data))
         # Header row is 22 pt ≈ 29 px; scale the wordmark to ~24 px tall so it
-        # sits flush inside the row without crowding the "Image" header.
+        # sits flush inside the row without crowding the first column header.
         target_h = 24
         logo.height = target_h
         logo.width = int(target_h * branding.LOGO_ASPECT)

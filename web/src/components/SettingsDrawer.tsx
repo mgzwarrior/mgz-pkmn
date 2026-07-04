@@ -3,11 +3,20 @@
  * Uses the Radix Dialog primitive styled with Tailwind.
  */
 import * as Dialog from '@radix-ui/react-dialog'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Database, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react'
 import { fetchCacheStats } from '../api/client'
+import { EXPORT_FIELD_LABELS, EXPORT_FIELD_OPTIONS } from '../data/exportFields'
 import { useAppStore } from '../store'
-import type { CacheStats, SortMode } from '../types'
+import type { CacheStats, ExportField, ExportFormat, SortMode } from '../types'
+
+const EXPORT_FORMAT_LABELS: Record<ExportFormat, string> = {
+  xlsx: 'xlsx',
+  pdf: 'PDF binder',
+  'condensed-pdf': 'Condensed PDF',
+  checklist: 'Checklist',
+}
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'number', label: 'Card number (group by set) — default' },
@@ -181,6 +190,8 @@ export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp 
               />
             </div>
 
+            <ExportFieldsSection />
+
             <CacheStatsPanel />
           </div>
 
@@ -219,6 +230,69 @@ function Field({
       </label>
       {children}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Export columns — collapsible per-format field toggles (#262). Collapsed
+// by default since most users never need to change the defaults; expanding
+// reveals one checkbox group per export format (xlsx / PDF binder /
+// condensed PDF / checklist), each listing only the fields that format
+// actually supports.
+// ---------------------------------------------------------------------------
+
+const EXPORT_FORMATS = Object.keys(EXPORT_FIELD_OPTIONS) as ExportFormat[]
+
+function ExportFieldsSection() {
+  const { settings, updateSettings } = useAppStore()
+
+  function toggleField(format: ExportFormat, field: ExportField, checked: boolean) {
+    updateSettings({
+      exportFields: {
+        ...settings.exportFields,
+        [format]: { ...settings.exportFields[format], [field]: checked },
+      },
+    })
+  }
+
+  return (
+    <details className="group rounded-md border border-sand-300 dark:border-husk-50">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-sm font-medium text-coconut-600 dark:text-sand-200">
+        Export columns
+        <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="space-y-4 border-t border-sand-300 dark:border-husk-50 px-3 py-3">
+        {EXPORT_FORMATS.map((format) => (
+          <div key={format}>
+            <p className="mb-1.5 text-xs font-medium text-coconut-500 dark:text-sand-300">
+              {EXPORT_FORMAT_LABELS[format]}
+            </p>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+              {EXPORT_FIELD_OPTIONS[format].map((field) => {
+                const id = `export-field-${format}-${field}`
+                const checked = settings.exportFields[format]?.[field] ?? true
+                return (
+                  <label
+                    key={field}
+                    htmlFor={id}
+                    className="flex items-center gap-1.5 text-xs text-coconut-600 dark:text-sand-200 cursor-pointer"
+                  >
+                    <input
+                      id={id}
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => toggleField(format, field, e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-sand-300 dark:border-husk-50 text-palm-500 focus:ring-palm-400"
+                    />
+                    {EXPORT_FIELD_LABELS[field]}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
   )
 }
 

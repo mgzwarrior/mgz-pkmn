@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
 import type {
   CacheStatus,
   ProcessingLine,
@@ -55,6 +56,9 @@ const DEFAULT_SETTINGS: Settings = {
   // users with older persisted settings.
   swipeExcludeOwned: false,
   swipeExcludeChasing: false,
+  // Configurable-export field toggles (#262). The `merge` below backfills
+  // this for users with older persisted settings.
+  exportFields: DEFAULT_EXPORT_FIELDS,
 }
 
 interface AppState {

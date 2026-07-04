@@ -173,6 +173,8 @@ export async function exportFile(
     sort?: SortMode
     noImages?: boolean
     dedupe?: boolean
+    /** Which configurable fields (#262) to render; omit for "all". */
+    fields?: string[]
   } = {},
 ): Promise<void> {
   const effectiveRows = options.dedupe ? dedupeRows(rows) : rows
@@ -186,6 +188,7 @@ export async function exportFile(
       max_price: options.maxPrice ?? null,
       title: options.title ?? 'cards',
       no_images: options.noImages ?? true,
+      fields: options.fields ?? null,
     }),
   })
 

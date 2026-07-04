@@ -150,6 +150,30 @@ class ExportApiTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         mock_dl.assert_not_called()
 
+    def test_xlsx_export_honors_fields_subset(self) -> None:
+        from openpyxl import load_workbook
+
+        resp = client.post(
+            "/api/v1/export",
+            json={"rows": [_row_payload()], "format": "xlsx", "fields": ["name"]},
+        )
+        self.assertEqual(resp.status_code, 200)
+        import io
+
+        ws = load_workbook(io.BytesIO(resp.content)).active
+        header_row = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+        self.assertIn("Name", header_row)
+        self.assertNotIn("Rarity", header_row)
+        self.assertNotIn("Market", header_row)
+
+    def test_unsupported_field_for_format_is_silently_dropped(self) -> None:
+        # "rarity" isn't in the binder PDF's supported set — shouldn't 400.
+        resp = client.post(
+            "/api/v1/export",
+            json={"rows": [_row_payload()], "format": "pdf", "fields": ["name", "rarity"]},
+        )
+        self.assertEqual(resp.status_code, 200)
+
     def test_sort_accepts_documented_modes(self) -> None:
         for mode in ("number", "number-desc", "price-asc", "price-desc", "release-date", "alpha"):
             resp = client.post(

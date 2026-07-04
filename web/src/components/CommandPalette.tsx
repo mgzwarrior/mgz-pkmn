@@ -40,6 +40,7 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react'
 import { exportFile, listRuns } from '../api/client'
+import { enabledFields } from '../data/exportFields'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import type { DiscoveryMode } from '../App'
@@ -226,6 +227,7 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
             sort: settings.sort,
             noImages: settings.noImages,
             dedupe: settings.dedupe,
+            fields: enabledFields(settings.exportFields[opt.format]),
           }),
       })
     }

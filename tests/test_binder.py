@@ -114,5 +114,42 @@ class WriteBinderTests(unittest.TestCase):
             self.assertGreater(out.stat().st_size, 0)
 
 
+class WriteBinderFieldsTests(unittest.TestCase):
+    """A #262 field subset must render without crashing and without
+    disturbing the fixed caption geometry — see binder.py's `_draw_cell`
+    docstring for why a disabled field blanks its line instead of
+    reclaiming the space."""
+
+    def test_empty_fields_still_writes_a_pdf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            write_binder_pdf([_row()], out, layout=STANDARD_LAYOUT, fields=frozenset())
+            self.assertTrue(out.exists())
+            self.assertGreater(out.stat().st_size, 0)
+
+    def test_single_field_subset_writes_a_pdf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            write_binder_pdf(
+                [_row(market=None)], out, layout=CONDENSED_LAYOUT, fields=frozenset({"name"})
+            )
+            self.assertTrue(out.exists())
+            self.assertGreater(out.stat().st_size, 0)
+
+    def test_unpriced_row_with_comps_enabled_writes_a_pdf(self) -> None:
+        # Market is None — the comp loop must skip drawing rather than
+        # raising on `None * pct`.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            write_binder_pdf(
+                [_row(market=None)],
+                out,
+                layout=STANDARD_LAYOUT,
+                fields=frozenset({"market", "comp_80", "comp_95"}),
+            )
+            self.assertTrue(out.exists())
+            self.assertGreater(out.stat().st_size, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
