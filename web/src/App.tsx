@@ -397,11 +397,15 @@ function App() {
     [settings, appendRow],
   )
 
+  // Density rides on <html> like the dark-mode class so portalled surfaces
+  // (Radix dropdowns/dialogs mount under <body>) get the `compact:` rhythm
+  // too — an attribute on the app root wouldn't reach them (#867 review).
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', settings.density)
+  }, [settings.density])
+
   return (
-    <div
-      data-density={settings.density}
-      className="min-h-screen bg-sand-50 text-coconut-700 dark:bg-husk-400 dark:text-sand-50"
-    >
+    <div className="min-h-screen bg-sand-50 text-coconut-700 dark:bg-husk-400 dark:text-sand-50">
       <AnnouncementBanner />
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-sand-300 bg-sand-50/80 dark:border-husk-200/80 dark:bg-husk-400/80 backdrop-blur">
