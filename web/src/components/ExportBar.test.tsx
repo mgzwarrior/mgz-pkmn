@@ -76,6 +76,7 @@ describe('ExportBar', () => {
         swipeRarityFloor: 'chase',
         swipeExcludeOwned: false,
         swipeExcludeChasing: false,
+        density: 'comfortable' as const,
       },
     })
     mockExportFile.mockReset()
@@ -153,6 +154,7 @@ describe('ExportBar', () => {
         swipeRarityFloor: 'chase',
         swipeExcludeOwned: false,
         swipeExcludeChasing: false,
+        density: 'comfortable' as const,
       },
     })
 

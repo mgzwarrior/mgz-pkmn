@@ -281,6 +281,24 @@ describe('store: settings.swipeRarityFloor', () => {
   })
 })
 
+describe('store: settings.density', () => {
+  afterEach(() => {
+    useAppStore.getState().resetSettings()
+  })
+
+  it("defaults to 'comfortable' and round-trips through updateSettings", () => {
+    expect(useAppStore.getState().settings.density).toBe('comfortable')
+    useAppStore.getState().updateSettings({ density: 'compact' })
+    expect(useAppStore.getState().settings.density).toBe('compact')
+  })
+
+  it('resetSettings restores it to comfortable', () => {
+    useAppStore.getState().updateSettings({ density: 'compact' })
+    useAppStore.getState().resetSettings()
+    expect(useAppStore.getState().settings.density).toBe('comfortable')
+  })
+})
+
 describe('store: lastSeenChangelogVersion', () => {
   beforeEach(() => useAppStore.setState({ lastSeenChangelogVersion: null }))
 

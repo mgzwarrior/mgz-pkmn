@@ -7,7 +7,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Database, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react'
 import { fetchCacheStats } from '../api/client'
 import { useAppStore } from '../store'
-import type { CacheStats, SortMode } from '../types'
+import type { CacheStats, Density, SortMode } from '../types'
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'number', label: 'Card number (group by set) — default' },
@@ -44,7 +44,7 @@ export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp 
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
         <button
-          className="flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1.5 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors sm:px-3"
+          className="flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1.5 compact:py-1 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors sm:px-3"
           title="Settings"
           aria-label="Settings"
         >
@@ -117,6 +117,23 @@ export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp 
               <p className="mt-1 text-xs text-coconut-400 dark:text-sand-300">
                 Applied to every export (xlsx, PDF binder, condensed PDF, checklist). Tag stays the
                 outermost group; this only changes order within each tag.
+              </p>
+            </Field>
+
+            {/* Density (#526) */}
+            <Field label="Density" htmlFor="density">
+              <select
+                id="density"
+                value={settings.density}
+                onChange={(e) => updateSettings({ density: e.target.value as Density })}
+                className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
+              >
+                <option value="comfortable">Comfortable — default</option>
+                <option value="compact">Compact — tighter rows</option>
+              </select>
+              <p className="mt-1 text-xs text-coconut-400 dark:text-sand-300">
+                Compact tightens the results table, Backpack, and header for
+                working through long lists.
               </p>
             </Field>
 

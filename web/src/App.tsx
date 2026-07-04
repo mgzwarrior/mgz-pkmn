@@ -398,7 +398,10 @@ function App() {
   )
 
   return (
-    <div className="min-h-screen bg-sand-50 text-coconut-700 dark:bg-husk-400 dark:text-sand-50">
+    <div
+      data-density={settings.density}
+      className="min-h-screen bg-sand-50 text-coconut-700 dark:bg-husk-400 dark:text-sand-50"
+    >
       <AnnouncementBanner />
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-sand-300 bg-sand-50/80 dark:border-husk-200/80 dark:bg-husk-400/80 backdrop-blur">
@@ -464,10 +467,10 @@ function App() {
               onActiveTabChange={setLibraryTab}
             />
           </div>
-          <div className="flex-1 min-w-0 space-y-6">
+          <div className="flex-1 min-w-0 space-y-6 compact:space-y-4">
             {/* Discover: the discovery workspace. On mobile it's the Discover
                 tab; desktop always shows it (the bottom bar never renders). */}
-            <div className={`space-y-6 ${mobileTab === 'discover' ? '' : 'hidden'} lg:block`}>
+            <div className={`space-y-6 compact:space-y-4 ${mobileTab === 'discover' ? '' : 'hidden'} lg:block`}>
             <nav
               role="tablist"
               aria-label="Discovery mode"

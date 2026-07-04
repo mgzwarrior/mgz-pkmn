@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
   swipeRarityFloor: 'chase' as const,
   swipeExcludeOwned: false,
   swipeExcludeChasing: false,
+  density: 'comfortable' as const,
 }
 
 function row(name: string): Row {

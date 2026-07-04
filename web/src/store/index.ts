@@ -55,6 +55,10 @@ const DEFAULT_SETTINGS: Settings = {
   // users with older persisted settings.
   swipeExcludeOwned: false,
   swipeExcludeChasing: false,
+  // Comfortable keeps today's friendly rhythm; compact (#526) is the
+  // vendor-inventorying mode. The `merge` below backfills this for users
+  // with older persisted settings.
+  density: 'comfortable',
 }
 
 interface AppState {

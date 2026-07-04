@@ -168,7 +168,7 @@ export function HelpModal({ onStartTour, open: openProp, onOpenChange: onOpenCha
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger asChild>
         <button
-          className={`relative flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1.5 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors sm:px-3 ${
+          className={`relative flex items-center gap-1.5 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-2.5 py-1.5 compact:py-1 text-sm text-coconut-600 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors sm:px-3 ${
             hint ? 'ring-2 ring-palm-400 dark:ring-sun-300 animate-pulse' : ''
           }`}
           title="Help"

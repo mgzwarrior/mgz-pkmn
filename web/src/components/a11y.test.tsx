@@ -95,6 +95,7 @@ const { storeState, storeApi } = vi.hoisted(() => {
       sort: 'number' as const,
       showTimer: false,
       showEbay: false,
+      density: 'comfortable' as 'comfortable' | 'compact',
     },
     runs: [] as unknown[],
     currentRunId: null as number | null,
@@ -243,6 +244,40 @@ describe('a11y: ResultsTable (populated + filters expanded)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^filter$/i }))
     const results = await axe(container)
     expect(results).toHaveNoViolations()
+  })
+})
+
+// Compact density (#526) — the same populated table under the app root's
+// data-density="compact" attribute, so the `compact:` utilities apply the
+// tightened rhythm the scan covers.
+describe('a11y: ResultsTable (compact density)', () => {
+  it('compact table with rows has no violations', async () => {
+    storeState.settings = { ...storeState.settings, density: 'compact' as const }
+    storeState.rows = [
+      {
+        query: { raw: 'Pikachu | Jungle', name: 'Pikachu' },
+        card: {
+          id: 'jungle-60',
+          name: 'Pikachu',
+          number: '60',
+          rarity: 'Common',
+          set: { id: 'jungle', name: 'Jungle', series: 'Original' },
+        },
+        pricing: { market: 5.12, currency: 'USD', variant: 'normal', source: 'TCGPlayer', url: null },
+        tag: 'demo',
+        matched: true,
+        reason: '',
+      } as Row,
+    ]
+    try {
+      await expectNoViolations(
+        <div data-density="compact">
+          <ResultsTable />
+        </div>,
+      )
+    } finally {
+      storeState.settings = { ...storeState.settings, density: 'comfortable' as const }
+    }
   })
 })
 

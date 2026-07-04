@@ -206,7 +206,7 @@ export function InputEditor({ onRun, onStop }: Props) {
               setInputText('')
               setCollapsed(false)
             }}
-            className="flex items-center gap-1 rounded px-2 py-1 text-xs text-coconut-400 hover:text-coconut-700 hover:bg-sand-200 dark:text-sand-300 dark:hover:text-sand-50 dark:hover:bg-husk-100 transition-colors"
+            className="flex items-center gap-1 rounded px-2 py-1 compact:py-0.5 text-xs text-coconut-400 hover:text-coconut-700 hover:bg-sand-200 dark:text-sand-300 dark:hover:text-sand-50 dark:hover:bg-husk-100 transition-colors"
             title="Clear input and results"
           >
             <RotateCcw size={12} />
@@ -216,7 +216,7 @@ export function InputEditor({ onRun, onStop }: Props) {
             <button
               onPointerDown={(e) => e.preventDefault()}
               onClick={onStop}
-              className="flex items-center gap-1.5 rounded-md bg-ember-500 px-3 py-1.5 text-sm font-medium text-sand-50 hover:bg-ember-400 dark:bg-ember-500 dark:hover:bg-ember-400 transition-colors"
+              className="flex items-center gap-1.5 rounded-md bg-ember-500 px-3 py-1.5 compact:py-1 text-sm font-medium text-sand-50 hover:bg-ember-400 dark:bg-ember-500 dark:hover:bg-ember-400 transition-colors"
             >
               <Square size={13} fill="currentColor" />
               Stop
@@ -234,7 +234,7 @@ export function InputEditor({ onRun, onStop }: Props) {
               }}
               disabled={lineCount === 0}
               data-tour="run"
-              className="flex items-center gap-1.5 rounded-md bg-sun-300 px-3 py-1.5 text-sm font-medium text-coconut-700 shadow-sm hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 rounded-md bg-sun-300 px-3 py-1.5 compact:py-1 text-sm font-medium text-coconut-700 shadow-sm hover:bg-sun-400 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Play size={13} fill="currentColor" />
               Look up&nbsp;

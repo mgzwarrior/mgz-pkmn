@@ -484,7 +484,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-left">
-              <th className="px-3 py-2 w-8">
+              <th className="px-3 py-2 compact:py-1 w-8">
                 <input
                   type="checkbox"
                   aria-label="Select all rows"
@@ -497,12 +497,12 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 />
               </th>
               {showSavedActions && (
-                <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-20">
+                <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 w-20">
                   <span className="sr-only">Save actions</span>
                 </th>
               )}
               {!settings.noImages && (
-                <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 w-16">Img</th>
+                <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 w-16">Img</th>
               )}
               <SortableHeader
                 label="Name"
@@ -535,12 +535,12 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 onClick={cycleSort}
                 align="right"
               />
-              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">80%</th>
-              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">85%</th>
-              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">90%</th>
-              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">95%</th>
+              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">80%</th>
+              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">85%</th>
+              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">90%</th>
+              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">95%</th>
               {settings.showEbay && (
-                <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden lg:table-cell">
+                <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden lg:table-cell">
                   eBay sold
                 </th>
               )}
@@ -552,7 +552,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 onClick={cycleSort}
                 className="hidden sm:table-cell"
               />
-              <th className="px-3 py-2 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right">
+              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right">
                 Buy
               </th>
             </tr>
@@ -663,7 +663,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
             ))}
             {isRunning && (
               <tr>
-                <td colSpan={14} className="py-2 px-3">
+                <td colSpan={14} className="py-2 px-3 compact:py-1">
                   <div className="h-1 w-24 rounded animate-pulse bg-sand-200 dark:bg-husk-100" />
                 </td>
               </tr>
@@ -754,7 +754,7 @@ function SortableHeader({
   const Icon = isActive ? (dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
   return (
     <th
-      className={`px-3 py-2 text-xs font-medium ${align === 'right' ? 'text-right' : ''} ${className}`}
+      className={`px-3 py-2 compact:py-1 text-xs font-medium ${align === 'right' ? 'text-right' : ''} ${className}`}
     >
       <button
         type="button"
@@ -778,7 +778,7 @@ function FilterCell({
   children: React.ReactNode
   className?: string
 }) {
-  return <th className={`px-2 py-1.5 ${className}`}>{children}</th>
+  return <th className={`px-2 py-1.5 compact:py-0.5 ${className}`}>{children}</th>
 }
 
 function FilterInput({
@@ -1057,7 +1057,7 @@ function ResultRow({
       >
         {/* Selection checkbox — onClick carries shiftKey for range select;
             a no-op onChange keeps the input controlled without a warning. */}
-        <td className="px-3 py-1.5 w-8">
+        <td className="px-3 py-1.5 compact:py-0.5 w-8">
           <input
             type="checkbox"
             aria-label={`Select ${(card?.name as string) ?? row.query.raw}`}
@@ -1071,7 +1071,7 @@ function ResultRow({
         {/* Row actions — pinned left so they stay visible on narrow
             viewports where the table overflows horizontally. */}
         {showSavedActions && (
-          <td className="px-3 py-1.5 w-20">
+          <td className="px-3 py-1.5 compact:py-0.5 w-20">
             <div className="flex items-center gap-1">
               {row.matched && card && (
                 <QuickActions
@@ -1087,16 +1087,16 @@ function ResultRow({
 
         {/* Thumbnail */}
         {showImage && (
-          <td className="px-3 py-1.5 w-16">
+          <td className="px-3 py-1.5 compact:py-0.5 w-16">
             {imgUrl ? (
               <img
                 src={imgUrl}
                 alt={card?.name as string}
-                className="w-10 h-14 object-contain rounded"
+                className="w-10 h-14 compact:h-10 compact:w-7 object-contain rounded"
                 loading="lazy"
               />
             ) : (
-              <div className="w-10 h-14 rounded bg-sand-100 dark:bg-husk-200 flex items-center justify-center">
+              <div className="w-10 h-14 compact:h-10 compact:w-7 rounded bg-sand-100 dark:bg-husk-200 flex items-center justify-center">
                 <span className="text-coconut-400 dark:text-sand-300 text-xs">?</span>
               </div>
             )}
@@ -1104,11 +1104,14 @@ function ResultRow({
         )}
 
         {/* Name */}
-        <td className="px-3 py-2 max-w-[200px]">
+        <td className="px-3 py-2 compact:py-1 max-w-[200px]">
           {row.matched ? (
             <div>
               <div className="font-medium text-coconut-700 dark:text-sand-50 truncate">{card?.name as string}</div>
-              <div className="text-xs text-coconut-400 dark:text-sand-300 truncate">{row.query.raw}</div>
+              {/* The raw-query echo is redundant while inventorying a long
+                  list (it's still in the editor), so compact reclaims the
+                  line — the biggest single win toward its tighter rhythm. */}
+              <div className="text-xs text-coconut-400 dark:text-sand-300 truncate compact:hidden">{row.query.raw}</div>
               <OwnershipBadge ownership={ownership} className="mt-0.5" />
             </div>
           ) : (
@@ -1127,22 +1130,25 @@ function ResultRow({
           )}
         </td>
 
-        {/* Set */}
-        <td className="px-3 py-2 text-coconut-400 dark:text-sand-300 text-xs hidden md:table-cell max-w-[160px]">
-          <div className="truncate">{setName ?? '—'}</div>
-          {card?.number && (
-            <div className="text-coconut-400 dark:text-sand-300">#{card.number as string}</div>
-          )}
+        {/* Set — name over number; compact folds them onto one line so
+            this cell stops setting the row height. */}
+        <td className="px-3 py-2 compact:py-1 text-coconut-400 dark:text-sand-300 text-xs hidden md:table-cell max-w-[160px]">
+          <div className="compact:flex compact:items-baseline compact:gap-1">
+            <div className="truncate">{setName ?? '—'}</div>
+            {card?.number && (
+              <div className="shrink-0 text-coconut-400 dark:text-sand-300">#{card.number as string}</div>
+            )}
+          </div>
         </td>
 
         {/* Rarity */}
-        <td className="px-3 py-2 text-xs text-coconut-400 dark:text-sand-300 hidden lg:table-cell max-w-[120px] truncate">
+        <td className="px-3 py-2 compact:py-1 text-xs text-coconut-400 dark:text-sand-300 hidden lg:table-cell max-w-[120px] truncate">
           {(card?.rarity as string | undefined) ?? '—'}
         </td>
 
         {/* Market */}
         <td
-          className={`px-3 py-2 text-right font-mono tabular-nums ${
+          className={`px-3 py-2 compact:py-1 text-right font-mono tabular-nums ${
             isOverCap ? 'text-sun-600 dark:text-sun-300 font-bold' : p.market ? 'text-palm-500 dark:text-palm-200' : 'text-coconut-400 dark:text-sand-300'
           }`}
         >
@@ -1150,23 +1156,23 @@ function ResultRow({
         </td>
 
         {/* Comp tiers */}
-        <td className="px-3 py-2 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
+        <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
           {formatComp(p.market, 80, p.currency)}
         </td>
-        <td className="px-3 py-2 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
+        <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
           {formatComp(p.market, 85, p.currency)}
         </td>
-        <td className="px-3 py-2 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
+        <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
           {formatComp(p.market, 90, p.currency)}
         </td>
-        <td className="px-3 py-2 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
+        <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
           {formatComp(p.market, 95, p.currency)}
         </td>
 
         {/* eBay sold — median + sparkline of recent sales. Empty until the
             eBay source is wired into lookup (epic #416). */}
         {showEbay && (
-          <td className="px-3 py-2 text-right hidden lg:table-cell">
+          <td className="px-3 py-2 compact:py-1 text-right hidden lg:table-cell">
             {p.ebay_sold_median != null ? (
               <div className="flex flex-col items-end gap-0.5">
                 <span className="font-mono tabular-nums text-xs text-coconut-600 dark:text-sand-200">
@@ -1185,14 +1191,14 @@ function ResultRow({
         )}
 
         {/* Price source */}
-        <td className="px-3 py-2 text-xs text-coconut-400 dark:text-sand-300 hidden sm:table-cell">
+        <td className="px-3 py-2 compact:py-1 text-xs text-coconut-400 dark:text-sand-300 hidden sm:table-cell">
           {p.source ?? '—'}
         </td>
 
         {/* Buy — the matched listing (if any) plus eBay + TCGPlayer affiliate
             search links (#657). Unmatched rows have no card to search, so the
             affiliate links omit themselves there. */}
-        <td className="px-3 py-2 whitespace-nowrap">
+        <td className="px-3 py-2 compact:py-1 whitespace-nowrap">
           <div className="flex items-center justify-end gap-2">
             {p.url && (
               <a
@@ -1213,7 +1219,7 @@ function ResultRow({
       {/* Override URL form (inline, expands below row) */}
       {showOverrideForm && (
         <tr className="border-b border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200/60">
-          <td colSpan={14} className="px-3 py-2">
+          <td colSpan={14} className="px-3 py-2 compact:py-1">
             <div className="flex items-center gap-2">
               <input
                 type="url"
