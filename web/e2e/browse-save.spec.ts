@@ -65,6 +65,5 @@ test('browse a set, save a card, and see it in the Backpack', async ({ page }) =
   // "My wishlist", which now shows as a binder row in the Backpack.
   const backpack = page.getByRole('complementary', { name: 'Backpack', exact: true })
   await expect(backpack).toBeVisible()
-  await backpack.getByRole('tab', { name: 'Binders' }).click()
   await expect(backpack.getByText('My wishlist')).toBeVisible()
 })

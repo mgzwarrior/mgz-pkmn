@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { SettingsDrawer } from './SettingsDrawer'
 import { fetchCacheStats } from '../api/client'
+import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
 
 vi.mock('../api/client', () => ({
   fetchCacheStats: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../store', () => ({
       sort: 'number',
       showTimer: false,
       showEbay: false,
+      exportFields: DEFAULT_EXPORT_FIELDS,
     },
     updateSettings: mockUpdateSettings,
     resetSettings: mockResetSettings,
@@ -88,6 +90,38 @@ describe('SettingsDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
     fireEvent.click(screen.getByLabelText(/show ebay comps/i))
     expect(mockUpdateSettings).toHaveBeenCalledWith({ showEbay: true })
+  })
+
+  it('"Export columns" section lists every xlsx field, all checked by default', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    expect(screen.getByText('Export columns')).toBeInTheDocument()
+    const marketCheckboxes = screen.getAllByLabelText('Market price')
+    for (const box of marketCheckboxes) expect(box).toBeChecked()
+  })
+
+  it('unchecking an xlsx export field updates just that format\'s toggle', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    // "Rarity" only appears under xlsx and checklist — grab the first (xlsx).
+    const [xlsxRarity] = screen.getAllByLabelText('Rarity')
+    fireEvent.click(xlsxRarity)
+    expect(mockUpdateSettings).toHaveBeenCalledWith({
+      exportFields: {
+        ...DEFAULT_EXPORT_FIELDS,
+        xlsx: { ...DEFAULT_EXPORT_FIELDS.xlsx, rarity: false },
+      },
+    })
+  })
+
+  it('PDF binder\'s field list excludes rarity/variant/source (not rendered by that writer)', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    expect(screen.getByText('PDF binder')).toBeInTheDocument()
+    // Only xlsx (and checklist, for rarity) offer these — never two extra
+    // "PDF binder" instances of a field that format doesn't support.
+    expect(screen.getAllByLabelText('Rarity')).toHaveLength(2) // xlsx + checklist
+    expect(screen.getAllByLabelText('Source URL')).toHaveLength(1) // xlsx only
   })
 
   it('cache-stats panel renders the values returned by /cache/stats', async () => {

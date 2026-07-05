@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CacheSourceChip } from './CacheSourceChip'
 import { useAppStore } from '../store'
+import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
 
 const DEFAULT_SETTINGS = {
   apiKey: '',
@@ -17,6 +18,7 @@ const DEFAULT_SETTINGS = {
   swipeExcludeOwned: false,
   swipeExcludeChasing: false,
   density: 'comfortable' as const,
+  exportFields: DEFAULT_EXPORT_FIELDS,
 }
 
 describe('CacheSourceChip', () => {

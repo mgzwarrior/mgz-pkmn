@@ -150,6 +150,34 @@ export type SortMode =
 export type ExportFormat = 'xlsx' | 'pdf' | 'condensed-pdf' | 'checklist'
 
 /**
+ * Canonical field keys for the configurable-export toggle (#262). Mirrors
+ * `mgz_pkmn.export_fields` — every key here must match a key the API
+ * understands, since it's sent back verbatim in the export request.
+ */
+export type ExportField =
+  | 'thumbnail'
+  | 'name'
+  | 'set'
+  | 'number'
+  | 'rarity'
+  | 'variant'
+  | 'market'
+  | 'comp_80'
+  | 'comp_85'
+  | 'comp_90'
+  | 'comp_95'
+  | 'source'
+  | 'source_url'
+
+/**
+ * Per-format enabled/disabled state for the configurable-export fields
+ * (#262). Each format only lists the fields it actually supports (see
+ * `EXPORT_FIELD_OPTIONS` in SettingsDrawer.tsx) — a format's record simply
+ * omits keys it doesn't render.
+ */
+export type ExportFieldToggles = Record<ExportFormat, Partial<Record<ExportField, boolean>>>
+
+/**
  * Swipe-mode rarity floor — how aggressively the candidate pool is trimmed
  * toward chase cards. `all` keeps every rarity, `rare` drops Common +
  * Uncommon, and `chase` keeps only each set's top rarity tier (age-scaled:
@@ -198,6 +226,8 @@ export interface Settings {
   swipeExcludeChasing: boolean
   /** Workspace density (#526): comfortable (default) or compact. */
   density: Density
+  /** Configurable-export field toggles per format (#262). */
+  exportFields: ExportFieldToggles
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */

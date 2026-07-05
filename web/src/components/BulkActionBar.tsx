@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { exportFile, ownCard, wantCard } from '../api/client'
+import { enabledFields } from '../data/exportFields'
 import { useAppStore } from '../store'
 import type { ExportFormat, Row } from '../types'
 import { invalidateOwnership } from './useCardOwnership'
@@ -91,6 +92,7 @@ export function BulkActionBar({
         sort: settings.sort,
         noImages: settings.noImages,
         dedupe: settings.dedupe,
+        fields: enabledFields(settings.exportFields[format]),
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

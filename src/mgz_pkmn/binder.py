@@ -26,6 +26,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from . import branding, palette
+from .export_fields import BINDER_FIELDS
 from .parser import (
     _CJK_IDEOGRAPH_RE,
     _HANGUL_RE,
@@ -204,6 +205,7 @@ def write_binder_pdf(
     title: str | None = None,
     max_price: float | None = None,
     layout: BinderLayout = STANDARD_LAYOUT,
+    fields: frozenset[str] | None = None,
 ) -> None:
     """Render `rows` into a binder-style PDF using `layout`.
 
@@ -211,7 +213,14 @@ def write_binder_pdf(
     list shows up as its own section with a header banner and starts on a
     fresh page. Each card cell shows: image, bold name, "(#num/total)", set
     name, market price (labelled "MP"), and one comp tier per line at
-    80/85/90/95% — identical for both presets."""
+    80/85/90/95% — identical for both presets.
+
+    `fields` restricts which of those pieces render (#262) — `None` (the
+    CLI default) renders everything, matching pre-#262 behavior. A field
+    that's off leaves its caption line blank rather than reclaiming the
+    space, so the fixed eight-line geometry doesn't need to change per
+    render."""
+    active = BINDER_FIELDS if fields is None else fields
     out_path.parent.mkdir(parents=True, exist_ok=True)
     _ensure_cjk_fonts()
     c = canvas.Canvas(str(out_path), pagesize=letter)
@@ -229,7 +238,7 @@ def write_binder_pdf(
         if not is_first_section:
             tracker.show_page()
         is_first_section = False
-        _draw_section(c, tag, section_rows, layout, geom, tracker, max_price=max_price)
+        _draw_section(c, tag, section_rows, layout, geom, tracker, active, max_price=max_price)
 
     tracker.finish()
 
@@ -268,6 +277,7 @@ def _draw_section(
     layout: BinderLayout,
     geom: dict,
     tracker: branding.PageTracker,
+    fields: frozenset[str],
     max_price: float | None = None,
 ) -> None:
     """Render one tag's worth of cards across as many pages as needed."""
@@ -284,7 +294,7 @@ def _draw_section(
         cell_top_y = geom["grid_top_y"] - rrow * (geom["cell_h"] + layout.gutter)
         cell_bottom_y = cell_top_y - geom["cell_h"]
 
-        _draw_cell(c, row, cell_x, cell_bottom_y, layout, geom, max_price=max_price)
+        _draw_cell(c, row, cell_x, cell_bottom_y, layout, geom, fields, max_price=max_price)
 
 
 def _draw_section_header(c: canvas.Canvas, tag: str, count: int, layout: BinderLayout) -> None:
@@ -330,6 +340,7 @@ def _draw_cell(
     y: float,
     layout: BinderLayout,
     geom: dict,
+    fields: frozenset[str],
     max_price: float | None = None,
 ) -> None:
     """Render one card cell. (x, y) is the bottom-left of the cell.
@@ -337,7 +348,9 @@ def _draw_cell(
     A layout coordinator: it computes the cell geometry, then hands each
     visual block (border, banner, image, caption text, price, comps) to a
     helper in top-to-bottom order, threading the descending `line_y` cursor
-    through the caption stack."""
+    through the caption stack. `fields` (#262) blanks a line rather than
+    reclaiming its space, so the cursor math stays the same regardless of
+    which fields are enabled."""
     cell_w = geom["cell_w"]
     cell_h = geom["cell_h"]
     image_w = geom["image_w"]
@@ -364,14 +377,15 @@ def _draw_cell(
     if language and language.lower() != "en":
         _draw_lang_banner(c, image_x, banner_top_y, image_w, language, layout)
 
-    _draw_cell_image(c, row, image_x, image_y, image_w, image_h, layout)
+    if "thumbnail" in fields:
+        _draw_cell_image(c, row, image_x, image_y, image_w, image_h, layout)
 
     cx = x + cell_w / 2
     max_w = cell_w - 8
     line_y = image_y - 6 - layout.caption_leading
-    line_y = _draw_cell_caption_text(c, row.card or {}, language, cx, line_y, max_w, layout)
-    line_y = _draw_cell_price(c, row, cx, line_y, max_w, layout, max_price)
-    _draw_cell_comps(c, row, cx, line_y, max_w, layout)
+    line_y = _draw_cell_caption_text(c, row.card or {}, language, cx, line_y, max_w, layout, fields)
+    line_y = _draw_cell_price(c, row, cx, line_y, max_w, layout, max_price, fields)
+    _draw_cell_comps(c, row, cx, line_y, max_w, layout, fields)
 
 
 def _draw_cell_image(
@@ -418,9 +432,13 @@ def _draw_cell_caption_text(
     line_y: float,
     max_w: float,
     layout: BinderLayout,
+    fields: frozenset[str],
 ) -> float:
     """Name (bold), `(#num/total)`, and set name. Returns the cursor below
-    the set-name line, ready for the price block."""
+    the set-name line, ready for the price block. Each line is gated by its
+    #262 field key; a disabled field leaves its line blank rather than
+    collapsing the cursor, so the caption block's fixed height doesn't
+    depend on which fields are on."""
     name = card.get("name") or "(not found)"
     card_set = card.get("set") or {}
     set_name = card_set.get("name") or "?"
@@ -428,21 +446,26 @@ def _draw_cell_caption_text(
     total = card_set.get("printedTotal") or card_set.get("total")
 
     # 1. Name (bold).
-    c.setFillColorRGB(*palette.rgb01("fg-1"))
-    c.setFont(_font_for_name(name, language, bold=True), layout.name_font_size)
     line_y -= 2
-    _draw_truncated(c, cx, line_y, name, max_w)
+    if "name" in fields:
+        c.setFillColorRGB(*palette.rgb01("fg-1"))
+        c.setFont(_font_for_name(name, language, bold=True), layout.name_font_size)
+        _draw_truncated(c, cx, line_y, name, max_w)
 
     # 2. (#X/Y) or just (#X) when total unknown
     line_y -= layout.caption_leading
-    c.setFont("Helvetica", layout.caption_font_size)
-    parens = f"(#{number}/{total})" if total else f"(#{number})"
-    _draw_truncated(c, cx, line_y, parens, max_w)
+    if "number" in fields:
+        c.setFillColorRGB(*palette.rgb01("fg-1"))
+        c.setFont("Helvetica", layout.caption_font_size)
+        parens = f"(#{number}/{total})" if total else f"(#{number})"
+        _draw_truncated(c, cx, line_y, parens, max_w)
 
     # 3. Set name
     line_y -= layout.caption_leading
-    c.setFont("Helvetica", layout.caption_font_size)
-    _draw_truncated(c, cx, line_y, set_name, max_w)
+    if "set" in fields:
+        c.setFillColorRGB(*palette.rgb01("fg-1"))
+        c.setFont("Helvetica", layout.caption_font_size)
+        _draw_truncated(c, cx, line_y, set_name, max_w)
     return line_y
 
 
@@ -454,10 +477,13 @@ def _draw_cell_price(
     max_w: float,
     layout: BinderLayout,
     max_price: float | None,
+    fields: frozenset[str],
 ) -> float:
     """Market price labelled "MP". Red `! MP` above cap, green in budget,
     oblique "no price" when unpriced. Returns the cursor below the line."""
     line_y -= layout.caption_leading + 1
+    if "market" not in fields:
+        return line_y
     if row.pricing.market is not None:
         sym = "€" if row.pricing.currency == "EUR" else "$"
         is_over_cap = max_price is not None and row.pricing.market > max_price
@@ -483,6 +509,7 @@ def _draw_cell_comps(
     line_y: float,
     max_w: float,
     layout: BinderLayout,
+    fields: frozenset[str],
 ) -> None:
     """Comp tiers, one per line at 80/85/90/95% of market."""
     c.setFillColorRGB(*palette.rgb01("fg-2"))
@@ -491,6 +518,8 @@ def _draw_cell_comps(
         sym = "€" if row.pricing.currency == "EUR" else "$"
         for p in COMP_PERCENTS:
             line_y -= layout.caption_leading
+            if f"comp_{p}" not in fields:
+                continue
             comp_value = round(row.pricing.market * p / 100, 2)
             _draw_truncated(c, cx, line_y, f"{p}% {sym}{comp_value:,.2f}", max_w)
 

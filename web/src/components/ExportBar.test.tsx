@@ -4,6 +4,7 @@ import { ExportBar } from './ExportBar'
 import { useAppStore } from '../store'
 import type { Row } from '../types'
 import { exportFile } from '../api/client'
+import { DEFAULT_EXPORT_FIELDS, enabledFields } from '../data/exportFields'
 
 vi.mock('../api/client', () => ({
   exportFile: vi.fn(),
@@ -77,6 +78,7 @@ describe('ExportBar', () => {
         swipeExcludeOwned: false,
         swipeExcludeChasing: false,
         density: 'comfortable' as const,
+        exportFields: DEFAULT_EXPORT_FIELDS,
       },
     })
     mockExportFile.mockReset()
@@ -155,6 +157,7 @@ describe('ExportBar', () => {
         swipeExcludeOwned: false,
         swipeExcludeChasing: false,
         density: 'comfortable' as const,
+        exportFields: DEFAULT_EXPORT_FIELDS,
       },
     })
 
@@ -169,6 +172,7 @@ describe('ExportBar', () => {
       sort: 'alpha',
       noImages: false,
       dedupe: true,
+      fields: enabledFields(DEFAULT_EXPORT_FIELDS.xlsx),
     })
   })
 
@@ -261,6 +265,7 @@ describe('ExportBar', () => {
       sort: 'alpha',
       noImages: true,
       dedupe: false,
+      fields: enabledFields(DEFAULT_EXPORT_FIELDS.xlsx),
     })
   })
 
