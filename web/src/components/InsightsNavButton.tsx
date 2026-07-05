@@ -34,7 +34,7 @@ export function InsightsNavButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Collection insights"
-        className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-3 py-1.5 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors"
+        className="flex items-center gap-1.5 rounded-md border border-sand-300 bg-sand-100 px-3 py-1.5 compact:py-1 text-sm text-coconut-700 hover:bg-sand-200 hover:border-sand-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-50 dark:hover:bg-husk-100 dark:hover:border-coconut-400 transition-colors"
       >
         <BarChart3 size={14} />
         Insights

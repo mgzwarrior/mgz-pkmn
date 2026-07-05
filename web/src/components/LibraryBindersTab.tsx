@@ -361,7 +361,7 @@ function NewMenuItem({
   return (
     <DropdownMenu.Item
       onSelect={onSelect}
-      className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-left outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100"
+      className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 compact:py-0.5 text-left outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100"
     >
       <span className="mt-0.5 text-palm-600 dark:text-palm-300">{icon}</span>
       <span className="min-w-0">
@@ -534,7 +534,7 @@ function CollectionRow({
       <button
         type="button"
         onClick={() => (isTarget ? onOpenTarget(c) : onOpenCollection(c))}
-        className="flex min-w-0 flex-1 items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+        className="flex min-w-0 flex-1 items-center justify-between rounded py-2 compact:py-1 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
       >
         {body}
       </button>
@@ -620,7 +620,7 @@ function WishlistRow({
       <button
         type="button"
         onClick={() => onOpen(w)}
-        className="flex min-w-0 flex-1 items-center justify-between rounded py-2 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+        className="flex min-w-0 flex-1 items-center justify-between rounded py-2 compact:py-1 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
       >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">

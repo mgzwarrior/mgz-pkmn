@@ -94,8 +94,11 @@ web/src/
 5. **On unmatched row → "Add PriceCharting URL"**: POST to `/api/v1/overrides`
    to record the mapping, then re-runs that single line via `lookupLine`.
 
-Settings (`api_key`, `tag`, `max_price`, `dedupe`, `no_images`) are
-persisted to `localStorage` via Zustand `persist`, so they survive reloads.
+Settings (`api_key`, `tag`, `max_price`, `dedupe`, `no_images`, `density`)
+are persisted to `localStorage` via Zustand `persist`, so they survive
+reloads. Density has two modes: comfortable (the default) and compact, which
+tightens the results table, Backpack, and header to roughly two-thirds of the
+comfortable rhythm for working through long lists.
 
 ## Pointing at a non-default API URL
 

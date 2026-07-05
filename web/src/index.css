@@ -19,6 +19,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Density (#526): `compact:` utilities apply when <html> carries
+   data-density="compact" — the Settings drawer's Density control, set on
+   the document root (like the dark class) so portalled surfaces get it
+   too. Same ancestor-scoping shape as the dark variant above. */
+@custom-variant compact (&:where([data-density='compact'], [data-density='compact'] *));
+
 @theme {
   /* Sun — primary yellow (Exeggutor's heads / ripe coconut). */
   --color-sun-50: #fdf6d9;

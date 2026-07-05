@@ -185,6 +185,15 @@ export type ExportFieldToggles = Record<ExportFormat, Partial<Record<ExportField
  */
 export type RarityFloor = 'all' | 'rare' | 'chase'
 
+/**
+ * Workspace density (#526). `comfortable` keeps the friendly default
+ * rhythm; `compact` tightens rows across the results table, Backpack, and
+ * header to ~60–70% for inventorying long lists. Applied as a
+ * `data-density` attribute on the app root, consumed by the `compact:`
+ * Tailwind variant in index.css.
+ */
+export type Density = 'comfortable' | 'compact'
+
 /** Application-level settings stored in Zustand and sent with each request. */
 export interface Settings {
   apiKey: string
@@ -215,6 +224,8 @@ export interface Settings {
    */
   swipeExcludeOwned: boolean
   swipeExcludeChasing: boolean
+  /** Workspace density (#526): comfortable (default) or compact. */
+  density: Density
   /** Configurable-export field toggles per format (#262). */
   exportFields: ExportFieldToggles
 }

@@ -77,6 +77,7 @@ describe('ExportBar', () => {
         swipeRarityFloor: 'chase',
         swipeExcludeOwned: false,
         swipeExcludeChasing: false,
+        density: 'comfortable' as const,
         exportFields: DEFAULT_EXPORT_FIELDS,
       },
     })
@@ -155,6 +156,7 @@ describe('ExportBar', () => {
         swipeRarityFloor: 'chase',
         swipeExcludeOwned: false,
         swipeExcludeChasing: false,
+        density: 'comfortable' as const,
         exportFields: DEFAULT_EXPORT_FIELDS,
       },
     })

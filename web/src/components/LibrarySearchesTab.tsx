@@ -195,7 +195,7 @@ function SavedSearchRow({
 
   return (
     <li
-      className={`group flex flex-col gap-1 rounded border px-2 py-1.5 transition-colors ${
+      className={`group flex flex-col gap-1 rounded border px-2 py-1.5 compact:py-0.5 transition-colors ${
         isCurrent
           ? 'border-palm-300 bg-palm-50 dark:border-palm-500 dark:bg-palm-500/10'
           : 'border-transparent hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-200 dark:hover:bg-husk-100/60'

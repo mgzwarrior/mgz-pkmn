@@ -401,6 +401,13 @@ function App() {
     [settings, appendRow],
   )
 
+  // Density rides on <html> like the dark-mode class so portalled surfaces
+  // (Radix dropdowns/dialogs mount under <body>) get the `compact:` rhythm
+  // too — an attribute on the app root wouldn't reach them (#867 review).
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', settings.density)
+  }, [settings.density])
+
   return (
     <div className="min-h-screen bg-sand-50 text-coconut-700 dark:bg-husk-400 dark:text-sand-50">
       <AnnouncementBanner />
@@ -464,10 +471,10 @@ function App() {
               onCollapsedChange={setBackpackCollapsed}
             />
           </div>
-          <div className="flex-1 min-w-0 space-y-6">
+          <div className="flex-1 min-w-0 space-y-6 compact:space-y-4">
             {/* Discover: the discovery workspace. On mobile it's the Discover
                 tab; desktop always shows it (the bottom bar never renders). */}
-            <div className={`space-y-6 ${mobileTab === 'discover' ? '' : 'hidden'} lg:block`}>
+            <div className={`space-y-6 compact:space-y-4 ${mobileTab === 'discover' ? '' : 'hidden'} lg:block`}>
             <nav
               role="tablist"
               aria-label="Discovery mode"
