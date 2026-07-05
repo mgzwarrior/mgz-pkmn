@@ -62,7 +62,6 @@ test('swipe triages cards into owned and chasing', async ({ page }) => {
   // writes so the freshly provisioned rows are in the fetched list.
   const backpack = page.getByRole('complementary', { name: 'Backpack', exact: true })
   await expect(backpack).toBeVisible()
-  await backpack.getByRole('tab', { name: 'Binders' }).click()
   await expect(backpack.getByText('My collection')).toBeVisible()
   await expect(backpack.getByText('My wishlist')).toBeVisible()
 })

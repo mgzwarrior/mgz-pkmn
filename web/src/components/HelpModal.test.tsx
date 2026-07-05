@@ -202,7 +202,11 @@ describe('HelpModal', () => {
     expect(await screen.findByText('Finding cards')).toBeInTheDocument()
     expect(screen.getByText('Results & card details')).toBeInTheDocument()
     expect(screen.getByText('Backpack')).toBeInTheDocument()
-    expect(screen.getByText('Binders')).toBeInTheDocument()
+    // Binders live in the Backpack; Searches/Recent moved beside the Search
+    // editor (#868) and the copy points there.
+    expect(screen.getByText(/holds your Binders/i)).toBeInTheDocument()
+    expect(screen.getByText('Searches')).toBeInTheDocument()
+    expect(screen.getByText(/under the Search editor/i)).toBeInTheDocument()
   })
 
   it('leads with Swipe and Browse, with Search third', async () => {

@@ -67,6 +67,5 @@ test('browse a set, own a card, and see it in the Backpack', async ({ page }) =>
   // "My collection", which now shows as a binder row in the Backpack.
   const backpack = page.getByRole('complementary', { name: 'Backpack', exact: true })
   await expect(backpack).toBeVisible()
-  await backpack.getByRole('tab', { name: 'Binders' }).click()
   await expect(backpack.getByText('My collection')).toBeVisible()
 })

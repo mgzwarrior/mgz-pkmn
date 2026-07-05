@@ -53,11 +53,10 @@ test('browse a set, create a want-list seeded from it, and see it in the Backpac
   await expect(dialog).toBeHidden()
 
   // It lands in the library seeded with the whole set: the new row shows under
-  // the Backpack Binders tab and reports the set's 12-card count, proving the
+  // the Backpack and reports the set's 12-card count, proving the
   // seed round-tripped across the seam.
   const backpack = page.getByRole('complementary', { name: 'Backpack', exact: true })
   await expect(backpack).toBeVisible()
-  await backpack.getByRole('tab', { name: 'Binders' }).click()
   const row = backpack.getByRole('listitem').filter({ hasText: name })
   await expect(row).toBeVisible()
   await expect(row).toContainText('12 cards')

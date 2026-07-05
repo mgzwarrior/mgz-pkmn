@@ -24,7 +24,8 @@ import { CommandPalette } from './components/CommandPalette'
 import { SwipePanel } from './components/SwipePanel'
 import { useBrowseController } from './components/useBrowseController'
 import { InputEditor } from './components/InputEditor'
-import { LibraryPanel, type LibraryTab } from './components/LibraryPanel'
+import { LibraryPanel } from './components/LibraryPanel'
+import { SearchLibraryPanel } from './components/SearchLibraryPanel'
 import { ResultsTable } from './components/ResultsTable'
 import { consumePendingSaveSearch, type PendingSaveSearch } from './components/pendingSaveSearch'
 import { ExportBar } from './components/ExportBar'
@@ -117,15 +118,11 @@ function App() {
   // desktop-power-user surface.
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
-  // Which Backpack tab is showing, lifted for the same reason — the palette's
-  // "Open Collections"/"Open Wishlists" jump straight to the merged Binders
-  // tab (#525).
-  const [libraryTab, setLibraryTab] = useState<LibraryTab>('searches')
-  // Command-palette "Open Collections"/"Open Wishlists": expand the rail,
-  // land on Binders, and (on mobile) surface the Backpack destination.
+  // Command-palette "Open Collections"/"Open Wishlists": expand the rail
+  // and (on mobile) surface the Backpack destination — the Backpack is
+  // Binders-only now (#868), so there's no tab left to flip.
   const openLibrary = useCallback(() => {
     setBackpackCollapsed(false)
-    setLibraryTab('binders')
     selectMobileTab('backpack')
   }, [selectMobileTab])
   // The discovery mode the user was in when they opened the tour, restored when
@@ -243,8 +240,8 @@ function App() {
     if (nonEmpty.length === 0) return
 
     // Results render only in Search mode, and the app now opens on Swipe (#814).
-    // A rerun fired from the Backpack's Recent tab must surface the editor +
-    // results rather than leaving them hidden behind the Swipe panel.
+    // A rerun fired from the Recent tab or the command palette must surface
+    // the editor + results rather than leaving them hidden behind Swipe.
     setMode('search')
 
     clearRows()
@@ -463,12 +460,8 @@ function App() {
           <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="library">
             <LibraryPanel
               variant="sidebar"
-              onRun={handleRun}
-              onShowSearch={() => setMode('search')}
               collapsed={backpackCollapsed}
               onCollapsedChange={setBackpackCollapsed}
-              activeTab={libraryTab}
-              onActiveTabChange={setLibraryTab}
             />
           </div>
           <div className="flex-1 min-w-0 space-y-6">
@@ -528,6 +521,16 @@ function App() {
                     Card list
                   </h2>
                   <InputEditor onRun={handleRun} onStop={handleStop} />
+                  {/* Saved searches + recent lookups live with the editor
+                      (#868) — they're re-entry points into this loop, not
+                      Backpack stuff. Desktop: expanded in this sticky
+                      column; mobile: a collapsed disclosure row. */}
+                  <div className="mt-4">
+                    <SearchLibraryPanel
+                      onRun={handleRun}
+                      onShowSearch={() => setMode('search')}
+                    />
+                  </div>
                 </section>
 
                 <section data-tour="results" className="min-[1100px]:min-w-0 min-[1100px]:flex-1">
@@ -568,21 +571,7 @@ function App() {
                 left rail; this only renders under the breakpoint. */}
             {mobileTab === 'backpack' && (
               <div className="lg:hidden" data-tour="library-mobile">
-                <LibraryPanel
-                  variant="accordion"
-                  onRun={(text) => {
-                    // Results render in the Discover workspace, so jump there
-                    // before running a Recent/saved lookup from the Backpack.
-                    selectMobileTab('discover')
-                    void handleRun(text)
-                  }}
-                  onShowSearch={() => {
-                    setMode('search')
-                    selectMobileTab('discover')
-                  }}
-                  activeTab={libraryTab}
-                  onActiveTabChange={setLibraryTab}
-                />
+                <LibraryPanel variant="accordion" />
               </div>
             )}
 

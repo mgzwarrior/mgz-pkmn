@@ -2,7 +2,7 @@
  * HelpModal — onboarding/help dialog whose sections track the live app. It
  * opens with a plain-language intro and a real sample card, then leads with the
  * two modes newcomers reach for first (Swipe, Browse) before text Search, the
- * one-tap Want / Own save actions, the Backpack (Binders / Searches / Recent),
+ * one-tap Want / Own save actions, the Backpack (Binders), the Search-side Searches / Recent panel,
  * search tips, settings, exports, and shortcuts. Includes a "Take the tour"
  * button that hands control off to the Tour component.
  *
@@ -363,13 +363,14 @@ export function HelpModal({ onStartTour, open: openProp, onOpenChange: onOpenCha
 
             <Section title="Backpack">
               <p className="mb-2 text-coconut-500 dark:text-sand-300">
-                Everything you save lives in the Backpack down the side:
+                The Backpack holds your Binders — collections (cards you own) and
+                wishlists (cards you’re chasing), together. Filter by Owned or
+                Chasing. Your lookups live with the Search editor instead:
               </p>
               <Definitions
                 rows={[
-                  ['Binders', 'Your collections (cards you own) and wishlists (cards you’re chasing), together. Filter by Owned or Chasing.'],
-                  ['Searches', 'Lookups you saved with a name. Click one to reload its cards, sort, and filters.'],
-                  ['Recent', 'Your last few lookups, kept on this device. One tap re-runs them.'],
+                  ['Searches', 'Lookups you saved with a name, under the Search editor. Click one to reload its cards, sort, and filters.'],
+                  ['Recent', 'Your last few lookups, kept on this device — same spot. One tap re-runs them.'],
                 ]}
               />
               <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">
