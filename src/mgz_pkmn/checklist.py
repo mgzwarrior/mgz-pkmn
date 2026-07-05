@@ -17,6 +17,7 @@ from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
 from . import branding, palette
+from .export_fields import CHECKLIST_FIELDS
 from .pricing import Pricing
 from .spreadsheet import Row
 
@@ -30,11 +31,17 @@ ROW_HEIGHT = 13
 CHECKBOX_SIZE = 8
 
 
-def write_checklist_pdf(rows: list[Row], out_path: Path) -> int:
+def write_checklist_pdf(
+    rows: list[Row], out_path: Path, fields: frozenset[str] | None = None
+) -> int:
     """Render `rows` as a per-tag checklist PDF.
 
     Returns the number of sections written. Sections with zero matched cards
-    are skipped, and if every tag is empty no file is created."""
+    are skipped, and if every tag is empty no file is created. `fields`
+    restricts which of name/set/number/rarity/market render per row (#262)
+    — `None` (the CLI default) renders everything, matching pre-#262
+    behavior."""
+    active = CHECKLIST_FIELDS if fields is None else fields
     sections = _build_sections(rows)
     if not sections:
         return 0
@@ -46,7 +53,7 @@ def write_checklist_pdf(rows: list[Row], out_path: Path) -> int:
     for i, section in enumerate(sections):
         if i > 0:
             tracker.show_page()
-        _draw_section(c, section, tracker)
+        _draw_section(c, section, tracker, active)
     tracker.finish()
     return len(sections)
 
@@ -66,7 +73,9 @@ def _build_sections(rows: list[Row]) -> list[dict[str, Any]]:
     return sections
 
 
-def _draw_section(c: canvas.Canvas, section: dict[str, Any], tracker: branding.PageTracker) -> None:
+def _draw_section(
+    c: canvas.Canvas, section: dict[str, Any], tracker: branding.PageTracker, fields: frozenset[str]
+) -> None:
     """Render one tag's checklist across as many pages as it needs."""
     matched = section["rows"]
     total = len(matched)
@@ -86,7 +95,7 @@ def _draw_section(c: canvas.Canvas, section: dict[str, Any], tracker: branding.P
             row_in_col = j % rows_per_col
             x = MARGIN + col * (col_w + COL_GUTTER)
             y = grid_top_y - row_in_col * ROW_HEIGHT - ROW_HEIGHT
-            _draw_row(c, x, y, col_w, row.card or {}, row.pricing)
+            _draw_row(c, x, y, col_w, row.card or {}, row.pricing, fields)
 
 
 def _draw_header(c: canvas.Canvas, *, tag: str, total: int, page_idx: int) -> None:
@@ -120,6 +129,7 @@ def _draw_row(
     col_w: float,
     card: dict[str, Any],
     pricing: Pricing,
+    fields: frozenset[str],
 ) -> None:
     cb_x = x + 2
     cb_y = y + 2
@@ -131,27 +141,48 @@ def _draw_row(
     c.restoreState()
 
     text_x = cb_x + CHECKBOX_SIZE + 4
-    set_obj = card.get("set") or {}
-    total_printed = set_obj.get("printedTotal") or set_obj.get("total")
-    num = card.get("number") or "?"
-    num_str = f"#{num}/{total_printed}" if total_printed else f"#{num}"
-    mp_str = _format_mp(pricing)
+    mp_str = _format_mp(pricing) if "market" in fields else ""
 
-    c.setFillColorRGB(*palette.rgb01("fg-1"))
-    c.setFont("Helvetica", 8)
-    c.drawString(text_x, y + 3, num_str)
-    num_w = c.stringWidth(num_str, "Helvetica", 8)
-    name_x = text_x + max(num_w + 6, 38)
+    if "number" in fields:
+        set_obj = card.get("set") or {}
+        total_printed = set_obj.get("printedTotal") or set_obj.get("total")
+        num = card.get("number") or "?"
+        num_str = f"#{num}/{total_printed}" if total_printed else f"#{num}"
+        c.setFillColorRGB(*palette.rgb01("fg-1"))
+        c.setFont("Helvetica", 8)
+        c.drawString(text_x, y + 3, num_str)
+        num_w = c.stringWidth(num_str, "Helvetica", 8)
+        name_x = text_x + max(num_w + 6, 38)
+    else:
+        name_x = text_x
 
     mp_w = c.stringWidth(mp_str, "Helvetica-Bold", 8) + 4 if mp_str else 0
     name_max_w = (x + col_w - 4) - name_x - mp_w
-    name = _truncate_to_width(c, card.get("name") or "?", "Helvetica", 8, name_max_w)
+    label = _row_label(card, fields)
+    name = _truncate_to_width(c, label, "Helvetica", 8, name_max_w)
+    c.setFillColorRGB(*palette.rgb01("fg-1"))
+    c.setFont("Helvetica", 8)
     c.drawString(name_x, y + 3, name)
 
     if mp_str:
         c.setFont("Helvetica-Bold", 8)
         c.setFillColorRGB(*palette.rgb01("success-fg"))
         c.drawRightString(x + col_w - 4, y + 3, mp_str)
+
+
+def _row_label(card: dict[str, Any], fields: frozenset[str]) -> str:
+    """Build the name cell's text: name, plus optional " · Rarity" and
+    " · Set" segments when those fields are enabled. Truncation (by the
+    caller) always keeps the name itself over trailing segments, since
+    `_truncate_to_width` shortens from the end of the string."""
+    parts = [card.get("name") or "?"] if "name" in fields else []
+    if "rarity" in fields and card.get("rarity"):
+        parts.append(card["rarity"])
+    if "set" in fields:
+        set_name = (card.get("set") or {}).get("name")
+        if set_name:
+            parts.append(set_name)
+    return " · ".join(parts)
 
 
 def _format_mp(pricing: Pricing) -> str:

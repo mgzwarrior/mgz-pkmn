@@ -13,9 +13,11 @@ from reportlab.pdfgen import canvas
 from mgz_pkmn.checklist import (
     _build_sections,
     _format_mp,
+    _row_label,
     _truncate_to_width,
     write_checklist_pdf,
 )
+from mgz_pkmn.export_fields import CHECKLIST_FIELDS
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
 from mgz_pkmn.spreadsheet import Row
@@ -134,6 +136,47 @@ class WritePdfTests(unittest.TestCase):
             self.assertEqual(written, 1)
             self.assertTrue(out.exists())
             self.assertGreater(out.stat().st_size, 0)
+
+
+class RowLabelTests(unittest.TestCase):
+    """#262 — name plus optional rarity / set segments."""
+
+    def _card(self) -> dict:
+        return _card(cid="sv8-1", number="1", name="Pikachu") | {"rarity": "Rare Holo"}
+
+    def test_name_only_by_default_fields(self) -> None:
+        self.assertEqual(_row_label(self._card(), frozenset({"name"})), "Pikachu")
+
+    def test_rarity_and_set_appended_when_enabled(self) -> None:
+        self.assertEqual(
+            _row_label(self._card(), frozenset(CHECKLIST_FIELDS)),
+            "Pikachu · Rare Holo · Surging Sparks",
+        )
+
+    def test_name_disabled_omits_name_but_keeps_other_segments(self) -> None:
+        self.assertEqual(_row_label(self._card(), frozenset({"rarity"})), "Rare Holo")
+
+    def test_missing_rarity_is_skipped_even_when_enabled(self) -> None:
+        card = _card(cid="sv8-2", number="2", name="Eevee")
+        self.assertEqual(_row_label(card, frozenset({"name", "rarity"})), "Eevee")
+
+
+class WriteChecklistFieldsTests(unittest.TestCase):
+    def test_field_subset_writes_a_pdf(self) -> None:
+        rows = [_make_row(tag="t", card=_card(cid="a", number="1"), market=10.0)]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "checklist.pdf"
+            written = write_checklist_pdf(rows, out, fields=frozenset({"name"}))
+            self.assertEqual(written, 1)
+            self.assertTrue(out.exists())
+
+    def test_empty_fields_still_writes_a_pdf(self) -> None:
+        rows = [_make_row(tag="t", card=_card(cid="a", number="1"), market=10.0)]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "checklist.pdf"
+            written = write_checklist_pdf(rows, out, fields=frozenset())
+            self.assertEqual(written, 1)
+            self.assertTrue(out.exists())
 
 
 class TruncateToWidthTests(unittest.TestCase):

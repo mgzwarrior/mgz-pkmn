@@ -102,6 +102,9 @@ const { storeState, storeApi } = vi.hoisted(() => {
       sort: 'number' as const,
       showTimer: false,
       showEbay: false,
+      // Per-format toggle record (#262) — empty sub-objects are fine, the
+      // component falls back to "checked" for any field key not present.
+      exportFields: { xlsx: {}, pdf: {}, 'condensed-pdf': {}, checklist: {} },
     },
     runs: [] as unknown[],
     currentRunId: null as number | null,

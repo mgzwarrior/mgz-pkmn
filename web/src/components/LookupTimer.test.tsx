@@ -4,6 +4,7 @@ import { LookupTimer } from './LookupTimer'
 import { formatElapsed } from '../utils/format'
 import { useAppStore } from '../store'
 import type { Row } from '../types'
+import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
 
 const DEFAULT_SETTINGS = {
   apiKey: '',
@@ -18,6 +19,7 @@ const DEFAULT_SETTINGS = {
   swipeRarityFloor: 'chase' as const,
   swipeExcludeOwned: false,
   swipeExcludeChasing: false,
+  exportFields: DEFAULT_EXPORT_FIELDS,
 }
 
 function row(name: string): Row {

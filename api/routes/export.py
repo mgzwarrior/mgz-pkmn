@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from mgz_pkmn.binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from mgz_pkmn.checklist import write_checklist_pdf
+from mgz_pkmn.export_fields import THUMBNAIL, resolve_fields
 from mgz_pkmn.images import download_image
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
@@ -68,6 +69,10 @@ class ExportRequest(BaseModel):
     max_price: float | None = None
     title: str = "cards"
     no_images: bool = True  # mirrors the lookup Settings default
+    # Which of mgz_pkmn.export_fields.SUPPORTED_FIELDS[format] to render
+    # (#262) — omitted or null means "everything this format supports",
+    # matching pre-#262 behavior.
+    fields: list[str] | None = None
 
 
 # Valid formats and the (filename, media-type) each maps to.
@@ -128,7 +133,11 @@ def _render(req: ExportRequest, filename: str) -> bytes:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
 
-        embed_images = not req.no_images and req.format in _IMAGE_FORMATS
+        active_fields = resolve_fields(req.format, req.fields)
+
+        embed_images = (
+            not req.no_images and req.format in _IMAGE_FORMATS and THUMBNAIL in active_fields
+        )
         if embed_images:
             images_dir = tmp / "images"
             with requests.Session() as session:
@@ -139,17 +148,27 @@ def _render(req: ExportRequest, filename: str) -> bytes:
 
         out_path = tmp / filename
         if req.format == "xlsx":
-            write_spreadsheet(rows, out_path, max_price=req.max_price)
+            write_spreadsheet(rows, out_path, max_price=req.max_price, fields=active_fields)
         elif req.format == "pdf":
             write_binder_pdf(
-                rows, out_path, title=req.title, max_price=req.max_price, layout=STANDARD_LAYOUT
+                rows,
+                out_path,
+                title=req.title,
+                max_price=req.max_price,
+                layout=STANDARD_LAYOUT,
+                fields=active_fields,
             )
         elif req.format == "condensed-pdf":
             write_binder_pdf(
-                rows, out_path, title=req.title, max_price=req.max_price, layout=CONDENSED_LAYOUT
+                rows,
+                out_path,
+                title=req.title,
+                max_price=req.max_price,
+                layout=CONDENSED_LAYOUT,
+                fields=active_fields,
             )
         elif req.format == "checklist":
-            written = write_checklist_pdf(rows, out_path)
+            written = write_checklist_pdf(rows, out_path, fields=active_fields)
             if not written:
                 raise HTTPException(
                     status_code=400,
