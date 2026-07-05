@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from mgz_pkmn.binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from mgz_pkmn.checklist import write_checklist_pdf
-from mgz_pkmn.export_fields import resolve_fields
+from mgz_pkmn.export_fields import THUMBNAIL, resolve_fields
 from mgz_pkmn.images import download_image
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
@@ -133,7 +133,11 @@ def _render(req: ExportRequest, filename: str) -> bytes:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
 
-        embed_images = not req.no_images and req.format in _IMAGE_FORMATS
+        active_fields = resolve_fields(req.format, req.fields)
+
+        embed_images = (
+            not req.no_images and req.format in _IMAGE_FORMATS and THUMBNAIL in active_fields
+        )
         if embed_images:
             images_dir = tmp / "images"
             with requests.Session() as session:
@@ -142,7 +146,6 @@ def _render(req: ExportRequest, filename: str) -> bytes:
             rows = [_to_row(r, None, None) for r in req.rows]
         sort_rows(rows, req.sort)
 
-        active_fields = resolve_fields(req.format, req.fields)
         out_path = tmp / filename
         if req.format == "xlsx":
             write_spreadsheet(rows, out_path, max_price=req.max_price, fields=active_fields)

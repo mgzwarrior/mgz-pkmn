@@ -139,6 +139,23 @@ class ExportApiTests(unittest.TestCase):
         self.assertGreater(len(resp.content), 0)
         mock_dl.assert_called_once()
 
+    def test_xlsx_export_skips_download_when_thumbnail_field_disabled(self) -> None:
+        # Images enabled, but the Thumbnail column itself is toggled off —
+        # nothing renders it, so paying for the download is wasted work.
+        payload = _row_payload(images={"large": "https://img.example/pikachu.png"})
+        with patch("api.routes.export.download_image") as mock_dl:
+            resp = client.post(
+                "/api/v1/export",
+                json={
+                    "rows": [payload],
+                    "format": "xlsx",
+                    "no_images": False,
+                    "fields": ["name", "market"],
+                },
+            )
+        self.assertEqual(resp.status_code, 200)
+        mock_dl.assert_not_called()
+
     def test_checklist_export_never_downloads_images(self) -> None:
         # The checklist is text-only — even with images enabled, no downloads.
         payload = _row_payload(images={"large": "https://img.example/pikachu.png"})
