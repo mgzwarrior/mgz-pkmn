@@ -205,7 +205,7 @@ export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp 
           <div className="border-t border-sand-300 dark:border-husk-50 px-5 py-4">
             <button
               onClick={resetSettings}
-              className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
+              className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-500 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
             >
               Restore defaults
             </button>

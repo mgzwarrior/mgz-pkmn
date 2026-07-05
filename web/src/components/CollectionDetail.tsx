@@ -21,6 +21,7 @@ import { coverSwatch } from './binderIdentity'
 import { ExportBar } from './ExportBar'
 import { InlineRenameTitle } from './InlineRenameTitle'
 import { itemsToExportRows } from './exportRows'
+import { detailDialogContentClass } from './responsiveDialog'
 import { useCollections } from './useCollections'
 import { formatMoney } from '../utils/format'
 
@@ -137,7 +138,9 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-coconut-700/50 backdrop-blur-sm dark:bg-husk-500/70" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-sand-300 bg-sand-50 shadow-2xl dark:border-husk-50 dark:bg-husk-200">
+        <Dialog.Content
+          className={detailDialogContentClass('lg:max-h-[85vh] lg:w-[min(640px,92vw)]')}
+        >
           <header className="flex items-center justify-between gap-3 border-b border-sand-200 px-5 py-4 dark:border-husk-100">
             <div className="flex min-w-0 items-center gap-2">
               {collection?.binder_color ? (

@@ -493,7 +493,7 @@ function CollectionRow({
   const body = (
     <>
       <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {identity && c.binder_color ? (
             <span
               className={`h-3 w-3 shrink-0 rounded-full ${cover.className}`}
@@ -530,11 +530,11 @@ function CollectionRow({
     </>
   )
   return (
-    <li className="group flex items-center gap-1">
+    <li className="group flex flex-wrap items-center gap-1">
       <button
         type="button"
         onClick={() => (isTarget ? onOpenTarget(c) : onOpenCollection(c))}
-        className="flex flex-1 items-center justify-between rounded py-2 compact:py-1 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+        className="flex min-w-0 flex-1 items-center justify-between rounded py-2 compact:py-1 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
       >
         {body}
       </button>
@@ -616,14 +616,14 @@ function WishlistRow({
   onFile: (wishlistId: number, binderId: number | null) => Promise<void>
 }) {
   return (
-    <li className="group flex items-center gap-1">
+    <li className="group flex flex-wrap items-center gap-1">
       <button
         type="button"
         onClick={() => onOpen(w)}
-        className="flex flex-1 items-center justify-between rounded py-2 compact:py-1 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+        className="flex min-w-0 flex-1 items-center justify-between rounded py-2 compact:py-1 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
       >
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <KindBadge kind="chasing" />
             <span className="truncate text-xs font-medium text-coconut-700 dark:text-sand-50">
               {w.name}

@@ -6,9 +6,17 @@
  * shape.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { BrowserRouter } from 'react-router'
 import { SignInChip } from './SignInChip'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
+
+// SignInChip reads the URL through react-router hooks (#864); a real
+// BrowserRouter keeps the tests' jsdom `history.replaceState` setup working.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: BrowserRouter })
+}
 
 const {
   fetchMeMock,

@@ -105,15 +105,9 @@ describe('LibraryPanel', () => {
     expect(expandBtn).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('accordion variant is collapsed by default and tabs are hidden until expanded', async () => {
+  it('accordion variant renders its tabs immediately — the entire dedicated Backpack tab, always expanded (#857 follow-up)', async () => {
     render(<LibraryPanel variant="accordion" onRun={vi.fn()} onShowSearch={vi.fn()} />)
-    const trigger = screen.getByRole('button', { name: /Backpack/i })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('tab', { name: /Searches/i })).not.toBeInTheDocument()
-
-    fireEvent.click(trigger)
-
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('heading', { name: /Backpack/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Searches/i })).toBeInTheDocument()
   })
 
@@ -182,9 +176,9 @@ describe('LibraryPanel', () => {
       ],
     })
     render(<LibraryPanel variant="accordion" onRun={vi.fn()} onShowSearch={vi.fn()} />)
-    const trigger = await screen.findByRole('button', { name: /Backpack/i })
+    const heading = await screen.findByRole('heading', { name: /Backpack/i })
     // Accordion header — no "(2)" badge for the signed-out visitor.
-    expect(trigger.textContent ?? '').not.toMatch(/\(2\)/)
+    expect(heading.textContent ?? '').not.toMatch(/\(2\)/)
   })
 
   it('Recent re-run threads through to the parent onRun callback', () => {

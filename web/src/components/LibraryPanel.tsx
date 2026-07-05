@@ -9,17 +9,18 @@
  * Two layouts share the same tab content:
  * - `variant="sidebar"` (desktop, lg+) — persistent left rail; can
  *   collapse to a compact icon strip. Replaces SavedSearchesSidebar.
- * - `variant="accordion"` (mobile, below lg) — collapsed-by-default
- *   accordion above the editor. Expanded reveals the full 4-tab
- *   library. Keeps the editor as the hero when the library is empty
- *   or short.
+ * - `variant="accordion"` (mobile, below lg) — the entire content of the
+ *   dedicated Backpack bottom tab (#519), always expanded. Historically
+ *   this sat collapsed above the editor sharing space with Search, hence
+ *   the name — now it owns its own tab, so there's nothing left to
+ *   collapse for (#857 follow-up).
  *
  * Recent's *re-run* shortcut requires the parent's `onRun` callback so
  * one tap on a recent entry restores the lines and kicks off a fresh
  * lookup against the current settings.
  */
 import { useState } from 'react'
-import { Backpack, Bookmark, ChevronDown, ChevronLeft, ChevronRight, History, Library, Search } from 'lucide-react'
+import { Backpack, Bookmark, ChevronLeft, ChevronRight, History, Library, Search } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import { LibrarySearchesTab } from './LibrarySearchesTab'
@@ -49,7 +50,7 @@ interface Props {
   /** Collapse state for `variant="sidebar"` only, lifted to the parent so it
    *  can auto-collapse the rail on entering Search mode (#522 follow-up) —
    *  the split editor/results layout is tight on a non-ultrawide desktop.
-   *  Ignored by `variant="accordion"`, which has its own open/close state. */
+   *  Ignored by `variant="accordion"`, which is always expanded. */
   collapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
   /** Lift the active tab to the parent (e.g. the command palette's "Open
@@ -78,8 +79,6 @@ export function LibraryPanel({
     if (!isActiveTabControlled) setInternalActiveTab(next)
     onActiveTabChange?.(next)
   }
-  const [accordionOpen, setAccordionOpen] = useState(false)
-
   const runs = useAppStore((s) => s.runs)
   const recentCount = useAppStore((s) => s.recentRuns.length)
   const auth = useAuth()
@@ -160,41 +159,28 @@ export function LibraryPanel({
     )
   }
 
-  // Mobile accordion above the editor: collapsed by default so the
-  // editor stays the hero on small viewports.
+  // This is the entire content of the dedicated Backpack bottom tab — no
+  // sibling content to save space for, so it's always expanded (#857
+  // follow-up).
   return (
     <section aria-label="Backpack" className="rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-200/40">
-      <button
-        type="button"
-        onClick={() => setAccordionOpen((o) => !o)}
-        aria-expanded={accordionOpen}
-        className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-xs font-medium text-coconut-500 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 transition-colors"
-      >
-        <span className="flex items-center gap-2">
-          <Backpack size={14} aria-hidden />
-          Backpack
-          {showUserScoped && (
-            <span className="text-coconut-400 dark:text-sand-400">({savedSearchCount})</span>
-          )}
-        </span>
-        <ChevronDown
-          size={14}
-          className={`transition-transform ${accordionOpen ? 'rotate-180' : ''}`}
-          aria-hidden
+      <h2 className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-coconut-500 dark:text-sand-200">
+        <Backpack size={14} aria-hidden />
+        Backpack
+        {showUserScoped && (
+          <span className="text-coconut-400 dark:text-sand-400">({savedSearchCount})</span>
+        )}
+      </h2>
+      <div className="flex flex-col gap-2 border-t border-sand-200 dark:border-husk-100 px-3 py-2">
+        <TabStrip
+          tabs={tabs}
+          activeTab={resolvedActive}
+          onChange={setActiveTab}
+          runsCount={savedSearchCount}
+          recentCount={recentCount}
         />
-      </button>
-      {accordionOpen && (
-        <div className="flex flex-col gap-2 border-t border-sand-200 dark:border-husk-100 px-3 py-2">
-          <TabStrip
-            tabs={tabs}
-            activeTab={resolvedActive}
-            onChange={setActiveTab}
-            runsCount={savedSearchCount}
-            recentCount={recentCount}
-          />
-          {tabContent}
-        </div>
-      )}
+        {tabContent}
+      </div>
     </section>
   )
 }

@@ -33,7 +33,8 @@ import { ProcessingQueue } from './components/ProcessingQueue'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { FavoritePokemonOnboarding } from './components/FavoritePokemonOnboarding'
 import { HelpModal } from './components/HelpModal'
-import { SignInChip } from './components/SignInChip'
+import { AccountPanel } from './components/AccountPanel'
+import { ProviderPickerModal, SignInChip } from './components/SignInChip'
 import { ThemeToggle } from './components/ThemeToggle'
 import { Tour } from './components/Tour'
 import { CollectionInsights } from './components/CollectionInsights'
@@ -147,7 +148,13 @@ function App() {
     setTourOpen(false)
     setMode(preTourModeRef.current)
   }, [])
-  const { user: authedUser, refresh: refreshAuth } = useAuth()
+  const {
+    user: authedUser,
+    authEnabled,
+    loading: authLoading,
+    refresh: refreshAuth,
+    signOut: signOutAuth,
+  } = useAuth()
 
   // First-login onboarding survey (#742): the favorite-Pokémon pop-up shows
   // once per account, gated server-side via `onboardingCompleted`. Dismissing
@@ -514,9 +521,13 @@ function App() {
               // results takes the rest. Below the breakpoint this falls back
               // to the stacked column the narrower/mobile layout already used.
               <div className="flex flex-col gap-6 min-[1100px]:flex-row min-[1100px]:items-start">
+                {/* Sticky beside a long results scroll (#527) so the Look
+                    up / Clear controls stay reachable — same top offset as
+                    the Backpack rail. Capped + scrollable so an editor
+                    taller than the viewport can still reach its bottom. */}
                 <section
                   data-tour="input"
-                  className={`min-[1100px]:flex-shrink-0 ${
+                  className={`min-[1100px]:sticky min-[1100px]:top-20 min-[1100px]:max-h-[calc(100vh-6rem)] min-[1100px]:flex-shrink-0 min-[1100px]:overflow-y-auto ${
                     editorCollapsed ? '' : 'min-[1100px]:w-[500px]'
                   }`}
                 >
@@ -582,12 +593,11 @@ function App() {
               </div>
             )}
 
-            {/* Account: sign-in / account as a mobile destination. Desktop keeps
-                the header chip. */}
-            {mobileTab === 'account' && (
+            {mobileTab === 'account' && !authEnabled && !authLoading && (
               <div className="flex flex-col items-center gap-3 rounded-lg border border-sand-300 bg-sand-50 px-4 py-8 lg:hidden dark:border-husk-50 dark:bg-husk-100">
-                <p className="text-sm text-coconut-500 dark:text-sand-300">Your account</p>
-                <SignInChip />
+                <p className="text-sm text-coconut-500 dark:text-sand-300">
+                  Accounts aren&apos;t available on this deployment.
+                </p>
               </div>
             )}
           </div>
@@ -602,6 +612,34 @@ function App() {
           if (!o) selectMobileTab(lastSurfaceRef.current)
         }}
       />
+      {/* Account: opens directly over the current surface the moment the tab
+          is selected, same as Insights above — no stub, no second tap into a
+          nested dialog (#857). Desktop keeps the header avatar's own trigger,
+          which mounts its own AccountPanel/picker instance in SignInChip —
+          that instance already has a sign-out path via the avatar dropdown,
+          so it doesn't need `onSignOut` too. This one does: it's the only
+          sign-out affordance a signed-in mobile visitor has once the tab
+          renders AccountPanel directly instead of the old SignInChip stub
+          (Codex review on #858). */}
+      {!authLoading && authEnabled &&
+        (authedUser ? (
+          <AccountPanel
+            open={mobileTab === 'account'}
+            onOpenChange={(o) => {
+              if (!o) selectMobileTab(lastSurfaceRef.current)
+            }}
+            user={authedUser}
+            refresh={refreshAuth}
+            onSignOut={signOutAuth}
+          />
+        ) : (
+          <ProviderPickerModal
+            open={mobileTab === 'account'}
+            onOpenChange={(o) => {
+              if (!o) selectMobileTab(lastSurfaceRef.current)
+            }}
+          />
+        ))}
       <MobileTabBar active={mobileTab} onSelect={selectMobileTab} />
 
       <CommandPalette
@@ -660,7 +698,7 @@ function App() {
                 EGG-EXEGGCUTE
               </code>
             </p>
-            <p className="mb-6 text-xs text-sand-500 dark:text-sand-400">
+            <p className="mb-6 text-xs text-sand-600 dark:text-sand-400">
               The Wall of Eggs is hidden somewhere in the repo. Find it
               to claim what you&apos;ve collected.
             </p>
@@ -692,7 +730,7 @@ function App() {
             href="https://mgz-pkmn.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+            className="text-palm-500 underline hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
           >
             mgz-pkmn.com
           </a>{' '}
@@ -701,7 +739,7 @@ function App() {
             href="https://github.com/mgzwarrior/mgz-pkmn"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+            className="text-palm-500 underline hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
           >
             GitHub
           </a>{' '}
@@ -710,12 +748,12 @@ function App() {
             href="https://www.buymeacoffee.com/mgz.pkmn"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
+            className="text-palm-500 underline hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 transition-colors"
           >
             Buy me a pizza
           </a>
         </p>
-        <p className="mt-2 px-4 text-[11px] leading-relaxed text-sand-500 dark:text-sand-400">
+        <p className="mt-2 px-4 text-[11px] leading-relaxed text-sand-600 dark:text-sand-400">
           Affiliate disclosure: mgz-pkmn may earn from qualifying purchases through eBay and
           TCGplayer links.
         </p>

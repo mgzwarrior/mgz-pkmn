@@ -12,11 +12,20 @@
  * just enough of the UI to set inputText + click Look up / Stop.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, act, screen, waitFor, within } from '@testing-library/react'
+import { render as rtlRender, fireEvent, act, screen, waitFor, within } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { BrowserRouter } from 'react-router'
 import App from './App'
 import { useAppStore } from './store'
 import { _resetAuthStoreForTests } from './hooks/useAuth'
+import { fetchMe, logout } from './api/client'
 import type { BulkEvent } from './types'
+
+// App mounts SignInChip/AccountPanel, which read the URL through
+// react-router hooks (#864); render under a real BrowserRouter like main.tsx.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: BrowserRouter })
+}
 
 const { mockBulkLookup, mockLookupLine, mockParseLine } = vi.hoisted(() => ({
   mockBulkLookup: vi.fn(),
@@ -534,19 +543,72 @@ describe('App: mobile bottom-tab nav (#519)', () => {
     )
   })
 
-  it('the Account tab reveals the account surface; Discover returns to the workspace', () => {
+  // A modal Dialog aria-hides the rest of the app while open (correct
+  // a11y behavior, matching Insights) — so the bottom nav is legitimately
+  // unqueryable until the dialog's own Close button is used, same as a real
+  // user would have to on mobile (the nav sits behind the full-screen
+  // dialog, z-30 under z-40+). Closing via `Discover` isn't reachable;
+  // close via the dialog and let `onOpenChange` land back on Discover.
+  // Radix also defers the aria-hide-siblings *cleanup* a tick past the
+  // dialog unmounting, so every test below waits for the nav to actually
+  // lose `aria-hidden` before finishing — otherwise the next test inherits
+  // a hidden nav and every query in it fails (#857).
+  async function closeDialogAndAwaitNavRestored(dialog: HTMLElement) {
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    await waitFor(() => {
+      expect(screen.getByRole('navigation', { name: 'Primary' })).not.toHaveAttribute('aria-hidden')
+    })
+  }
+
+  it('the Account tab opens the account surface directly (no stub, no second tap); closing it returns to the workspace (#857)', async () => {
     render(<App />)
-    expect(screen.queryByText('Your account')).not.toBeInTheDocument()
+    // fetchMe resolves to the auth-on-but-anonymous envelope (see the
+    // module mock above), so the tab should surface the sign-in picker
+    // rather than a signed-in AccountPanel.
+    expect(screen.queryByRole('dialog', { name: /sign in to mgz-pkmn/i })).not.toBeInTheDocument()
 
     fireEvent.click(primaryNav().getByRole('button', { name: 'Account' }))
-    expect(screen.getByText('Your account')).toBeInTheDocument()
-    expect(primaryNav().getByRole('button', { name: 'Account' })).toHaveAttribute(
+    const dialog = await screen.findByRole('dialog', { name: /sign in to mgz-pkmn/i })
+    expect(dialog).toBeInTheDocument()
+
+    await closeDialogAndAwaitNavRestored(dialog)
+    expect(screen.queryByRole('dialog', { name: /sign in to mgz-pkmn/i })).not.toBeInTheDocument()
+    expect(primaryNav().getByRole('button', { name: 'Discover' })).toHaveAttribute(
       'aria-current',
       'page',
     )
+  })
 
-    fireEvent.click(primaryNav().getByRole('button', { name: 'Discover' }))
-    expect(screen.queryByText('Your account')).not.toBeInTheDocument()
+  it('shows the signed-in AccountPanel content directly on the Account tab (#857)', async () => {
+    vi.mocked(fetchMe).mockResolvedValueOnce({
+      user: {
+        id: 1,
+        email: 'alice@example.com',
+        display_name: 'Alice',
+        identities: [],
+        onboardingCompleted: true,
+      },
+      authEnabled: true,
+    })
+    render(<App />)
+
+    fireEvent.click(primaryNav().getByRole('button', { name: 'Account' }))
+    const dialog = await screen.findByRole('dialog', { name: /^account$/i })
+    expect(within(dialog).getByRole('heading', { name: /linked sign-in methods/i })).toBeInTheDocument()
+
+    // The desktop avatar dropdown's own "Sign out" item never mounts here —
+    // this tab renders AccountPanel directly, so it's the only sign-out
+    // path a signed-in mobile visitor has (Codex review on #858).
+    fireEvent.click(within(dialog).getByRole('button', { name: /sign out/i }))
+    await waitFor(() => {
+      expect(logout).toHaveBeenCalledTimes(1)
+    })
+
+    // Signing out flips `authedUser` to null, which swaps this same tab
+    // over to the sign-in picker (still open, same mobileTab) — close that
+    // one to get back to Discover.
+    const signInDialog = await screen.findByRole('dialog', { name: /sign in to mgz-pkmn/i })
+    await closeDialogAndAwaitNavRestored(signInDialog)
   })
 
   it('collapses the header utility behind a single More trigger', () => {
