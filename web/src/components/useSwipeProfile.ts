@@ -5,8 +5,8 @@
  * Tracks three signed counters (rarity / set / supertype + subtype) that
  * accumulate from the user's swipe actions, plus the set of card IDs
  * they've already seen so we never show the same card twice. Saved
- * cards are kept verbatim — they become the prep-list payload when the
- * user hits "Build prep list".
+ * cards are kept verbatim for the running saved count shown in the
+ * header; adding one to a wishlist is a separate, explicit "Want" action.
  *
  * Persistence is intentionally synchronous + module-level: every render
  * sees the same snapshot, and reads after a `pass` / `save` / `love`
@@ -32,11 +32,11 @@ export interface SwipeProfile {
   tag: Record<string, number>
   /** Card IDs already shown — never resurface. */
   seen: string[]
-  /** Saved cards, in save order. Becomes the prep-list payload. */
+  /** Saved cards, in save order. */
   saved: SavedCard[]
 }
 
-/** Verbatim card payload kept on save; same shape the wishlist API expects. */
+/** Verbatim card payload kept on save, for the running saved count in the header. */
 export interface SavedCard {
   id: string
   name: string
@@ -46,7 +46,7 @@ export interface SavedCard {
   subtypes: string[]
   thumb: string | null
   market: number | null
-  /** Owning set id, denormalised so prep-list export doesn't re-derive it. */
+  /** Owning set id, denormalised alongside the rest of the payload. */
   setId: string
 }
 
