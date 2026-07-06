@@ -10,11 +10,6 @@
  *     and saved-card list.
  *   - {@link useSwipeCandidates} owns the candidate queue (which set we
  *     walk and which card is current).
- *
- * The "Build prep list" CTA appears once the user has saved at least
- * one card. It opens an inline form that creates a new wishlist via
- * [useWishlists](./useWishlists.ts) and adds every saved card, then
- * clears the local saved list so the next session starts fresh.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -39,16 +34,11 @@ import { useFavoriteSets } from './useFavoriteSets'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
-import {
-  useSwipeProfile,
-  type SavedCard,
-  type SwipeAction,
-} from './useSwipeProfile'
+import { useSwipeProfile, type SwipeAction } from './useSwipeProfile'
 import { SwipeProfilePanel } from './SwipeProfilePanel'
 import { useIsMobileViewport } from './useIsMobileViewport'
 import { STACK_SIZE, useSwipeCandidates } from './useSwipeCandidates'
 import { useSwipeExclusions } from './useSwipeExclusions'
-import { useWishlists } from './useWishlists'
 
 /** Horizontal-drag threshold (px) that commits a pass/save decision. */
 const SWIPE_THRESHOLD_X = 110
@@ -57,10 +47,6 @@ const SWIPE_THRESHOLD_Y = 110
 /** Pointer movement (px) past which a gesture counts as a drag, not a tap.
  *  Below it, releasing opens the detail modal instead. */
 const CLICK_SLOP = 6
-/** Saved-card count that has to accrue before the build-prep-list nudge
- *  appears — casual swipers aren't pestered before they have a haul worth
- *  turning into a wishlist. */
-const PREP_LIST_NUDGE_THRESHOLD = 3
 /** Profile-score bonus a pinned favorite set adds to its walk weight (#713).
  *  Sized so an explicit pin outweighs an accreted lean and lands a set near
  *  the multiplier cap, without zeroing out the rest of the catalog. */
@@ -80,7 +66,7 @@ interface SwipePanelProps {
 }
 
 export function SwipePanel({ active }: SwipePanelProps) {
-  const { profile, seenSet, act, clearSaved, reset, scoreCard } =
+  const { profile, seenSet, act, reset, scoreCard } =
     useSwipeProfile()
   const { settings, updateSettings } = useAppStore()
   const { user } = useAuth()
@@ -286,114 +272,120 @@ export function SwipePanel({ active }: SwipePanelProps) {
         }
       />
 
-      {/* On phones both tuning panels drop below the deck so the card and
-          its actions land in the first viewport (#845). Rendered
-          conditionally (not flex `order`) so tab and screen-reader order
-          match the visual order. */}
-      {!isMobile && <TuningPanels showFavoriteSets={showSavedActions} />}
-
-      {profile.saved.length >= PREP_LIST_NUDGE_THRESHOLD && (
-        <BuildPrepList saved={profile.saved} onCleared={clearSaved} />
-      )}
-
-      <div className="flex flex-col items-center gap-3">
-        {error && (
-          <p
-            role="alert"
-            className="w-full rounded border border-ember-500/40 bg-ember-500/10 px-3 py-2 text-sm text-ember-400 dark:border-ember-500/50 dark:bg-ember-500/30 dark:text-ember-300"
-          >
-            Couldn’t load cards: {error}
-          </p>
-        )}
-
-        {exhausted && !current && (
-          <ExhaustedState onReset={handleReset} />
-        )}
-
-        {!current && !exhausted && (
-          <LoadingCard loading={loading} />
-        )}
-
-        {current && (
-          // The whole stack renders as one keyed list so the next card
-          // keeps its DOM node as it's promoted from peek to top — it
-          // *rises* into place rather than the old node being reused and
-          // sliding back in from off-screen. `pb-4` reserves room for the
-          // deepest peek, which is translated below the top card. The
-          // narrower phone cap keeps the card + action row inside a
-          // 375×812 first viewport (#845).
-          <div className="w-full max-w-[280px] pb-4 lg:max-w-xs">
-            <div className="relative">
-              {[current, ...upcoming].slice(0, STACK_SIZE).map((cand, depth) =>
-                depth === 0 ? (
-                  <SwipeCard
-                    key={cand.card.id}
-                    card={cand.card}
-                    setName={cand.setName}
-                    depth={0}
-                    drag={drag}
-                    outgoing={outgoing}
-                    interactive
-                    onPointerDown={onPointerDown}
-                    onPointerMove={onPointerMove}
-                    onPointerUp={onPointerEnd}
-                    onPointerCancel={onPointerEnd}
-                    onClick={onCardClick}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        setDetailOpen(true)
-                      }
-                    }}
-                  />
-                ) : (
-                  <SwipeCard
-                    key={cand.card.id}
-                    card={cand.card}
-                    setName={cand.setName}
-                    depth={depth}
-                    drag={null}
-                    outgoing={null}
-                    interactive={false}
-                  />
-                ),
-              )}
-            </div>
+      {/* Favorite sets + Your taste sit in a side column beside the deck on
+          desktop — the centered card leaves that width empty on a wide
+          screen anyway, so pulling them out of the vertical stack (and out
+          from between the header and the card) gives them a real home
+          instead of pushing the deck down when a panel is opened. Phones
+          keep them below the deck so the card and its actions still land in
+          the first viewport (#845). Rendered conditionally (not flex
+          `order`) so tab and screen-reader order match the visual order. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {!isMobile && (
+          <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:w-72 lg:flex-shrink-0">
+            <TuningPanels showFavoriteSets={showSavedActions} />
           </div>
         )}
 
-        {current && (
-          <ActionRow
-            onPass={() => commit('pass')}
-            onSave={() => commit('save')}
-            onLove={() => commit('love')}
-            disabled={!!outgoing}
-          />
-        )}
+        <div className="flex min-w-0 flex-1 flex-col items-center gap-3">
+          {error && (
+            <p
+              role="alert"
+              className="w-full rounded border border-ember-500/40 bg-ember-500/10 px-3 py-2 text-sm text-ember-400 dark:border-ember-500/50 dark:bg-ember-500/30 dark:text-ember-300"
+            >
+              Couldn’t load cards: {error}
+            </p>
+          )}
 
-        {current && showSavedActions && (
-          <OwnershipBadge
-            ownership={lookupOwnership(current.setId, current.card.number)}
-            className="justify-center"
-          />
-        )}
+          {exhausted && !current && (
+            <ExhaustedState onReset={handleReset} />
+          )}
 
-        {current && (
-          <SaveCardActions
-            show={showSavedActions}
-            card={browseCardToPayload(current.card, {
-              id: current.setId,
-              name: current.setName,
-            })}
-            ownership={lookupOwnership(current.setId, current.card.number)}
-            className="justify-center"
-          />
-        )}
+          {!current && !exhausted && (
+            <LoadingCard loading={loading} />
+          )}
 
-        <SwipeHint />
+          {current && (
+            // The whole stack renders as one keyed list so the next card
+            // keeps its DOM node as it's promoted from peek to top — it
+            // *rises* into place rather than the old node being reused and
+            // sliding back in from off-screen. `pb-4` reserves room for the
+            // deepest peek, which is translated below the top card. The
+            // narrower phone cap keeps the card + action row inside a
+            // 375×812 first viewport (#845).
+            <div className="w-full max-w-[280px] pb-4 lg:max-w-xs">
+              <div className="relative">
+                {[current, ...upcoming].slice(0, STACK_SIZE).map((cand, depth) =>
+                  depth === 0 ? (
+                    <SwipeCard
+                      key={cand.card.id}
+                      card={cand.card}
+                      setName={cand.setName}
+                      depth={0}
+                      drag={drag}
+                      outgoing={outgoing}
+                      interactive
+                      onPointerDown={onPointerDown}
+                      onPointerMove={onPointerMove}
+                      onPointerUp={onPointerEnd}
+                      onPointerCancel={onPointerEnd}
+                      onClick={onCardClick}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          setDetailOpen(true)
+                        }
+                      }}
+                    />
+                  ) : (
+                    <SwipeCard
+                      key={cand.card.id}
+                      card={cand.card}
+                      setName={cand.setName}
+                      depth={depth}
+                      drag={null}
+                      outgoing={null}
+                      interactive={false}
+                    />
+                  ),
+                )}
+              </div>
+            </div>
+          )}
+
+          {current && (
+            <ActionRow
+              onPass={() => commit('pass')}
+              onSave={() => commit('save')}
+              onLove={() => commit('love')}
+              disabled={!!outgoing}
+            />
+          )}
+
+          {current && showSavedActions && (
+            <OwnershipBadge
+              ownership={lookupOwnership(current.setId, current.card.number)}
+              className="justify-center"
+            />
+          )}
+
+          {current && (
+            <SaveCardActions
+              show={showSavedActions}
+              card={browseCardToPayload(current.card, {
+                id: current.setId,
+                name: current.setName,
+              })}
+              ownership={lookupOwnership(current.setId, current.card.number)}
+              className="justify-center"
+            />
+          )}
+
+          <SwipeHint />
+
+          {isMobile && <TuningPanels showFavoriteSets={showSavedActions} />}
+        </div>
       </div>
-
-      {isMobile && <TuningPanels showFavoriteSets={showSavedActions} />}
 
       <CardDetailModal
         rows={detailRows}
@@ -405,12 +397,12 @@ export function SwipePanel({ active }: SwipePanelProps) {
 }
 
 /**
- * The Favorite sets + Your taste accordions — above the deck on desktop,
- * below it on phones (#845). Favorite sets are durable + per-user, so that
- * panel is gated on a signed-in user like the other user-scoped Swipe
- * controls — an anonymous mount would otherwise read/write the default
- * user's favorites. The taste profile is browser-local, so it shows for
- * everyone.
+ * The Favorite sets + Your taste accordions — a sticky side column beside
+ * the deck on desktop, below it on phones (#845). Favorite sets are durable
+ * + per-user, so that panel is gated on a signed-in user like the other
+ * user-scoped Swipe controls — an anonymous mount would otherwise read/write
+ * the default user's favorites. The taste profile is browser-local, so it
+ * shows for everyone.
  */
 function TuningPanels({ showFavoriteSets }: { showFavoriteSets: boolean }) {
   return (
@@ -873,121 +865,4 @@ function ExhaustedState({ onReset }: { onReset: () => void }) {
       </button>
     </div>
   )
-}
-
-/**
- * BuildPrepList — nudge above the card stack, in the swiper's eye line.
- * Inline form that creates a new wishlist from the user's saved cards and
- * adds each one in order. Gated on PREP_LIST_NUDGE_THRESHOLD saves. On
- * success it clears the local saved list so the user starts fresh on
- * the next swipe session; the new wishlist is visible immediately in
- * the Library because both surfaces share the
- * [useWishlists](./useWishlists.ts) cache.
- */
-function BuildPrepList({
-  saved,
-  onCleared,
-}: {
-  saved: SavedCard[]
-  onCleared: () => void
-}) {
-  const { create, addCard } = useWishlists()
-  const [name, setName] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const defaultName = `Swipe picks · ${new Date().toLocaleDateString()}`
-
-  async function handleBuild() {
-    const finalName = (name.trim() || defaultName).slice(0, 80)
-    setBusy(true)
-    setError(null)
-    setSuccess(null)
-    try {
-      const wishlist = await create(finalName)
-      for (const card of saved) {
-        await addCard(wishlist.id, savedCardToPayload(card))
-      }
-      setSuccess(`Saved ${saved.length} card${saved.length === 1 ? '' : 's'} to “${finalName}”.`)
-      setName('')
-      onCleared()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="rounded-md border border-sand-200 bg-sand-100 px-4 py-3 dark:border-husk-100 dark:bg-husk-400/60">
-      <h3 className="text-sm font-semibold text-coconut-700 dark:text-sand-50">
-        Build a prep list
-      </h3>
-      <p className="mt-0.5 text-xs text-coconut-400 dark:text-sand-300">
-        Turn your {saved.length} saved card{saved.length === 1 ? '' : 's'} into
-        a wishlist you can take to the next show.
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={defaultName}
-          aria-label="Prep list name"
-          className="flex-1 min-w-[180px] rounded border border-sand-300 bg-sand-50 px-2 py-1.5 text-sm text-coconut-700 placeholder:text-coconut-300 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-coconut-500 dark:bg-husk-100 dark:text-sand-50 dark:placeholder:text-sand-500 dark:focus:ring-sun-300"
-        />
-        <button
-          type="button"
-          onClick={() => void handleBuild()}
-          disabled={busy || saved.length === 0}
-          className="rounded bg-palm-400 px-3 py-1.5 text-sm font-medium text-sand-50 hover:bg-palm-300 disabled:opacity-50 dark:bg-sun-300 dark:text-husk-500 dark:hover:bg-sun-200"
-        >
-          {busy ? (
-            <span className="flex items-center gap-1">
-              <Loader2 size={12} className="animate-spin" /> Building…
-            </span>
-          ) : (
-            'Build prep list'
-          )}
-        </button>
-      </div>
-      {success && (
-        <p
-          role="status"
-          className="mt-2 text-xs text-palm-500 dark:text-palm-200"
-        >
-          {success}
-        </p>
-      )}
-      {error && (
-        <p
-          role="alert"
-          className="mt-2 text-xs text-ember-400 dark:text-ember-300"
-        >
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/**
- * Reshape a SavedCard into the verbatim card payload the wishlist API
- * accepts. Mirrors the trimmed shape used elsewhere in the SPA so the
- * wishlist row can re-render with thumbnail + price without another
- * lookup.
- */
-function savedCardToPayload(card: SavedCard): Record<string, unknown> {
-  return {
-    id: card.id,
-    name: card.name,
-    number: card.number,
-    rarity: card.rarity,
-    supertype: card.supertype,
-    subtypes: card.subtypes,
-    images: card.thumb ? { small: card.thumb } : undefined,
-    set: { id: card.setId },
-    _swipe_market: card.market,
-  }
 }

@@ -50,8 +50,9 @@ vi.mock('./api/client', () => ({
   // each candidate fetch — stub to an empty list so the panel surfaces
   // its "loading sets…" state without hitting the network.
   fetchSetCards: vi.fn(() => Promise.resolve([])),
-  // SwipePanel's "Build prep list" CTA depends on `useWishlists`, which
-  // mounts its own GET on the first hook subscriber.
+  // CardDetailModal / AddToListPicker (mounted from Swipe and Search)
+  // depend on `useWishlists`, which mounts its own GET on the first hook
+  // subscriber.
   fetchWishlists: vi.fn(() => Promise.resolve([])),
   // InsightsNavButton mounts in the header and reads useCollections on its
   // first subscriber; stub the list so the gate resolves to 0 (button hidden).
@@ -497,7 +498,7 @@ describe('App: discovery mode switcher', () => {
   })
 })
 
-describe('App: editor pane width follows collapse state (#524 follow-up)', () => {
+describe('App: editor pane width stays fixed regardless of collapse state (#524, #869 follow-up)', () => {
   beforeEach(() => {
     resetStore()
     _resetAuthStoreForTests()
@@ -510,14 +511,18 @@ describe('App: editor pane width follows collapse state (#524 follow-up)', () =>
     expect(editorSection?.className).toMatch(/min-\[1100px\]:w-\[500px\]/)
   })
 
-  it('drops the fixed width once the editor collapses to its one-line summary, so results can reclaim the space', () => {
+  // Collapsing used to drop the fixed width too, so the results table
+  // snapped wider at the same instant the editor shrank — read as the page
+  // jumping (review feedback on #869). Only the editor's own height
+  // collapses now; the column width never moves.
+  it('keeps the fixed width once the editor collapses to its one-line summary', () => {
     useAppStore.setState({
       inputText: 'Charizard',
       editorCollapsed: true,
     })
     renderInSearchMode()
     const editorSection = screen.getByRole('button', { name: /card line/i }).closest('section')
-    expect(editorSection?.className).not.toMatch(/min-\[1100px\]:w-\[500px\]/)
+    expect(editorSection?.className).toMatch(/min-\[1100px\]:w-\[500px\]/)
   })
 })
 

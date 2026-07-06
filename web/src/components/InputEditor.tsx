@@ -15,6 +15,7 @@ import type { CardQuery } from '../types'
 import { LookupTimer } from './LookupTimer'
 import { CacheSourceChip } from './CacheSourceChip'
 import { EXAMPLE_QUERIES } from './exampleQueries'
+import { useIsWideSearchLayout } from './useIsWideSearchLayout'
 
 interface Props {
   onRun: (overrideText?: string) => void
@@ -117,16 +118,23 @@ export function InputEditor({ onRun, onStop }: Props) {
   // Collapse state lives in the store, not local state — loading a saved
   // search re-expands it directly there (see loadSavedRun) since that path
   // never touches `isRunning` and so wouldn't otherwise trip this effect.
+  //
+  // Skipped at the wide (≥1100px) Search layout: there the editor keeps a
+  // fixed column width regardless of collapse state (App.tsx), so
+  // auto-collapsing bought nothing but a surprise reflow of the results
+  // table underneath the user. Below that width the editor and results
+  // still stack in one column, where reclaiming the space is worth it.
+  const isWideSearchLayout = useIsWideSearchLayout()
   const wasRunningRef = useRef(isRunning)
   useEffect(() => {
     const wasRunning = wasRunningRef.current
     if (!wasRunning && isRunning) {
       setCollapsed(false)
-    } else if (wasRunning && !isRunning && rows.length > 0) {
+    } else if (wasRunning && !isRunning && rows.length > 0 && !isWideSearchLayout) {
       setCollapsed(true)
     }
     wasRunningRef.current = isRunning
-  }, [isRunning, rows.length, setCollapsed])
+  }, [isRunning, rows.length, setCollapsed, isWideSearchLayout])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {

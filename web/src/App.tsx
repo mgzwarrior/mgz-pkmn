@@ -79,7 +79,6 @@ function App() {
     setCacheStatus,
     resetViewState,
     setRuns,
-    editorCollapsed,
   } = useAppStore()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -457,11 +456,13 @@ function App() {
       {/* Main content. Extra bottom padding on mobile clears the fixed tab bar.
           No outer width cap (#524) — the results table wants the full
           workspace on a wide monitor, not a 1200px well. Sections that need a
-          reading-width cap own it themselves: the editor pane is a ~500px
-          column while expanded (#522), shrinking to fit its collapsed
-          one-line summary once a lookup finishes (#523) so results can
-          reclaim that width; the rail is fixed-width, Swipe's card caps at
-          max-w-xs, and Browse's grids cap their column count per breakpoint. */}
+          reading-width cap own it themselves: the editor pane is a fixed
+          ~500px column at the wide Search breakpoint (#522) — a collapsed
+          run no longer shrinks that column (review feedback on #869: the
+          width snap plus the results table reflowing under it read as the
+          page jumping), it only collapses its own height; the rail is
+          fixed-width, Swipe's card caps at max-w-xs, and Browse's grids cap
+          their column count per breakpoint. */}
       <main className="px-4 py-6 pb-24 lg:pb-6">
         <div className="flex gap-4">
           <div className="hidden lg:block lg:w-auto lg:flex-shrink-0" data-tour="library">
@@ -520,9 +521,7 @@ function App() {
                     taller than the viewport can still reach its bottom. */}
                 <section
                   data-tour="input"
-                  className={`min-[1100px]:sticky min-[1100px]:top-20 min-[1100px]:max-h-[calc(100vh-6rem)] min-[1100px]:flex-shrink-0 min-[1100px]:overflow-y-auto ${
-                    editorCollapsed ? '' : 'min-[1100px]:w-[500px]'
-                  }`}
+                  className="min-[1100px]:sticky min-[1100px]:top-20 min-[1100px]:max-h-[calc(100vh-6rem)] min-[1100px]:w-[500px] min-[1100px]:flex-shrink-0 min-[1100px]:overflow-y-auto"
                 >
                   <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
                     Card list
