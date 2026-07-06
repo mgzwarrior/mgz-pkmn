@@ -165,6 +165,37 @@ describe('InputEditor', () => {
       expect(screen.getByRole('button', { name: /1 card line/i })).toBeInTheDocument()
     })
 
+    it('does not auto-collapse at the wide (≥1100px) Search layout', () => {
+      const realMatchMedia = window.matchMedia
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn().mockImplementation((query: string) => ({
+          matches: query === '(min-width: 1100px)',
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        })),
+      )
+
+      storeState.inputText = 'Charizard'
+      storeState.isRunning = true
+      const { rerender } = render(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+
+      storeState.isRunning = false
+      storeState.rows = [{} as Row]
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+      rerender(<InputEditor onRun={vi.fn()} onStop={vi.fn()} />)
+
+      expect(mockSetEditorCollapsed).not.toHaveBeenCalledWith(true)
+      expect(screen.getByRole('textbox')).toBeInTheDocument()
+
+      vi.stubGlobal('matchMedia', realMatchMedia)
+    })
+
     it('does not collapse when the run finished with zero rows', () => {
       storeState.inputText = 'top:5 Charizard cards'
       storeState.isRunning = true
