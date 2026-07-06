@@ -24,6 +24,7 @@ interface Props {
   row: Row
   showImage: boolean
   showSavedActions: boolean
+  showMarket: boolean
   ownership: CardOwnership | null | undefined
   onRerunLine?: (line: string) => void
   onOpenDetail?: () => void
@@ -33,6 +34,7 @@ export function ResultCard({
   row,
   showImage,
   showSavedActions,
+  showMarket,
   ownership,
   onRerunLine,
   onOpenDetail,
@@ -45,7 +47,10 @@ export function ResultCard({
 
   const imgUrl = card?.images?.small as string | undefined
   const setName = (card?.set as { name?: string } | undefined)?.name
+  // Gated on `showMarket` too — the amber "over cap" highlight is itself a
+  // pricing signal, so it stays off when pricing is hidden.
   const isOverCap =
+    showMarket &&
     useAppStore.getState().settings.maxPrice != null &&
     p.market != null &&
     p.market > (useAppStore.getState().settings.maxPrice ?? Infinity)
@@ -126,17 +131,19 @@ export function ResultCard({
                 <div className="truncate font-medium text-coconut-700 dark:text-sand-50">
                   {card?.name as string}
                 </div>
-                <span
-                  className={`shrink-0 font-mono text-sm tabular-nums ${
-                    isOverCap
-                      ? 'font-bold text-sun-600 dark:text-sun-300'
-                      : p.market
-                        ? 'text-palm-500 dark:text-palm-200'
-                        : 'text-coconut-400 dark:text-sand-300'
-                  }`}
-                >
-                  {formatMoney(p.market, p.currency)}
-                </span>
+                {showMarket && (
+                  <span
+                    className={`shrink-0 font-mono text-sm tabular-nums ${
+                      isOverCap
+                        ? 'font-bold text-sun-600 dark:text-sun-300'
+                        : p.market
+                          ? 'text-palm-500 dark:text-palm-200'
+                          : 'text-coconut-400 dark:text-sand-300'
+                    }`}
+                  >
+                    {formatMoney(p.market, p.currency)}
+                  </span>
+                )}
               </div>
               <div className="truncate text-xs text-coconut-400 dark:text-sand-300">
                 {setName ?? '—'}
@@ -145,7 +152,9 @@ export function ResultCard({
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-2 text-xs text-coconut-400 dark:text-sand-300">
                 <span>{p.source ?? '—'}</span>
-                <span className="font-mono tabular-nums">{formatComp(p.market, 85, p.currency)} · 85%</span>
+                {showMarket && (
+                  <span className="font-mono tabular-nums">{formatComp(p.market, 85, p.currency)} · 85%</span>
+                )}
               </div>
               <OwnershipBadge ownership={ownership} className="mt-1" />
             </>

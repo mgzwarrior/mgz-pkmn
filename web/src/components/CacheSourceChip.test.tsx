@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS = {
   showTimer: false,
   showEbay: false,
   hideOwned: false,
+  hidePricing: false,
   swipeRarityFloor: 'chase' as const,
   swipeExcludeOwned: false,
   swipeExcludeChasing: false,

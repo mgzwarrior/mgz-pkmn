@@ -25,6 +25,8 @@ vi.mock('../store', () => ({
       sort: 'number',
       showTimer: false,
       showEbay: false,
+      hideOwned: false,
+      hidePricing: false,
       exportFields: DEFAULT_EXPORT_FIELDS,
     },
     updateSettings: mockUpdateSettings,
@@ -90,6 +92,13 @@ describe('SettingsDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
     fireEvent.click(screen.getByLabelText(/show ebay comps/i))
     expect(mockUpdateSettings).toHaveBeenCalledWith({ showEbay: true })
+  })
+
+  it('toggling "Hide pricing" calls updateSettings({ hidePricing: true })', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    fireEvent.click(screen.getByLabelText(/hide pricing/i))
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ hidePricing: true })
   })
 
   it('"Export columns" section lists every xlsx field, all checked by default', () => {

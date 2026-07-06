@@ -505,18 +505,22 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 onClick={cycleSort}
                 className="hidden lg:table-cell"
               />
-              <SortableHeader
-                label="Market"
-                column="market"
-                active={sortColumn}
-                dir={sortDir}
-                onClick={cycleSort}
-                align="right"
-              />
-              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">80%</th>
-              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">85%</th>
-              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">90%</th>
-              <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">95%</th>
+              {!settings.hidePricing && (
+                <>
+                  <SortableHeader
+                    label="Market"
+                    column="market"
+                    active={sortColumn}
+                    dir={sortDir}
+                    onClick={cycleSort}
+                    align="right"
+                  />
+                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">80%</th>
+                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">85%</th>
+                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">90%</th>
+                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">95%</th>
+                </>
+              )}
               {settings.showEbay && (
                 <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden lg:table-cell">
                   eBay sold
@@ -573,38 +577,42 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                     onChange={(v) => setFilterValue('rarity', v)}
                   />
                 </FilterCell>
-                <FilterCell>
-                  <div className="flex gap-1">
-                    <FilterInput
-                      aria-label="Min market price"
-                      type="number"
-                      placeholder="min"
-                      value={filters.marketMin}
-                      onChange={(v) => setFilterValue('marketMin', v)}
-                    />
-                    <FilterInput
-                      aria-label="Max market price"
-                      type="number"
-                      placeholder="max"
-                      value={filters.marketMax}
-                      onChange={(v) => setFilterValue('marketMax', v)}
-                    />
-                  </div>
-                </FilterCell>
-                {/* Comp-tier columns have no filter — sr-only labels keep axe
-                    happy without adding visible noise. */}
-                <th className="hidden xl:table-cell">
-                  <span className="sr-only">80% (no filter)</span>
-                </th>
-                <th className="hidden xl:table-cell">
-                  <span className="sr-only">85% (no filter)</span>
-                </th>
-                <th className="hidden xl:table-cell">
-                  <span className="sr-only">90% (no filter)</span>
-                </th>
-                <th className="hidden xl:table-cell">
-                  <span className="sr-only">95% (no filter)</span>
-                </th>
+                {!settings.hidePricing && (
+                  <>
+                    <FilterCell>
+                      <div className="flex gap-1">
+                        <FilterInput
+                          aria-label="Min market price"
+                          type="number"
+                          placeholder="min"
+                          value={filters.marketMin}
+                          onChange={(v) => setFilterValue('marketMin', v)}
+                        />
+                        <FilterInput
+                          aria-label="Max market price"
+                          type="number"
+                          placeholder="max"
+                          value={filters.marketMax}
+                          onChange={(v) => setFilterValue('marketMax', v)}
+                        />
+                      </div>
+                    </FilterCell>
+                    {/* Comp-tier columns have no filter — sr-only labels keep
+                        axe happy without adding visible noise. */}
+                    <th className="hidden xl:table-cell">
+                      <span className="sr-only">80% (no filter)</span>
+                    </th>
+                    <th className="hidden xl:table-cell">
+                      <span className="sr-only">85% (no filter)</span>
+                    </th>
+                    <th className="hidden xl:table-cell">
+                      <span className="sr-only">90% (no filter)</span>
+                    </th>
+                    <th className="hidden xl:table-cell">
+                      <span className="sr-only">95% (no filter)</span>
+                    </th>
+                  </>
+                )}
                 {settings.showEbay && (
                   <th className="hidden lg:table-cell">
                     <span className="sr-only">eBay sold (no filter)</span>
@@ -631,6 +639,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 row={row}
                 showImage={!settings.noImages}
                 showSavedActions={showSavedActions}
+                showMarket={!settings.hidePricing}
                 showEbay={settings.showEbay}
                 ownership={ownershipForRow(row, lookupOwnership)}
                 onRerunLine={onRerunLine}
@@ -662,6 +671,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
             row={row}
             showImage={!settings.noImages}
             showSavedActions={showSavedActions}
+            showMarket={!settings.hidePricing}
             ownership={ownershipForRow(row, lookupOwnership)}
             onRerunLine={onRerunLine}
             onOpenDetail={() => setDetailIndex(displayedIdx)}
@@ -684,6 +694,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
         onFilterChange={setFilterValue}
         onClear={resetViewState}
         hasActive={!!sortColumn || hasActiveFilters(filters)}
+        showMarket={!settings.hidePricing}
       />
 
       {(selectedRows.length > 0 || undoSnapshot !== null) && (
@@ -799,6 +810,7 @@ function MobileFiltersSheet({
   onFilterChange,
   onClear,
   hasActive,
+  showMarket,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -810,6 +822,7 @@ function MobileFiltersSheet({
   onFilterChange: <K extends keyof ResultsFilters>(key: K, value: ResultsFilters[K]) => void
   onClear: () => void
   hasActive: boolean
+  showMarket: boolean
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -886,24 +899,26 @@ function MobileFiltersSheet({
               onChange={(v) => onFilterChange('rarity', v)}
             />
           </SheetField>
-          <SheetField label="Market price">
-            <div className="flex gap-2">
-              <FilterInput
-                aria-label="Min market price"
-                type="number"
-                placeholder="min"
-                value={filters.marketMin}
-                onChange={(v) => onFilterChange('marketMin', v)}
-              />
-              <FilterInput
-                aria-label="Max market price"
-                type="number"
-                placeholder="max"
-                value={filters.marketMax}
-                onChange={(v) => onFilterChange('marketMax', v)}
-              />
-            </div>
-          </SheetField>
+          {showMarket && (
+            <SheetField label="Market price">
+              <div className="flex gap-2">
+                <FilterInput
+                  aria-label="Min market price"
+                  type="number"
+                  placeholder="min"
+                  value={filters.marketMin}
+                  onChange={(v) => onFilterChange('marketMin', v)}
+                />
+                <FilterInput
+                  aria-label="Max market price"
+                  type="number"
+                  placeholder="max"
+                  value={filters.marketMax}
+                  onChange={(v) => onFilterChange('marketMax', v)}
+                />
+              </div>
+            </SheetField>
+          )}
           <SheetField label="Source">
             <FilterInput
               aria-label="Filter by source"
@@ -949,6 +964,7 @@ function ResultRow({
   row,
   showImage,
   showSavedActions,
+  showMarket,
   showEbay,
   ownership,
   onRerunLine,
@@ -959,6 +975,7 @@ function ResultRow({
   row: Row
   showImage: boolean
   showSavedActions: boolean
+  showMarket: boolean
   showEbay: boolean
   ownership: CardOwnership | null | undefined
   onRerunLine?: (line: string) => void
@@ -974,7 +991,11 @@ function ResultRow({
 
   const imgUrl = card?.images?.small as string | undefined
   const setName = (card?.set as { name?: string } | undefined)?.name
+  // Gated on `showMarket` too — the amber "over cap" row highlight is a
+  // pricing signal on its own, so it stays off when pricing is hidden even
+  // though the underlying cap still governs what a bulk lookup excludes.
   const isOverCap =
+    showMarket &&
     useAppStore.getState().settings.maxPrice != null &&
     p.market != null &&
     p.market > (useAppStore.getState().settings.maxPrice ?? Infinity)
@@ -1124,28 +1145,32 @@ function ResultRow({
           {(card?.rarity as string | undefined) ?? '—'}
         </td>
 
-        {/* Market */}
-        <td
-          className={`px-3 py-2 compact:py-1 text-right font-mono tabular-nums ${
-            isOverCap ? 'text-sun-600 dark:text-sun-300 font-bold' : p.market ? 'text-palm-500 dark:text-palm-200' : 'text-coconut-400 dark:text-sand-300'
-          }`}
-        >
-          {formatMoney(p.market, p.currency)}
-        </td>
+        {showMarket && (
+          <>
+            {/* Market */}
+            <td
+              className={`px-3 py-2 compact:py-1 text-right font-mono tabular-nums ${
+                isOverCap ? 'text-sun-600 dark:text-sun-300 font-bold' : p.market ? 'text-palm-500 dark:text-palm-200' : 'text-coconut-400 dark:text-sand-300'
+              }`}
+            >
+              {formatMoney(p.market, p.currency)}
+            </td>
 
-        {/* Comp tiers */}
-        <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-          {formatComp(p.market, 80, p.currency)}
-        </td>
-        <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-          {formatComp(p.market, 85, p.currency)}
-        </td>
-        <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-          {formatComp(p.market, 90, p.currency)}
-        </td>
-        <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-          {formatComp(p.market, 95, p.currency)}
-        </td>
+            {/* Comp tiers */}
+            <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
+              {formatComp(p.market, 80, p.currency)}
+            </td>
+            <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
+              {formatComp(p.market, 85, p.currency)}
+            </td>
+            <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
+              {formatComp(p.market, 90, p.currency)}
+            </td>
+            <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
+              {formatComp(p.market, 95, p.currency)}
+            </td>
+          </>
+        )}
 
         {/* eBay sold — median + sparkline of recent sales. Empty until the
             eBay source is wired into lookup (epic #416). */}

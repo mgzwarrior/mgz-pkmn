@@ -634,6 +634,7 @@ function CardArtwork({ card }: { card: SetCard }) {
 }
 
 function CardMeta({ card, setName }: { card: SetCard; setName: string }) {
+  const hidePricing = useAppStore((s) => s.settings.hidePricing)
   return (
     <div className="mt-3 flex flex-col gap-0.5">
       <div className="flex items-baseline justify-between gap-2">
@@ -643,7 +644,7 @@ function CardMeta({ card, setName }: { card: SetCard; setName: string }) {
         >
           {card.name}
         </div>
-        {card.market != null && (
+        {card.market != null && !hidePricing && (
           <span className="shrink-0 text-sm font-medium text-palm-500 dark:text-palm-200">
             ${card.market.toFixed(2)}
           </span>

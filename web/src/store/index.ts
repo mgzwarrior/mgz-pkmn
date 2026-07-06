@@ -32,7 +32,12 @@ export const RECENT_RUNS_LIMIT = 10
 const DEFAULT_SETTINGS: Settings = {
   apiKey: '',
   maxPrice: null,
-  noImages: true,
+  // Images on by default (#764) — card thumbnails are part of confirming
+  // you found the right card, not an opt-in extra. The `merge` below
+  // backfills this for users with older persisted settings who never
+  // touched the toggle, so their view doesn't change out from under them
+  // (it only affects a fresh install / cleared localStorage).
+  noImages: false,
   tag: '',
   dedupe: false,
   sort: 'number',
@@ -46,6 +51,10 @@ const DEFAULT_SETTINGS: Settings = {
   // collections, leaving just what's still missing. The `merge` below backfills
   // it for users with older persisted settings.
   hideOwned: false,
+  // A clean, price-free view is opt-in (#764) — kids/parents especially want
+  // it, but pricing stays the norm elsewhere. The `merge` below backfills
+  // this for users with older persisted settings.
+  hidePricing: false,
   // Swipe mode opens on the chase tier — only each set's top rarity — so a
   // session feels like flipping chase cards, not walking bulk (#580). The
   // `merge` below backfills this for users with older persisted settings.

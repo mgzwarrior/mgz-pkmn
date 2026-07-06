@@ -263,6 +263,43 @@ describe('store: settings.showTimer', () => {
   })
 })
 
+describe('store: settings.noImages', () => {
+  afterEach(() => {
+    useAppStore.getState().resetSettings()
+  })
+
+  // Images on by default (#764) — thumbnails aren't an opt-in extra.
+  it('defaults to false and round-trips through updateSettings', () => {
+    expect(useAppStore.getState().settings.noImages).toBe(false)
+    useAppStore.getState().updateSettings({ noImages: true })
+    expect(useAppStore.getState().settings.noImages).toBe(true)
+  })
+
+  it('resetSettings restores noImages to false', () => {
+    useAppStore.getState().updateSettings({ noImages: true })
+    useAppStore.getState().resetSettings()
+    expect(useAppStore.getState().settings.noImages).toBe(false)
+  })
+})
+
+describe('store: settings.hidePricing', () => {
+  afterEach(() => {
+    useAppStore.getState().resetSettings()
+  })
+
+  it('defaults to false and round-trips through updateSettings', () => {
+    expect(useAppStore.getState().settings.hidePricing).toBe(false)
+    useAppStore.getState().updateSettings({ hidePricing: true })
+    expect(useAppStore.getState().settings.hidePricing).toBe(true)
+  })
+
+  it('resetSettings restores hidePricing to false', () => {
+    useAppStore.getState().updateSettings({ hidePricing: true })
+    useAppStore.getState().resetSettings()
+    expect(useAppStore.getState().settings.hidePricing).toBe(false)
+  })
+})
+
 describe('store: settings.swipeRarityFloor', () => {
   afterEach(() => {
     useAppStore.getState().resetSettings()
