@@ -204,6 +204,10 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
   // the badge's lookup, so no extra request. Signed-out users have no library,
   // so the toggle is inert for them.
   const hideOwned = settings.hideOwned && showSavedActions
+  // Gated on `hidePricing` too (review feedback on #878) — the eBay column
+  // shows a sold price + sparkline, which leaks pricing even with the
+  // column itself opted into separately via `showEbay`.
+  const showEbay = settings.showEbay && !settings.hidePricing
   const visibleRows = useMemo(
     () =>
       hideOwned
@@ -521,7 +525,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                   <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">95%</th>
                 </>
               )}
-              {settings.showEbay && (
+              {showEbay && (
                 <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden lg:table-cell">
                   eBay sold
                 </th>
@@ -613,7 +617,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                     </th>
                   </>
                 )}
-                {settings.showEbay && (
+                {showEbay && (
                   <th className="hidden lg:table-cell">
                     <span className="sr-only">eBay sold (no filter)</span>
                   </th>
@@ -640,7 +644,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 showImage={!settings.noImages}
                 showSavedActions={showSavedActions}
                 showMarket={!settings.hidePricing}
-                showEbay={settings.showEbay}
+                showEbay={showEbay}
                 ownership={ownershipForRow(row, lookupOwnership)}
                 onRerunLine={onRerunLine}
                 onOpenDetail={() => setDetailIndex(displayedIdx)}
