@@ -15,7 +15,7 @@ vi.mock('../api/client', () => ({
 const mockFetch = vi.mocked(fetchCardOwnership)
 
 const OWNED: CardOwnership = {
-  collections: [{ id: 1, name: 'Show Binder', quantity: 2 }],
+  collections: [{ id: 1, name: 'Show Binder', quantity: 2, purpose: 'personal' }],
   wishlists: [],
 }
 

@@ -598,7 +598,9 @@ describe('LibraryBindersTab', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
-    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('Trade pile', undefined))
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith('Trade pile', { purpose: 'personal' }),
+    )
   })
 
   it('creates a want-list from the New ▾ menu', async () => {

@@ -12,7 +12,7 @@ const CARD = { id: 'base1-4', name: 'Charizard', set: { id: 'base1' }, number: '
 const EMPTY: CardOwnership = { collections: [], wishlists: [] }
 const WANTED: CardOwnership = { collections: [], wishlists: [{ id: 1, name: 'Chase list' }] }
 const OWNED: CardOwnership = {
-  collections: [{ id: 1, name: 'Binder', quantity: 1 }],
+  collections: [{ id: 1, name: 'Binder', quantity: 1, purpose: 'personal' }],
   wishlists: [],
 }
 

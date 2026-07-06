@@ -60,7 +60,7 @@ describe('AddToListPicker (#762)', () => {
 
   it('excludes lists the card already lives in', () => {
     const ownership: CardOwnership = {
-      collections: [{ id: 1, name: 'Show Binder', quantity: 1 }],
+      collections: [{ id: 1, name: 'Show Binder', quantity: 1, purpose: 'personal' }],
       wishlists: [{ id: 5, name: 'Chase list' }],
     }
     render(<AddToListPicker card={CARD} ownership={ownership} />)

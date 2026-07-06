@@ -36,6 +36,7 @@ from ..db.defaults import (
 )
 from ..db.models import (
     ADDED_VIA_QUICK,
+    COLLECTION_PURPOSE_PERSONAL,
     Collection,
     CollectionItem,
     User,
@@ -72,6 +73,10 @@ class CollectionOccupancy(BaseModel):
     id: int
     name: str
     quantity: int
+    #: #707 — one of ``personal`` / ``trade`` / ``bulk``. Lets the SPA count
+    #: only ``personal`` toward the "owned" badge and surface trade/bulk
+    #: occupancy distinctly (e.g. "1 for trade") instead of hiding it.
+    purpose: str
 
 
 class WishlistOccupancy(BaseModel):
@@ -134,6 +139,7 @@ def card_ownership(
             Collection.id,
             Collection.name,
             CollectionItem.quantity,
+            Collection.purpose,
         )
         .join(Collection, CollectionItem.collection_id == Collection.id)
         .where(
@@ -141,7 +147,7 @@ def card_ownership(
             CollectionItem.card_set_id.in_(set_ids),
         )
     ).all()
-    for set_id, number, coll_id, coll_name, quantity in coll_rows:
+    for set_id, number, coll_id, coll_name, quantity, purpose in coll_rows:
         if (set_id, number) not in requested:
             continue
         key = _key(set_id, number)
@@ -149,7 +155,7 @@ def card_ownership(
         existing = per_collection.get(coll_id)
         if existing is None:
             per_collection[coll_id] = CollectionOccupancy(
-                id=coll_id, name=coll_name, quantity=quantity or 0
+                id=coll_id, name=coll_name, quantity=quantity or 0, purpose=purpose
             )
         else:
             existing.quantity += quantity or 0
@@ -225,7 +231,7 @@ def _card_state(db: Session, user_id: int, set_id: str | None, number: str | Non
     collections: dict[int, CollectionOccupancy] = {}
     if set_id is not None and number is not None:
         coll_rows = db.execute(
-            select(Collection.id, Collection.name, CollectionItem.quantity)
+            select(Collection.id, Collection.name, CollectionItem.quantity, Collection.purpose)
             .join(CollectionItem, CollectionItem.collection_id == Collection.id)
             .where(
                 Collection.user_id == user_id,
@@ -233,11 +239,11 @@ def _card_state(db: Session, user_id: int, set_id: str | None, number: str | Non
                 CollectionItem.card_number == number,
             )
         ).all()
-        for coll_id, coll_name, quantity in coll_rows:
+        for coll_id, coll_name, quantity, purpose in coll_rows:
             existing = collections.get(coll_id)
             if existing is None:
                 collections[coll_id] = CollectionOccupancy(
-                    id=coll_id, name=coll_name, quantity=quantity or 0
+                    id=coll_id, name=coll_name, quantity=quantity or 0, purpose=purpose
                 )
             else:
                 existing.quantity += quantity or 0
@@ -261,11 +267,14 @@ def _card_state(db: Session, user_id: int, set_id: str | None, number: str | Non
     for wish_id, wish_name in wish_rows:
         wishlists.setdefault(wish_id, WishlistOccupancy(id=wish_id, name=wish_name))
 
+    # #707 — only a personal-purpose collection reads as "owned"; trade/bulk
+    # occupancy still renders (in `collections`), just doesn't flip the flag.
+    personal_owned = any(c.purpose == COLLECTION_PURPOSE_PERSONAL for c in collections.values())
     return CardState(
         set_id=set_id,
         number=number,
         wanted=bool(wishlists),
-        owned=bool(collections),
+        owned=personal_owned,
         collections=list(collections.values()),
         wishlists=list(wishlists.values()),
     )

@@ -47,7 +47,9 @@ describe('CollectionCreateDialog', () => {
       target: { value: 'Trade pile' },
     })
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
-    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('Trade pile', undefined))
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith('Trade pile', { purpose: 'personal' }),
+    )
     expect(mockCreateBinder).not.toHaveBeenCalled()
   })
 
@@ -89,7 +91,9 @@ describe('CollectionCreateDialog', () => {
     fireEvent.click(screen.getByRole('radio', { name: /show binder/i }))
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
-    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('Base holos', { binder_id: 3 }))
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith('Base holos', { purpose: 'personal', binder_id: 3 }),
+    )
   })
 
   it('creates a new binder even when binders already exist, then files into it', async () => {
@@ -139,7 +143,12 @@ describe('CollectionCreateDialog', () => {
         capacity: 180,
       }),
     )
-    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('Base holos', { binder_id: 20 }))
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith('Base holos', {
+        purpose: 'personal',
+        binder_id: 20,
+      }),
+    )
   })
 
   it('creates a binder inline when none exist, then files the collection into it', async () => {
@@ -175,6 +184,11 @@ describe('CollectionCreateDialog', () => {
         capacity: 360,
       }),
     )
-    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('Base holos', { binder_id: 12 }))
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith('Base holos', {
+        purpose: 'personal',
+        binder_id: 12,
+      }),
+    )
   })
 })

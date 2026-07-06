@@ -28,7 +28,7 @@ import {
   Filter,
   X,
 } from 'lucide-react'
-import { addOverride } from '../api/client'
+import { addOverride, hasPersonalOwnership } from '../api/client'
 import { BulkActionBar } from './BulkActionBar'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
@@ -85,14 +85,16 @@ function ownershipForRow(
 }
 
 /**
- * Whether a resolved ownership means the card sits in at least one collection
- * (#339). Wishlist-only occupancy ("chasing") doesn't count as owned — those
- * are exactly the cards the want-list view should keep. `undefined` (not yet
- * known) and `null` (no occupancy) are both not-owned, so a row stays visible
- * until its ownership resolves rather than flickering out mid-stream.
+ * Whether a resolved ownership means the card sits in at least one
+ * `personal`-purpose collection (#339, purpose-aware per #707). Wishlist-only
+ * occupancy ("chasing") doesn't count as owned — those are exactly the cards
+ * the want-list view should keep, and neither does a card held only for
+ * trade/bulk. `undefined` (not yet known) and `null` (no occupancy) are both
+ * not-owned, so a row stays visible until its ownership resolves rather than
+ * flickering out mid-stream.
  */
 function isOwned(ownership: CardOwnership | null | undefined): boolean {
-  return ownership != null && ownership.collections.length > 0
+  return hasPersonalOwnership(ownership)
 }
 
 interface Props {

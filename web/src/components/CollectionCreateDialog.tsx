@@ -11,8 +11,10 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Loader2, X } from 'lucide-react'
 import { useState } from 'react'
+import type { CollectionPurpose } from '../api/client'
 import type { CardData } from '../types'
 import { BinderFilePicker } from './BinderFilePicker'
+import { PURPOSE_OPTIONS } from './collectionPurpose'
 import { useBinderFiling } from './useBinderFiling'
 import { useCollections } from './useCollections'
 
@@ -59,6 +61,7 @@ function CreateForm({
   const filing = useBinderFiling()
 
   const [name, setName] = useState(prefillName ?? '')
+  const [purpose, setPurpose] = useState<CollectionPurpose>('personal')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,10 +74,10 @@ function CreateForm({
     setError(null)
     try {
       const target = await filing.resolveTarget()
-      const created = await createCollection(
-        name.trim(),
-        target != null ? { binder_id: target } : undefined,
-      )
+      const created = await createCollection(name.trim(), {
+        purpose,
+        ...(target != null ? { binder_id: target } : {}),
+      })
       // Seeded from Browse (#737): drop the set's cards / species' printings
       // straight in. The hook's bulkAdd updates the count and busts the shared
       // ownership cache (#576) so the badges/chips reflect the new cards.
@@ -125,6 +128,23 @@ function CreateForm({
             placeholder="Base Set holos"
             className={inputClass}
           />
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-300">
+            Purpose
+          </span>
+          <select
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value as CollectionPurpose)}
+            className={inputClass}
+          >
+            {PURPOSE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         <BinderFilePicker filing={filing} />

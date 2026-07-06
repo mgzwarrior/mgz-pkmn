@@ -107,6 +107,7 @@ export function useCollections() {
             binder_type: created.binder_type,
             capacity: created.capacity,
             is_master_set: created.is_master_set,
+            purpose: created.purpose,
           },
           ...state.collections,
         ],
@@ -134,6 +135,7 @@ export function useCollections() {
                 binder_type: updated.binder_type,
                 capacity: updated.capacity,
                 is_master_set: updated.is_master_set,
+                purpose: updated.purpose,
               }
             : c,
         ),

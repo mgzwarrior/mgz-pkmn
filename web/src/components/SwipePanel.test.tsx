@@ -38,6 +38,9 @@ vi.mock('../api/client', () => ({
   resetSwipeSeen: vi.fn(),
   // Cross-collection ownership badge (#576): default to "nothing owned".
   fetchCardOwnership: vi.fn(async () => ({})),
+  hasPersonalOwnership: (
+    ownership: { collections: { purpose: string }[] } | null | undefined,
+  ): boolean => !!ownership && ownership.collections.some((c) => c.purpose === 'personal'),
   // Favorite-Pokémon candidate weighting (#742): signed-in only; default to
   // an empty pin list so the deck isn't biased and no real request fires.
   fetchFavoritePokemon: vi.fn(async () => []),

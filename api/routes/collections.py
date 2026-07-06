@@ -70,6 +70,8 @@ from ..db.models import (
     COLLECTION_KIND_DYNAMIC,
     COLLECTION_KIND_MANUAL,
     COLLECTION_KIND_SET,
+    COLLECTION_PURPOSE_PERSONAL,
+    COLLECTION_PURPOSES,
     DYNAMIC_SCOPE_CATALOG,
     DYNAMIC_SCOPE_OWNED,
     Binder,
@@ -153,6 +155,9 @@ class CollectionSummaryOut(BaseModel):
     #: not the row: renaming keeps it, deleting re-establishes one lazily. The
     #: SPA shows a subtle "default" marker so a bare Own's destination is clear.
     is_default: bool
+    #: #707 — one of :data:`COLLECTION_PURPOSES`. ``personal`` (default) counts
+    #: toward set-completion / the owned badge; ``trade``/``bulk`` don't.
+    purpose: str
 
 
 class CollectionItemOut(BaseModel):
@@ -199,6 +204,8 @@ class CollectionOut(BaseModel):
     binder_type: str | None
     capacity: int | None
     is_master_set: bool | None
+    #: #707 — one of :data:`COLLECTION_PURPOSES`.
+    purpose: str
 
 
 class CollectionCreate(BaseModel):
@@ -223,6 +230,8 @@ class CollectionCreate(BaseModel):
     binder_type: str | None = None
     capacity: int | None = Field(default=None, ge=1)
     is_master_set: bool | None = None
+    #: #707 — one of :data:`COLLECTION_PURPOSES`. Defaults to ``personal``.
+    purpose: str = COLLECTION_PURPOSE_PERSONAL
 
 
 class CollectionPatch(BaseModel):
@@ -242,6 +251,8 @@ class CollectionPatch(BaseModel):
     binder_type: str | None = None
     capacity: int | None = Field(default=None, ge=1)
     is_master_set: bool | None = None
+    #: #707 — reassign the collection's purpose. Valid on every kind.
+    purpose: str | None = None
 
 
 # ---- #631: catalog-backed target view + chase ----------------------------
@@ -391,6 +402,7 @@ def list_collections(db: DbSession, current_user: CurrentUser) -> dict:
                 capacity=c.capacity,
                 is_master_set=c.is_master_set,
                 is_default=c.is_default,
+                purpose=c.purpose,
             )
         )
     return {"items": [item.model_dump() for item in items], "total": len(items)}
@@ -451,6 +463,7 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
             status_code=422,
             detail=f"unknown kind '{req.kind}'; allowed: {', '.join(_VALID_KINDS)}",
         )
+    _validate_purpose(req.purpose)
     source_set_id, rule_json, dynamic_scope = _validate_kind_fields(
         req.kind, req.source_set_id, req.rule, req.dynamic_scope
     )
@@ -486,6 +499,7 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
         binder_type=req.binder_type if has_identity else None,
         capacity=req.capacity if physical else None,
         is_master_set=req.is_master_set if has_identity else None,
+        purpose=req.purpose,
     )
     db.add(collection)
     db.commit()
@@ -526,6 +540,9 @@ def patch_collection(
     if "binder_id" in req.model_fields_set:
         _require_owned_binder(db, req.binder_id, current_user.id)
         collection.binder_id = req.binder_id
+    if req.purpose is not None:
+        _validate_purpose(req.purpose)
+        collection.purpose = req.purpose
     _patch_binder_fields(collection, req)
     db.commit()
     db.refresh(collection)
@@ -985,6 +1002,14 @@ def _normalize_rule_or_422(rule: dict[str, Any] | None) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+def _validate_purpose(value: str) -> None:
+    if value not in COLLECTION_PURPOSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown purpose '{value}'; allowed: {', '.join(COLLECTION_PURPOSES)}",
+        )
+
+
 def _validate_binder_format(value: str | None) -> None:
     if value is not None and value not in BINDER_FORMATS:
         raise HTTPException(
@@ -1155,6 +1180,7 @@ def _serialize_collection(db: Session, collection: Collection, user_id: int) -> 
         binder_type=collection.binder_type,
         capacity=collection.capacity,
         is_master_set=collection.is_master_set,
+        purpose=collection.purpose,
     ).model_dump()
 
 

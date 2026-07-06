@@ -14,6 +14,7 @@
 import { useState } from 'react'
 import { Book, Footprints, Loader2 } from 'lucide-react'
 import {
+  hasPersonalOwnership,
   ownCard,
   unownCard,
   unwantCard,
@@ -44,7 +45,7 @@ export function QuickActions({ card, ownership, show, variant = 'icon', classNam
   // tap-again-to-reverse toggle (#767 review).
   const loading = ownership === undefined
   const wanted = !!ownership && ownership.wishlists.length > 0
-  const owned = !!ownership && ownership.collections.length > 0
+  const owned = hasPersonalOwnership(ownership)
   const isPrimary = variant === 'primary'
 
   async function run(action: 'want' | 'own', fn: () => Promise<unknown>) {

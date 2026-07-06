@@ -36,7 +36,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import COLLECTION_KIND_DYNAMIC, Collection, CollectionItem
+from .models import COLLECTION_KIND_DYNAMIC, COLLECTION_PURPOSE_PERSONAL, Collection, CollectionItem
 
 #: The predicate keys a ``rule_json`` may carry. Anything else is rejected
 #: so a typo (``rarties``) surfaces as a 422 instead of silently matching
@@ -187,7 +187,9 @@ def owned_quantity_map(db: Session, user_id: int) -> dict[tuple[str, str], int]:
     iff its identity is in this map. Sums ``quantity`` across every binder so
     two copies in two collections read as quantity 2. Only rows with a full
     promoted identity participate — a card we couldn't promote can't be
-    matched against the catalog anyway."""
+    matched against the catalog anyway. Scoped to ``personal``-purpose
+    collections (#707) — a card held only for trade/bulk isn't a personal
+    "keeper," so it doesn't count toward set-completion."""
     rows = db.execute(
         select(
             CollectionItem.card_set_id,
@@ -198,6 +200,7 @@ def owned_quantity_map(db: Session, user_id: int) -> dict[tuple[str, str], int]:
         .where(
             Collection.user_id == user_id,
             Collection.kind != COLLECTION_KIND_DYNAMIC,
+            Collection.purpose == COLLECTION_PURPOSE_PERSONAL,
             CollectionItem.card_set_id.is_not(None),
             CollectionItem.card_number.is_not(None),
         )

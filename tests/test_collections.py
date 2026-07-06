@@ -1589,5 +1589,141 @@ class CollectionBinderFilingTests(_IsolatedDbMixin):
             self.assertEqual(resp.status_code, 404)
 
 
+class CollectionPurposeMigrationTests(_IsolatedDbMixin):
+    """The #707 ``collections.purpose`` column lands additively and
+    round-trips down/up without disturbing the rest of the schema."""
+
+    def test_purpose_column_present(self) -> None:
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertIn("purpose", cols)
+
+    def test_round_trip_downgrade_then_reupgrade(self) -> None:
+        from alembic import command
+
+        from api.db import migrate as migrate_mod
+
+        engine = session_mod.get_engine()
+        upgrade_head(engine)
+        cfg = migrate_mod._alembic_config()
+        cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+        command.downgrade(cfg, "b8e2c1f5a3d7")
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertNotIn("purpose", cols)
+
+        upgrade_head(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("collections")}
+        self.assertIn("purpose", cols)
+
+
+class CollectionPurposeTests(_IsolatedDbMixin):
+    """#707 — a collection's purpose (personal / trade / bulk) and its
+    effect on purpose-aware ownership (#576)."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def test_create_defaults_to_personal(self) -> None:
+        with self._client() as c:
+            body = c.post("/api/v1/collections", json={"name": "Show binder"}).json()
+            self.assertEqual(body["purpose"], "personal")
+            self.assertEqual(c.get("/api/v1/collections").json()["items"][0]["purpose"], "personal")
+
+    def test_create_accepts_trade_and_bulk(self) -> None:
+        with self._client() as c:
+            trade = c.post(
+                "/api/v1/collections", json={"name": "Trade stock", "purpose": "trade"}
+            ).json()
+            self.assertEqual(trade["purpose"], "trade")
+            bulk = c.post(
+                "/api/v1/collections", json={"name": "Bulk box", "purpose": "bulk"}
+            ).json()
+            self.assertEqual(bulk["purpose"], "bulk")
+
+    def test_create_rejects_unknown_purpose(self) -> None:
+        with self._client() as c:
+            resp = c.post("/api/v1/collections", json={"name": "X", "purpose": "bogus"})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_patch_reassigns_purpose(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Movable"}).json()["id"]
+            updated = c.patch(f"/api/v1/collections/{cid}", json={"purpose": "trade"}).json()
+            self.assertEqual(updated["purpose"], "trade")
+
+    def test_patch_rejects_unknown_purpose(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "X"}).json()["id"]
+            resp = c.patch(f"/api/v1/collections/{cid}", json={"purpose": "bogus"})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_patch_without_purpose_key_leaves_it_intact(self) -> None:
+        with self._client() as c:
+            cid = c.post(
+                "/api/v1/collections", json={"name": "Trade stock", "purpose": "trade"}
+            ).json()["id"]
+            body = c.patch(f"/api/v1/collections/{cid}", json={"name": "Renamed"}).json()
+            self.assertEqual(body["purpose"], "trade")
+
+    def test_ownership_badge_distinguishes_purpose(self) -> None:
+        with self._client() as c:
+            trade_cid = c.post(
+                "/api/v1/collections", json={"name": "Trade stock", "purpose": "trade"}
+            ).json()["id"]
+            c.post(f"/api/v1/collections/{trade_cid}/items", json={"card": SAMPLE_CARD})
+
+            resp = c.post(
+                "/api/v1/cards/ownership", json={"cards": [{"set_id": "base1", "number": "4"}]}
+            ).json()
+            occ = resp["ownership"]["base1::4"]["collections"][0]
+            self.assertEqual(occ["purpose"], "trade")
+
+    def test_quick_own_state_ignores_trade_collection(self) -> None:
+        # A card sitting only in a trade-purpose collection isn't a personal
+        # keeper — /cards/want's derived state must not read it as owned.
+        with self._client() as c:
+            trade_cid = c.post(
+                "/api/v1/collections", json={"name": "Trade stock", "purpose": "trade"}
+            ).json()["id"]
+            c.post(f"/api/v1/collections/{trade_cid}/items", json={"card": SAMPLE_CARD})
+
+            state = c.post("/api/v1/cards/want", json={"card": SAMPLE_CARD}).json()
+            self.assertFalse(state["owned"])
+            self.assertTrue(state["wanted"])
+
+    def test_target_ignores_trade_purpose_ownership(self) -> None:
+        # Purpose-aware set-completion (#707): a card held only for trade
+        # doesn't count toward a catalog-scope smart collection's progress.
+        with self._client() as c:
+            trade_cid = c.post(
+                "/api/v1/collections", json={"name": "Trade stock", "purpose": "trade"}
+            ).json()["id"]
+            c.post(f"/api/v1/collections/{trade_cid}/items", json={"card": EEVEE_CARD})
+
+            dyn = c.post(
+                "/api/v1/collections",
+                json={
+                    "name": "all Eevees",
+                    "kind": "dynamic",
+                    "rule": {"name": "eevee"},
+                    "dynamic_scope": "catalog",
+                },
+            ).json()
+            from unittest.mock import patch
+
+            with patch(
+                "api.routes.collections.TCGClient",
+                lambda api_key=None: _FakeTCGClient(CATALOG_EEVEES, api_key=api_key),
+            ):
+                target = c.get(f"/api/v1/collections/{dyn['id']}/target").json()
+            self.assertEqual(target["owned_count"], 0)
+            by_id = {tc["card"]["id"]: tc for tc in target["cards"]}
+            self.assertFalse(by_id["sv1-130"]["owned"])
+
+
 if __name__ == "__main__":
     unittest.main()
