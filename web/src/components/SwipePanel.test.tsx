@@ -4,8 +4,6 @@ import { SwipePanel } from './SwipePanel'
 import {
   fetchSets,
   fetchSetCards,
-  createWishlist,
-  addCardToWishlist,
   fetchWishlists,
   fetchMe,
   fetchCollections,
@@ -49,8 +47,6 @@ vi.mock('../api/client', () => ({
 
 const mockFetchSets = vi.mocked(fetchSets)
 const mockFetchSetCards = vi.mocked(fetchSetCards)
-const mockCreateWishlist = vi.mocked(createWishlist)
-const mockAddCardToWishlist = vi.mocked(addCardToWishlist)
 const mockFetchWishlists = vi.mocked(fetchWishlists)
 const mockFetchMe = vi.mocked(fetchMe)
 const mockFetchCollections = vi.mocked(fetchCollections)
@@ -99,23 +95,6 @@ async function swipeKey(key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp') {
   }
 }
 
-// Save the PREP_LIST_NUDGE_THRESHOLD (3) cards needed to surface the
-// build-prep-list nudge, waiting on the header chip after each so the next
-// card has mounted before the following swipe. Callers must supply at least
-// three candidate cards via mockFetchSetCards.
-async function saveThreeCards() {
-  for (const n of [1, 2, 3]) {
-    await swipeKey('ArrowRight')
-    await waitFor(
-      () =>
-        expect(
-          screen.getByRole('button', { name: new RegExp(`${n} saved · reset`, 'i') }),
-        ).toBeInTheDocument(),
-      POST_SWIPE_WAIT,
-    )
-  }
-}
-
 describe('SwipePanel', () => {
   let randomSpy: ReturnType<typeof vi.spyOn>
 
@@ -126,8 +105,6 @@ describe('SwipePanel', () => {
     _resetAuthStoreForTests()
     mockFetchSets.mockReset()
     mockFetchSetCards.mockReset()
-    mockCreateWishlist.mockReset()
-    mockAddCardToWishlist.mockReset()
     mockFetchWishlists.mockReset()
     // Default to signed-out with empty lists; the auth-gated tests below
     // override fetchMe per-case.
@@ -242,8 +219,6 @@ describe('SwipePanel', () => {
       () => expect(screen.getByText('Charizard')).toBeInTheDocument(),
       POST_SWIPE_WAIT,
     )
-    // No "Build prep list" panel since saved list is empty.
-    expect(screen.queryByText(/Build a prep list/i)).not.toBeInTheDocument()
   })
 
   it('records a "love" (ArrowUp) — saves *and* double-weights the card', async () => {
@@ -355,89 +330,6 @@ describe('SwipePanel', () => {
         screen.getByRole('button', { name: 'Reset profile' }),
       ).toBeInTheDocument(),
     )
-    expect(screen.queryByText(/Build a prep list/i)).not.toBeInTheDocument()
-  })
-
-  it('surfaces a Build prep list error when wishlist creation fails', async () => {
-    mockCreateWishlist.mockRejectedValue(new Error('quota exceeded'))
-    mockFetchSets.mockResolvedValue([
-      { id: 'sv1', name: 'Scarlet & Violet', series: 'SV', total: 3, releaseDate: '2023/03/31' },
-    ])
-    mockFetchSetCards.mockResolvedValue([
-      card({ id: 'sv1-1', name: 'Pikachu', number: '1', market: 5 }),
-      card({ id: 'sv1-2', name: 'Charizard', number: '2', market: 50 }),
-      card({ id: 'sv1-3', name: 'Blastoise', number: '3', market: 40 }),
-    ])
-
-    render(<SwipePanel active />)
-    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
-    // The nudge only appears once PREP_LIST_NUDGE_THRESHOLD (3) cards are saved.
-    await saveThreeCards()
-    await waitFor(
-      () =>
-        expect(screen.getByLabelText('Prep list name')).toBeInTheDocument(),
-      POST_SWIPE_WAIT,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /build prep list/i }))
-
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/quota exceeded/i),
-    )
-    // CTA still visible — onCleared wasn't called.
-    expect(screen.getByText(/Build a prep list/i)).toBeInTheDocument()
-  })
-
-  it('Build prep list creates a wishlist and adds saved cards', async () => {
-    mockCreateWishlist.mockResolvedValue({
-      id: 42,
-      name: 'Custom prep',
-      description: null,
-      created_at: '2026-06-06T00:00:00',
-      binder_id: null,
-      items: [],
-    })
-    mockAddCardToWishlist.mockResolvedValue({
-      id: 1,
-      card: {},
-      notes: null,
-      max_price: null,
-      added_at: '2026-06-06T00:00:00',
-    })
-
-    mockFetchSets.mockResolvedValue([
-      { id: 'sv1', name: 'Scarlet & Violet', series: 'SV', total: 3, releaseDate: '2023/03/31' },
-    ])
-    mockFetchSetCards.mockResolvedValue([
-      card({ id: 'sv1-1', name: 'Pikachu', number: '1', market: 5 }),
-      card({ id: 'sv1-2', name: 'Charizard', number: '2', market: 50 }),
-      card({ id: 'sv1-3', name: 'Blastoise', number: '3', market: 40 }),
-    ])
-
-    render(<SwipePanel active />)
-    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
-    // The nudge only appears once PREP_LIST_NUDGE_THRESHOLD (3) cards are saved.
-    await saveThreeCards()
-    await waitFor(
-      () =>
-        expect(
-          screen.getByRole('button', { name: /3 saved · reset/i }),
-        ).toBeInTheDocument(),
-      POST_SWIPE_WAIT,
-    )
-
-    const input = screen.getByLabelText('Prep list name') as HTMLInputElement
-    fireEvent.change(input, { target: { value: 'Custom prep' } })
-    fireEvent.click(screen.getByRole('button', { name: /build prep list/i }))
-
-    await waitFor(() =>
-      expect(mockCreateWishlist).toHaveBeenCalledWith('Custom prep', undefined),
-    )
-    // After success the saved list clears so the CTA disappears.
-    await waitFor(() =>
-      expect(screen.queryByText(/Build a prep list/i)).not.toBeInTheDocument(),
-    )
-    expect(mockAddCardToWishlist).toHaveBeenCalledTimes(3)
   })
 
   it('tapping the card (no drag) opens the same detail modal Search rows use', async () => {
