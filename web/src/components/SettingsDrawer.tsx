@@ -205,6 +205,13 @@ export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp 
                 checked={settings.hideOwned}
                 onChange={(v) => updateSettings({ hideOwned: v })}
               />
+              <Toggle
+                id="hidePricing"
+                label="Hide pricing"
+                description="Hides prices everywhere a card shows one — results, Browse, Swipe, and card details — for a clean, price-free view"
+                checked={settings.hidePricing}
+                onChange={(v) => updateSettings({ hidePricing: v })}
+              />
             </div>
 
             <ExportFieldsSection />

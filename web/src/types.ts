@@ -213,6 +213,13 @@ export interface Settings {
    * them. Defaults off so the feature is additive.
    */
   hideOwned: boolean
+  /**
+   * Hide prices everywhere a card renders one — the results table's
+   * headline + comp columns, Browse/Swipe cards, and the card detail modal
+   * (#764). Opt-in: some users want a clean, price-free view, kids/parents
+   * especially. Defaults off so pricing stays the norm.
+   */
+  hidePricing: boolean
   /** Swipe-mode rarity floor (swipe-header control; not in the settings drawer). */
   swipeRarityFloor: RarityFloor
   /**

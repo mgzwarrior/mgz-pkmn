@@ -731,6 +731,65 @@ describe('ResultsTable: header sort cycle', () => {
   })
 })
 
+describe('ResultsTable: hide pricing (#764)', () => {
+  function pricedRow(): Row {
+    return makeRow({
+      card: { id: 'x', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+      pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+    })
+  }
+
+  it('shows the Market column and comp tiers by default', () => {
+    useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
+    render(<ResultsTable />)
+    expect(screen.getByText('Market')).toBeInTheDocument()
+    expect(screen.getByText('$250.00')).toBeInTheDocument()
+    expect(screen.getByText('80%')).toBeInTheDocument()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('hides the Market column, comp tiers, and price values when the setting is on', () => {
+    useAppStore.getState().updateSettings({ hidePricing: true })
+    useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
+    render(<ResultsTable />)
+    expect(screen.queryByText('Market')).toBeNull()
+    expect(screen.queryByText('$250.00')).toBeNull()
+    expect(screen.queryByText('80%')).toBeNull()
+    expect(screen.getByText('Charizard')).toBeInTheDocument()
+    useAppStore.getState().updateSettings({ hidePricing: false })
+    useAppStore.setState({ rows: [] })
+  })
+
+  // Review feedback on #878: the eBay column has its own `showEbay` opt-in,
+  // but it renders a sold price + sparkline — leaving it up with pricing
+  // hidden defeats the point of a clean, price-free view.
+  it('hides the eBay column when both showEbay and hidePricing are on', () => {
+    useAppStore.getState().updateSettings({ showEbay: true, hidePricing: true })
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'x', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: {
+            market: 250,
+            currency: 'USD',
+            variant: null,
+            source: 'TCGPlayer',
+            url: null,
+            ebay_sold_median: 230,
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    expect(screen.queryByText('eBay sold')).toBeNull()
+    expect(screen.queryByText('$230.00')).toBeNull()
+    useAppStore.getState().updateSettings({ showEbay: false, hidePricing: false })
+    useAppStore.setState({ rows: [] })
+  })
+})
+
 describe('ResultsTable: hide owned (#339)', () => {
   function ownedRow(name: string, number: string): Row {
     return makeRow({

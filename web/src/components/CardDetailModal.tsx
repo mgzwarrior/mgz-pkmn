@@ -24,6 +24,7 @@ import {
   type CardOwnership,
 } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useAppStore } from '../store'
 import type { CardData, CardSet, EbaySoldComp, Pricing, Row } from '../types'
 import { ebayAffiliateUrl, tcgplayerAffiliateUrl } from '../utils/affiliateLinks'
 import { formatComp, formatMoney } from '../utils/format'
@@ -186,6 +187,7 @@ function CardDetailBody({
 }) {
   const card = row.card
   const pricing = row.pricing
+  const hidePricing = useAppStore((s) => s.settings.hidePricing)
   const imgUrl =
     (card?.images?.large as string | undefined) ??
     (card?.images?.small as string | undefined)
@@ -290,7 +292,7 @@ function CardDetailBody({
               </section>
             )}
             <CategoryBadges card={card} />
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className={`grid gap-4 ${hidePricing ? '' : 'sm:grid-cols-2'}`}>
               <DefinitionList
                 rows={[
                   ['Name', (card?.name as string | undefined) ?? row.query.name],
@@ -301,56 +303,58 @@ function CardDetailBody({
                   ['Variant', variant ?? null],
                 ]}
               />
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300 mb-2">
-                  Pricing
-                </h3>
-                <div className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 p-3 space-y-1">
-                  <PriceLine
-                    label="Market"
-                    value={formatMoney(pricing.market, pricing.currency)}
-                    bold
-                    highlight
-                  />
-                  <PriceLine
-                    label="95%"
-                    value={formatComp(pricing.market, 95, pricing.currency)}
-                  />
-                  <PriceLine
-                    label="90%"
-                    value={formatComp(pricing.market, 90, pricing.currency)}
-                  />
-                  <PriceLine
-                    label="85%"
-                    value={formatComp(pricing.market, 85, pricing.currency)}
-                  />
-                  <PriceLine
-                    label="80%"
-                    value={formatComp(pricing.market, 80, pricing.currency)}
-                  />
+              {!hidePricing && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300 mb-2">
+                    Pricing
+                  </h3>
+                  <div className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 p-3 space-y-1">
+                    <PriceLine
+                      label="Market"
+                      value={formatMoney(pricing.market, pricing.currency)}
+                      bold
+                      highlight
+                    />
+                    <PriceLine
+                      label="95%"
+                      value={formatComp(pricing.market, 95, pricing.currency)}
+                    />
+                    <PriceLine
+                      label="90%"
+                      value={formatComp(pricing.market, 90, pricing.currency)}
+                    />
+                    <PriceLine
+                      label="85%"
+                      value={formatComp(pricing.market, 85, pricing.currency)}
+                    />
+                    <PriceLine
+                      label="80%"
+                      value={formatComp(pricing.market, 80, pricing.currency)}
+                    />
+                  </div>
+                  {pricing.source && (
+                    <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">
+                      Source: <span className="text-coconut-600 dark:text-sand-200">{pricing.source}</span>
+                    </p>
+                  )}
+                  {source && (
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-palm-500 dark:text-sun-300 hover:text-palm-400 dark:hover:text-sun-200"
+                    >
+                      View on {source.label} <ExternalLink size={11} />
+                    </a>
+                  )}
+                  {/* eBay / TCGplayer buy links sit directly under the price —
+                      the "go buy this" path next to what it costs (#699). */}
+                  <BuyBlock card={card} />
                 </div>
-                {pricing.source && (
-                  <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">
-                    Source: <span className="text-coconut-600 dark:text-sand-200">{pricing.source}</span>
-                  </p>
-                )}
-                {source && (
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-palm-500 dark:text-sun-300 hover:text-palm-400 dark:hover:text-sun-200"
-                  >
-                    View on {source.label} <ExternalLink size={11} />
-                  </a>
-                )}
-                {/* eBay / TCGplayer buy links sit directly under the price —
-                    the "go buy this" path next to what it costs (#699). */}
-                <BuyBlock card={card} />
-              </div>
+              )}
             </div>
 
-            <EbayCompsBlock pricing={pricing} />
+            {!hidePricing && <EbayCompsBlock pricing={pricing} />}
 
             <CardMetadataBlock card={card} />
           </div>

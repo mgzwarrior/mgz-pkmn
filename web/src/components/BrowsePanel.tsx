@@ -24,6 +24,7 @@ import type { ReactNode } from 'react'
 import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
 import { BAKED_POKEDEX } from '../data/pokedex'
 import { useAuth } from '../hooks/useAuth'
+import { useAppStore } from '../store'
 import { useFavoritePokemon } from './useFavoritePokemon'
 import type { CardData, PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
 import { BinderModal } from './BinderModal'
@@ -1058,6 +1059,7 @@ function CardTile({
   onOpenDetail: () => void
 }) {
   const [thumbFailed, setThumbFailed] = useState(false)
+  const hidePricing = useAppStore((s) => s.settings.hidePricing)
   return (
     <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
       <button
@@ -1087,7 +1089,7 @@ function CardTile({
           </div>
           <div className="flex items-center justify-between text-xs text-coconut-400 dark:text-sand-400">
             <span>#{card.number}</span>
-            {card.market != null && (
+            {card.market != null && !hidePricing && (
               <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
             )}
           </div>
@@ -1119,6 +1121,7 @@ function PokedexCardTile({
   onOpenDetail: () => void
 }) {
   const [thumbFailed, setThumbFailed] = useState(false)
+  const hidePricing = useAppStore((s) => s.settings.hidePricing)
   const year = releaseYear(card.releaseDate)
   return (
     <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
@@ -1152,7 +1155,7 @@ function PokedexCardTile({
               #{card.number}
               {year ? ` · ${year}` : ''}
             </span>
-            {card.market != null && (
+            {card.market != null && !hidePricing && (
               <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
             )}
           </div>
