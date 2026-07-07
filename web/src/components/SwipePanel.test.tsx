@@ -103,6 +103,10 @@ describe('SwipePanel', () => {
 
   beforeEach(() => {
     _resetSwipeProfileForTests()
+    // A cold profile re-offers the onboarding pass (#714); dismiss it by
+    // default so unrelated tests see the plain panel. The onboarding tests
+    // below clear the key themselves.
+    window.localStorage.setItem('mgz-pkmn:swipe-onboarding:v1', 'done')
     _resetWishlistsCacheForTests()
     _resetCollectionsCacheForTests()
     _resetAuthStoreForTests()
@@ -550,5 +554,43 @@ describe('SwipePanel', () => {
     await waitFor(() =>
       expect(screen.queryByAltText('Pikachu')).not.toBeInTheDocument(),
     )
+  })
+
+  it('offers the onboarding pass on a cold profile and counts swipes once started (#714)', async () => {
+    window.localStorage.removeItem('mgz-pkmn:swipe-onboarding:v1')
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+    expect(screen.getByText('New here? Teach Swipe your taste')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start the pass' }))
+    expect(screen.queryByText('New here? Teach Swipe your taste')).not.toBeInTheDocument()
+    expect(screen.getByText(/Learning your taste — 0 of/)).toBeInTheDocument()
+
+    await swipeKey('ArrowRight')
+    await waitFor(
+      () => expect(screen.getByText(/Learning your taste — 1 of/)).toBeInTheDocument(),
+      POST_SWIPE_WAIT,
+    )
+  })
+
+  it('does not offer the onboarding pass once dismissed (#714)', async () => {
+    // beforeEach seeds the dismissed marker — the plain panel case.
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+    expect(screen.queryByText('New here? Teach Swipe your taste')).not.toBeInTheDocument()
+  })
+
+  it('a profile reset re-offers the onboarding pass (#714)', async () => {
+    // beforeEach seeds the dismissed marker; reset must clear it.
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+    expect(screen.queryByText('New here? Teach Swipe your taste')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset profile' }))
+    await waitFor(() =>
+      expect(screen.getByText('New here? Teach Swipe your taste')).toBeInTheDocument(),
+    )
+    expect(window.localStorage.getItem('mgz-pkmn:swipe-onboarding:v1')).toBeNull()
   })
 })

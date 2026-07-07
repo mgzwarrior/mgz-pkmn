@@ -35,6 +35,12 @@ import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
 import { useSwipeProfile, type SwipeAction } from './useSwipeProfile'
+import {
+  SwipeOnboardingBanner,
+  SwipeOnboardingProgress,
+  SwipeOnboardingSummary,
+} from './SwipeOnboarding'
+import { useSwipeOnboarding } from './useSwipeOnboarding'
 import { SwipeProfilePanel } from './SwipeProfilePanel'
 import { useIsMobileViewport } from './useIsMobileViewport'
 import { STACK_SIZE, useSwipeCandidates } from './useSwipeCandidates'
@@ -75,7 +81,10 @@ export function SwipePanel({ active }: SwipePanelProps) {
   // Favorite sets feed the candidate weighting; gate the fetch on a signed-in
   // user (they're per-user) so a signed-out deck isn't biased by — and doesn't
   // hit the endpoint as — the default user.
-  const { isPinned } = useFavoriteSets({ enabled: showSavedActions })
+  const { isPinned, pin } = useFavoriteSets({ enabled: showSavedActions })
+  // First-run onboarding pass (#714): offered while the profile is cold,
+  // counts normal swipes, and summarizes the learned lean at the end.
+  const onboarding = useSwipeOnboarding(profile)
   // Favorite Pokémon (#742) feed the card weighting the same way pinned sets
   // feed the set weighting; same signed-in gate.
   const { isFavorite } = useFavoritePokemon({ enabled: showSavedActions })
@@ -124,11 +133,13 @@ export function SwipePanel({ active }: SwipePanelProps) {
   const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
 
   // Reset both the local taste profile (session-local seen + saved) and the
-  // server-persisted deck memory, so "reset" surfaces a genuinely fresh deck.
+  // server-persisted deck memory, so "reset" surfaces a genuinely fresh deck —
+  // and clear the onboarding dismissal so the fresh deck re-offers the pass.
   const handleReset = useCallback(() => {
     reset()
     resetDeck()
-  }, [reset, resetDeck])
+    onboarding.resetDismissal()
+  }, [reset, resetDeck, onboarding])
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [outgoing, setOutgoing] = useState<SwipeAction | null>(null)
@@ -160,19 +171,24 @@ export function SwipePanel({ active }: SwipePanelProps) {
         // session (#581). Local `seenSet` handles the in-session no-repeat;
         // this is the durable layer.
         recordSeen(current.setId, current.card.number, action)
+        // Onboarding pass progress (#714) — a no-op unless a pass is running.
+        onboarding.recordSwipe(current.setId, current.setName)
         setOutgoing(null)
         setDrag(null)
         advance()
       }, 180)
     },
-    [current, act, recordSeen, advance],
+    [current, act, recordSeen, advance, onboarding],
   )
 
   // Keyboard shortcuts — global while the panel is mounted + active.
   useEffect(() => {
     if (!active) return
     function onKey(e: KeyboardEvent) {
-      if (!current || outgoing || detailOpen) return
+      // `summaryOpen` too: arrow keys bubble out of the onboarding summary
+      // dialog, and a swipe committed behind the overlay would silently
+      // mutate the deck the user is reading a summary of.
+      if (!current || outgoing || detailOpen || onboarding.summaryOpen) return
       const target = e.target as HTMLElement | null
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
       if (e.key === 'ArrowLeft') {
@@ -188,7 +204,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [active, current, outgoing, detailOpen, commit])
+  }, [active, current, outgoing, detailOpen, onboarding.summaryOpen, commit])
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -288,6 +304,15 @@ export function SwipePanel({ active }: SwipePanelProps) {
         )}
 
         <div className="flex min-w-0 flex-1 flex-col items-center gap-3">
+          {onboarding.showBanner && (
+            <SwipeOnboardingBanner
+              onStart={onboarding.start}
+              onDismiss={onboarding.dismiss}
+            />
+          )}
+
+          {onboarding.running && <SwipeOnboardingProgress count={onboarding.count} />}
+
           {error && (
             <p
               role="alert"
@@ -391,6 +416,16 @@ export function SwipePanel({ active }: SwipePanelProps) {
         rows={detailRows}
         index={detailOpen && current ? 0 : null}
         onChangeIndex={(next) => setDetailOpen(next !== null)}
+      />
+
+      <SwipeOnboardingSummary
+        open={onboarding.summaryOpen}
+        profile={profile}
+        setNames={onboarding.setNames}
+        canPin={showSavedActions}
+        isPinned={isPinned}
+        onPin={(setId) => void pin(setId)}
+        onClose={onboarding.closeSummary}
       />
     </section>
   )
