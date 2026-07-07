@@ -39,6 +39,7 @@ not just the shape.
 | [0026](0026-tropical-export-palette.md) | Source export colors from a parity-tested tropical palette module (light only) | Accepted | 2026-06-09 |
 | [0027](0027-default-card-quick-actions.md) | Default card quick actions for wanted and owned cards | Accepted | 2026-06-22 |
 | [0028](0028-resend-for-subscriptions-and-automations.md) | Resend for newsletter subscriptions + a reason-branched welcome automation (supersedes ADR-0014) | Accepted | 2026-06-29 |
+| [0029](0029-sealed-items-and-per-copy-condition.md) | Sealed items as parallel tables, condition as per-copy rows | Accepted | 2026-07-07 |
 
 ## Adding a new ADR
 

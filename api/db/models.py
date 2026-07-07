@@ -241,6 +241,40 @@ ADDED_VIA_SWIPE = "swipe"
 #: One-tap `Own` quick action against the user's default collection (#760).
 ADDED_VIA_QUICK = "quick"
 
+#: Allowed ``product_type`` values on sealed-item rows (#882). Kept as bare
+#: strings (no Enum) so adding a product shape is a one-line change; the API
+#: layer validates against the tuple.
+PRODUCT_TYPE_BOOSTER_PACK = "booster-pack"
+PRODUCT_TYPE_BOOSTER_BOX = "booster-box"
+PRODUCT_TYPE_ELITE_TRAINER_BOX = "elite-trainer-box"
+PRODUCT_TYPE_TIN = "tin"
+PRODUCT_TYPE_BLISTER = "blister"
+PRODUCT_TYPE_BUNDLE = "bundle"
+PRODUCT_TYPE_COLLECTION_BOX = "collection-box"
+PRODUCT_TYPE_OTHER = "other"
+PRODUCT_TYPES = (
+    PRODUCT_TYPE_BOOSTER_PACK,
+    PRODUCT_TYPE_BOOSTER_BOX,
+    PRODUCT_TYPE_ELITE_TRAINER_BOX,
+    PRODUCT_TYPE_TIN,
+    PRODUCT_TYPE_BLISTER,
+    PRODUCT_TYPE_BUNDLE,
+    PRODUCT_TYPE_COLLECTION_BOX,
+    PRODUCT_TYPE_OTHER,
+)
+
+#: Per-copy ``condition`` vocabulary for cards (#882) — the standard TCG
+#: raw-condition scale. Lives on copies rows, not the item row, per ADR-0029.
+CARD_CONDITIONS = ("NM", "LP", "MP", "HP", "DM")
+
+#: Per-copy ``condition`` vocabulary for sealed product (#882). A box is
+#: sealed / opened / resealed / damaged — the card scale doesn't apply.
+SEALED_CONDITIONS = ("sealed", "opened", "resealed", "damaged")
+
+#: Grading vocabulary shared across cards and sealed product (#882) — a
+#: grading company assigns a numeric grade to either. Null company = raw.
+GRADING_COMPANIES = ("PSA", "BGS", "CGC", "SGC")
+
 
 class Binder(Base):
     """A physical binder the collector owns (#702).
@@ -357,6 +391,11 @@ class Collection(Base):
         cascade="all, delete-orphan",
         order_by="CollectionItem.added_at",
     )
+    sealed_items: Mapped[list[CollectionSealedItem]] = relationship(
+        back_populates="collection",
+        cascade="all, delete-orphan",
+        order_by="CollectionSealedItem.added_at",
+    )
     snapshots: Mapped[list[CollectionSnapshot]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",
@@ -404,6 +443,122 @@ class CollectionItem(Base):
     added_via: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     collection: Mapped[Collection] = relationship(back_populates="items")
+    #: Opt-in per-copy condition/grade breakdown (#882, ADR-0029). An item
+    #: with no copies rows just uses its aggregate ``quantity``.
+    copies: Mapped[list[CollectionItemCopy]] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        order_by="CollectionItemCopy.id",
+    )
+
+
+class CollectionSealedItem(Base):
+    """A sealed product (booster box, ETB, tin, …) in a collection (#882).
+
+    Parallel table to :class:`CollectionItem`, not a polymorphic ``kind``
+    column — same reasoning ADR-0025 used to keep wishlists and collections
+    apart, documented in ADR-0029. Mirrors the card-item pattern: verbatim
+    ``product_json`` as source of truth plus promoted identity columns for
+    indexed queries. Identity is captured per-item from whatever source
+    resolved it (PriceCharting scrape or manual entry) — there is no
+    sealed-product catalog table."""
+
+    __tablename__ = "collection_sealed_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    collection_id: Mapped[int] = mapped_column(
+        ForeignKey("collections.id", ondelete="CASCADE"), nullable=False
+    )
+    # Verbatim resolved product payload — the only stable handle across re-lookups.
+    product_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: Promoted product-identity columns, extracted from ``product_json`` at
+    #: insert. See :mod:`api.db.product_payload` for the extractor.
+    product_set_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    product_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: One of :data:`PRODUCT_TYPES`. Nullable so a raw PriceCharting capture
+    #: that didn't classify still stores; the API layer validates on write.
+    product_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    product_language: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    product_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    price_snapshot: Mapped[float | None] = mapped_column(
+        Numeric(12, 2, asdecimal=False), nullable=True
+    )
+    priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Provenance tag — one of the ``ADDED_VIA_*`` constants.
+    added_via: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    collection: Mapped[Collection] = relationship(back_populates="sealed_items")
+    #: Opt-in per-copy condition/grade breakdown, mirroring the card side.
+    copies: Mapped[list[CollectionSealedItemCopy]] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        order_by="CollectionSealedItemCopy.id",
+    )
+
+
+class CollectionItemCopy(Base):
+    """Per-copy condition/grade breakdown for a card item (#882, ADR-0029).
+
+    The child ADR-0025 deferred: a stack of 3 copies can be 2 raw-NM + 1
+    PSA 9, which a single ``condition`` column on the item row can't
+    represent. Opt-in detail — an item with no copies rows just uses its
+    aggregate ``quantity``; the copies rows don't have to sum to it."""
+
+    __tablename__ = "collection_item_copies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    collection_item_id: Mapped[int] = mapped_column(
+        ForeignKey("collection_items.id", ondelete="CASCADE"), nullable=False
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: One of :data:`CARD_CONDITIONS`. Nullable — a graded copy's raw
+    #: condition is moot (the slab grade is the condition).
+    condition: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: One of :data:`GRADING_COMPANIES`; null = raw / ungraded.
+    grading_company: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    #: Numeric grade on the company's scale (PSA 9, BGS 9.5). Null when raw.
+    grade: Mapped[float | None] = mapped_column(Numeric(4, 1, asdecimal=False), nullable=True)
+    cert_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: Copy-level price snapshot — a PSA 9 prices differently from its raw
+    #: siblings, so the item-level snapshot can't stand in for it.
+    price_snapshot: Mapped[float | None] = mapped_column(
+        Numeric(12, 2, asdecimal=False), nullable=True
+    )
+    priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    item: Mapped[CollectionItem] = relationship(back_populates="copies")
+
+
+class CollectionSealedItemCopy(Base):
+    """Per-copy condition/grade breakdown for a sealed item (#882).
+
+    Same shape as :class:`CollectionItemCopy` with the sealed ``condition``
+    vocabulary (:data:`SEALED_CONDITIONS`); the grading vocabulary is shared
+    — companies slab sealed product too."""
+
+    __tablename__ = "collection_sealed_item_copies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    collection_sealed_item_id: Mapped[int] = mapped_column(
+        ForeignKey("collection_sealed_items.id", ondelete="CASCADE"), nullable=False
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: One of :data:`SEALED_CONDITIONS`. Nullable, mirroring the card side.
+    condition: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    grading_company: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    grade: Mapped[float | None] = mapped_column(Numeric(4, 1, asdecimal=False), nullable=True)
+    cert_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    price_snapshot: Mapped[float | None] = mapped_column(
+        Numeric(12, 2, asdecimal=False), nullable=True
+    )
+    priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    item: Mapped[CollectionSealedItem] = relationship(back_populates="copies")
 
 
 class CollectionSnapshot(Base):
@@ -480,6 +635,11 @@ class Wishlist(Base):
         cascade="all, delete-orphan",
         order_by="WishlistItem.added_at",
     )
+    sealed_items: Mapped[list[WishlistSealedItem]] = relationship(
+        back_populates="wishlist",
+        cascade="all, delete-orphan",
+        order_by="WishlistSealedItem.added_at",
+    )
 
 
 class WishlistItem(Base):
@@ -521,8 +681,71 @@ class WishlistItem(Base):
     acquired_collection_item_id: Mapped[int | None] = mapped_column(
         ForeignKey("collection_items.id", ondelete="SET NULL"), nullable=True
     )
+    # ---- #882: chase-target condition/grade (ADR-0029) ----
+    #: You don't own physical copies of a chase target, so wishlists get
+    #: target columns instead of copies rows. All nullable — null means
+    #: "any condition".
+    target_condition: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    target_grading_company: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    target_min_grade: Mapped[float | None] = mapped_column(
+        Numeric(4, 1, asdecimal=False), nullable=True
+    )
 
     wishlist: Mapped[Wishlist] = relationship(back_populates="items")
+
+
+class WishlistSealedItem(Base):
+    """A sealed product on a wishlist (#882).
+
+    Parallel table to :class:`WishlistItem`, mirroring
+    :class:`CollectionSealedItem` on the collection side — a "Charizard
+    chase" wishlist can hold the card and the booster box side by side.
+    Carries the same acquired-lifecycle plumbing as the card row so the
+    promote-to-collection flow (#884) stays symmetric."""
+
+    __tablename__ = "wishlist_sealed_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wishlist_id: Mapped[int] = mapped_column(
+        ForeignKey("wishlists.id", ondelete="CASCADE"), nullable=False
+    )
+    # Verbatim resolved product payload — the only stable handle across re-lookups.
+    product_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Optional alert threshold, mirroring ``wishlist_items.max_price``.
+    max_price: Mapped[float | None] = mapped_column(Numeric(12, 2, asdecimal=False), nullable=True)
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: Promoted product-identity columns — same set as
+    #: :class:`CollectionSealedItem`, kept symmetric so cross-surface
+    #: queries don't need a discriminator.
+    product_set_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    product_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    product_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    product_language: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    product_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    price_snapshot: Mapped[float | None] = mapped_column(
+        Numeric(12, 2, asdecimal=False), nullable=True
+    )
+    priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    added_via: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: Lifecycle plumbing for the sealed promote-to-collection flow —
+    #: mirrors ``wishlist_items.acquired_*``.
+    acquired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    acquired_collection_sealed_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collection_sealed_items.id", ondelete="SET NULL"), nullable=True
+    )
+    #: Chase-target condition/grade — same columns as ``wishlist_items``
+    #: with the sealed condition vocabulary (:data:`SEALED_CONDITIONS`).
+    target_condition: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    target_grading_company: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    target_min_grade: Mapped[float | None] = mapped_column(
+        Numeric(4, 1, asdecimal=False), nullable=True
+    )
+
+    wishlist: Mapped[Wishlist] = relationship(back_populates="sealed_items")
 
 
 #: Allowed values for ``SwipeSeen.swipe_dir`` — the decision that retired
