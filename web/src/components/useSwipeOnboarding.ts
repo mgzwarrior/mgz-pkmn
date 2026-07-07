@@ -35,6 +35,15 @@ function writeDismissed() {
   }
 }
 
+function clearDismissed() {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(DISMISSED_KEY)
+  } catch {
+    /* ignore — worst case the banner stays suppressed until storage clears */
+  }
+}
+
 type Stage = 'idle' | 'running' | 'summary'
 
 interface PassState {
@@ -61,6 +70,8 @@ export interface SwipeOnboarding {
   /** Call once per committed swipe with the card's owning set. */
   recordSwipe: (setId: string, setName: string) => void
   closeSummary: () => void
+  /** Call from the profile-reset path — a fresh deck re-offers the pass. */
+  resetDismissal: () => void
 }
 
 export function useSwipeOnboarding(profile: SwipeProfile): SwipeOnboarding {
@@ -101,6 +112,12 @@ export function useSwipeOnboarding(profile: SwipeProfile): SwipeOnboarding {
     setPass(IDLE)
   }, [])
 
+  const resetDismissal = useCallback(() => {
+    clearDismissed()
+    setDismissed(false)
+    setPass(IDLE)
+  }, [])
+
   return {
     showBanner: pass.stage === 'idle' && cold && !dismissed,
     running: pass.stage === 'running',
@@ -111,5 +128,6 @@ export function useSwipeOnboarding(profile: SwipeProfile): SwipeOnboarding {
     dismiss,
     recordSwipe,
     closeSummary,
+    resetDismissal,
   }
 }

@@ -133,11 +133,13 @@ export function SwipePanel({ active }: SwipePanelProps) {
   const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
 
   // Reset both the local taste profile (session-local seen + saved) and the
-  // server-persisted deck memory, so "reset" surfaces a genuinely fresh deck.
+  // server-persisted deck memory, so "reset" surfaces a genuinely fresh deck —
+  // and clear the onboarding dismissal so the fresh deck re-offers the pass.
   const handleReset = useCallback(() => {
     reset()
     resetDeck()
-  }, [reset, resetDeck])
+    onboarding.resetDismissal()
+  }, [reset, resetDeck, onboarding])
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [outgoing, setOutgoing] = useState<SwipeAction | null>(null)
@@ -183,7 +185,10 @@ export function SwipePanel({ active }: SwipePanelProps) {
   useEffect(() => {
     if (!active) return
     function onKey(e: KeyboardEvent) {
-      if (!current || outgoing || detailOpen) return
+      // `summaryOpen` too: arrow keys bubble out of the onboarding summary
+      // dialog, and a swipe committed behind the overlay would silently
+      // mutate the deck the user is reading a summary of.
+      if (!current || outgoing || detailOpen || onboarding.summaryOpen) return
       const target = e.target as HTMLElement | null
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
       if (e.key === 'ArrowLeft') {
@@ -199,7 +204,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [active, current, outgoing, detailOpen, commit])
+  }, [active, current, outgoing, detailOpen, onboarding.summaryOpen, commit])
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {

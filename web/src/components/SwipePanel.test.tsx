@@ -580,4 +580,17 @@ describe('SwipePanel', () => {
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
     expect(screen.queryByText('New here? Teach Swipe your taste')).not.toBeInTheDocument()
   })
+
+  it('a profile reset re-offers the onboarding pass (#714)', async () => {
+    // beforeEach seeds the dismissed marker; reset must clear it.
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+    expect(screen.queryByText('New here? Teach Swipe your taste')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset profile' }))
+    await waitFor(() =>
+      expect(screen.getByText('New here? Teach Swipe your taste')).toBeInTheDocument(),
+    )
+    expect(window.localStorage.getItem('mgz-pkmn:swipe-onboarding:v1')).toBeNull()
+  })
 })

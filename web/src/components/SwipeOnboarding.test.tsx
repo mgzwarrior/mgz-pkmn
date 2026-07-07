@@ -29,6 +29,9 @@ function Harness({ profile: p }: { profile: SwipeProfile }) {
       <button type="button" onClick={() => onboarding.recordSwipe('sv1', 'Scarlet & Violet')}>
         swipe once
       </button>
+      <button type="button" onClick={onboarding.resetDismissal}>
+        reset profile
+      </button>
     </div>
   )
 }
@@ -55,6 +58,15 @@ describe('useSwipeOnboarding', () => {
     unmount()
     render(<Harness profile={profile()} />)
     expect(screen.queryByText('New here? Teach Swipe your taste')).not.toBeInTheDocument()
+  })
+
+  it('a profile reset clears the dismissal and re-offers the banner', () => {
+    render(<Harness profile={profile()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'No thanks' }))
+    expect(screen.queryByText('New here? Teach Swipe your taste')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'reset profile' }))
+    expect(screen.getByText('New here? Teach Swipe your taste')).toBeInTheDocument()
+    expect(window.localStorage.getItem(DISMISSED_KEY)).toBeNull()
   })
 
   it('counts swipes only while running and opens the summary at the pass length', () => {
