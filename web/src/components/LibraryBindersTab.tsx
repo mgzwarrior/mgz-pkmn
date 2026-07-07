@@ -31,19 +31,27 @@ import {
   Sparkles,
   Star,
   Trash2,
+  Wallet,
   X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { downloadCollectionIdCardPdf } from '../api/client'
-import type { BinderSummary, CollectionSummary, WishlistSummary } from '../api/client'
+import type {
+  BinderSummary,
+  CollectionPurpose,
+  CollectionSummary,
+  WishlistSummary,
+} from '../api/client'
 import { useAppStore } from '../store'
 import { BinderModal } from './BinderModal'
 import { BinderInventory } from './BinderInventory'
 import { CollectionCreateDialog } from './CollectionCreateDialog'
 import { CollectionDetail } from './CollectionDetail'
 import { BINDER_TYPE_OPTIONS, coverSwatch } from './binderIdentity'
+import { PURPOSE_LABELS, PURPOSE_OPTIONS } from './collectionPurpose'
 import { CollectionInsights } from './CollectionInsights'
 import { SmartCollectionTarget } from './SmartCollectionTarget'
+import { invalidateOwnership } from './useCardOwnership'
 import { WishlistCreateDialog } from './WishlistCreateDialog'
 import { WishlistDetail } from './WishlistDetail'
 import { useBinders } from './useBinders'
@@ -159,6 +167,14 @@ export function LibraryBindersTab() {
   async function fileWishlist(wishlistId: number, binderId: number | null) {
     await fileWishlistApi(wishlistId, binderId)
     await refreshBinders()
+  }
+
+  // Reassign a collection's purpose (#707) — busts the shared ownership
+  // cache so every badge (personal-only "owned" vs. distinct trade/bulk
+  // occupancy) re-reads the new purpose without a remount.
+  async function setPurpose(collectionId: number, purpose: CollectionPurpose) {
+    await updateCollection(collectionId, { purpose })
+    invalidateOwnership()
   }
 
   // Interleave both kinds newest-first, then scope to the active filter.
@@ -279,6 +295,7 @@ export function LibraryBindersTab() {
                 onEdit={openEdit}
                 onDelete={removeCollection}
                 onFile={fileCollection}
+                onSetPurpose={setPurpose}
               />
             ) : (
               <WishlistRow
@@ -473,6 +490,7 @@ function CollectionRow({
   onEdit,
   onDelete,
   onFile,
+  onSetPurpose,
 }: {
   collection: CollectionSummary
   binders: BinderSummary[]
@@ -481,6 +499,7 @@ function CollectionRow({
   onEdit: (c: CollectionSummary) => void
   onDelete: (id: number) => Promise<void>
   onFile: (collectionId: number, binderId: number | null) => Promise<void>
+  onSetPurpose: (collectionId: number, purpose: CollectionPurpose) => Promise<void>
 }) {
   const pill = kindPill(c)
   const isBinder = c.kind === 'binder'
@@ -510,6 +529,13 @@ function CollectionRow({
           {pill && (
             <span className="shrink-0 rounded bg-palm-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-palm-700 dark:bg-husk-100 dark:text-palm-300">
               {pill}
+            </span>
+          )}
+          {/* #707 — personal is the common case and stays unbadged; only
+              trade/bulk get a chip, mirroring the master-set/default pattern. */}
+          {c.purpose && c.purpose !== 'personal' && (
+            <span className="shrink-0 rounded bg-sand-300/60 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-coconut-600 dark:bg-husk-100 dark:text-sand-200">
+              {PURPOSE_LABELS[c.purpose]}
             </span>
           )}
           <BinderIdentity c={c} />
@@ -555,9 +581,80 @@ function CollectionRow({
       {binders.length > 0 && (
         <FileIntoBinderControl item={c} noun="collection" binders={binders} onFile={onFile} />
       )}
+      <PurposeControl collection={c} onSetPurpose={onSetPurpose} />
       <PrintIdCardControl collectionId={c.id} label={`collection "${c.name}"`} />
       <DeleteBinderControl label={`collection "${c.name}"`} onDelete={() => onDelete(c.id)} />
     </li>
+  )
+}
+
+/**
+ * Per-row purpose reassignment (#707) — a compact dropdown mirroring
+ * {@link FileIntoBinderControl}'s pattern. The common `personal` case shows
+ * no chip in the row body; this control is how a collector flips a
+ * collection to `trade`/`bulk` (or back) without opening a separate dialog.
+ */
+function PurposeControl({
+  collection: c,
+  onSetPurpose,
+}: {
+  collection: CollectionSummary
+  onSetPurpose: (collectionId: number, purpose: CollectionPurpose) => Promise<void>
+}) {
+  const [failed, setFailed] = useState(false)
+  const current = c.purpose ?? 'personal'
+
+  async function apply(purpose: CollectionPurpose) {
+    setFailed(false)
+    try {
+      await onSetPurpose(c.id, purpose)
+    } catch {
+      setFailed(true)
+    }
+  }
+
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {failed && (
+        <span role="alert" className="text-[10px] text-ember-500 dark:text-ember-300">
+          Couldn&apos;t update
+        </span>
+      )}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            type="button"
+            aria-label={`Set purpose for collection "${c.name}"`}
+            title="Set purpose"
+            className="shrink-0 rounded p-1.5 text-coconut-400 opacity-100 transition-opacity hover:bg-sand-200 hover:text-palm-600 dark:text-sand-400 dark:hover:bg-husk-100 dark:hover:text-palm-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+          >
+            <Wallet size={14} />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={4}
+            className="z-50 min-w-[140px] rounded-md border border-sand-300 bg-sand-50 p-1 shadow-xl dark:border-husk-50 dark:bg-husk-200"
+          >
+            <DropdownMenu.Label className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-coconut-400 dark:text-sand-400">
+              Purpose
+            </DropdownMenu.Label>
+            {PURPOSE_OPTIONS.map((o) => (
+              <DropdownMenu.CheckboxItem
+                key={o.value}
+                checked={current === o.value}
+                onSelect={() => void apply(o.value)}
+                className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1 text-xs text-coconut-700 outline-none data-[highlighted]:bg-sand-200 dark:text-sand-50 dark:data-[highlighted]:bg-husk-100"
+              >
+                <span className="truncate">{o.label}</span>
+                {current === o.value && <Check size={12} className="shrink-0 text-palm-600" />}
+              </DropdownMenu.CheckboxItem>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </span>
   )
 }
 

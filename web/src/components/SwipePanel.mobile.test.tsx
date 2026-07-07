@@ -35,6 +35,9 @@ vi.mock('../api/client', () => ({
   recordSwipeSeen: vi.fn(),
   resetSwipeSeen: vi.fn(),
   fetchCardOwnership: vi.fn(async () => ({})),
+  hasPersonalOwnership: (
+    ownership: { collections: { purpose: string }[] } | null | undefined,
+  ): boolean => !!ownership && ownership.collections.some((c) => c.purpose === 'personal'),
   fetchFavoritePokemon: vi.fn(async () => []),
   pinFavoritePokemon: vi.fn(),
   unpinFavoritePokemon: vi.fn(),

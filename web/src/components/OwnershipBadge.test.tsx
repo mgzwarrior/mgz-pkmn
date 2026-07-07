@@ -21,7 +21,7 @@ describe('OwnershipBadge', () => {
     render(
       <OwnershipBadge
         ownership={own({
-          collections: [{ id: 1, name: 'Show Binder', quantity: 1 }],
+          collections: [{ id: 1, name: 'Show Binder', quantity: 1, purpose: 'personal' }],
         })}
       />,
     )
@@ -30,13 +30,13 @@ describe('OwnershipBadge', () => {
     expect(badge).toHaveAttribute('title', 'Owned in Show Binder')
   })
 
-  it('sums quantity across collections into "owned ×N"', () => {
+  it('sums quantity across personal collections into "owned ×N"', () => {
     render(
       <OwnershipBadge
         ownership={own({
           collections: [
-            { id: 1, name: 'Show Binder', quantity: 2 },
-            { id: 2, name: 'Trade Stock', quantity: 1 },
+            { id: 1, name: 'Show Binder', quantity: 2, purpose: 'personal' },
+            { id: 2, name: 'Trade Stock', quantity: 1, purpose: 'personal' },
           ],
         })}
       />,
@@ -59,12 +59,42 @@ describe('OwnershipBadge', () => {
     render(
       <OwnershipBadge
         ownership={own({
-          collections: [{ id: 1, name: 'Binder', quantity: 1 }],
+          collections: [{ id: 1, name: 'Binder', quantity: 1, purpose: 'personal' }],
           wishlists: [{ id: 2, name: 'Upgrade list' }],
         })}
       />,
     )
     expect(screen.getByText('owned')).toBeInTheDocument()
     expect(screen.queryByText('chasing')).not.toBeInTheDocument()
+  })
+
+  it('a trade/bulk-only collection does not count as owned, but shows distinctly (#707)', () => {
+    render(
+      <OwnershipBadge
+        ownership={own({
+          collections: [{ id: 1, name: 'Trade Stock', quantity: 2, purpose: 'trade' }],
+          wishlists: [{ id: 2, name: 'Upgrade list' }],
+        })}
+      />,
+    )
+    // Still "chasing" — the trade copy isn't a personal keeper.
+    expect(screen.getByText('chasing')).toBeInTheDocument()
+    expect(screen.queryByText(/^owned/)).not.toBeInTheDocument()
+    expect(screen.getByText('2 for trade')).toBeInTheDocument()
+  })
+
+  it('a personal copy alongside a bulk stash counts as owned and still flags the bulk', () => {
+    render(
+      <OwnershipBadge
+        ownership={own({
+          collections: [
+            { id: 1, name: 'Show Binder', quantity: 1, purpose: 'personal' },
+            { id: 2, name: 'Bulk box', quantity: 20, purpose: 'bulk' },
+          ],
+        })}
+      />,
+    )
+    expect(screen.getByText('owned')).toBeInTheDocument()
+    expect(screen.getByText('20 bulk')).toBeInTheDocument()
   })
 })

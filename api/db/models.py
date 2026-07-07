@@ -217,6 +217,19 @@ BINDER_COLORS = ("palm", "sun", "sky", "ember", "coconut", "sand", "husk")
 DYNAMIC_SCOPE_OWNED = "owned"
 DYNAMIC_SCOPE_CATALOG = "catalog"
 
+#: Allowed values for ``Collection.purpose`` (#707). ``personal`` (default) is
+#: a keeper — it counts toward personal set-completion and the owned badge.
+#: ``trade`` / ``bulk`` hold cards the user doesn't consider "theirs" for
+#: completion purposes; they still occupy a binder, just distinctly (#576).
+COLLECTION_PURPOSE_PERSONAL = "personal"
+COLLECTION_PURPOSE_TRADE = "trade"
+COLLECTION_PURPOSE_BULK = "bulk"
+COLLECTION_PURPOSES = (
+    COLLECTION_PURPOSE_PERSONAL,
+    COLLECTION_PURPOSE_TRADE,
+    COLLECTION_PURPOSE_BULK,
+)
+
 #: Allowed values for ``CollectionItem.added_via`` — provenance tag,
 #: used by the insights dashboard to answer "how do users actually get
 #: cards into their collections."
@@ -327,6 +340,16 @@ class Collection(Base):
     #: the row: renaming keeps it, deleting re-establishes one lazily.
     is_default: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
+    )
+    # ---- #707: collection purpose — personal keeper vs. trade / bulk ----
+    #: One of :data:`COLLECTION_PURPOSES`. Drives purpose-aware ownership
+    #: (#576): only ``personal`` counts toward set-completion / the owned
+    #: badge; ``trade``/``bulk`` still occupy a binder, surfaced distinctly.
+    purpose: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=COLLECTION_PURPOSE_PERSONAL,
+        server_default=COLLECTION_PURPOSE_PERSONAL,
     )
 
     items: Mapped[list[CollectionItem]] = relationship(

@@ -598,6 +598,14 @@ export type BinderType = 'regular' | 'toploader' | 'graded' | 'other'
  */
 export type DynamicScope = 'owned' | 'catalog'
 
+/**
+ * What a collection's cards are *for* (#707). `personal` (default) is a
+ * keeper — it counts toward personal set-completion and the owned badge.
+ * `trade` / `bulk` hold cards the user doesn't consider "theirs" for
+ * completion purposes; they still occupy a binder, just distinctly.
+ */
+export type CollectionPurpose = 'personal' | 'trade' | 'bulk'
+
 export interface CollectionSummary {
   id: number
   name: string
@@ -625,6 +633,10 @@ export interface CollectionSummary {
   // #759/#762 — the user's default `Own` target. Optional so older cached
   // payloads / fixtures without it still type-check.
   is_default?: boolean
+  // #707 — what the collection's cards are for. Optional so older cached
+  // payloads / fixtures without it still type-check; treat missing as
+  // `personal`, the server default.
+  purpose?: CollectionPurpose
 }
 
 export interface CollectionItem {
@@ -662,6 +674,8 @@ export interface Collection {
   binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
+  // #707 — see CollectionSummary.
+  purpose?: CollectionPurpose
 }
 
 export async function fetchCollection(collectionId: number): Promise<Collection> {
@@ -691,6 +705,8 @@ export interface CreateCollectionOptions {
   binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
+  // #707 — defaults server-side to `personal` when omitted.
+  purpose?: CollectionPurpose
 }
 
 export async function createCollection(
@@ -713,6 +729,7 @@ export async function createCollection(
       binder_type: options?.binder_type ?? null,
       capacity: options?.capacity ?? null,
       is_master_set: options?.is_master_set ?? null,
+      purpose: options?.purpose ?? 'personal',
     }),
   })
   if (!res.ok) throw new Error(`create collection failed: ${res.status}`)
@@ -735,6 +752,8 @@ export interface UpdateCollectionOptions {
   binder_type?: BinderType | null
   capacity?: number | null
   is_master_set?: boolean | null
+  // #707 — reassign the collection's purpose.
+  purpose?: CollectionPurpose
 }
 
 export async function updateCollection(
@@ -1458,6 +1477,9 @@ export interface CollectionOccupancy {
   id: number
   name: string
   quantity: number
+  // #707 — what the collection's cards are for; drives the personal-only
+  // "owned" read and the distinct trade/bulk surfacing in OwnershipBadge.
+  purpose: CollectionPurpose
 }
 
 export interface WishlistOccupancy {
@@ -1468,6 +1490,16 @@ export interface WishlistOccupancy {
 export interface CardOwnership {
   collections: CollectionOccupancy[]
   wishlists: WishlistOccupancy[]
+}
+
+/**
+ * Whether `ownership` reflects a personal keeper (#707) — a card sitting only
+ * in `trade`/`bulk` collections doesn't count. Shared so every "owned" read
+ * (result filtering, quick-action toggle state, the ownership badge) agrees
+ * on the same rule as the server's `owned_quantity_map` / `CardState.owned`.
+ */
+export function hasPersonalOwnership(ownership: CardOwnership | null | undefined): boolean {
+  return !!ownership && ownership.collections.some((c) => c.purpose === 'personal')
 }
 
 /**

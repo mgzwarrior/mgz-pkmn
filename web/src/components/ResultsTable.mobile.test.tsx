@@ -22,6 +22,9 @@ vi.mock('../api/client', () => ({
   fetchMe: fetchMeMock,
   logout: vi.fn(),
   fetchCardOwnership: vi.fn(async () => ({})),
+  hasPersonalOwnership: (
+    ownership: { collections: { purpose: string }[] } | null | undefined,
+  ): boolean => !!ownership && ownership.collections.some((c) => c.purpose === 'personal'),
   fetchCollections: vi.fn(async () => []),
   fetchWishlists: vi.fn(async () => []),
   createCollection: vi.fn(),

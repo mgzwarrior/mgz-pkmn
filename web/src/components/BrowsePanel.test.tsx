@@ -339,7 +339,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
 
     // Lands as an owned collection (not a physical binder), then the set's
     // cards are dropped in via the browse bulk-add path.
-    await waitFor(() => expect(create).toHaveBeenCalledWith(name, undefined))
+    await waitFor(() => expect(create).toHaveBeenCalledWith(name, { purpose: 'personal' }))
     await waitFor(() =>
       expect(bulkAdd).toHaveBeenCalledWith(
         42,

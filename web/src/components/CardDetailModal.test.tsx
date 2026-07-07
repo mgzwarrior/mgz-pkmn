@@ -616,7 +616,7 @@ describe('CardDetailModal — library actions (#699)', () => {
   it('shows owned (with quantity) and hides the chase badge once owned (#761)', async () => {
     vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
       'base1::4': {
-        collections: [{ id: 1, name: 'Show binder', quantity: 2 }],
+        collections: [{ id: 1, name: 'Show binder', quantity: 2, purpose: 'personal' }],
         wishlists: [{ id: 1, name: 'Chase list' }],
       },
     })
@@ -633,8 +633,8 @@ describe('CardDetailModal — library actions (#699)', () => {
     vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
       'base1::4': {
         collections: [
-          { id: 1, name: 'Base Set masters', quantity: 1 },
-          { id: 2, name: 'Trade binder', quantity: 3 },
+          { id: 1, name: 'Base Set masters', quantity: 1, purpose: 'personal' },
+          { id: 2, name: 'Trade binder', quantity: 3, purpose: 'personal' },
         ],
         wishlists: [{ id: 3, name: 'Allentown chase list' }],
       },
@@ -652,7 +652,7 @@ describe('CardDetailModal — library actions (#699)', () => {
 
   it('removes the card from a specific collection via the location chip (#762)', async () => {
     vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
-      'base1::4': { collections: [{ id: 7, name: 'Show binder', quantity: 2 }], wishlists: [] },
+      'base1::4': { collections: [{ id: 7, name: 'Show binder', quantity: 2, purpose: 'personal' }], wishlists: [] },
     })
     const removeSpy = vi.spyOn(client, 'removeCardFromCollection').mockResolvedValue()
 

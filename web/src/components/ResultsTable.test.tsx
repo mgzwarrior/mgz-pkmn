@@ -23,6 +23,11 @@ vi.mock('../api/client', () => ({
   // The matched rows trigger a cross-collection ownership lookup (#576);
   // default to "nothing owned" so no badge renders in existing tests.
   fetchCardOwnership: vi.fn(async () => ({})),
+  // #707 — real predicate (not a stub) so the "hide owned" / quick-action
+  // owned tests exercise the same personal-purpose rule as production.
+  hasPersonalOwnership: (
+    ownership: { collections: { purpose: string }[] } | null | undefined,
+  ): boolean => !!ownership && ownership.collections.some((c) => c.purpose === 'personal'),
   // The bulk action bar (#268) mounts on selection and reads the binder
   // lists; default to empty so the pickers render their no-binders state.
   fetchCollections: vi.fn(async () => []),
@@ -116,7 +121,7 @@ describe('ResultsTable', () => {
   it('renders the cross-collection ownership badge on a matched row (#576)', async () => {
     vi.mocked(fetchCardOwnership).mockResolvedValue({
       'base1::4': {
-        collections: [{ id: 1, name: 'Show Binder', quantity: 2 }],
+        collections: [{ id: 1, name: 'Show Binder', quantity: 2, purpose: 'personal' }],
         wishlists: [],
       },
     })
@@ -800,7 +805,7 @@ describe('ResultsTable: hide owned (#339)', () => {
 
   it('drops owned rows and surfaces an "owned hidden" count when the setting is on', async () => {
     vi.mocked(fetchCardOwnership).mockResolvedValue({
-      'base1::4': { collections: [{ id: 1, name: 'Show Binder', quantity: 2 }], wishlists: [] },
+      'base1::4': { collections: [{ id: 1, name: 'Show Binder', quantity: 2, purpose: 'personal' }], wishlists: [] },
     })
     useAppStore.getState().updateSettings({ hideOwned: true })
     useAppStore.setState({
@@ -842,7 +847,7 @@ describe('ResultsTable: hide owned (#339)', () => {
 
   it('keeps owned rows when the setting is off', async () => {
     vi.mocked(fetchCardOwnership).mockResolvedValue({
-      'base1::4': { collections: [{ id: 1, name: 'Show Binder', quantity: 2 }], wishlists: [] },
+      'base1::4': { collections: [{ id: 1, name: 'Show Binder', quantity: 2, purpose: 'personal' }], wishlists: [] },
     })
     useAppStore.getState().updateSettings({ hideOwned: false })
     useAppStore.setState({
