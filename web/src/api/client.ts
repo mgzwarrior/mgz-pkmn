@@ -175,6 +175,9 @@ export async function exportFile(
     dedupe?: boolean
     /** Which configurable fields (#262) to render; omit for "all". */
     fields?: string[]
+    /** Lead each tag section of a pdf/condensed-pdf export with a divider
+     *  cutout identifying it (#788). Ignored by xlsx/checklist. */
+    leadWithIdCard?: boolean
   } = {},
 ): Promise<void> {
   const effectiveRows = options.dedupe ? dedupeRows(rows) : rows
@@ -189,6 +192,7 @@ export async function exportFile(
       title: options.title ?? 'cards',
       no_images: options.noImages ?? true,
       fields: options.fields ?? null,
+      lead_with_id_card: options.leadWithIdCard ?? false,
     }),
   })
 
@@ -676,6 +680,8 @@ export interface Collection {
   is_master_set?: boolean | null
   // #707 — see CollectionSummary.
   purpose?: CollectionPurpose
+  // #788 — pinned ID card cover item, or null when auto-picked.
+  id_card_cover_item_id?: number | null
 }
 
 export async function fetchCollection(collectionId: number): Promise<Collection> {
@@ -754,6 +760,9 @@ export interface UpdateCollectionOptions {
   is_master_set?: boolean | null
   // #707 — reassign the collection's purpose.
   purpose?: CollectionPurpose
+  // #788 — pin a specific owned item as the ID card cover, or pass null to
+  // fall back to auto-pick. Only sent when the key is present.
+  id_card_cover_item_id?: number | null
 }
 
 export async function updateCollection(

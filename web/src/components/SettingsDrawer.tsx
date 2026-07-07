@@ -212,6 +212,13 @@ export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp 
                 checked={settings.hidePricing}
                 onChange={(v) => updateSettings({ hidePricing: v })}
               />
+              <Toggle
+                id="leadWithIdCard"
+                label="Lead each set with its ID card"
+                description="PDF binder exports get a divider cutout at the front of each set's slot, so a binder holding several smaller sets self-labels"
+                checked={settings.leadWithIdCard}
+                onChange={(v) => updateSettings({ leadWithIdCard: v })}
+              />
             </div>
 
             <ExportFieldsSection />

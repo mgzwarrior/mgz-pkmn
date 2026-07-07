@@ -235,6 +235,12 @@ export interface Settings {
   density: Density
   /** Configurable-export field toggles per format (#262). */
   exportFields: ExportFieldToggles
+  /**
+   * Lead each tag section of a "pdf"/"condensed-pdf" export with a divider
+   * cutout identifying it (#788). Off by default so a single-set export
+   * isn't cluttered with a divider it doesn't need.
+   */
+  leadWithIdCard: boolean
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */

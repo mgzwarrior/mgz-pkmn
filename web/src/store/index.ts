@@ -72,6 +72,9 @@ const DEFAULT_SETTINGS: Settings = {
   // Configurable-export field toggles (#262). The `merge` below backfills
   // this for users with older persisted settings.
   exportFields: DEFAULT_EXPORT_FIELDS,
+  // Off by default (#788) — a single-set export doesn't need a divider.
+  // The `merge` below backfills this for users with older persisted settings.
+  leadWithIdCard: false,
 }
 
 interface AppState {

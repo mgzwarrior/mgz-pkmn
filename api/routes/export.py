@@ -73,6 +73,9 @@ class ExportRequest(BaseModel):
     # (#262) — omitted or null means "everything this format supports",
     # matching pre-#262 behavior.
     fields: list[str] | None = None
+    # #788 — lead each tag section of a "pdf"/"condensed-pdf" export with a
+    # divider cutout identifying it. Ignored by xlsx/checklist.
+    lead_with_id_card: bool = False
 
 
 # Valid formats and the (filename, media-type) each maps to.
@@ -157,6 +160,7 @@ def _render(req: ExportRequest, filename: str) -> bytes:
                 max_price=req.max_price,
                 layout=STANDARD_LAYOUT,
                 fields=active_fields,
+                lead_with_id_card=req.lead_with_id_card,
             )
         elif req.format == "condensed-pdf":
             write_binder_pdf(
@@ -166,6 +170,7 @@ def _render(req: ExportRequest, filename: str) -> bytes:
                 max_price=req.max_price,
                 layout=CONDENSED_LAYOUT,
                 fields=active_fields,
+                lead_with_id_card=req.lead_with_id_card,
             )
         elif req.format == "checklist":
             written = write_checklist_pdf(rows, out_path, fields=active_fields)

@@ -206,6 +206,8 @@ class CollectionOut(BaseModel):
     is_master_set: bool | None
     #: #707 — one of :data:`COLLECTION_PURPOSES`.
     purpose: str
+    #: #788 — pinned ID card cover item, or null when auto-picked.
+    id_card_cover_item_id: int | None = None
 
 
 class CollectionCreate(BaseModel):
@@ -253,6 +255,10 @@ class CollectionPatch(BaseModel):
     is_master_set: bool | None = None
     #: #707 — reassign the collection's purpose. Valid on every kind.
     purpose: str | None = None
+    #: #788 — pin a specific owned item as the ID card cover, or clear it
+    #: (``null``) to fall back to auto-pick. Patched only when the key is
+    #: present in the request body.
+    id_card_cover_item_id: int | None = None
 
 
 # ---- #631: catalog-backed target view + chase ----------------------------
@@ -543,6 +549,8 @@ def patch_collection(
     if req.purpose is not None:
         _validate_purpose(req.purpose)
         collection.purpose = req.purpose
+    if "id_card_cover_item_id" in req.model_fields_set:
+        _set_id_card_cover(db, collection, req.id_card_cover_item_id)
     _patch_binder_fields(collection, req)
     db.commit()
     db.refresh(collection)
@@ -855,19 +863,21 @@ def collection_id_card(
     top-left pocket of a binder (#507): the collection's title, a representative
     card photo, and an owned / total count.
 
-    The cover is auto-picked: the most valuable card you own in the collection,
-    falling back to the first. ``total`` is the catalog match count for a
-    catalog-scope smart collection and the printed set size for a set
-    collection; manual buckets and owned-scope smart collections have no
-    denominator, so the card shows just the owned count. Pass ``no_images=true``
-    to skip the cover fetch (text-only, fast on a cold cache)."""
+    The cover is auto-picked (the most valuable card you own in the
+    collection, falling back to the first) unless the collector has pinned
+    one via ``PATCH .../collections/{id} {id_card_cover_item_id}`` (#788).
+    ``total`` is the catalog match count for a catalog-scope smart collection
+    and the printed set size for a set collection; manual buckets and
+    owned-scope smart collections have no denominator, so the card shows just
+    the owned count. Pass ``no_images=true`` to skip the cover fetch
+    (text-only, fast on a cold cache)."""
     collection = _load_collection(db, collection_id, current_user.id)
     owned_items = _id_card_owned_items(db, collection, current_user.id)
     total = _id_card_total(collection, api_key)
 
     cover_path: Path | None = None
     if not no_images:
-        cover_url = _pick_cover_url(owned_items)
+        cover_url = _pick_cover_url(owned_items, collection.id_card_cover_item_id)
         if cover_url:
             cover_path = _fetch_cover(cover_url, TCGClient(api_key=api_key).session)
 
@@ -889,10 +899,16 @@ def _id_card_owned_items(db: Session, collection: Collection, user_id: int) -> l
     return list(collection.items)
 
 
-def _pick_cover_url(items: list[CollectionItem]) -> str | None:
-    """Auto-pick the cover: the most valuable owned card with an image, else
-    the first with one."""
+def _pick_cover_url(items: list[CollectionItem], pinned_item_id: int | None) -> str | None:
+    """The pinned cover's image when set and still present among ``items``
+    (a dynamic collection's resolved membership can drop a once-pinned item
+    without clearing the pin), else auto-pick: the most valuable owned card
+    with an image, falling back to the first with one."""
     with_image = [i for i in items if i.card_image_url]
+    if pinned_item_id is not None:
+        pinned = next((i for i in with_image if i.id == pinned_item_id), None)
+        if pinned is not None:
+            return pinned.card_image_url
     if not with_image:
         return None
     best = max(
@@ -1008,6 +1024,31 @@ def _validate_purpose(value: str) -> None:
             status_code=422,
             detail=f"unknown purpose '{value}'; allowed: {', '.join(COLLECTION_PURPOSES)}",
         )
+
+
+def _set_id_card_cover(db: Session, collection: Collection, item_id: int | None) -> None:
+    """Pin ``item_id`` as the ID card cover, or clear it (``None``).
+
+    Rejects an item that doesn't belong to this collection (or belongs to a
+    dynamic collection, whose membership isn't a stored row) with a 422 —
+    silently ignoring a stale ID would leave the picker showing a selection
+    the server didn't actually save."""
+    if item_id is None:
+        collection.id_card_cover_item_id = None
+        return
+    if collection.kind == COLLECTION_KIND_DYNAMIC:
+        raise HTTPException(
+            status_code=422,
+            detail="a dynamic collection has no stored items to pin as a cover",
+        )
+    owns_item = (
+        db.query(CollectionItem)
+        .filter(CollectionItem.id == item_id, CollectionItem.collection_id == collection.id)
+        .first()
+    )
+    if owns_item is None:
+        raise HTTPException(status_code=422, detail=f"item {item_id} is not in this collection")
+    collection.id_card_cover_item_id = item_id
 
 
 def _validate_binder_format(value: str | None) -> None:
@@ -1181,6 +1222,7 @@ def _serialize_collection(db: Session, collection: Collection, user_id: int) -> 
         capacity=collection.capacity,
         is_master_set=collection.is_master_set,
         purpose=collection.purpose,
+        id_card_cover_item_id=collection.id_card_cover_item_id,
     ).model_dump()
 
 

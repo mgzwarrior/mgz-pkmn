@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
   swipeExcludeChasing: false,
   density: 'comfortable' as const,
   exportFields: DEFAULT_EXPORT_FIELDS,
+  leadWithIdCard: false,
 }
 
 describe('CacheSourceChip', () => {

@@ -220,4 +220,61 @@ describe('CollectionDetail', () => {
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(3, { name: 'Vintage holos' }))
     await waitFor(() => expect(screen.getByText('Vintage holos')).toBeInTheDocument())
   })
+
+  it('pins a card as the ID card cover (#788)', async () => {
+    mockFetch.mockResolvedValue(collectionWith([item({ id: 7 })]))
+    mockUpdate.mockResolvedValue(collectionWith([item({ id: 7 })]))
+    render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
+
+    await screen.findByText('Charizard')
+    fireEvent.click(screen.getByRole('button', { name: /pin charizard as id card cover/i }))
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(3, { id_card_cover_item_id: 7 }),
+    )
+    expect(
+      screen.getByRole('button', { name: /unpin charizard as id card cover/i }),
+    ).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('unpins the current cover on a second click', async () => {
+    mockFetch.mockResolvedValue({
+      ...collectionWith([item({ id: 7 })]),
+      id_card_cover_item_id: 7,
+    })
+    mockUpdate.mockResolvedValue(collectionWith([item({ id: 7 })]))
+    render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
+
+    const pin = await screen.findByRole('button', { name: /unpin charizard as id card cover/i })
+    expect(pin).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(pin)
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(3, { id_card_cover_item_id: null }))
+  })
+
+  it('reverts the pin on a failed PATCH', async () => {
+    mockFetch.mockResolvedValue(collectionWith([item({ id: 7 })]))
+    mockUpdate.mockRejectedValue(new Error('boom'))
+    render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
+
+    await screen.findByText('Charizard')
+    fireEvent.click(screen.getByRole('button', { name: /pin charizard as id card cover/i }))
+
+    await waitFor(() => expect(screen.getByText(/boom/)).toBeInTheDocument())
+    expect(
+      screen.getByRole('button', { name: /pin charizard as id card cover/i }),
+    ).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('has no cover pin control for a dynamic (smart) collection', async () => {
+    const dynamic: CollectionSummary = { ...SUMMARY, kind: 'dynamic' }
+    mockFetch.mockResolvedValue({
+      ...collectionWith([item({ id: 7 })]),
+      kind: 'dynamic',
+    } as Collection)
+    render(<CollectionDetail collection={dynamic} open onOpenChange={() => {}} />)
+
+    await screen.findByText('Charizard')
+    expect(screen.queryByRole('button', { name: /id card cover/i })).not.toBeInTheDocument()
+  })
 })

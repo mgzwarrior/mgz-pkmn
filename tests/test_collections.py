@@ -1244,14 +1244,128 @@ class CollectionIdCardTests(_IsolatedDbMixin):
         from api.routes.collections import _pick_cover_url
 
         items = [
-            SimpleNamespace(card_image_url="cheap.png", price_snapshot=2.0),
-            SimpleNamespace(card_image_url="pricey.png", price_snapshot=300.0),
-            SimpleNamespace(card_image_url=None, price_snapshot=999.0),  # no image — skipped
+            SimpleNamespace(id=1, card_image_url="cheap.png", price_snapshot=2.0),
+            SimpleNamespace(id=2, card_image_url="pricey.png", price_snapshot=300.0),
+            SimpleNamespace(id=3, card_image_url=None, price_snapshot=999.0),  # no image — skipped
         ]
-        self.assertEqual(_pick_cover_url(items), "pricey.png")
+        self.assertEqual(_pick_cover_url(items, None), "pricey.png")
         self.assertIsNone(
-            _pick_cover_url([SimpleNamespace(card_image_url=None, price_snapshot=1.0)])
+            _pick_cover_url([SimpleNamespace(id=4, card_image_url=None, price_snapshot=1.0)], None)
         )
+
+    def test_pick_cover_prefers_the_pinned_item_over_auto_pick(self) -> None:
+        """A pinned cover (#788) wins even when a pricier card exists."""
+        from types import SimpleNamespace
+
+        from api.routes.collections import _pick_cover_url
+
+        items = [
+            SimpleNamespace(id=1, card_image_url="cheap.png", price_snapshot=2.0),
+            SimpleNamespace(id=2, card_image_url="pricey.png", price_snapshot=300.0),
+        ]
+        self.assertEqual(_pick_cover_url(items, 1), "cheap.png")
+
+    def test_pick_cover_falls_back_when_pinned_item_missing_an_image(self) -> None:
+        """A pin that no longer resolves to an imaged item (e.g. dynamic
+        membership dropped it) falls back to auto-pick rather than None."""
+        from types import SimpleNamespace
+
+        from api.routes.collections import _pick_cover_url
+
+        items = [SimpleNamespace(id=1, card_image_url="only.png", price_snapshot=5.0)]
+        self.assertEqual(_pick_cover_url(items, 999), "only.png")
+
+
+class CollectionIdCardCoverPinTests(_IsolatedDbMixin):
+    """`PATCH /collections/{id} {id_card_cover_item_id}` — pin/unpin the ID
+    card cover (#788)."""
+
+    def _client(self) -> TestClient:
+        from api.main import app
+
+        return TestClient(app)
+
+    def test_patch_pins_a_cover_item(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            body = c.patch(
+                f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": item_id}
+            ).json()
+            self.assertEqual(body["id_card_cover_item_id"], item_id)
+            self.assertEqual(
+                c.get(f"/api/v1/collections/{cid}").json()["id_card_cover_item_id"], item_id
+            )
+
+    def test_patch_clears_a_pinned_cover(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": item_id})
+            body = c.patch(
+                f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": None}
+            ).json()
+            self.assertIsNone(body["id_card_cover_item_id"])
+
+    def test_patch_without_the_key_leaves_the_pin_intact(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": item_id})
+            body = c.patch(f"/api/v1/collections/{cid}", json={"name": "Renamed"}).json()
+            self.assertEqual(body["id_card_cover_item_id"], item_id)
+
+    def test_patch_rejects_an_item_from_another_collection(self) -> None:
+        with self._client() as c:
+            cid_a = c.post("/api/v1/collections", json={"name": "A"}).json()["id"]
+            cid_b = c.post("/api/v1/collections", json={"name": "B"}).json()["id"]
+            other_item_id = c.post(
+                f"/api/v1/collections/{cid_b}/items", json={"card": SAMPLE_CARD}
+            ).json()["id"]
+            resp = c.patch(
+                f"/api/v1/collections/{cid_a}", json={"id_card_cover_item_id": other_item_id}
+            )
+            self.assertEqual(resp.status_code, 422)
+
+    def test_patch_rejects_an_unknown_item_id(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            resp = c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": 9999})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_patch_rejects_a_cover_pin_on_a_dynamic_collection(self) -> None:
+        with self._client() as c:
+            dyn = c.post(
+                "/api/v1/collections",
+                json={"name": "Smart", "kind": "dynamic", "rule": {"name": "eevee"}},
+            ).json()
+            resp = c.patch(f"/api/v1/collections/{dyn['id']}", json={"id_card_cover_item_id": 1})
+            self.assertEqual(resp.status_code, 422)
+
+    def test_id_card_pdf_fetches_the_pinned_covers_image(self) -> None:
+        """`collection_id_card` reads the persisted pin through to
+        `_pick_cover_url` — the endpoint-level wiring, not the pure pick
+        logic itself (covered by the `_pick_cover_url` unit tests above)."""
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": item_id})
+
+            from unittest.mock import patch as mock_patch
+
+            with mock_patch("api.routes.collections._fetch_cover", return_value=None) as fetch:
+                resp = c.get(f"/api/v1/collections/{cid}/id-card.pdf")
+                self.assertEqual(resp.status_code, 200)
+                fetch.assert_called_once()
+                self.assertEqual(fetch.call_args[0][0], SAMPLE_CARD["images"]["small"])
 
 
 class BinderIdentityMigrationTests(_IsolatedDbMixin):
