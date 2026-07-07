@@ -31,6 +31,11 @@ tracker, tests, and PR process.
 - Prefer cross-agent review: code written by one AI tool should be reviewed by a
   different AI tool when practical, then approved by the human. See the
   reviewer-trigger table in [.agent-workflow.md](.agent-workflow.md).
+- Claude Code is the preferred agent for implementation; Codex and Copilot are
+  the designated cross-review agents. Any agent following this file and
+  CLAUDE.md may contribute — see
+  [ADR-0030](docs/adr/0030-ai-tool-roles-and-token-efficiency.md) for the full
+  rationale, including the opt-in `caveman` mode for token-efficient sessions.
 
 ---
 
