@@ -100,6 +100,13 @@ def upgrade() -> None:
         "collection_sealed_items",
         ["product_set_id"],
     )
+    # Parent-key + added_at, matching ix_collection_items_collection_id_added_at
+    # — the relationship loads a collection's sealed items ordered by added_at.
+    op.create_index(
+        "ix_collection_sealed_items_collection_id_added_at",
+        "collection_sealed_items",
+        ["collection_id", "added_at"],
+    )
 
     op.create_table(
         "wishlist_sealed_items",
@@ -119,14 +126,29 @@ def upgrade() -> None:
         "wishlist_sealed_items",
         ["product_set_id"],
     )
+    op.create_index(
+        "ix_wishlist_sealed_items_wishlist_id_added_at",
+        "wishlist_sealed_items",
+        ["wishlist_id", "added_at"],
+    )
 
     op.create_table(
         "collection_item_copies",
         *_copy_columns("collection_item_id", "collection_items.id"),
     )
+    op.create_index(
+        "ix_collection_item_copies_collection_item_id",
+        "collection_item_copies",
+        ["collection_item_id"],
+    )
     op.create_table(
         "collection_sealed_item_copies",
         *_copy_columns("collection_sealed_item_id", "collection_sealed_items.id"),
+    )
+    op.create_index(
+        "ix_collection_sealed_item_copies_collection_sealed_item_id",
+        "collection_sealed_item_copies",
+        ["collection_sealed_item_id"],
     )
 
     with op.batch_alter_table("wishlist_items") as batch:
@@ -139,9 +161,23 @@ def downgrade() -> None:
         batch.drop_column("target_min_grade")
         batch.drop_column("target_grading_company")
         batch.drop_column("target_condition")
+    op.drop_index(
+        "ix_collection_sealed_item_copies_collection_sealed_item_id",
+        table_name="collection_sealed_item_copies",
+    )
     op.drop_table("collection_sealed_item_copies")
+    op.drop_index(
+        "ix_collection_item_copies_collection_item_id", table_name="collection_item_copies"
+    )
     op.drop_table("collection_item_copies")
+    op.drop_index(
+        "ix_wishlist_sealed_items_wishlist_id_added_at", table_name="wishlist_sealed_items"
+    )
     op.drop_index("ix_wishlist_sealed_items_product_set_id", table_name="wishlist_sealed_items")
     op.drop_table("wishlist_sealed_items")
+    op.drop_index(
+        "ix_collection_sealed_items_collection_id_added_at",
+        table_name="collection_sealed_items",
+    )
     op.drop_index("ix_collection_sealed_items_product_set_id", table_name="collection_sealed_items")
     op.drop_table("collection_sealed_items")
