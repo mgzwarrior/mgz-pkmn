@@ -7,6 +7,7 @@ import {
   fetchCollections,
   updateCollection,
   updateCollectionItem,
+  downloadCollectionIdCardPdf,
 } from '../api/client'
 import type { Collection, CollectionItem, CollectionSummary } from '../api/client'
 
@@ -20,12 +21,16 @@ vi.mock('../api/client', () => ({
   addCardToCollection: vi.fn(),
   bulkAddToCollection: vi.fn(),
   updateCollectionItem: vi.fn(),
+  // Pulled in by the header's ExportBar (#788 review).
+  exportFile: vi.fn(),
+  downloadCollectionIdCardPdf: vi.fn(),
 }))
 
 const mockFetch = vi.mocked(fetchCollection)
 const mockFetchList = vi.mocked(fetchCollections)
 const mockUpdate = vi.mocked(updateCollection)
 const mockUpdateItem = vi.mocked(updateCollectionItem)
+const mockDownloadIdCard = vi.mocked(downloadCollectionIdCardPdf)
 
 const SUMMARY: CollectionSummary = {
   id: 3,
@@ -72,7 +77,20 @@ beforeEach(() => {
   mockFetchList.mockResolvedValue([])
   mockUpdate.mockReset()
   mockUpdateItem.mockReset()
+  mockDownloadIdCard.mockReset()
+  mockDownloadIdCard.mockResolvedValue(undefined)
 })
+
+/**
+ * Radix DropdownMenu opens on `pointerdown`, not on `click`, so the plain
+ * `fireEvent.click` shorthand doesn't reveal the menu in jsdom. Fire the
+ * full sequence keyboard users follow: focus the trigger and press Enter.
+ */
+function openExportMenu() {
+  const trigger = screen.getByRole('button', { name: 'Export' })
+  trigger.focus()
+  fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+}
 
 describe('CollectionDetail', () => {
   it('lists the collection cards with their snapshot price', async () => {
@@ -109,8 +127,27 @@ describe('CollectionDetail', () => {
     mockFetch.mockResolvedValue(collectionWith([]))
     render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
     expect(await screen.findByText('No cards yet.')).toBeInTheDocument()
-    // No export control when there's nothing to export (#773).
-    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument()
+    // The row-based formats (xlsx/PDF/checklist) still need matched rows,
+    // but an empty collection can download its Collection ID card (#507),
+    // so the Export control stays visible (#788 review).
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
+  })
+
+  it('downloads the Collection ID card for an empty collection (#788 review)', async () => {
+    mockFetch.mockResolvedValue(collectionWith([]))
+    render(<CollectionDetail collection={SUMMARY} open onOpenChange={() => {}} />)
+    await screen.findByText('No cards yet.')
+
+    openExportMenu()
+    const idCardItem = screen.getByText('Collection ID card')
+    // The row-based formats have nothing to export yet.
+    expect(screen.getByText('Download .xlsx').closest('[role="menuitem"]')).toHaveAttribute(
+      'data-disabled',
+    )
+    expect(idCardItem.closest('[role="menuitem"]')).not.toHaveAttribute('data-disabled')
+
+    fireEvent.click(idCardItem)
+    await waitFor(() => expect(mockDownloadIdCard).toHaveBeenCalledWith(3, undefined))
   })
 
   it('offers export when the collection has cards (#773)', async () => {

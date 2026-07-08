@@ -187,14 +187,13 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
               />
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              {items && items.length > 0 && (
-                <ExportBar
-                  rows={exportRows}
-                  title={name}
-                  showSetIdCards={false}
-                  collectionId={collection?.id}
-                />
-              )}
+              <ExportBar
+                rows={exportRows}
+                title={name}
+                showSetIdCards={false}
+                collectionId={collection?.id}
+              />
+
               <Dialog.Close asChild>
                 <button
                   aria-label="Close"
