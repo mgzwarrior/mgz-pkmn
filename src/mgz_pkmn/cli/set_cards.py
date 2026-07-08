@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 import requests
 
-from .. import __version__
+from .. import __version__, palette
 from ..set_cards import fetch_all_sets, filter_sets_by_ids, write_set_cards_pdf
 from ..sources import TCGClient
 from ._styling import _print_banner, _print_section
@@ -52,6 +52,16 @@ def register(cli: click.Group) -> None:
             "`-s sv8 -s sv7`). Omit to render every set."
         ),
     )
+    @click.option(
+        "--theme",
+        type=click.Choice(palette.THEMES, case_sensitive=False),
+        default="light",
+        show_default=True,
+        help=(
+            "Color theme for the PDF. Light stays the default — the cutouts "
+            "are print artifacts; dark matches the web app's dark mode."
+        ),
+    )
     @click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
     def set_cards_command(
         output: Path,
@@ -59,6 +69,7 @@ def register(cli: click.Group) -> None:
         logos_dir: Path,
         no_images: bool,
         set_ids: tuple[str, ...],
+        theme: str,
         verbose: bool,
     ) -> None:
         """Generate printable set ID cards for binder section dividers.
@@ -99,7 +110,8 @@ def register(cli: click.Group) -> None:
         _print_section("Writing outputs")
         logos = None if no_images else logos_dir
         session = None if no_images else client.session
-        written = write_set_cards_pdf(sets, output, logos_dir=logos, session=session)
+        with palette.use_theme(theme.lower()):
+            written = write_set_cards_pdf(sets, output, logos_dir=logos, session=session)
         click.secho("  ✓ ", fg="green", nl=False)
         click.echo(
             f"{output}  "

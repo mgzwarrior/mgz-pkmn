@@ -1,8 +1,11 @@
 ---
 // The spreadsheet is landscape, so it gets a dedicated full-width card; the
-// two PDFs are portrait and sit in a row beneath it.
+// two PDFs are portrait and sit in a row beneath it. Each preview has a
+// dark-render sibling (#598) swapped in purely via Tailwind `dark:` classes,
+// so the gallery always shows the theme the visitor is browsing in.
 const spreadsheet = {
   src: "/screenshots/cards-xlsx.webp",
+  srcDark: "/screenshots/cards-xlsx-dark.webp",
   title: "Spreadsheet",
   caption:
     "Per-tag sections, thumbnails inline, market price and your 80 / 85 / 90 / 95 % comps on every row — with a totals row at the bottom.",
@@ -13,6 +16,7 @@ const spreadsheet = {
 const pdfs = [
   {
     src: "/screenshots/binder-page.webp",
+    srcDark: "/screenshots/binder-page-dark.webp",
     title: "Binder PDF",
     caption:
       "Printable 3×3 binder page — thumb, set, number, price. Hand it across the table.",
@@ -21,6 +25,7 @@ const pdfs = [
   },
   {
     src: "/screenshots/checklist-page.webp",
+    srcDark: "/screenshots/checklist-page-dark.webp",
     title: "Checklist PDF",
     caption:
       "Tick boxes by set, in collector-number order. Drop it in your binder and shop.",
@@ -57,7 +62,14 @@ const cardClass =
             alt={spreadsheet.alt}
             loading="lazy"
             decoding="async"
-            class="block w-full h-auto"
+            class="block w-full h-auto dark:hidden"
+          />
+          <img
+            src={spreadsheet.srcDark}
+            alt={spreadsheet.alt}
+            loading="lazy"
+            decoding="async"
+            class="hidden w-full h-auto dark:block"
           />
         </div>
         <div class="p-5">
@@ -81,7 +93,14 @@ const cardClass =
                   alt={output.alt}
                   loading="lazy"
                   decoding="async"
-                  class="w-full h-auto object-cover object-top"
+                  class="w-full h-auto object-cover object-top dark:hidden"
+                />
+                <img
+                  src={output.srcDark}
+                  alt={output.alt}
+                  loading="lazy"
+                  decoding="async"
+                  class="hidden w-full h-auto object-cover object-top dark:block"
                 />
               </div>
               <div class="p-5">

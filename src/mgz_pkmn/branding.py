@@ -100,22 +100,42 @@ def draw_pdf_footer(
     c.restoreState()
 
 
+def paint_page_background(c: Canvas, page_size: tuple[float, float]) -> None:
+    """Fill the page with `bg-app` when the dark theme is active.
+
+    A PDF page is white unless painted, so the dark palette's light-on-dark
+    foreground tokens need this base coat first. No-op in light — the
+    default white page IS the light look, and skipping the rect keeps
+    light output byte-identical to pre-theme exports."""
+    if palette.current_theme() == "light":
+        return
+    page_w, page_h = page_size
+    c.saveState()
+    c.setFillColorRGB(*palette.rgb01("bg-app"))
+    c.rect(0, 0, page_w, page_h, fill=1, stroke=0)
+    c.restoreState()
+
+
 class PageTracker:
     """Wraps a `reportlab.pdfgen.canvas.Canvas` so each `show_page()` call
     stamps the branding footer first, and `finish()` stamps the footer on
     the final page before saving. Lets every PDF writer get per-page
-    footers without duplicating the page-counting bookkeeping."""
+    footers without duplicating the page-counting bookkeeping. Also owns
+    the dark-theme page background: painted on construction for page 1 and
+    right after each page break, before any writer draws content."""
 
     def __init__(self, c: Canvas, page_size: tuple[float, float]) -> None:
         self.c = c
         self.page_size = page_size
         self.page_num = 1
         self._generated_at = _dt.datetime.now()
+        paint_page_background(c, page_size)
 
     def show_page(self) -> None:
         draw_pdf_footer(self.c, self.page_size, self.page_num, self._generated_at)
         self.c.showPage()
         self.page_num += 1
+        paint_page_background(self.c, self.page_size)
 
     def finish(self) -> None:
         draw_pdf_footer(self.c, self.page_size, self.page_num, self._generated_at)

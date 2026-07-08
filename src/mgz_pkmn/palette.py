@@ -14,11 +14,21 @@ export sources color from one place instead of scattering raw hex.
 here matches, so drift fails CI rather than shipping silently. When a token
 changes in the CSS, update it here too and the test stays green.
 
-Light theme only for now — a dark variant is tracked separately (the raw
-palette below already carries the husk/sand shades a dark map would need).
+Themes
+------
+`_SEMANTIC` mirrors the light `:root` block; `_SEMANTIC_DARK` mirrors the
+`[data-theme="dark"]` overrides (tokens the dark block doesn't override fall
+back to light). The active theme is a ContextVar so the writers' many
+`hex()`/`rgb01()` call sites stay theme-blind — entry points (CLI, API export
+routes) wrap the write in `use_theme(theme)` and everything downstream
+resolves against the right map, including across FastAPI's threadpool.
 """
 
 from __future__ import annotations
+
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 # Raw palette — named by source, transcribed verbatim from the `:root` block
 # of design/tokens/colors_and_type.css. Real code should prefer the SEMANTIC
@@ -118,6 +128,68 @@ _SEMANTIC: dict[str, str] = {
     "rarity-rare": "sun-300",
 }
 
+# Semantic DARK overrides — the `[data-theme="dark"]` block of the CSS.
+# Tokens absent here (brand-*, focus-ring, rarity-*) keep their light value,
+# exactly as the cascade leaves them untouched in the browser.
+_SEMANTIC_DARK: dict[str, str] = {
+    # Surfaces
+    "bg-app": "husk-400",
+    "bg-surface": "husk-200",
+    "bg-surface-2": "husk-100",
+    "bg-sunken": "husk-500",
+    # Foreground / text
+    "fg-1": "sand-50",
+    "fg-2": "sand-200",
+    "fg-3": "sand-400",
+    "fg-on-primary": "husk-500",
+    "fg-on-dark": "sand-50",
+    "fg-link": "sun-300",
+    # Borders
+    "border-1": "husk-50",
+    "border-2": "coconut-500",
+    "border-strong": "coconut-400",
+    # Status backgrounds — the CSS declares these as rgba() washes over the
+    # page, but reportlab/openpyxl need solid ink, so each is that rgba
+    # composited over the dark `bg-surface` (husk-200). `test_palette.py`
+    # recomputes the composite from the CSS so these can't drift either.
+    "success-bg": "2F3624",
+    "success-fg": "palm-200",
+    "success-border": "palm-500",
+    "warning-bg": "463D26",
+    "warning-fg": "sun-200",
+    "warning-border": "sun-500",
+    "danger-bg": "453127",
+    "danger-fg": "ember-300",
+    "danger-border": "ember-500",
+    "info-bg": "34393A",
+    "info-fg": "sky-300",
+    "info-border": "sky-500",
+}
+
+#: Themes an export can render in. Light is the default everywhere — the
+#: binder/checklist/set-cards PDFs are print artifacts, so dark is opt-in.
+THEMES = ("light", "dark")
+
+_ACTIVE_THEME: ContextVar[str] = ContextVar("mgz_pkmn_palette_theme", default="light")
+
+
+def current_theme() -> str:
+    """Return the theme `hex()`/`rgb01()` currently resolve against."""
+    return _ACTIVE_THEME.get()
+
+
+@contextmanager
+def use_theme(theme: str) -> Iterator[None]:
+    """Resolve palette tokens against `theme` for the duration of the block."""
+    if theme not in THEMES:
+        raise ValueError(f"theme must be one of {THEMES}, got {theme!r}")
+    token = _ACTIVE_THEME.set(theme)
+    try:
+        yield
+    finally:
+        _ACTIVE_THEME.reset(token)
+
+
 # Composed brand element: the export header band. The light-wordmark logo
 # (logo-dark.png) and `fg-on-dark` text sit on this. Deep frond green reads as
 # tropical and gives the printed page a brand anchor — the in-brand successor
@@ -129,8 +201,12 @@ HEADER_BAND = "palm-600"
 def hex(token: str) -> str:
     """Return the ``"RRGGBB"`` hex for a semantic or raw token name.
 
-    Accepts CSS-style names (`"brand-secondary"`, `"fg-1"`, `"palm-600"`).
-    Raises KeyError on an unknown token so a typo fails loudly."""
+    Accepts CSS-style names (`"brand-secondary"`, `"fg-1"`, `"palm-600"`),
+    resolved against the active theme (see `use_theme`). Raises KeyError on
+    an unknown token so a typo fails loudly."""
+    if _ACTIVE_THEME.get() == "dark" and token in _SEMANTIC_DARK:
+        value = _SEMANTIC_DARK[token]
+        return _RAW.get(value, value)
     if token in _SEMANTIC:
         value = _SEMANTIC[token]
         return _RAW.get(value, value)

@@ -31,6 +31,7 @@ import { exportFile, ownCard, wantCard } from '../api/client'
 import { enabledFields } from '../data/exportFields'
 import { useAppStore } from '../store'
 import type { ExportFormat, Row } from '../types'
+import { exportTheme } from './exportTheme'
 import { invalidateOwnership } from './useCardOwnership'
 import { useCollections } from './useCollections'
 import { useWishlists } from './useWishlists'
@@ -93,6 +94,7 @@ export function BulkActionBar({
         noImages: settings.noImages,
         dedupe: settings.dedupe,
         fields: enabledFields(settings.exportFields[format]),
+        theme: exportTheme(format, settings.darkPdfExports),
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

@@ -127,6 +127,7 @@ def write_spreadsheet(
         freeze_col = get_column_letter(col_idx["src_tag"] + 1)
         ws.freeze_panes = f"{freeze_col}2"
     _write_totals_footer(ws, len(rows), col_idx)
+    _apply_dark_body(ws, last_row=len(rows) + 3, ncols=len(columns))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
@@ -286,6 +287,29 @@ def _write_totals_footer(ws: Any, row_count: int, col_idx: dict[str, int]) -> No
         brand_cell = ws.cell(row=last + 1, column=col_idx["src_tag"], value=branding.PROJECT_NAME)
         brand_cell.hyperlink = branding.PROJECT_URL
         brand_cell.font = Font(bold=True, color=palette.hex("fg-link"), underline="single")
+
+
+def _apply_dark_body(ws: Any, last_row: int, ncols: int) -> None:
+    """Paint the data area for the dark theme (no-op in light).
+
+    openpyxl has no sheet-level background — an unpainted cell stays white,
+    which would wash out the dark palette's light `fg-1`/`success-fg`
+    accents. Cells that already carry a themed fill (over-cap warning) or an
+    explicit font color (market, links) keep them; everything else gets the
+    dark surface + foreground."""
+    if palette.current_theme() != "dark":
+        return
+    body_fill = PatternFill("solid", fgColor=palette.hex("bg-surface"))
+    fg = palette.hex("fg-1")
+    for row_cells in ws.iter_rows(min_row=2, max_row=last_row, min_col=1, max_col=ncols):
+        for cell in row_cells:
+            if cell.fill.patternType is None:
+                cell.fill = body_fill
+            # The default font carries a *theme* color, not an rgb one — only
+            # cells given an explicit rgb (market, links) keep their color.
+            color = cell.font.color
+            if color is None or color.type != "rgb":
+                cell.font = Font(bold=cell.font.bold, underline=cell.font.underline, color=fg)
 
 
 def _apply_workbook_branding(wb: Workbook, out_path: Path) -> None:

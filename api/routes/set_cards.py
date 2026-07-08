@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 
+from mgz_pkmn import palette
 from mgz_pkmn.set_cards import fetch_all_sets, filter_sets_by_ids, write_set_cards_pdf
 from mgz_pkmn.sources import TCGClient
 
@@ -31,6 +32,7 @@ async def get_set_cards_pdf(
     # sets. Empty list means "every set" — preserves the historical
     # default behavior.
     set_ids: Annotated[list[str], Query()] = [],  # noqa: B006  # FastAPI binding
+    theme: str = "light",
 ) -> StreamingResponse:
     """Return a PDF of printable set identification cutouts.
 
@@ -38,8 +40,15 @@ async def get_set_cards_pdf(
     pokemontcg.io request (otherwise the public rate limit applies).
     Pass `no_images=true` to skip logo downloads and render text-only
     cutouts — much faster on a cold cache. Pass `set_ids` (repeatable)
-    to restrict the output to specific sets; omit to render every set."""
-    content = await run_in_threadpool(_render, api_key, no_images, tuple(set_ids))
+    to restrict the output to specific sets; omit to render every set.
+    Pass `theme=dark` for a dark render — light is the default since the
+    cutouts are print artifacts (#598)."""
+    if theme not in palette.THEMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"theme must be one of {list(palette.THEMES)}",
+        )
+    content = await run_in_threadpool(_render, api_key, no_images, tuple(set_ids), theme)
     return StreamingResponse(
         io.BytesIO(content),
         media_type="application/pdf",
@@ -47,7 +56,7 @@ async def get_set_cards_pdf(
     )
 
 
-def _render(api_key: str | None, no_images: bool, set_ids: tuple[str, ...]) -> bytes:
+def _render(api_key: str | None, no_images: bool, set_ids: tuple[str, ...], theme: str) -> bytes:
     client = TCGClient(api_key=api_key)
     try:
         sets = fetch_all_sets(client)
@@ -77,5 +86,6 @@ def _render(api_key: str | None, no_images: bool, set_ids: tuple[str, ...]) -> b
     session = None if no_images else client.session
     with tempfile.TemporaryDirectory() as tmpdir:
         out_path = Path(tmpdir) / "set-cards.pdf"
-        write_set_cards_pdf(sets, out_path, session=session)
+        with palette.use_theme(theme):
+            write_set_cards_pdf(sets, out_path, session=session)
         return out_path.read_bytes()

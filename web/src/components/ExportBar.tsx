@@ -28,6 +28,7 @@ import {
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { downloadCollectionIdCardPdf, exportFile } from '../api/client'
 import { enabledFields } from '../data/exportFields'
+import { exportTheme } from './exportTheme'
 import { useAppStore } from '../store'
 import type { ExportFormat, Row } from '../types'
 import { SetPickerModal } from './SetPickerModal'
@@ -88,6 +89,7 @@ export function ExportBar({
         dedupe: settings.dedupe,
         fields: enabledFields(settings.exportFields[format]),
         leadWithIdCard: settings.leadWithIdCard,
+        theme: exportTheme(format, settings.darkPdfExports),
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
