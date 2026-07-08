@@ -35,7 +35,9 @@ tracker, tests, and PR process.
   the designated cross-review agents. Any agent following this file and
   CLAUDE.md may contribute — see
   [ADR-0030](docs/adr/0030-ai-tool-roles-and-token-efficiency.md) for the full
-  rationale, including the opt-in `caveman` mode for token-efficient sessions.
+  rationale, including the opt-in `caveman` mode for token-efficient sessions
+  and the skill-stack precedence (repo-scoped skills, then `engineering-skills`,
+  then Anthropic defaults) for which Claude Code skills to reach for.
 
 ---
 
