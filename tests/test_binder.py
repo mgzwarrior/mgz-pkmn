@@ -88,12 +88,12 @@ class LayoutPresetTests(unittest.TestCase):
         self.assertLess(CONDENSED_LAYOUT.caption_leading, STANDARD_LAYOUT.caption_leading)
 
 
-def _row(tag: str = "t", market: float | None = 12.5) -> Row:
+def _row(tag: str = "t", market: float | None = 12.5, set_name: str = "Surging Sparks") -> Row:
     card = {
         "id": "x",
         "name": "Pikachu",
         "number": "1",
-        "set": {"name": "Surging Sparks", "printedTotal": 191, "total": 252},
+        "set": {"name": set_name, "printedTotal": 191, "total": 252},
         "_database": "pokemontcg.io",
         "language": "en",
     }
@@ -202,6 +202,21 @@ class LeadWithIdCardTests(unittest.TestCase):
             out = Path(tmp) / "binder.pdf"
             write_binder_pdf([], out, layout=STANDARD_LAYOUT, lead_with_id_card=True)
             self.assertTrue(out.exists())
+
+    def test_labels_every_set_in_a_mixed_tag_section(self) -> None:
+        # One tag ('t') spanning two sets, 4 cards apiece — a plain lookup
+        # list or collection-detail export isn't guaranteed to be one set
+        # per tag. A single divider for the whole section (the pre-fix
+        # behavior) would fit 1 divider + 8 cards in 9 slots — one page.
+        # Labelling both sets takes 2 dividers + 8 cards = 10 slots, which
+        # spills onto a second page.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            rows = [_row(set_name="Set A") for _ in range(4)] + [
+                _row(set_name="Set B") for _ in range(4)
+            ]
+            write_binder_pdf(rows, out, layout=STANDARD_LAYOUT, lead_with_id_card=True)
+            self.assertEqual(_page_count(out.read_bytes()), 2)
 
 
 if __name__ == "__main__":

@@ -288,6 +288,21 @@ def _compute_geometry(layout: BinderLayout) -> dict:
     }
 
 
+@dataclass
+class _Divider:
+    """A `cells` entry standing in for a divider cutout ahead of `count`
+    cards belonging to `set_info`."""
+
+    set_info: dict
+    count: int
+
+
+def _set_key(row: Row) -> str:
+    """Group key for a row's set — `id` when present, else `name`."""
+    set_info = (row.card or {}).get("set") or {}
+    return set_info.get("id") or set_info.get("name") or ""
+
+
 def _draw_section(
     c: canvas.Canvas,
     tag: str,
@@ -301,11 +316,21 @@ def _draw_section(
 ) -> None:
     """Render one tag's worth of cards across as many pages as needed.
 
-    When `lead_with_id_card` is on, cell 0 is a divider cutout (`None` in
-    `cells`) identifying the section instead of a card — the real cards
-    shift one slot later, still filling pages at `cards_per_page`."""
-    cells: list[Row | None] = ([None] if lead_with_id_card and rows else []) + list(rows)
-    divider_set = ((rows[0].card or {}).get("set") or {}) if rows else {}
+    When `lead_with_id_card` is on, `rows` is first split into consecutive
+    runs sharing the same set (a tag section mixing sets — e.g. a plain
+    lookup list, or collection-detail rows whose tag is `''` — isn't
+    necessarily one set), and each run gets its own divider cutout (a
+    `_Divider` entry in `cells`) ahead of its cards, so every set in the
+    section gets labelled rather than only the first."""
+    cells: list[Row | _Divider] = []
+    if lead_with_id_card and rows:
+        for _key, group_iter in groupby(rows, key=_set_key):
+            group = list(group_iter)
+            set_info = (group[0].card or {}).get("set") or {}
+            cells.append(_Divider(set_info, len(group)))
+            cells.extend(group)
+    else:
+        cells.extend(rows)
 
     for i, cell in enumerate(cells):
         idx_on_page = i % layout.cards_per_page
@@ -320,9 +345,9 @@ def _draw_section(
         cell_top_y = geom["grid_top_y"] - rrow * (geom["cell_h"] + layout.gutter)
         cell_bottom_y = cell_top_y - geom["cell_h"]
 
-        if cell is None:
+        if isinstance(cell, _Divider):
             _draw_id_card_divider(
-                c, tag, divider_set, len(rows), cell_x, cell_bottom_y, layout, geom
+                c, tag, cell.set_info, cell.count, cell_x, cell_bottom_y, layout, geom
             )
         else:
             _draw_cell(c, cell, cell_x, cell_bottom_y, layout, geom, fields, max_price=max_price)
