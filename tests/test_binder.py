@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ from mgz_pkmn.binder import (
     CONDENSED_LAYOUT,
     LANG_LABELS,
     STANDARD_LAYOUT,
+    _divider_year,
     _ensure_cjk_fonts,
     _font_for_name,
     write_binder_pdf,
@@ -18,6 +20,12 @@ from mgz_pkmn.binder import (
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
 from mgz_pkmn.spreadsheet import Row
+
+
+def _page_count(pdf_bytes: bytes) -> int:
+    """Count ``/Type /Page`` object dicts (excluding ``/Type /Pages``) —
+    a lightweight page-count check with no new PDF-parsing dependency."""
+    return len(re.findall(rb"/Type\s*/Page[^s]", pdf_bytes))
 
 
 class CjkFontPickerTests(unittest.TestCase):
@@ -80,12 +88,12 @@ class LayoutPresetTests(unittest.TestCase):
         self.assertLess(CONDENSED_LAYOUT.caption_leading, STANDARD_LAYOUT.caption_leading)
 
 
-def _row(tag: str = "t", market: float | None = 12.5) -> Row:
+def _row(tag: str = "t", market: float | None = 12.5, set_name: str = "Surging Sparks") -> Row:
     card = {
         "id": "x",
         "name": "Pikachu",
         "number": "1",
-        "set": {"name": "Surging Sparks", "printedTotal": 191, "total": 252},
+        "set": {"name": set_name, "printedTotal": 191, "total": 252},
         "_database": "pokemontcg.io",
         "language": "en",
     }
@@ -149,6 +157,66 @@ class WriteBinderFieldsTests(unittest.TestCase):
             )
             self.assertTrue(out.exists())
             self.assertGreater(out.stat().st_size, 0)
+
+
+class DividerYearTests(unittest.TestCase):
+    def test_extracts_leading_four_digits(self) -> None:
+        self.assertEqual(_divider_year("2024-05-31"), "2024")
+
+    def test_none_for_missing_or_malformed_input(self) -> None:
+        self.assertIsNone(_divider_year(None))
+        self.assertIsNone(_divider_year(""))
+        self.assertIsNone(_divider_year("not-a-date"))
+
+
+class LeadWithIdCardTests(unittest.TestCase):
+    """#788 — a divider cutout leading each section, off by default."""
+
+    def test_off_by_default_leaves_page_count_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            rows = [_row() for _ in range(STANDARD_LAYOUT.cards_per_page)]
+            write_binder_pdf(rows, out, layout=STANDARD_LAYOUT)
+            self.assertEqual(_page_count(out.read_bytes()), 1)
+
+    def test_reserves_a_cell_and_pushes_a_full_page_to_a_second_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            # Exactly a full page's worth of cards — the divider taking slot 0
+            # means the last card no longer fits, so a second page is needed.
+            rows = [_row() for _ in range(STANDARD_LAYOUT.cards_per_page)]
+            write_binder_pdf(rows, out, layout=STANDARD_LAYOUT, lead_with_id_card=True)
+            self.assertEqual(_page_count(out.read_bytes()), 2)
+
+    def test_multiple_small_sections_still_write_one_page_each(self) -> None:
+        # Two single-card sections — each well under capacity even with a
+        # divider taking a slot, so adding one shouldn't force extra pages.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            rows = [_row(tag="Set A"), _row(tag="Set B")]
+            write_binder_pdf(rows, out, layout=STANDARD_LAYOUT, lead_with_id_card=True)
+            self.assertEqual(_page_count(out.read_bytes()), 2)
+
+    def test_empty_rows_write_without_a_stray_divider_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            write_binder_pdf([], out, layout=STANDARD_LAYOUT, lead_with_id_card=True)
+            self.assertTrue(out.exists())
+
+    def test_labels_every_set_in_a_mixed_tag_section(self) -> None:
+        # One tag ('t') spanning two sets, 4 cards apiece — a plain lookup
+        # list or collection-detail export isn't guaranteed to be one set
+        # per tag. A single divider for the whole section (the pre-fix
+        # behavior) would fit 1 divider + 8 cards in 9 slots — one page.
+        # Labelling both sets takes 2 dividers + 8 cards = 10 slots, which
+        # spills onto a second page.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "binder.pdf"
+            rows = [_row(set_name="Set A") for _ in range(4)] + [
+                _row(set_name="Set B") for _ in range(4)
+            ]
+            write_binder_pdf(rows, out, layout=STANDARD_LAYOUT, lead_with_id_card=True)
+            self.assertEqual(_page_count(out.read_bytes()), 2)
 
 
 if __name__ == "__main__":

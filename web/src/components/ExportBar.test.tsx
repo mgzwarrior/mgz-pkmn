@@ -3,11 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { ExportBar } from './ExportBar'
 import { useAppStore } from '../store'
 import type { Row } from '../types'
-import { exportFile } from '../api/client'
+import { downloadCollectionIdCardPdf, exportFile } from '../api/client'
 import { DEFAULT_EXPORT_FIELDS, enabledFields } from '../data/exportFields'
 
 vi.mock('../api/client', () => ({
   exportFile: vi.fn(),
+  downloadCollectionIdCardPdf: vi.fn(),
   downloadSetCardsPdf: vi.fn(),
   fetchSets: vi.fn().mockResolvedValue([]),
   setLogoUrl: vi.fn((id: string) => `/api/v1/sets/${id}/logo`),
@@ -22,6 +23,7 @@ vi.mock('./SetPickerModal', () => ({
 }))
 
 const mockExportFile = vi.mocked(exportFile)
+const mockDownloadCollectionIdCardPdf = vi.mocked(downloadCollectionIdCardPdf)
 
 /**
  * Radix DropdownMenu opens on `pointerdown`, not on `click`, so the plain
@@ -80,6 +82,7 @@ describe('ExportBar', () => {
         swipeExcludeChasing: false,
         density: 'comfortable' as const,
         exportFields: DEFAULT_EXPORT_FIELDS,
+        leadWithIdCard: false,
       },
     })
     mockExportFile.mockReset()
@@ -160,6 +163,7 @@ describe('ExportBar', () => {
         swipeExcludeChasing: false,
         density: 'comfortable' as const,
         exportFields: DEFAULT_EXPORT_FIELDS,
+        leadWithIdCard: false,
       },
     })
 
@@ -175,6 +179,7 @@ describe('ExportBar', () => {
       noImages: false,
       dedupe: true,
       fields: enabledFields(DEFAULT_EXPORT_FIELDS.xlsx),
+      leadWithIdCard: false,
     })
   })
 
@@ -268,6 +273,7 @@ describe('ExportBar', () => {
       noImages: true,
       dedupe: false,
       fields: enabledFields(DEFAULT_EXPORT_FIELDS.xlsx),
+      leadWithIdCard: false,
     })
   })
 
@@ -276,5 +282,30 @@ describe('ExportBar', () => {
     openDropdown()
     expect(screen.getByText('Download .xlsx')).toBeInTheDocument()
     expect(screen.queryByText('Set ID cards…')).not.toBeInTheDocument()
+  })
+
+  it('hides the Collection ID card item when collectionId is omitted', () => {
+    render(<ExportBar rows={[makeRow(true)]} />)
+    openDropdown()
+    expect(screen.queryByText('Collection ID card')).not.toBeInTheDocument()
+  })
+
+  it('offers a Collection ID card item that downloads the ID card', async () => {
+    mockDownloadCollectionIdCardPdf.mockResolvedValue()
+    render(<ExportBar rows={[makeRow(true)]} collectionId={42} />)
+    openDropdown()
+    fireEvent.click(screen.getByText('Collection ID card'))
+
+    await waitFor(() => expect(mockDownloadCollectionIdCardPdf).toHaveBeenCalledTimes(1))
+    expect(mockDownloadCollectionIdCardPdf).toHaveBeenCalledWith(42, undefined)
+  })
+
+  it('surfaces an error from the Collection ID card download', async () => {
+    mockDownloadCollectionIdCardPdf.mockRejectedValue(new Error('boom'))
+    render(<ExportBar rows={[makeRow(true)]} collectionId={42} />)
+    openDropdown()
+    fireEvent.click(screen.getByText('Collection ID card'))
+
+    await waitFor(() => expect(screen.getByText('boom')).toBeInTheDocument())
   })
 })

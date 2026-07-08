@@ -385,11 +385,23 @@ class Collection(Base):
         default=COLLECTION_PURPOSE_PERSONAL,
         server_default=COLLECTION_PURPOSE_PERSONAL,
     )
+    # ---- #788: customizable ID card cover ----
+    #: Pins a specific owned item as the ID card's cover art, overriding the
+    #: auto-pick (most valuable, falling back to first). Null keeps auto-pick.
+    #: ``SET NULL`` on delete so removing the pinned item falls back rather
+    #: than leaving a dangling reference.
+    id_card_cover_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collection_items.id", ondelete="SET NULL"), nullable=True
+    )
 
     items: Mapped[list[CollectionItem]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",
         order_by="CollectionItem.added_at",
+        # #788 added a second FK between the tables (id_card_cover_item_id) —
+        # pin this relationship to the ownership FK so SQLAlchemy doesn't have
+        # to guess which one it is.
+        foreign_keys="CollectionItem.collection_id",
     )
     sealed_items: Mapped[list[CollectionSealedItem]] = relationship(
         back_populates="collection",
@@ -442,7 +454,9 @@ class CollectionItem(Base):
     #: on backfilled rows; new inserts always set it.
     added_via: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
-    collection: Mapped[Collection] = relationship(back_populates="items")
+    collection: Mapped[Collection] = relationship(
+        back_populates="items", foreign_keys="CollectionItem.collection_id"
+    )
     #: Opt-in per-copy condition/grade breakdown (#882, ADR-0029). An item
     #: with no copies rows just uses its aggregate ``quantity``.
     copies: Mapped[list[CollectionItemCopy]] = relationship(

@@ -14,7 +14,7 @@
  * membership is rule-derived, so its counts aren't hand-adjustable.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { ImageOff, Loader2, Minus, Plus, Wallet, X } from 'lucide-react'
+import { ImageOff, Loader2, Minus, Pin, Plus, Wallet, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { fetchCollection, type CollectionItem, type CollectionSummary } from '../api/client'
 import { coverSwatch } from './binderIdentity'
@@ -63,6 +63,30 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
   // keeps the absolute updates from racing — a stale response can't land after
   // a newer one and overwrite the server (#769).
   const [pendingId, setPendingId] = useState<number | null>(null)
+  // The item pinned as the ID card cover (#788), or null for auto-pick
+  // (most valuable owned card, falling back to the first).
+  const [coverItemId, setCoverItemId] = useState<number | null>(null)
+  const [coverPending, setCoverPending] = useState(false)
+
+  // Pin `item` as the cover, or unpin it (clicking the current cover again
+  // reverts to auto-pick). Optimistic with rollback on failure, mirroring
+  // `changeQuantity`.
+  async function toggleCover(item: CollectionItem) {
+    if (!collection || coverPending) return
+    const next = coverItemId === item.id ? null : item.id
+    const prev = coverItemId
+    setCoverPending(true)
+    setEditError(null)
+    setCoverItemId(next)
+    try {
+      await update(collection.id, { id_card_cover_item_id: next })
+    } catch (e) {
+      setCoverItemId(prev)
+      setEditError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setCoverPending(false)
+    }
+  }
 
   async function handleRename(next: string) {
     if (!collection) return
@@ -114,7 +138,10 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
       setLoading(true)
       try {
         const c = await fetchCollection(collection.id)
-        if (!cancelled) setItems(c.items)
+        if (!cancelled) {
+          setItems(c.items)
+          setCoverItemId(c.id_card_cover_item_id ?? null)
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       } finally {
@@ -160,13 +187,13 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
               />
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              {items && items.length > 0 && (
-                <ExportBar
-                  rows={exportRows}
-                  title={name}
-                  showSetIdCards={false}
-                />
-              )}
+              <ExportBar
+                rows={exportRows}
+                title={name}
+                showSetIdCards={false}
+                collectionId={collection?.id}
+              />
+
               <Dialog.Close asChild>
                 <button
                   aria-label="Close"
@@ -208,8 +235,14 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
                 </div>
                 {editError && (
                   <div role="alert" className="mb-2 text-[11px] text-sun-600 dark:text-sun-300">
-                    Couldn&apos;t update quantity: {editError}
+                    Couldn&apos;t save: {editError}
                   </div>
+                )}
+                {editable && (
+                  <p className="mb-2 text-[11px] text-coconut-400 dark:text-sand-300">
+                    Pin a card as the ID card cover — otherwise the most valuable owned card is
+                    used.
+                  </p>
                 )}
                 <ul className="divide-y divide-sand-200 dark:divide-husk-100">
                   {items.map((it) => (
@@ -219,6 +252,9 @@ export function CollectionDetail({ collection, open, onOpenChange }: Props) {
                       editable={editable}
                       busy={pendingId === it.id}
                       onChangeQuantity={(next) => void changeQuantity(it, next)}
+                      isCover={coverItemId === it.id}
+                      coverPending={coverPending}
+                      onToggleCover={() => void toggleCover(it)}
                     />
                   ))}
                 </ul>
@@ -243,17 +279,40 @@ function ItemRow({
   editable,
   busy,
   onChangeQuantity,
+  isCover,
+  coverPending,
+  onToggleCover,
 }: {
   item: CollectionItem
   editable: boolean
   busy: boolean
   onChangeQuantity: (next: number) => void
+  isCover: boolean
+  coverPending: boolean
+  onToggleCover: () => void
 }) {
   const [broken, setBroken] = useState(false)
   const img = cardImage(item)
   const qty = item.quantity ?? 1
   return (
     <li className="flex items-center gap-3 py-2">
+      {editable && (
+        <button
+          type="button"
+          onClick={onToggleCover}
+          disabled={coverPending}
+          aria-pressed={isCover}
+          aria-label={isCover ? `Unpin ${cardLabel(item)} as ID card cover` : `Pin ${cardLabel(item)} as ID card cover`}
+          title={isCover ? 'ID card cover — click to unpin' : 'Pin as ID card cover'}
+          className={`shrink-0 rounded p-1 transition-colors disabled:opacity-50 ${
+            isCover
+              ? 'text-palm-600 dark:text-palm-300'
+              : 'text-coconut-300 hover:text-coconut-500 dark:text-sand-400 dark:hover:text-sand-200'
+          }`}
+        >
+          <Pin size={13} fill={isCover ? 'currentColor' : 'none'} />
+        </button>
+      )}
       <div className="flex h-12 w-9 shrink-0 items-center justify-center overflow-hidden rounded bg-sand-200 dark:bg-husk-100">
         {img && !broken ? (
           <img

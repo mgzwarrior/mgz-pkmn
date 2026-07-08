@@ -20,12 +20,13 @@ import {
   LayoutGrid,
   ListChecks,
   Tags,
+  IdCard,
   Loader2,
   Download,
   ChevronDown,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { exportFile } from '../api/client'
+import { downloadCollectionIdCardPdf, exportFile } from '../api/client'
 import { enabledFields } from '../data/exportFields'
 import { useAppStore } from '../store'
 import type { ExportFormat, Row } from '../types'
@@ -41,6 +42,10 @@ interface ExportBarProps {
   /** Whether to offer the "Set ID cards…" item — search-only, since it pulls a
    *  whole set catalog rather than the listed rows. Defaults to true. */
   showSetIdCards?: boolean
+  /** When set, offers a "Collection ID card" item that downloads that
+   *  collection's printable ID card (#507) — the customizable cover cutout,
+   *  as a first-class export choice alongside the row-based formats (#788). */
+  collectionId?: number
 }
 
 const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
@@ -50,9 +55,14 @@ const BUTTONS: { format: ExportFormat; label: string; icon: ReactNode }[] = [
   { format: 'checklist', label: 'Checklist', icon: <ListChecks size={14} /> },
 ]
 
-export function ExportBar({ rows: rowsProp, title, showSetIdCards = true }: ExportBarProps = {}) {
+export function ExportBar({
+  rows: rowsProp,
+  title,
+  showSetIdCards = true,
+  collectionId,
+}: ExportBarProps = {}) {
   const { rows: storeRows, settings } = useAppStore()
-  const [loading, setLoading] = useState<ExportFormat | null>(null)
+  const [loading, setLoading] = useState<ExportFormat | 'id-card' | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Set ID cards now opens the picker modal rather than firing an
   // immediate download — the modal owns its own loading + error state
@@ -77,7 +87,21 @@ export function ExportBar({ rows: rowsProp, title, showSetIdCards = true }: Expo
         noImages: settings.noImages,
         dedupe: settings.dedupe,
         fields: enabledFields(settings.exportFields[format]),
+        leadWithIdCard: settings.leadWithIdCard,
       })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleIdCard() {
+    if (collectionId == null) return
+    setLoading('id-card')
+    setError(null)
+    try {
+      await downloadCollectionIdCardPdf(collectionId, settings.apiKey || undefined)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -125,6 +149,22 @@ export function ExportBar({ rows: rowsProp, title, showSetIdCards = true }: Expo
                 >
                   <Tags size={14} />
                   Set ID cards…
+                </DropdownMenu.Item>
+              </>
+            )}
+            {collectionId != null && (
+              <>
+                <DropdownMenu.Separator className="my-1 h-px bg-sand-200 dark:bg-husk-100" />
+                <DropdownMenu.Item
+                  onSelect={() => void handleIdCard()}
+                  className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-coconut-700 dark:text-sand-50 outline-none data-[highlighted]:bg-sand-200 dark:data-[highlighted]:bg-husk-100"
+                >
+                  {loading === 'id-card' ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <IdCard size={14} />
+                  )}
+                  Collection ID card
                 </DropdownMenu.Item>
               </>
             )}

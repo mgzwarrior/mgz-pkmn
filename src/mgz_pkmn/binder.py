@@ -15,6 +15,7 @@ object so adding a new preset is just a third dataclass instance."""
 from __future__ import annotations
 
 import io
+import re
 from dataclasses import dataclass
 from itertools import groupby
 from pathlib import Path
@@ -206,6 +207,7 @@ def write_binder_pdf(
     max_price: float | None = None,
     layout: BinderLayout = STANDARD_LAYOUT,
     fields: frozenset[str] | None = None,
+    lead_with_id_card: bool = False,
 ) -> None:
     """Render `rows` into a binder-style PDF using `layout`.
 
@@ -219,7 +221,13 @@ def write_binder_pdf(
     CLI default) renders everything, matching pre-#262 behavior. A field
     that's off leaves its caption line blank rather than reclaiming the
     space, so the fixed eight-line geometry doesn't need to change per
-    render."""
+    render.
+
+    `lead_with_id_card` (#788) reserves the first grid cell of each section
+    for a divider cutout identifying the set — for a binder holding several
+    smaller sets, cutting that card and slotting it first makes the section
+    self-labelling. Off by default so a single-set export isn't cluttered
+    with a divider it doesn't need."""
     active = BINDER_FIELDS if fields is None else fields
     out_path.parent.mkdir(parents=True, exist_ok=True)
     _ensure_cjk_fonts()
@@ -238,7 +246,17 @@ def write_binder_pdf(
         if not is_first_section:
             tracker.show_page()
         is_first_section = False
-        _draw_section(c, tag, section_rows, layout, geom, tracker, active, max_price=max_price)
+        _draw_section(
+            c,
+            tag,
+            section_rows,
+            layout,
+            geom,
+            tracker,
+            active,
+            max_price=max_price,
+            lead_with_id_card=lead_with_id_card,
+        )
 
     tracker.finish()
 
@@ -270,6 +288,21 @@ def _compute_geometry(layout: BinderLayout) -> dict:
     }
 
 
+@dataclass
+class _Divider:
+    """A `cells` entry standing in for a divider cutout ahead of `count`
+    cards belonging to `set_info`."""
+
+    set_info: dict
+    count: int
+
+
+def _set_key(row: Row) -> str:
+    """Group key for a row's set — `id` when present, else `name`."""
+    set_info = (row.card or {}).get("set") or {}
+    return set_info.get("id") or set_info.get("name") or ""
+
+
 def _draw_section(
     c: canvas.Canvas,
     tag: str,
@@ -279,9 +312,27 @@ def _draw_section(
     tracker: branding.PageTracker,
     fields: frozenset[str],
     max_price: float | None = None,
+    lead_with_id_card: bool = False,
 ) -> None:
-    """Render one tag's worth of cards across as many pages as needed."""
-    for i, row in enumerate(rows):
+    """Render one tag's worth of cards across as many pages as needed.
+
+    When `lead_with_id_card` is on, `rows` is first split into consecutive
+    runs sharing the same set (a tag section mixing sets — e.g. a plain
+    lookup list, or collection-detail rows whose tag is `''` — isn't
+    necessarily one set), and each run gets its own divider cutout (a
+    `_Divider` entry in `cells`) ahead of its cards, so every set in the
+    section gets labelled rather than only the first."""
+    cells: list[Row | _Divider] = []
+    if lead_with_id_card and rows:
+        for _key, group_iter in groupby(rows, key=_set_key):
+            group = list(group_iter)
+            set_info = (group[0].card or {}).get("set") or {}
+            cells.append(_Divider(set_info, len(group)))
+            cells.extend(group)
+    else:
+        cells.extend(rows)
+
+    for i, cell in enumerate(cells):
         idx_on_page = i % layout.cards_per_page
         if i > 0 and idx_on_page == 0:
             tracker.show_page()
@@ -294,7 +345,12 @@ def _draw_section(
         cell_top_y = geom["grid_top_y"] - rrow * (geom["cell_h"] + layout.gutter)
         cell_bottom_y = cell_top_y - geom["cell_h"]
 
-        _draw_cell(c, row, cell_x, cell_bottom_y, layout, geom, fields, max_price=max_price)
+        if isinstance(cell, _Divider):
+            _draw_id_card_divider(
+                c, tag, cell.set_info, cell.count, cell_x, cell_bottom_y, layout, geom
+            )
+        else:
+            _draw_cell(c, cell, cell_x, cell_bottom_y, layout, geom, fields, max_price=max_price)
 
 
 def _draw_section_header(c: canvas.Canvas, tag: str, count: int, layout: BinderLayout) -> None:
@@ -331,6 +387,54 @@ def _draw_section_header(c: canvas.Canvas, tag: str, count: int, layout: BinderL
         suffix,
     )
     c.restoreState()
+
+
+def _divider_year(release_date: str | None) -> str | None:
+    if not release_date:
+        return None
+    m = re.match(r"(\d{4})", release_date)
+    return m.group(1) if m else None
+
+
+def _draw_id_card_divider(
+    c: canvas.Canvas,
+    tag: str,
+    set_info: dict,
+    count: int,
+    x: float,
+    y: float,
+    layout: BinderLayout,
+    geom: dict,
+) -> None:
+    """Divider cutout identifying a section (#788): dashed cut line instead
+    of the solid card-cell border, the set (or tag) name, release year when
+    known, and the section's card count. Text-only — no image fetch — so
+    turning the setting on never adds a network round-trip to the export."""
+    cell_w = geom["cell_w"]
+    cell_h = geom["cell_h"]
+
+    c.saveState()
+    c.setStrokeColorRGB(*palette.rgb01("border-2"))
+    c.setLineWidth(0.75)
+    c.setDash(3, 3)
+    c.rect(x, y, cell_w, cell_h, stroke=1, fill=0)
+    c.setDash()
+    c.restoreState()
+
+    name = set_info.get("name") or tag or "(untagged)"
+    year = _divider_year(set_info.get("releaseDate"))
+    max_w = cell_w - 12
+    cx = x + cell_w / 2
+
+    c.setFillColorRGB(*palette.rgb01("fg-1"))
+    c.setFont("Helvetica-Bold", layout.name_font_size + 2)
+    _draw_truncated(c, cx, y + cell_h * 0.58, name, max_w)
+
+    c.setFillColorRGB(*palette.rgb01("fg-3"))
+    c.setFont("Helvetica", layout.caption_font_size)
+    suffix = f"{count} card{'s' if count != 1 else ''}"
+    label = f"{suffix} · {year}" if year else suffix
+    _draw_truncated(c, cx, y + cell_h * 0.58 - layout.caption_leading - 4, label, max_w)
 
 
 def _draw_cell(

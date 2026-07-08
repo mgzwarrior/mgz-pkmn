@@ -113,7 +113,10 @@ class MigrationRoundTripTests(_IsolatedDbMixin):
         upgrade_head(engine)
         cfg = migrate_mod._alembic_config()
         cfg.set_main_option("sqlalchemy.url", str(engine.url))
-        command.downgrade(cfg, "-1")
+        # Target the revision right before #882 by id rather than "-1" — later
+        # migrations (e.g. #788) can land after this one in the chain, and a
+        # relative offset would silently downgrade the wrong revision.
+        command.downgrade(cfg, "c3d8f2a6b4e9")
         names = set(inspect(engine).get_table_names())
         self.assertNotIn("collection_sealed_items", names)
         self.assertNotIn("wishlist_sealed_items", names)

@@ -268,6 +268,19 @@ class QuickActionTests(_IsolatedDbMixin):
             self.assertFalse(body["owned"])
             self.assertEqual(body["collections"], [])
 
+    def test_unown_clears_a_stale_id_card_cover_pin(self) -> None:
+        """#788 review — the pin is cleared explicitly on delete, since SQLite
+        doesn't run the FK's ON DELETE SET NULL and a reused rowid could
+        otherwise inherit it."""
+        with self._client() as c:
+            c.post("/api/v1/cards/own", json={"card": CHARIZARD})
+            cid = c.get("/api/v1/collections").json()["items"][0]["id"]
+            item_id = c.get(f"/api/v1/collections/{cid}").json()["items"][0]["id"]
+            c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": item_id})
+
+            c.post("/api/v1/cards/unown", json={"card": CHARIZARD})
+            self.assertIsNone(c.get(f"/api/v1/collections/{cid}").json()["id_card_cover_item_id"])
+
     def test_owning_a_wanted_card_clears_the_active_want(self) -> None:
         from sqlalchemy import select
 

@@ -403,6 +403,10 @@ def unown_card(req: CardActionRequest, db: DbSession, current_user: CurrentUser)
     item = _default_collection_item(db, collection.id, set_id, number)
     if item is not None:
         _unstamp_acquired(db, item.id)
+        # Explicit clear — SQLite doesn't run the FK's ON DELETE SET NULL, and
+        # a reused rowid could otherwise inherit the stale ID-card cover pin.
+        if collection.id_card_cover_item_id == item.id:
+            collection.id_card_cover_item_id = None
         db.delete(item)
     db.commit()
     return _card_state(db, current_user.id, set_id, number).model_dump()
