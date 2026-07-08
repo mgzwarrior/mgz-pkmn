@@ -654,6 +654,11 @@ def delete_collection_item(
             status_code=404,
             detail=f"item {item_id} not found in collection {collection_id}",
         )
+    # Cleared explicitly: the column's ON DELETE SET NULL doesn't fire on the
+    # default SQLite database (PRAGMA foreign_keys is off), and SQLite can
+    # reuse the deleted rowid — a stale pin could attach to a future item.
+    if collection.id_card_cover_item_id == item.id:
+        collection.id_card_cover_item_id = None
     db.delete(item)
     db.commit()
 
@@ -687,6 +692,10 @@ def delete_collection_items_by_card(
             status_code=404,
             detail=f"card {set_id}-{number} not found in collection {collection_id}",
         )
+    # Same explicit clear as delete_collection_item — SQLite doesn't run the
+    # FK's ON DELETE SET NULL.
+    if collection.id_card_cover_item_id in {i.id for i in items}:
+        collection.id_card_cover_item_id = None
     for item in items:
         db.delete(item)
     db.commit()

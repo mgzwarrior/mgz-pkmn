@@ -1339,6 +1339,52 @@ class CollectionIdCardCoverPinTests(_IsolatedDbMixin):
             resp = c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": 9999})
             self.assertEqual(resp.status_code, 422)
 
+    def test_deleting_the_pinned_item_clears_the_pin(self) -> None:
+        """Explicit clear — SQLite doesn't run the FK's ON DELETE SET NULL,
+        and a reused rowid could otherwise inherit the stale pin."""
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": item_id})
+            self.assertEqual(
+                c.delete(f"/api/v1/collections/{cid}/items/{item_id}").status_code, 204
+            )
+            self.assertIsNone(c.get(f"/api/v1/collections/{cid}").json()["id_card_cover_item_id"])
+
+    def test_deleting_an_unpinned_item_leaves_the_pin_intact(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            pinned_id = c.post(
+                f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}
+            ).json()["id"]
+            other_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": EEVEE_CARD}).json()[
+                "id"
+            ]
+            c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": pinned_id})
+            c.delete(f"/api/v1/collections/{cid}/items/{other_id}")
+            self.assertEqual(
+                c.get(f"/api/v1/collections/{cid}").json()["id_card_cover_item_id"], pinned_id
+            )
+
+    def test_deleting_the_pinned_card_by_identity_clears_the_pin(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
+            item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD}).json()[
+                "id"
+            ]
+            c.patch(f"/api/v1/collections/{cid}", json={"id_card_cover_item_id": item_id})
+            resp = c.delete(
+                f"/api/v1/collections/{cid}/items",
+                params={
+                    "set_id": SAMPLE_CARD["set"]["id"],
+                    "number": SAMPLE_CARD["number"],
+                },
+            )
+            self.assertEqual(resp.status_code, 204)
+            self.assertIsNone(c.get(f"/api/v1/collections/{cid}").json()["id_card_cover_item_id"])
+
     def test_patch_rejects_a_cover_pin_on_a_dynamic_collection(self) -> None:
         with self._client() as c:
             dyn = c.post(
