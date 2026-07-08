@@ -15,13 +15,14 @@ You take one GitHub issue from selection to an open PR with cross-agent review t
 gh issue view <N> --repo mgzwarrior/mgz-pkmn --json number,title,body,labels,milestone,state
 ```
 
+- If `state` is not `OPEN`, stop — the issue is already resolved or was closed as not-planned; tell the user and don't branch or implement anything.
 - If it's labelled `wip`, `blocked`, or `needs-discussion`, stop and tell the user why that label blocks pickup (see CLAUDE.md Step 1) — don't proceed without their explicit go-ahead.
 - If the issue is ambiguous and intent can't be inferred from the body plus linked context, leave a clarifying comment on the issue and report back instead of guessing.
 
 **If no issue number was given**, run the selection filter:
 
 ```bash
-gh issue list --repo mgzwarrior/mgz-pkmn --state open --json number,title,labels,milestone \
+gh issue list --repo mgzwarrior/mgz-pkmn --state open --limit 500 --json number,title,labels,milestone \
   | jq '.[] | select(.labels | map(.name) | (contains(["wip"]) or contains(["blocked"]) or contains(["needs-discussion"])) | not)'
 ```
 
