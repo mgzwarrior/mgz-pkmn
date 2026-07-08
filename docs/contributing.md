@@ -69,6 +69,34 @@ Expect the following when AI agents contribute:
 - When practical, code written by one AI tool should be reviewed by a
   different AI tool before maintainer approval.
 
+### Delegating an issue to Claude Code
+
+Claude Code is the project's preferred implementation agent ([ADR-0030](adr/0030-ai-tool-roles-and-token-efficiency.md)), and handing it an issue is a one-command flow. One-time prerequisites: [install Claude Code](https://claude.com/claude-code), authenticate the GitHub CLI (`gh auth login`), and run `make install` from your checkout so the pre-commit hooks are in place.
+
+From a Claude Code session in the repo:
+
+```
+/work-issue 123     # work a specific issue
+/work-issue         # let Claude pick the highest-value unclaimed issue
+```
+
+The [`work-issue`](../.claude/skills/work-issue/SKILL.md) skill checks the issue isn't labelled `wip`/`blocked`/`needs-discussion` and has no in-flight branch or PR, then follows the [CLAUDE.md](../CLAUDE.md) loop end to end: branch, implement, `make check`, open a PR with the issue's labels/milestone/project mirrored onto it, and trigger cross-agent review. Your role at each step:
+
+1. **Pick the issue** (or let the selection filter propose one and confirm it).
+2. **Answer clarifying questions** if the issue is ambiguous — Claude comments on the issue rather than guessing.
+3. **Review the PR** once CI is green and the cross-agent reviewer has weighed in.
+4. **Merge.** Agents never merge; that decision is always yours.
+
+Repo-scoped skills under [`.claude/skills/`](../.claude/skills/) — `work-issue`, `cut-release`, `groom-issues`, `repo-analysis` — need no setup at all: Claude Code discovers them automatically in any session opened inside the checkout.
+
+### Optional skill stack (out-of-repo plugins)
+
+ADR-0030 documents a skill-stack precedence — repo-scoped skills override the `engineering-skills` bundle, which overrides Anthropic's built-in defaults — plus an adopt/skip evaluation of the Python-specific skills. None of these plugins are required; `make check` and CI enforce everything that actually gates a merge. If you want the same stack the maintainer runs, each installs via Claude Code's plugin marketplace (`/plugin marketplace add <owner>/<repo>`, then `/plugin install <plugin>@<marketplace>` — see each repo's README for its plugin names):
+
+- [alirezarezvani/claude-skills](https://github.com/alirezarezvani/claude-skills) — the `engineering-skills` bundle (architecture, backend, QA, security review, and more).
+- [wdm0006/python-skills](https://github.com/wdm0006/python-skills) — install the full bundle (`/plugin marketplace add wdm0006/python-skills`, `/plugin install python-library-complete@wdm0006-python-skills`), but lean on the four skills ADR-0030 adopts for this repo (`testing-python-libraries`, `auditing-python-security`, `building-python-clis`, `building-python-web-apps`) and skip the ones it marks duplicative — those would re-litigate what `make check` already enforces.
+- [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) — opt-in token-efficiency mode for long implementation sessions (`/caveman`). Compresses conversation only; code, commits, and PR bodies stay in normal prose by design.
+
 ## Opening an issue
 
 Blank issues are disabled — the "New Issue" button shows structured templates
