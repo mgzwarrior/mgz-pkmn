@@ -43,7 +43,17 @@ def _rgb(token: str) -> tuple[int, int, int]:
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SUMMARY = REPO_ROOT / "output" / "summary.json"
 IMAGES_DIR = REPO_ROOT / "output" / "images"
-OUT_PATH = REPO_ROOT / "site" / "public" / "screenshots" / "cards-xlsx.webp"
+
+# `--theme dark` renders the dark-palette sibling (#598); the light preview
+# keeps its historical filename so the gallery's light path never moves.
+THEME = "light"
+if "--theme" in sys.argv:
+    THEME = sys.argv[sys.argv.index("--theme") + 1]
+if THEME not in palette.THEMES:
+    sys.exit(f"--theme must be one of {palette.THEMES}")
+
+_BASENAME = "cards-xlsx.webp" if THEME == "light" else f"cards-xlsx-{THEME}.webp"
+OUT_PATH = REPO_ROOT / "site" / "public" / "screenshots" / _BASENAME
 
 ROW_COUNT = 8
 ROW_HEIGHT = 110
@@ -67,18 +77,21 @@ COLUMNS = [
     ("90%", 110),
 ]
 
-# Light tropical palette — mirrors the rebranded workbook: green header band
-# with cream type, warm sand surfaces, deep-green in-budget prices.
-BG = _rgb("bg-surface")
-HEADER_BG = _rgb(palette.HEADER_BAND)
-HEADER_TEXT = _rgb("fg-on-dark")
-TAG_BG = _rgb("bg-sunken")
-TAG_TEXT = _rgb("fg-2")
-ROW_ALT = _rgb("bg-surface-2")
-TEXT = _rgb("fg-1")
-TEXT_MUTED = _rgb("fg-3")
-ACCENT = _rgb("fg-2")
-PRICE = _rgb("success-fg")
+# Tropical palette, resolved against the requested theme — mirrors the
+# themed workbook: green header band with cream type, warm sand (or husk)
+# surfaces, brand-green in-budget prices.
+with palette.use_theme(THEME):
+    BG = _rgb("bg-surface")
+    HEADER_BG = _rgb(palette.HEADER_BAND)
+    HEADER_TEXT = _rgb("fg-on-dark")
+    TAG_BG = _rgb("bg-sunken")
+    TAG_TEXT = _rgb("fg-2")
+    ROW_ALT = _rgb("bg-surface-2")
+    TEXT = _rgb("fg-1")
+    TEXT_MUTED = _rgb("fg-3")
+    ACCENT = _rgb("fg-2")
+    PRICE = _rgb("success-fg")
+    BORDER_STRONG = _rgb("border-strong")
 
 
 def font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont:
@@ -261,7 +274,7 @@ def main() -> None:
         return COL_PAD + sum(width for _, width in COLUMNS[:index])
 
     draw.rectangle((0, y, CANVAS_WIDTH, y + TOTALS_HEIGHT), fill=TAG_BG)
-    draw.line((0, y, CANVAS_WIDTH, y), fill=_rgb("border-strong"), width=2)
+    draw.line((0, y, CANVAS_WIDTH, y), fill=BORDER_STRONG, width=2)
     total_market = sum(row.get("market") or 0 for row in rows)
     total_80 = sum((row.get("comps") or {}).get("80%") or 0 for row in rows)
     total_90 = sum((row.get("comps") or {}).get("90%") or 0 for row in rows)

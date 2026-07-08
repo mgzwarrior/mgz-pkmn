@@ -15,6 +15,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from mgz_pkmn import palette
 from mgz_pkmn.binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from mgz_pkmn.checklist import write_checklist_pdf
 from mgz_pkmn.export_fields import THUMBNAIL, resolve_fields
@@ -76,6 +77,11 @@ class ExportRequest(BaseModel):
     # #788 — lead each tag section of a "pdf"/"condensed-pdf" export with a
     # divider cutout identifying it. Ignored by xlsx/checklist.
     lead_with_id_card: bool = False
+    # #598 — color theme the artifact renders in. The SPA sends its app
+    # theme for the xlsx (a screen artifact) and light for the PDFs unless
+    # the user opts in; light is the wire default so old clients are
+    # unaffected.
+    theme: str = "light"
 
 
 # Valid formats and the (filename, media-type) each maps to.
@@ -118,6 +124,11 @@ async def export_file(req: ExportRequest) -> StreamingResponse:
             status_code=400,
             detail=f"sort must be one of {list(SORT_MODES)}",
         )
+    if req.theme not in palette.THEMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"theme must be one of {list(palette.THEMES)}",
+        )
 
     filename, media_type = _FORMAT_MAP[req.format]
     # Image downloads + document rendering are blocking; keep them off the
@@ -150,36 +161,43 @@ def _render(req: ExportRequest, filename: str) -> bytes:
         sort_rows(rows, req.sort)
 
         out_path = tmp / filename
-        if req.format == "xlsx":
-            write_spreadsheet(rows, out_path, max_price=req.max_price, fields=active_fields)
-        elif req.format == "pdf":
-            write_binder_pdf(
-                rows,
-                out_path,
-                title=req.title,
-                max_price=req.max_price,
-                layout=STANDARD_LAYOUT,
-                fields=active_fields,
-                lead_with_id_card=req.lead_with_id_card,
-            )
-        elif req.format == "condensed-pdf":
-            write_binder_pdf(
-                rows,
-                out_path,
-                title=req.title,
-                max_price=req.max_price,
-                layout=CONDENSED_LAYOUT,
-                fields=active_fields,
-                lead_with_id_card=req.lead_with_id_card,
-            )
-        elif req.format == "checklist":
-            written = write_checklist_pdf(rows, out_path, fields=active_fields)
-            if not written:
-                raise HTTPException(
-                    status_code=400,
-                    detail="checklist has no matched rows to render",
-                )
+        with palette.use_theme(req.theme):
+            _write_artifact(req, rows, out_path)
         return out_path.read_bytes()
+
+
+def _write_artifact(req: ExportRequest, rows: list[Row], out_path: Path) -> None:
+    """Dispatch to the writer for `req.format`. Runs under the request theme."""
+    active_fields = resolve_fields(req.format, req.fields)
+    if req.format == "xlsx":
+        write_spreadsheet(rows, out_path, max_price=req.max_price, fields=active_fields)
+    elif req.format == "pdf":
+        write_binder_pdf(
+            rows,
+            out_path,
+            title=req.title,
+            max_price=req.max_price,
+            layout=STANDARD_LAYOUT,
+            fields=active_fields,
+            lead_with_id_card=req.lead_with_id_card,
+        )
+    elif req.format == "condensed-pdf":
+        write_binder_pdf(
+            rows,
+            out_path,
+            title=req.title,
+            max_price=req.max_price,
+            layout=CONDENSED_LAYOUT,
+            fields=active_fields,
+            lead_with_id_card=req.lead_with_id_card,
+        )
+    elif req.format == "checklist":
+        written = write_checklist_pdf(rows, out_path, fields=active_fields)
+        if not written:
+            raise HTTPException(
+                status_code=400,
+                detail="checklist has no matched rows to render",
+            )
 
 
 def _to_row(

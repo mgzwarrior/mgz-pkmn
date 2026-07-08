@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS = {
   density: 'comfortable' as const,
   exportFields: DEFAULT_EXPORT_FIELDS,
   leadWithIdCard: false,
+  darkPdfExports: false,
 }
 
 describe('CacheSourceChip', () => {

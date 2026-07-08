@@ -178,6 +178,9 @@ export async function exportFile(
     /** Lead each tag section of a pdf/condensed-pdf export with a divider
      *  cutout identifying it (#788). Ignored by xlsx/checklist. */
     leadWithIdCard?: boolean
+    /** Color theme the artifact renders in (#598). Defaults to light —
+     *  the PDFs are print artifacts. */
+    theme?: 'light' | 'dark'
   } = {},
 ): Promise<void> {
   const effectiveRows = options.dedupe ? dedupeRows(rows) : rows
@@ -193,6 +196,7 @@ export async function exportFile(
       no_images: options.noImages ?? true,
       fields: options.fields ?? null,
       lead_with_id_card: options.leadWithIdCard ?? false,
+      theme: options.theme ?? 'light',
     }),
   })
 
@@ -231,7 +235,11 @@ export async function exportFile(
  * uses this). Omit / pass an empty array for the historical "every set"
  * behavior.
  */
-export async function downloadSetCardsPdf(apiKey?: string, setIds?: string[]): Promise<void> {
+export async function downloadSetCardsPdf(
+  apiKey?: string,
+  setIds?: string[],
+  theme?: 'light' | 'dark',
+): Promise<void> {
   const params = new URLSearchParams()
   if (apiKey) params.set('api_key', apiKey)
   if (setIds && setIds.length > 0) {
@@ -239,6 +247,7 @@ export async function downloadSetCardsPdf(apiKey?: string, setIds?: string[]): P
     // `list[str] = Query()` binding on the backend.
     for (const id of setIds) params.append('set_ids', id)
   }
+  if (theme && theme !== 'light') params.set('theme', theme)
   const qs = params.toString()
   const res = await fetch(`${BASE}/set-cards.pdf${qs ? `?${qs}` : ''}`)
   if (!res.ok) {

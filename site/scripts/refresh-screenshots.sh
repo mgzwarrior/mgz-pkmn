@@ -95,5 +95,25 @@ echo "→ Composing xlsx preview (openpyxl + Pillow)"
 # directly, so no PDF intermediate or cwebp pass for this one.
 (cd "${REPO_ROOT}" && uv run python3 site/scripts/render_xlsx_preview.py)
 
+# Dark variants (#598). The gallery swaps to these via Tailwind `dark:`
+# classes. The dark PDFs live in output/dark/ (gitignored) — `make
+# refresh-gallery` regenerates them with `--theme dark` right before
+# invoking this script.
+if [[ -f "${REPO_ROOT}/output/dark/binder.pdf" ]]; then
+  echo "→ Rendering dark binder PDF page"
+  render_pdf_page "${REPO_ROOT}/output/dark/binder.pdf" 1 binder-dark
+  to_webp binder-dark binder-page-dark
+
+  echo "→ Rendering dark checklist PDF page"
+  render_pdf_page "${REPO_ROOT}/output/dark/checklist.pdf" 1 checklist-dark
+  to_webp checklist-dark checklist-page-dark
+
+  echo "→ Composing dark xlsx preview"
+  (cd "${REPO_ROOT}" && uv run python3 site/scripts/render_xlsx_preview.py --theme dark)
+else
+  echo "! output/dark/binder.pdf missing — skipping dark thumbnails." >&2
+  echo "  Run 'make refresh-gallery' (not this script directly) to regenerate both themes." >&2
+fi
+
 echo
-echo "✓ wrote ${OUT_DIR}/{binder-page,checklist-page,cards-xlsx}.webp"
+echo "✓ wrote ${OUT_DIR}/{binder-page,checklist-page,cards-xlsx}[-dark].webp"

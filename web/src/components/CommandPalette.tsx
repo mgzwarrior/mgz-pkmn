@@ -45,6 +45,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import type { DiscoveryMode } from '../App'
 import type { ExportFormat } from '../types'
+import { exportTheme } from './exportTheme'
 import { loadSavedRun } from './loadSavedRun'
 import { fuzzyScore, readRecentCommandIds, recordRecentCommandId } from './commandPaletteMatch'
 
@@ -228,6 +229,7 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
             noImages: settings.noImages,
             dedupe: settings.dedupe,
             fields: enabledFields(settings.exportFields[opt.format]),
+            theme: exportTheme(opt.format, settings.darkPdfExports),
           }),
       })
     }

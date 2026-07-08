@@ -83,6 +83,7 @@ describe('ExportBar', () => {
         density: 'comfortable' as const,
         exportFields: DEFAULT_EXPORT_FIELDS,
         leadWithIdCard: false,
+        darkPdfExports: false,
       },
     })
     mockExportFile.mockReset()
@@ -164,6 +165,7 @@ describe('ExportBar', () => {
         density: 'comfortable' as const,
         exportFields: DEFAULT_EXPORT_FIELDS,
         leadWithIdCard: false,
+        darkPdfExports: false,
       },
     })
 
@@ -180,6 +182,7 @@ describe('ExportBar', () => {
       dedupe: true,
       fields: enabledFields(DEFAULT_EXPORT_FIELDS.xlsx),
       leadWithIdCard: false,
+      theme: 'light',
     })
   })
 
@@ -274,6 +277,7 @@ describe('ExportBar', () => {
       dedupe: false,
       fields: enabledFields(DEFAULT_EXPORT_FIELDS.xlsx),
       leadWithIdCard: false,
+      theme: 'light',
     })
   })
 

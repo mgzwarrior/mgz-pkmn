@@ -219,6 +219,13 @@ export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp 
                 checked={settings.leadWithIdCard}
                 onChange={(v) => updateSettings({ leadWithIdCard: v })}
               />
+              <Toggle
+                id="darkPdfExports"
+                label="Dark PDF exports"
+                description="PDFs are made to print, so they stay light unless you flip this. The .xlsx follows the app theme on its own"
+                checked={settings.darkPdfExports}
+                onChange={(v) => updateSettings({ darkPdfExports: v })}
+              />
             </div>
 
             <ExportFieldsSection />

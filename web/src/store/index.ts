@@ -75,6 +75,9 @@ const DEFAULT_SETTINGS: Settings = {
   // Off by default (#788) — a single-set export doesn't need a divider.
   // The `merge` below backfills this for users with older persisted settings.
   leadWithIdCard: false,
+  // Off by default (#598) — PDFs are print artifacts; dark is opt-in. The
+  // `merge` below backfills this for users with older persisted settings.
+  darkPdfExports: false,
 }
 
 interface AppState {
