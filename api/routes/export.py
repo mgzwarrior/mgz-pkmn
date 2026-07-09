@@ -39,6 +39,9 @@ class PricingIn(BaseModel):
     source: str | None = None
     url: str | None = None
     currency: str = "USD"
+    condition: str | None = None
+    condition_multiplier: float | None = None
+    adjusted_market: float | None = None
     ebay_sold_median: float | None = None
     ebay_active_floor: float | None = None
 
@@ -229,6 +232,9 @@ def _to_row(
         source=r.pricing.source,
         url=r.pricing.url,
         currency=r.pricing.currency,
+        condition=r.pricing.condition,
+        condition_multiplier=r.pricing.condition_multiplier,
+        adjusted_market=r.pricing.adjusted_market,
         ebay_sold_median=r.pricing.ebay_sold_median,
         ebay_active_floor=r.pricing.ebay_active_floor,
     )

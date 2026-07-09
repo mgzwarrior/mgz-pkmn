@@ -8,6 +8,7 @@
 import { getRun } from '../api/client'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import type { RunDetail, RunRowDetail, RunSummary, Row } from '../types'
+import { isCardCondition, rowConditionKey } from '../utils/conditionPricing'
 
 function runRowToRow(rr: RunRowDetail): Row {
   return {
@@ -20,12 +21,23 @@ function runRowToRow(rr: RunRowDetail): Row {
   }
 }
 
+function conditionOverridesForRows(rows: Row[]): Record<string, NonNullable<Row['pricing']['condition']>> {
+  const overrides: Record<string, NonNullable<Row['pricing']['condition']>> = {}
+  for (const row of rows) {
+    const condition = row.pricing.condition
+    if (isCardCondition(condition)) overrides[rowConditionKey(row)] = condition
+  }
+  return overrides
+}
+
 export async function loadSavedRun(run: RunSummary, onShowSearch: () => void): Promise<void> {
   const store = useAppStore.getState()
   const detail: RunDetail = await getRun(run.id)
+  const rows = detail.rows.map(runRowToRow)
   store.setInputText(detail.input_text)
   store.clearRows()
-  store.setRows(detail.rows.map(runRowToRow))
+  store.setRows(rows)
+  store.setRowConditionOverrides(conditionOverridesForRows(rows))
   store.setProgress(null)
   store.setProcessingLines([])
   store.setRunStartedAt(null)

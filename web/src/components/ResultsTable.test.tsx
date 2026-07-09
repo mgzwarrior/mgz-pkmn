@@ -4,7 +4,7 @@ import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
-import { exportFile, fetchCardOwnership, ownCard } from '../api/client'
+import { exportFile, fetchCardOwnership, ownCard, updateRunRowCondition } from '../api/client'
 import { _resetCardOwnershipForTests } from './useCardOwnership'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { _resetWishlistsCacheForTests } from './useWishlists'
@@ -43,6 +43,7 @@ vi.mock('../api/client', () => ({
   wantCard: vi.fn(async () => ({})),
   ownCard: vi.fn(async () => ({})),
   exportFile: vi.fn(async () => undefined),
+  updateRunRowCondition: vi.fn(async () => undefined),
 }))
 
 beforeEach(() => {
@@ -69,6 +70,8 @@ beforeEach(() => {
   vi.mocked(fetchCardOwnership).mockReset()
   vi.mocked(fetchCardOwnership).mockResolvedValue({})
   vi.mocked(exportFile).mockClear()
+  vi.mocked(updateRunRowCondition).mockClear()
+  vi.mocked(updateRunRowCondition).mockResolvedValue(undefined)
 })
 
 function makeRow(over: Partial<Row> = {}): Row {
@@ -747,17 +750,52 @@ describe('ResultsTable: hide pricing (#764)', () => {
   it('shows the Market column and comp tiers by default', () => {
     useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
     render(<ResultsTable />)
-    expect(screen.getByText('Market')).toBeInTheDocument()
+    expect(screen.getByText('Adj. market')).toBeInTheDocument()
     expect(screen.getByText('$250.00')).toBeInTheDocument()
     expect(screen.getByText('80%')).toBeInTheDocument()
     useAppStore.setState({ rows: [] })
+  })
+
+  it('recalculates adjusted pricing and comps from a per-row condition override', () => {
+    useAppStore.getState().updateSettings({ condition: 'LP' })
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: { market: 100, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+      currentRunId: 77,
+    })
+    render(<ResultsTable />)
+
+    expect(screen.getByText('$85.00')).toBeInTheDocument()
+    expect(screen.getAllByText('NM $100.00')).toHaveLength(1)
+    expect(screen.getByText('$68.00')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/condition for charizard/i), {
+      target: { value: 'HP' },
+    })
+
+    expect(screen.getByText('$45.00')).toBeInTheDocument()
+    expect(useAppStore.getState().rowConditionOverrides).toEqual({ 'card:base1-4': 'HP' })
+    expect(updateRunRowCondition).toHaveBeenCalledWith(77, 0, {
+      condition: 'HP',
+      condition_multiplier: 0.45,
+      adjusted_market: 45,
+    })
+    useAppStore.getState().resetSettings()
+    useAppStore.getState().clearRowConditionOverrides()
+    useAppStore.setState({ rows: [], currentRunId: null })
   })
 
   it('hides the Market column, comp tiers, and price values when the setting is on', () => {
     useAppStore.getState().updateSettings({ hidePricing: true })
     useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
     render(<ResultsTable />)
-    expect(screen.queryByText('Market')).toBeNull()
+    expect(screen.queryByText('Adj. market')).toBeNull()
     expect(screen.queryByText('$250.00')).toBeNull()
     expect(screen.queryByText('80%')).toBeNull()
     expect(screen.getByText('Charizard')).toBeInTheDocument()

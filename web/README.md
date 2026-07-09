@@ -75,7 +75,7 @@ web/src/
 │   ├── InputEditor.tsx        # textarea + parse-preview + ⌘↵
 │   ├── ResultsTable.tsx       # streaming row table
 │   ├── ExportBar.tsx          # xlsx / PDF download buttons
-│   └── SettingsDrawer.tsx     # API key, max price, dedupe, tag, hide-images
+│   └── SettingsDrawer.tsx     # API key, max price, condition, dedupe, tag
 ├── store/
 │   └── index.ts               # Zustand store (rows, settings, isRunning, progress)
 └── assets/                    # static images
@@ -89,15 +89,18 @@ web/src/
 3. **On ⌘↵ / Run**: `App.handleRun` opens an SSE connection via
    `client.bulkLookup` to `/api/v1/bulk`. Each event is appended to the
    Zustand store via `appendRow`, which flows into `ResultsTable`.
-4. **On Export**: `ExportBar` POSTs the accumulated rows to `/api/v1/export`
-   and triggers a browser download of the returned `.xlsx` or `.pdf`.
+4. **On Export**: `ExportBar` applies the current condition multipliers to
+   each row, POSTs the enriched rows to `/api/v1/export`, and triggers a
+   browser download of the returned `.xlsx` or `.pdf`.
 5. **On unmatched row → "Add PriceCharting URL"**: POST to `/api/v1/overrides`
    to record the mapping, then re-runs that single line via `lookupLine`.
 
-Settings (`api_key`, `tag`, `max_price`, `dedupe`, `no_images`, `density`)
-are persisted to `localStorage` via Zustand `persist`, so they survive
-reloads. Density has two modes: comfortable (the default) and compact, which
-tightens the results table, Backpack, and header to roughly two-thirds of the
+Settings (`api_key`, `tag`, `max_price`, `condition`, condition multipliers,
+`dedupe`, `no_images`, `density`) are persisted to `localStorage` via Zustand
+`persist`, so they survive reloads. Row-level condition overrides are
+session-only and survive re-lookups until the editor is explicitly cleared.
+Density has two modes: comfortable (the default) and compact, which tightens
+the results table, Backpack, and header to roughly two-thirds of the
 comfortable rhythm for working through long lists.
 
 ## Pointing at a non-default API URL

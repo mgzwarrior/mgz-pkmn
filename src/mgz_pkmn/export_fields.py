@@ -13,11 +13,17 @@ SET = "set"
 NUMBER = "number"
 RARITY = "rarity"
 VARIANT = "variant"
+CONDITION = "condition"
 MARKET = "market"
+ADJUSTED_MARKET = "adjusted_market"
 COMP_80 = "comp_80"
 COMP_85 = "comp_85"
 COMP_90 = "comp_90"
 COMP_95 = "comp_95"
+ADJUSTED_COMP_80 = "adjusted_comp_80"
+ADJUSTED_COMP_85 = "adjusted_comp_85"
+ADJUSTED_COMP_90 = "adjusted_comp_90"
+ADJUSTED_COMP_95 = "adjusted_comp_95"
 SOURCE = "source"
 SOURCE_URL = "source_url"
 
@@ -28,11 +34,17 @@ XLSX_FIELDS = (
     NUMBER,
     RARITY,
     VARIANT,
+    CONDITION,
     MARKET,
+    ADJUSTED_MARKET,
     COMP_80,
     COMP_85,
     COMP_90,
     COMP_95,
+    ADJUSTED_COMP_80,
+    ADJUSTED_COMP_85,
+    ADJUSTED_COMP_90,
+    ADJUSTED_COMP_95,
     SOURCE,
     SOURCE_URL,
 )

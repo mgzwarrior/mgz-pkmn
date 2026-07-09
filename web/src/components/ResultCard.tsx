@@ -14,14 +14,20 @@ import { AlertCircle, ExternalLink, ImageOff } from 'lucide-react'
 import { addOverride } from '../api/client'
 import type { CardOwnership } from '../api/client'
 import { useAppStore } from '../store'
-import type { Row } from '../types'
+import type { CardCondition, Row } from '../types'
+import type { ConditionPricing } from '../utils/conditionPricing'
 import { formatComp, formatMoney } from '../utils/format'
 import { AffiliateLinks } from './AffiliateLinks'
+import { ConditionOverrideSelect } from './ConditionOverrideSelect'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
 
 interface Props {
   row: Row
+  conditionPricing: ConditionPricing
+  conditionOverride: CardCondition | null
+  defaultCondition: CardCondition
+  onConditionOverrideChange: (condition: CardCondition | null) => void
   showImage: boolean
   showSavedActions: boolean
   showMarket: boolean
@@ -32,6 +38,10 @@ interface Props {
 
 export function ResultCard({
   row,
+  conditionPricing,
+  conditionOverride,
+  defaultCondition,
+  onConditionOverrideChange,
   showImage,
   showSavedActions,
   showMarket,
@@ -52,8 +62,8 @@ export function ResultCard({
   const isOverCap =
     showMarket &&
     useAppStore.getState().settings.maxPrice != null &&
-    p.market != null &&
-    p.market > (useAppStore.getState().settings.maxPrice ?? Infinity)
+    conditionPricing.adjustedMarket != null &&
+    conditionPricing.adjustedMarket > (useAppStore.getState().settings.maxPrice ?? Infinity)
 
   async function handleSaveOverride() {
     if (!overrideUrl.trim()) return
@@ -136,12 +146,12 @@ export function ResultCard({
                     className={`shrink-0 font-mono text-sm tabular-nums ${
                       isOverCap
                         ? 'font-bold text-sun-600 dark:text-sun-300'
-                        : p.market
+                        : conditionPricing.adjustedMarket != null
                           ? 'text-palm-500 dark:text-palm-200'
                           : 'text-coconut-400 dark:text-sand-300'
                     }`}
                   >
-                    {formatMoney(p.market, p.currency)}
+                    {formatMoney(conditionPricing.adjustedMarket, p.currency)}
                   </span>
                 )}
               </div>
@@ -153,9 +163,26 @@ export function ResultCard({
               <div className="mt-0.5 flex items-baseline justify-between gap-2 text-xs text-coconut-400 dark:text-sand-300">
                 <span>{p.source ?? '—'}</span>
                 {showMarket && (
-                  <span className="font-mono tabular-nums">{formatComp(p.market, 85, p.currency)} · 85%</span>
+                  <span className="font-mono tabular-nums">
+                    {formatComp(conditionPricing.adjustedMarket, 85, p.currency)} · 85%
+                  </span>
                 )}
               </div>
+              {showMarket && conditionPricing.hasAdjustment && (
+                <div className="mt-0.5 text-right text-[11px] text-coconut-400 dark:text-sand-400">
+                  NM {formatMoney(p.market, p.currency)} · 85% {formatComp(p.market, 85, p.currency)}
+                </div>
+              )}
+              {showMarket && (
+                <div className="mt-2">
+                  <ConditionOverrideSelect
+                    label={`Condition for ${(card?.name as string | undefined) ?? row.query.raw}`}
+                    value={conditionOverride}
+                    defaultCondition={defaultCondition}
+                    onChange={onConditionOverrideChange}
+                  />
+                </div>
+              )}
               <OwnershipBadge ownership={ownership} className="mt-1" />
             </>
           ) : (

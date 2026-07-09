@@ -42,11 +42,21 @@ class Pricing:
     source: str | None = None  # one of PRICE_SOURCES
     url: str | None = None
     currency: str = "USD"
+    # Optional browser-side condition pricing (#270). `market` remains the
+    # raw near-mint reference; exports can carry an adjusted value alongside it.
+    condition: str | None = None
+    condition_multiplier: float | None = None
+    adjusted_market: float | None = None
     # eBay listing-comp signals carried alongside the primary market price:
     # the median of recent sold comps and the lowest current active listing.
     # Both stay None until the eBay source contributes (see summarize_ebay_comps).
     ebay_sold_median: float | None = None
     ebay_active_floor: float | None = None
+
+    @property
+    def effective_market(self) -> float | None:
+        """Market value writers should use for buyer-facing comps."""
+        return self.adjusted_market if self.adjusted_market is not None else self.market
 
 
 def summarize_ebay_comps(comps: Iterable[Pricing]) -> tuple[float | None, float | None]:

@@ -18,18 +18,26 @@ export const EXPORT_FIELD_LABELS: Record<ExportField, string> = {
   number: 'Number',
   rarity: 'Rarity',
   variant: 'Variant',
+  condition: 'Condition',
   market: 'Market price',
+  adjusted_market: 'Adjusted market',
   comp_80: '80% comp',
   comp_85: '85% comp',
   comp_90: '90% comp',
   comp_95: '95% comp',
+  adjusted_comp_80: 'Adjusted 80%',
+  adjusted_comp_85: 'Adjusted 85%',
+  adjusted_comp_90: 'Adjusted 90%',
+  adjusted_comp_95: 'Adjusted 95%',
   source: 'Price source',
   source_url: 'Source URL',
 }
 
 const XLSX_FIELDS: ExportField[] = [
   'thumbnail', 'name', 'set', 'number', 'rarity', 'variant',
-  'market', 'comp_80', 'comp_85', 'comp_90', 'comp_95', 'source', 'source_url',
+  'condition', 'market', 'adjusted_market', 'comp_80', 'comp_85', 'comp_90', 'comp_95',
+  'adjusted_comp_80', 'adjusted_comp_85', 'adjusted_comp_90', 'adjusted_comp_95',
+  'source', 'source_url',
 ]
 const BINDER_FIELDS: ExportField[] = [
   'thumbnail', 'name', 'set', 'number', 'market', 'comp_80', 'comp_85', 'comp_90', 'comp_95',

@@ -36,10 +36,11 @@ def _row_payload(
     }
     if images is not None:
         card["images"] = images
+    pricing = {"market": market, "currency": "USD"}
     return {
         "query": {"raw": name, "name": name},
         "card": card,
-        "pricing": {"market": market, "currency": "USD"},
+        "pricing": pricing,
         "tag": tag,
     }
 
@@ -182,6 +183,40 @@ class ExportApiTests(unittest.TestCase):
         self.assertIn("Name", header_row)
         self.assertNotIn("Rarity", header_row)
         self.assertNotIn("Market", header_row)
+
+    def test_xlsx_export_carries_adjusted_condition_values(self) -> None:
+        from openpyxl import load_workbook
+
+        payload = _row_payload(market=100.0)
+        payload["pricing"] |= {
+            "condition": "LP",
+            "condition_multiplier": 0.85,
+            "adjusted_market": 85.0,
+        }
+        resp = client.post(
+            "/api/v1/export",
+            json={
+                "rows": [payload],
+                "format": "xlsx",
+                "fields": ["condition", "market", "adjusted_market", "comp_80", "adjusted_comp_80"],
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        import io
+
+        ws = load_workbook(io.BytesIO(resp.content)).active
+        header_row = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+        self.assertEqual(ws.cell(row=2, column=header_row.index("Condition") + 1).value, "LP")
+        self.assertEqual(ws.cell(row=2, column=header_row.index("Market") + 1).value, 100.0)
+        self.assertEqual(
+            ws.cell(row=2, column=header_row.index("Adjusted Market") + 1).value,
+            85.0,
+        )
+        self.assertEqual(ws.cell(row=2, column=header_row.index("80%") + 1).value, 80.0)
+        self.assertEqual(
+            ws.cell(row=2, column=header_row.index("Adjusted 80%") + 1).value,
+            68.0,
+        )
 
     def test_unsupported_field_for_format_is_silently_dropped(self) -> None:
         # "rarity" isn't in the binder PDF's supported set — shouldn't 400.

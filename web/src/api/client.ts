@@ -9,6 +9,7 @@
 import type {
   BulkEvent,
   CacheStats,
+  CardCondition,
   CardQuery,
   ChangelogRelease,
   ExportFormat,
@@ -433,6 +434,26 @@ export async function saveRun(
     throw new Error(detail)
   }
   return (await res.json()) as RunSummary
+}
+
+export interface RunRowConditionPatch {
+  condition: CardCondition | null
+  condition_multiplier: number | null
+  adjusted_market: number | null
+}
+
+/** Persist one run row's explicit condition override in its pricing JSON. */
+export async function updateRunRowCondition(
+  runId: number,
+  position: number,
+  patch: RunRowConditionPatch,
+): Promise<void> {
+  const res = await fetch(`${BASE}/runs/${runId}/rows/${position}/condition`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`condition update failed: ${res.status}`)
 }
 
 /** Delete a saved search (run) and its rows (#698). Owner-only server-side. */

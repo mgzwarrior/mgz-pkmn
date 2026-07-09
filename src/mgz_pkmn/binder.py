@@ -588,16 +588,19 @@ def _draw_cell_price(
     line_y -= layout.caption_leading + 1
     if "market" not in fields:
         return line_y
-    if row.pricing.market is not None:
+    market = row.pricing.effective_market
+    if market is not None:
         sym = "€" if row.pricing.currency == "EUR" else "$"
-        is_over_cap = max_price is not None and row.pricing.market > max_price
+        is_over_cap = max_price is not None and market > max_price
         c.setFont("Helvetica-Bold", layout.market_font_size)
+        condition = row.pricing.condition
+        prefix = f"{condition} " if condition and row.pricing.adjusted_market is not None else "MP "
         if is_over_cap:
             c.setFillColorRGB(*palette.rgb01("danger-fg"))  # above-cap
-            label = f"! MP {sym}{row.pricing.market:,.2f}"
+            label = f"! {prefix}{sym}{market:,.2f}"
         else:
             c.setFillColorRGB(*palette.rgb01("success-fg"))  # in-budget
-            label = f"MP {sym}{row.pricing.market:,.2f}"
+            label = f"{prefix}{sym}{market:,.2f}"
         _draw_truncated(c, cx, line_y, label, max_w)
     else:
         c.setFont("Helvetica-Oblique", layout.caption_font_size)
@@ -618,13 +621,14 @@ def _draw_cell_comps(
     """Comp tiers, one per line at 80/85/90/95% of market."""
     c.setFillColorRGB(*palette.rgb01("fg-2"))
     c.setFont("Helvetica", layout.comp_font_size)
-    if row.pricing.market is not None:
+    market = row.pricing.effective_market
+    if market is not None:
         sym = "€" if row.pricing.currency == "EUR" else "$"
         for p in COMP_PERCENTS:
             line_y -= layout.caption_leading
             if f"comp_{p}" not in fields:
                 continue
-            comp_value = round(row.pricing.market * p / 100, 2)
+            comp_value = round(market * p / 100, 2)
             _draw_truncated(c, cx, line_y, f"{p}% {sym}{comp_value:,.2f}", max_w)
 
 

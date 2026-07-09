@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { useAppStore, EMPTY_VIEW_STATE, RECENT_RUNS_LIMIT } from './index'
+import { DEFAULT_CONDITION_MULTIPLIERS } from '../utils/conditionPricing'
 
 describe('store: processingLines', () => {
   beforeEach(() => useAppStore.setState({ processingLines: [] }))
@@ -333,6 +334,41 @@ describe('store: settings.density', () => {
     useAppStore.getState().updateSettings({ density: 'compact' })
     useAppStore.getState().resetSettings()
     expect(useAppStore.getState().settings.density).toBe('comfortable')
+  })
+})
+
+describe('store: condition pricing', () => {
+  afterEach(() => {
+    useAppStore.getState().resetSettings()
+    useAppStore.getState().clearRowConditionOverrides()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('defaults to NM with the standard condition multipliers', () => {
+    const settings = useAppStore.getState().settings
+    expect(settings.condition).toBe('NM')
+    expect(settings.conditionMultipliers).toEqual(DEFAULT_CONDITION_MULTIPLIERS)
+  })
+
+  it('resetSettings restores condition and multipliers', () => {
+    useAppStore.getState().updateSettings({
+      condition: 'MP',
+      conditionMultipliers: { ...DEFAULT_CONDITION_MULTIPLIERS, MP: 0.5 },
+    })
+    useAppStore.getState().resetSettings()
+    expect(useAppStore.getState().settings.condition).toBe('NM')
+    expect(useAppStore.getState().settings.conditionMultipliers).toEqual(
+      DEFAULT_CONDITION_MULTIPLIERS,
+    )
+  })
+
+  it('clearRows preserves row condition overrides until explicitly cleared', () => {
+    useAppStore.getState().setRowConditionOverride('card:base1-4', 'LP')
+    useAppStore.getState().clearRows()
+    expect(useAppStore.getState().rowConditionOverrides).toEqual({ 'card:base1-4': 'LP' })
+
+    useAppStore.getState().clearRowConditionOverrides()
+    expect(useAppStore.getState().rowConditionOverrides).toEqual({})
   })
 })
 

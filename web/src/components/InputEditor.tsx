@@ -90,6 +90,7 @@ export function InputEditor({ onRun, onStop }: Props) {
     setInputText,
     isRunning,
     clearRows,
+    clearRowConditionOverrides,
     rows,
     editorCollapsed: collapsed,
     setEditorCollapsed: setCollapsed,
@@ -211,6 +212,7 @@ export function InputEditor({ onRun, onStop }: Props) {
             onPointerDown={(e) => e.preventDefault()}
             onClick={() => {
               clearRows()
+              clearRowConditionOverrides()
               setInputText('')
               setCollapsed(false)
             }}

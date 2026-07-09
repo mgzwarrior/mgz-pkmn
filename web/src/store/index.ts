@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
 import type {
   CacheStatus,
+  CardCondition,
   ProcessingLine,
   RecentRun,
   Row,
@@ -10,6 +11,10 @@ import type {
   SavedViewState,
   Settings,
 } from '../types'
+import {
+  DEFAULT_CONDITION,
+  DEFAULT_CONDITION_MULTIPLIERS,
+} from '../utils/conditionPricing'
 
 /** Default ResultsTable view: no sort, no filters, filter row collapsed. */
 export const EMPTY_VIEW_STATE: SavedViewState = {
@@ -69,6 +74,10 @@ const DEFAULT_SETTINGS: Settings = {
   // vendor-inventorying mode. The `merge` below backfills this for users
   // with older persisted settings.
   density: 'comfortable',
+  // Condition-aware pricing (#270): market stays the raw near-mint value,
+  // while the UI/export layer derives adjusted prices from this tier.
+  condition: DEFAULT_CONDITION,
+  conditionMultipliers: DEFAULT_CONDITION_MULTIPLIERS,
   // Configurable-export field toggles (#262). The `merge` below backfills
   // this for users with older persisted settings.
   exportFields: DEFAULT_EXPORT_FIELDS,
@@ -104,6 +113,17 @@ interface AppState {
   setRows: (rows: Row[]) => void
   appendRow: (row: Row) => void
   clearRows: () => void
+
+  /**
+   * Per-row condition overrides (#270), keyed by card id when matched and
+   * raw input line otherwise. Kept out of localStorage; saved searches
+   * rehydrate it from each persisted row's pricing JSON, and the explicit
+   * editor Clear action resets it through `clearRowConditionOverrides`.
+   */
+  rowConditionOverrides: Record<string, CardCondition>
+  setRowConditionOverrides: (overrides: Record<string, CardCondition>) => void
+  setRowConditionOverride: (rowKey: string, condition: CardCondition | null) => void
+  clearRowConditionOverrides: () => void
 
   /** Progress of the current bulk lookup (0–total). */
   progress: { done: number; total: number } | null
@@ -257,6 +277,17 @@ export const useAppStore = create<AppState>()(
       appendRow: (row) => set((state) => ({ rows: [...state.rows, row] })),
       clearRows: () => set({ rows: [] }),
 
+      rowConditionOverrides: {},
+      setRowConditionOverrides: (rowConditionOverrides) => set({ rowConditionOverrides }),
+      setRowConditionOverride: (rowKey, condition) =>
+        set((state) => {
+          const next = { ...state.rowConditionOverrides }
+          if (condition === null) delete next[rowKey]
+          else next[rowKey] = condition
+          return { rowConditionOverrides: next }
+        }),
+      clearRowConditionOverrides: () => set({ rowConditionOverrides: {} }),
+
       progress: null,
       setProgress: (progress) => set({ progress }),
 
@@ -370,9 +401,34 @@ export const useAppStore = create<AppState>()(
         return {
           ...current,
           ...p,
-          settings: { ...current.settings, ...(p.settings ?? {}) },
+          settings: mergeSettings(current.settings, p.settings),
+          rowConditionOverrides: {},
         }
       },
     },
   ),
 )
+
+function mergeSettings(current: Settings, persisted?: Partial<Settings>): Settings {
+  const p = persisted ?? {}
+  return {
+    ...current,
+    ...p,
+    conditionMultipliers: {
+      ...(current.conditionMultipliers ?? DEFAULT_CONDITION_MULTIPLIERS),
+      ...(p.conditionMultipliers ?? {}),
+    },
+    exportFields: {
+      xlsx: { ...current.exportFields.xlsx, ...(p.exportFields?.xlsx ?? {}) },
+      pdf: { ...current.exportFields.pdf, ...(p.exportFields?.pdf ?? {}) },
+      'condensed-pdf': {
+        ...current.exportFields['condensed-pdf'],
+        ...(p.exportFields?.['condensed-pdf'] ?? {}),
+      },
+      checklist: {
+        ...current.exportFields.checklist,
+        ...(p.exportFields?.checklist ?? {}),
+      },
+    },
+  }
+}

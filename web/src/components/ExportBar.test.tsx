@@ -174,7 +174,18 @@ describe('ExportBar', () => {
     fireEvent.click(screen.getByText('Download .xlsx'))
 
     await waitFor(() => expect(mockExportFile).toHaveBeenCalledTimes(1))
-    expect(mockExportFile).toHaveBeenCalledWith(rows, 'xlsx', {
+    expect(mockExportFile.mock.calls[0][0]).toEqual(
+      rows.map((row) => ({
+        ...row,
+        pricing: {
+          ...row.pricing,
+          condition: 'NM',
+          condition_multiplier: 1,
+          adjusted_market: null,
+        },
+      })),
+    )
+    expect(mockExportFile).toHaveBeenCalledWith(expect.any(Array), 'xlsx', {
       maxPrice: 25,
       title: 'binder',
       sort: 'alpha',
@@ -269,7 +280,18 @@ describe('ExportBar', () => {
 
     await waitFor(() => expect(mockExportFile).toHaveBeenCalledTimes(1))
     // The provided rows + title are used; sort/etc. still come from settings.
-    expect(mockExportFile).toHaveBeenCalledWith(detailRows, 'xlsx', {
+    expect(mockExportFile.mock.calls[0][0]).toEqual(
+      detailRows.map((row) => ({
+        ...row,
+        pricing: {
+          ...row.pricing,
+          condition: 'NM',
+          condition_multiplier: 1,
+          adjusted_market: null,
+        },
+      })),
+    )
+    expect(mockExportFile).toHaveBeenCalledWith(expect.any(Array), 'xlsx', {
       maxPrice: null,
       title: 'Base Set holos',
       sort: 'alpha',

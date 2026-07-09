@@ -11,7 +11,15 @@ from openpyxl import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from mgz_pkmn.export_fields import COMP_80, MARKET, NAME, SET
+from mgz_pkmn.export_fields import (
+    ADJUSTED_COMP_80,
+    ADJUSTED_MARKET,
+    COMP_80,
+    CONDITION,
+    MARKET,
+    NAME,
+    SET,
+)
 from mgz_pkmn.parser import CardQuery
 from mgz_pkmn.pricing import Pricing
 from mgz_pkmn.spreadsheet import HEADERS, Row, write_spreadsheet
@@ -81,6 +89,33 @@ class FieldFilterTests(unittest.TestCase):
         set_col = header_row.index("Set") + 1
         self.assertEqual(ws.cell(row=2, column=name_col).value, "Charizard")
         self.assertEqual(ws.cell(row=2, column=set_col).value, "Base")
+
+    def test_adjusted_condition_columns_render_alongside_raw_market(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "cards.xlsx"
+            row = _row(market=100.0)
+            row.pricing.condition = "LP"
+            row.pricing.condition_multiplier = 0.85
+            row.pricing.adjusted_market = 85.0
+            write_spreadsheet(
+                [row],
+                out,
+                fields=frozenset({CONDITION, MARKET, ADJUSTED_MARKET, COMP_80, ADJUSTED_COMP_80}),
+            )
+            ws = load_workbook(out).active
+
+        header_row = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+        condition_col = header_row.index("Condition") + 1
+        market_col = header_row.index("Market") + 1
+        adjusted_market_col = header_row.index("Adjusted Market") + 1
+        comp_col = header_row.index("80%") + 1
+        adjusted_comp_col = header_row.index("Adjusted 80%") + 1
+
+        self.assertEqual(ws.cell(row=2, column=condition_col).value, "LP")
+        self.assertEqual(ws.cell(row=2, column=market_col).value, 100.0)
+        self.assertEqual(ws.cell(row=2, column=adjusted_market_col).value, 85.0)
+        self.assertEqual(ws.cell(row=2, column=comp_col).value, 80.0)
+        self.assertEqual(ws.cell(row=2, column=adjusted_comp_col).value, 68.0)
 
 
 if __name__ == "__main__":

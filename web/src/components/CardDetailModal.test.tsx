@@ -106,6 +106,25 @@ describe('CardDetailModal', () => {
     expect(screen.getByText('$200.00')).toBeInTheDocument() // 80%
   })
 
+  it('lets the pricing panel set a condition override', () => {
+    const row = buildRow()
+    const onConditionOverrideChange = vi.fn()
+    render(
+      <CardDetailModal
+        rows={[row]}
+        index={0}
+        onChangeIndex={() => {}}
+        onConditionOverrideChange={onConditionOverrideChange}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText(/condition for charizard/i), {
+      target: { value: 'MP' },
+    })
+
+    expect(onConditionOverrideChange).toHaveBeenCalledWith(row, 'MP')
+  })
+
   it('falls back to images.small when large is missing', () => {
     const row = buildRow({
       card: {

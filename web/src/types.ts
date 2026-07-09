@@ -32,6 +32,10 @@ export interface Pricing {
   source: string | null
   url: string | null
   currency: string
+  /** Browser-side condition pricing (#270). Raw `market` stays the NM reference. */
+  condition?: CardCondition | null
+  condition_multiplier?: number | null
+  adjusted_market?: number | null
   /**
    * eBay comp signals (#423/#425). Optional: the scalars are absent on runs
    * persisted before #423, and the raw comps list isn't on the wire until
@@ -161,11 +165,17 @@ export type ExportField =
   | 'number'
   | 'rarity'
   | 'variant'
+  | 'condition'
   | 'market'
+  | 'adjusted_market'
   | 'comp_80'
   | 'comp_85'
   | 'comp_90'
   | 'comp_95'
+  | 'adjusted_comp_80'
+  | 'adjusted_comp_85'
+  | 'adjusted_comp_90'
+  | 'adjusted_comp_95'
   | 'source'
   | 'source_url'
 
@@ -193,6 +203,10 @@ export type RarityFloor = 'all' | 'rare' | 'chase'
  * Tailwind variant in index.css.
  */
 export type Density = 'comfortable' | 'compact'
+
+export type CardCondition = 'NM' | 'LP' | 'MP' | 'HP'
+
+export type ConditionMultipliers = Record<CardCondition, number>
 
 /** Application-level settings stored in Zustand and sent with each request. */
 export interface Settings {
@@ -233,6 +247,10 @@ export interface Settings {
   swipeExcludeChasing: boolean
   /** Workspace density (#526): comfortable (default) or compact. */
   density: Density
+  /** Default condition tier for condition-aware pricing (#270). */
+  condition?: CardCondition
+  /** Condition multipliers vs. near-mint market price (#270). */
+  conditionMultipliers?: Partial<ConditionMultipliers>
   /** Configurable-export field toggles per format (#262). */
   exportFields: ExportFieldToggles
   /**
