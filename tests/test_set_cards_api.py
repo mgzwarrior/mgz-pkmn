@@ -46,6 +46,17 @@ class SetCardsEndpointTests(unittest.TestCase):
         self.assertIn("attachment", resp.headers["content-disposition"])
         self.assertTrue(resp.content.startswith(b"%PDF"))
 
+    def test_unknown_theme_rejected(self) -> None:
+        resp = client.get("/api/v1/set-cards.pdf?theme=sepia")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("theme", resp.json()["detail"])
+
+    def test_dark_theme_returns_pdf(self) -> None:
+        with patch("api.routes.set_cards.fetch_all_sets", return_value=SAMPLE_SETS):
+            resp = client.get("/api/v1/set-cards.pdf?theme=dark")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.headers["content-type"], "application/pdf")
+
     def test_502_when_upstream_returns_empty(self) -> None:
         with patch("api.routes.set_cards.fetch_all_sets", return_value=[]):
             resp = client.get("/api/v1/set-cards.pdf")

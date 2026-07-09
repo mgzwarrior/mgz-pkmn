@@ -201,7 +201,13 @@ refresh-examples:  ## Regenerate all tracked output/ examples from sample_cards.
 	  --report-json $(OUTPUT_DIR)/summary.json
 
 .PHONY: refresh-gallery
-refresh-gallery: refresh-examples  ## Regenerate output/ examples AND the marketing-site gallery thumbnails in one pass (requires network + poppler/webp/uv). Commit the diff.
+refresh-gallery: refresh-examples  ## Regenerate output/ examples (light + dark) AND the marketing-site gallery thumbnails in one pass (requires network + poppler/webp/uv). Commit the diff.
+	@mkdir -p $(OUTPUT_DIR)/dark
+	uv run pkmn lookup $(INPUT) \
+	  --theme dark \
+	  -o $(OUTPUT_DIR)/dark/cards.xlsx \
+	  --pdf $(OUTPUT_DIR)/dark/binder.pdf \
+	  --checklist $(OUTPUT_DIR)/dark/checklist.pdf
 	./site/scripts/refresh-screenshots.sh
 
 .PHONY: cache-clear

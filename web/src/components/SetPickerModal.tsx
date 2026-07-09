@@ -218,7 +218,11 @@ export function SetPickerModal({ open, onOpenChange }: Props) {
     setSubmitError(null)
     try {
       const ids = Array.from(draft)
-      await downloadSetCardsPdf(settings.apiKey || undefined, ids)
+      await downloadSetCardsPdf(
+        settings.apiKey || undefined,
+        ids,
+        settings.darkPdfExports ? 'dark' : 'light',
+      )
       setSelectedSetIds(ids)
       onOpenChange(false)
     } catch (err) {

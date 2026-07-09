@@ -241,6 +241,13 @@ export interface Settings {
    * isn't cluttered with a divider it doesn't need.
    */
   leadWithIdCard: boolean
+  /**
+   * Render PDF exports (binder, condensed, checklist, set ID cards) in the
+   * dark theme (#598). Off by default — PDFs are print artifacts, so they
+   * stay light unless you opt in. The xlsx isn't governed by this: it
+   * follows the app theme at export time.
+   */
+  darkPdfExports: boolean
 }
 
 /** One input line tracked through the bulk lookup lifecycle. */

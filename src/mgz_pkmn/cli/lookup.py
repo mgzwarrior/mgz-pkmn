@@ -11,7 +11,7 @@ from pathlib import Path
 import click
 import requests
 
-from .. import __version__, plugins
+from .. import __version__, palette, plugins
 from .. import cache as disk_cache
 from ..binder import CONDENSED_LAYOUT, STANDARD_LAYOUT, write_binder_pdf
 from ..checklist import write_checklist_pdf
@@ -584,6 +584,17 @@ def register(cli: click.Group) -> None:
         ),
     )
     @click.option(
+        "--theme",
+        type=click.Choice(palette.THEMES, case_sensitive=False),
+        default="light",
+        show_default=True,
+        help=(
+            "Color theme for the written artifacts (xlsx + PDFs). Light stays "
+            "the default — the PDFs are print artifacts; dark matches the web "
+            "app's dark mode for on-screen review."
+        ),
+    )
+    @click.option(
         "--print-summary-only",
         is_flag=True,
         help=(
@@ -621,6 +632,7 @@ def register(cli: click.Group) -> None:
         clear_cache: bool,
         default_lang: str | None,
         sort_mode: str,
+        theme: str,
         print_summary_only: bool,
         ebay_opt: bool | None,
         verbose: bool,
@@ -748,23 +760,24 @@ def register(cli: click.Group) -> None:
             click.echo()
             click.secho("  · outputs skipped (--print-summary-only)", fg="bright_black")
         else:
-            _write_lookup_artifacts(
-                rows,
-                output=output,
-                images_dir=images_dir,
-                no_images=no_images,
-                pdf=pdf,
-                condensed_pdf_path=condensed_pdf_path,
-                checklist_path=checklist_path,
-                report_json=report_json,
-                max_price=max_price,
-                counters=counters,
-                tagged_count=len(tagged),
-                overall_elapsed=overall_elapsed,
-                deduped_rows=deduped_rows,
-                sort_mode=sort_mode,
-                plugin_writers=plugin_writers,
-            )
+            with palette.use_theme(theme.lower()):
+                _write_lookup_artifacts(
+                    rows,
+                    output=output,
+                    images_dir=images_dir,
+                    no_images=no_images,
+                    pdf=pdf,
+                    condensed_pdf_path=condensed_pdf_path,
+                    checklist_path=checklist_path,
+                    report_json=report_json,
+                    max_price=max_price,
+                    counters=counters,
+                    tagged_count=len(tagged),
+                    overall_elapsed=overall_elapsed,
+                    deduped_rows=deduped_rows,
+                    sort_mode=sort_mode,
+                    plugin_writers=plugin_writers,
+                )
 
         missing = sum(1 for r in rows if r.card is None)
         click.echo()

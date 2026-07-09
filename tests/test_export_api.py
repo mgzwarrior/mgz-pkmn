@@ -200,5 +200,59 @@ class ExportApiTests(unittest.TestCase):
             self.assertEqual(resp.status_code, 200, f"sort={mode} failed: {resp.text}")
 
 
+class ExportThemeTests(unittest.TestCase):
+    """The `theme` field (#598) — validation plus proof it reaches the writer."""
+
+    def test_unknown_theme_rejected(self) -> None:
+        resp = client.post(
+            "/api/v1/export",
+            json={"rows": [_row_payload()], "format": "xlsx", "theme": "sepia"},
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("theme", resp.json()["detail"])
+
+    def test_dark_theme_accepted_for_every_format(self) -> None:
+        for fmt in ("xlsx", "pdf", "condensed-pdf", "checklist"):
+            resp = client.post(
+                "/api/v1/export",
+                json={"rows": [_row_payload()], "format": fmt, "theme": "dark"},
+            )
+            self.assertEqual(resp.status_code, 200, f"format={fmt} failed: {resp.text}")
+
+    def test_dark_xlsx_paints_the_body(self) -> None:
+        import io
+
+        from openpyxl import load_workbook
+
+        from mgz_pkmn import palette
+
+        resp = client.post(
+            "/api/v1/export",
+            json={"rows": [_row_payload()], "format": "xlsx", "theme": "dark"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        ws = load_workbook(io.BytesIO(resp.content)).active
+        name_cell = ws.cell(row=2, column=3)  # Source tag, Input, Name
+        with palette.use_theme("dark"):
+            dark_surface = palette.hex("bg-surface")
+            dark_fg = palette.hex("fg-1")
+        self.assertEqual(str(name_cell.fill.fgColor.rgb)[-6:], dark_surface)
+        self.assertEqual(str(name_cell.font.color.rgb)[-6:], dark_fg)
+
+    def test_light_xlsx_body_stays_unpainted(self) -> None:
+        import io
+
+        from openpyxl import load_workbook
+
+        resp = client.post(
+            "/api/v1/export",
+            json={"rows": [_row_payload()], "format": "xlsx"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        ws = load_workbook(io.BytesIO(resp.content)).active
+        name_cell = ws.cell(row=2, column=3)
+        self.assertIsNone(name_cell.fill.patternType)
+
+
 if __name__ == "__main__":
     unittest.main()
