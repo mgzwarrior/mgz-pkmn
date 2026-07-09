@@ -44,6 +44,7 @@ import type {
 } from '../api/client'
 import { useAppStore } from '../store'
 import { BinderModal } from './BinderModal'
+import { BinderDetail } from './BinderDetail'
 import { BinderInventory } from './BinderInventory'
 import { CollectionCreateDialog } from './CollectionCreateDialog'
 import { CollectionDetail } from './CollectionDetail'
@@ -134,6 +135,8 @@ export function LibraryBindersTab() {
   const [openWishlist, setOpenWishlist] = useState<WishlistSummary | null>(null)
   // The aggregate insights dashboard.
   const [insightsOpen, setInsightsOpen] = useState(false)
+  // The physical binder whose pocket-spread detail is open (#743).
+  const [openBinder, setOpenBinder] = useState<BinderSummary | null>(null)
 
   useEffect(() => {
     void refreshCollections()
@@ -190,7 +193,7 @@ export function LibraryBindersTab() {
 
   return (
     <div className="space-y-3" data-tour="binders">
-      <BinderInventory />
+      <BinderInventory onOpenBinder={setOpenBinder} />
 
       <div className="border-t border-sand-200 pt-3 dark:border-husk-100" />
 
@@ -338,6 +341,13 @@ export function LibraryBindersTab() {
           if (!target) return
           setOpenWishlist(null)
           setOpenCollection(target)
+        }}
+      />
+      <BinderDetail
+        binder={openBinder}
+        open={openBinder !== null}
+        onOpenChange={(o) => {
+          if (!o) setOpenBinder(null)
         }}
       />
       <CollectionInsights open={insightsOpen} onOpenChange={setInsightsOpen} />
