@@ -34,9 +34,11 @@ jobs:
             author=$(git log -1 --format='%an <%ae>' "$sha")
             # Use git's trailer parser so we match only well-formed trailers
             # in the last paragraph, not arbitrary "Signed-off-by:" mentions
-            # in the commit body.
-            trailer=$(git log -1 --format='%B' "$sha" \
-              | git interpret-trailers --parse \
+            # in the commit body. The %(trailers) pretty-format reads the
+            # commit object directly; piping %B into `git interpret-trailers`
+            # would treat the bare `---` line in dependabot's metadata block
+            # as a patch divider and drop the trailer that follows it.
+            trailer=$(git log -1 --format='%(trailers:key=Signed-off-by,unfold)' "$sha" \
               | grep -E '^Signed-off-by: .+ <.+@.+>$' || true)
             if [ -z "$trailer" ]; then
               echo "::error::Commit $sha by $author is missing a well-formed 'Signed-off-by:' trailer"
