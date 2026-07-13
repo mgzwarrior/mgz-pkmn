@@ -407,4 +407,82 @@ describe('BrowsePanel — pokedex view (#577)', () => {
       expect(screen.queryByAltText('Charizard')).not.toBeInTheDocument(),
     )
   })
+
+  // Collapsible + sortable groups (#914). Group headers are buttons carrying
+  // aria-expanded; the order toggle is a Newest first / Oldest first chip pair.
+  function groupHeaders() {
+    return screen
+      .getAllByRole('button')
+      .filter((b) => b.hasAttribute('aria-expanded'))
+  }
+
+  it('set view: collapses a series group and flips the series order (#914)', async () => {
+    render(<Harness />)
+
+    // Baked catalog is oldest → newest; default order shows newest series first.
+    const headers = groupHeaders()
+    expect(headers.length).toBeGreaterThan(1)
+    expect(headers[0].textContent).toContain('Mega Evolution')
+    expect(headers[headers.length - 1].textContent).toContain('Base')
+
+    // Collapsing a group hides its set tiles and flips aria-expanded.
+    const baseHeader = headers.find((h) => /^Base\b/.test(h.textContent ?? ''))!
+    expect(screen.getByText('Jungle')).toBeInTheDocument()
+    fireEvent.click(baseHeader)
+    expect(baseHeader).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Jungle')).not.toBeInTheDocument()
+    fireEvent.click(baseHeader)
+    expect(screen.getByText('Jungle')).toBeInTheDocument()
+
+    // Oldest first puts the Base era back on top.
+    fireEvent.click(screen.getByRole('button', { name: 'Oldest first' }))
+    expect(groupHeaders()[0].textContent).toContain('Base')
+  })
+
+  it('pokedex view: flips the generation order (#914)', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
+
+    // Filter down first — every order click re-renders the list, and
+    // re-running that over all 1025 dex tiles times out under CI contention
+    // (same trick as the favorites test above). "chu" spans Gen I (Pikachu)
+    // and Gen II (Pichu), enough to observe group order.
+    fireEvent.change(screen.getByLabelText('Find a Pokémon'), {
+      target: { value: 'chu' },
+    })
+    await screen.findByText('Pikachu')
+
+    // Dex reads Gen I first by default.
+    let headers = groupHeaders()
+    expect(headers[0].textContent).toContain('Generation I')
+    const oldestFirst = headers.map((h) => h.textContent)
+    expect(oldestFirst.length).toBeGreaterThan(1)
+
+    // Newest first reverses the generation sections.
+    fireEvent.click(screen.getByRole('button', { name: 'Newest first' }))
+    headers = groupHeaders()
+    expect(headers.map((h) => h.textContent)).toEqual([...oldestFirst].reverse())
+    expect(headers[headers.length - 1].textContent).toContain('Generation I')
+  })
+
+  it('pokedex view: collapses a generation; searching still surfaces its matches (#914)', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
+
+    // Collapse Generation I on the unfiltered list — its species fold away.
+    // (Only one full-dex re-render; more times out under CI contention.)
+    const genOne = groupHeaders().find((h) =>
+      /^Generation I\b/.test(h.textContent ?? ''),
+    )!
+    fireEvent.click(genOne)
+    expect(genOne).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Pikachu')).not.toBeInTheDocument()
+
+    // A search match inside the folded group still shows — collapse state is
+    // ignored while a filter is active.
+    fireEvent.change(screen.getByLabelText('Find a Pokémon'), {
+      target: { value: 'pikachu' },
+    })
+    expect(await screen.findByText('Pikachu')).toBeInTheDocument()
+  })
 })
