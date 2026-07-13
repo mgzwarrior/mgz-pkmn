@@ -407,4 +407,56 @@ describe('BrowsePanel — pokedex view (#577)', () => {
       expect(screen.queryByAltText('Charizard')).not.toBeInTheDocument(),
     )
   })
+
+  // Collapsible + sortable groups (#914). Group headers are buttons carrying
+  // aria-expanded; the order toggle is a Newest first / Oldest first chip pair.
+  function groupHeaders() {
+    return screen
+      .getAllByRole('button')
+      .filter((b) => b.hasAttribute('aria-expanded'))
+  }
+
+  it('set view: collapses a series group and flips the series order (#914)', async () => {
+    render(<Harness />)
+
+    // Baked catalog is oldest → newest; default order shows newest series first.
+    const headers = groupHeaders()
+    expect(headers.length).toBeGreaterThan(1)
+    expect(headers[0].textContent).toContain('Mega Evolution')
+    expect(headers[headers.length - 1].textContent).toContain('Base')
+
+    // Collapsing a group hides its set tiles and flips aria-expanded.
+    const baseHeader = headers.find((h) => /^Base\b/.test(h.textContent ?? ''))!
+    expect(screen.getByText('Jungle')).toBeInTheDocument()
+    fireEvent.click(baseHeader)
+    expect(baseHeader).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Jungle')).not.toBeInTheDocument()
+    fireEvent.click(baseHeader)
+    expect(screen.getByText('Jungle')).toBeInTheDocument()
+
+    // Oldest first puts the Base era back on top.
+    fireEvent.click(screen.getByRole('button', { name: 'Oldest first' }))
+    expect(groupHeaders()[0].textContent).toContain('Base')
+  })
+
+  it('pokedex view: collapses a generation and flips the generation order (#914)', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
+
+    // Dex reads Gen I first by default.
+    await screen.findByText('Bulbasaur')
+    let headers = groupHeaders()
+    expect(headers[0].textContent).toContain('Generation I')
+
+    // Collapse Generation I — its species fold away.
+    fireEvent.click(headers[0])
+    expect(headers[0]).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Bulbasaur')).not.toBeInTheDocument()
+
+    // Newest first puts the latest generation on top.
+    fireEvent.click(screen.getByRole('button', { name: 'Newest first' }))
+    headers = groupHeaders()
+    expect(headers[0].textContent).toContain('Generation IX')
+    expect(headers[headers.length - 1].textContent).toContain('Generation I')
+  })
 })

@@ -10,6 +10,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
   ArrowLeft,
   ChevronDown,
+  ChevronRight,
   FolderPlus,
   GalleryHorizontalEnd,
   ImageOff,
@@ -43,6 +44,7 @@ import type {
   BrowseViewMode,
   CardSort,
   CategoryFilter,
+  GroupOrder,
   PokedexGroup,
   RarityBucket,
   SeriesGroup,
@@ -96,6 +98,12 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     setCategory,
     sort,
     setSort,
+    seriesOrder,
+    setSeriesOrder,
+    generationOrder,
+    setGenerationOrder,
+    collapsedGroups,
+    toggleGroupCollapsed,
     addedCount,
     addAll,
     addHolos,
@@ -280,7 +288,14 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             onAddRares={addRares}
           />
         ) : (
-          <SetListView groups={groups} onPick={(s) => setActiveSet(s)} />
+          <SetListView
+            groups={groups}
+            onPick={(s) => setActiveSet(s)}
+            order={seriesOrder}
+            onOrder={setSeriesOrder}
+            collapsedGroups={collapsedGroups}
+            onToggleCollapsed={toggleGroupCollapsed}
+          />
         )
       ) : activePokemon ? (
         <PokedexDetailView
@@ -301,6 +316,10 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
           showFavoriteControls={showSavedActions}
           isFavorite={isFavorite}
           onToggleFavorite={toggleFavorite}
+          order={generationOrder}
+          onOrder={setGenerationOrder}
+          collapsedGroups={collapsedGroups}
+          onToggleCollapsed={toggleGroupCollapsed}
         />
       )}
 
@@ -468,32 +487,105 @@ function ViewModeToggle({
   )
 }
 
+/** The newest-/oldest-first toggle for group order in either browse list (#914). */
+function GroupOrderToggle({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: GroupOrder
+  onChange: (o: GroupOrder) => void
+  ariaLabel: string
+}) {
+  return (
+    <div className="flex items-center gap-1" role="group" aria-label={ariaLabel}>
+      <Chip active={value === 'newest'} onClick={() => onChange('newest')}>
+        Newest first
+      </Chip>
+      <Chip active={value === 'oldest'} onClick={() => onChange('oldest')}>
+        Oldest first
+      </Chip>
+    </div>
+  )
+}
+
+/** Clickable group header — folds/unfolds the grid beneath it (#914). */
+function CollapsibleGroupHeader({
+  label,
+  count,
+  collapsed,
+  onToggle,
+}: {
+  label: string
+  count: number
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  const Chevron = collapsed ? ChevronRight : ChevronDown
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      className="mb-2 flex w-full items-center gap-1 rounded text-left text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200 hover:text-coconut-700 dark:hover:text-sand-50 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+    >
+      <Chevron size={14} className="flex-none text-coconut-400 dark:text-sand-400" aria-hidden />
+      {label}
+      <span className="ml-1 font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
+        ({count})
+      </span>
+    </button>
+  )
+}
+
 interface SetListProps {
   groups: SeriesGroup[]
   onPick: (set: SetInfo) => void
+  order: GroupOrder
+  onOrder: (o: GroupOrder) => void
+  collapsedGroups: ReadonlySet<string>
+  onToggleCollapsed: (label: string) => void
 }
 
-function SetListView({ groups, onPick }: SetListProps) {
+function SetListView({
+  groups,
+  onPick,
+  order,
+  onOrder,
+  collapsedGroups,
+  onToggleCollapsed,
+}: SetListProps) {
   return (
-    <div className="flex-1 overflow-y-auto px-5 py-3">
-      <ul className="space-y-4">
-        {groups.map((group) => (
-          <li key={group.series}>
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200">
-              {group.series}
-              <span className="ml-1 font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
-                ({group.sets.length})
-              </span>
-            </div>
-            <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
-              {group.sets.map((s) => (
-                <SetTile key={s.id} set={s} onPick={() => onPick(s)} />
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <>
+      <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
+        <span className="text-xs text-coconut-400 dark:text-sand-300">Series order</span>
+        <GroupOrderToggle value={order} onChange={onOrder} ariaLabel="Series order" />
+      </div>
+      <div className="flex-1 overflow-y-auto px-5 py-3">
+        <ul className="space-y-4">
+          {groups.map((group) => {
+            const collapsed = collapsedGroups.has(group.series)
+            return (
+              <li key={group.series}>
+                <CollapsibleGroupHeader
+                  label={group.series}
+                  count={group.sets.length}
+                  collapsed={collapsed}
+                  onToggle={() => onToggleCollapsed(group.series)}
+                />
+                {!collapsed && (
+                  <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.sets.map((s) => (
+                      <SetTile key={s.id} set={s} onPick={() => onPick(s)} />
+                    ))}
+                  </ul>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </>
   )
 }
 
@@ -738,6 +830,10 @@ interface PokedexListProps {
   showFavoriteControls: boolean
   isFavorite: (number: number) => boolean
   onToggleFavorite: (number: number) => void
+  order: GroupOrder
+  onOrder: (o: GroupOrder) => void
+  collapsedGroups: ReadonlySet<string>
+  onToggleCollapsed: (label: string) => void
 }
 
 function PokedexListView({
@@ -749,6 +845,10 @@ function PokedexListView({
   showFavoriteControls,
   isFavorite,
   onToggleFavorite,
+  order,
+  onOrder,
+  collapsedGroups,
+  onToggleCollapsed,
 }: PokedexListProps) {
   // The pinned favorites group only makes sense as a "jump to what I love"
   // shortcut on the unfiltered list — once you're searching, the matching
@@ -773,6 +873,8 @@ function PokedexListView({
             aria-label="Find a Pokémon"
           />
         </label>
+        <span className="text-xs text-coconut-400 dark:text-sand-300">Generation order</span>
+        <GroupOrderToggle value={order} onChange={onOrder} ariaLabel="Generation order" />
       </div>
       <div className="flex-1 overflow-y-auto px-5 py-3">
         {groups.length === 0 && !showFavorites ? (
@@ -789,6 +891,8 @@ function PokedexListView({
                 showFavoriteControls={showFavoriteControls}
                 isFavorite={isFavorite}
                 onToggleFavorite={onToggleFavorite}
+                collapsed={collapsedGroups.has('Your favorites')}
+                onToggleCollapsed={() => onToggleCollapsed('Your favorites')}
               />
             )}
             {groups.map((group) => (
@@ -800,6 +904,8 @@ function PokedexListView({
                 showFavoriteControls={showFavoriteControls}
                 isFavorite={isFavorite}
                 onToggleFavorite={onToggleFavorite}
+                collapsed={collapsedGroups.has(group.label)}
+                onToggleCollapsed={() => onToggleCollapsed(group.label)}
               />
             ))}
           </ul>
@@ -816,6 +922,8 @@ function PokedexGroupSection({
   showFavoriteControls,
   isFavorite,
   onToggleFavorite,
+  collapsed,
+  onToggleCollapsed,
 }: {
   label: string
   species: PokedexEntry[]
@@ -823,27 +931,31 @@ function PokedexGroupSection({
   showFavoriteControls: boolean
   isFavorite: (number: number) => boolean
   onToggleFavorite: (number: number) => void
+  collapsed: boolean
+  onToggleCollapsed: () => void
 }) {
   return (
     <li>
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200">
-        {label}
-        <span className="ml-1 font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
-          ({species.length})
-        </span>
-      </div>
-      <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
-        {species.map((s) => (
-          <SpeciesTile
-            key={s.number}
-            species={s}
-            onPick={() => onPick(s)}
-            showFavoriteControl={showFavoriteControls}
-            favorited={isFavorite(s.number)}
-            onToggleFavorite={() => onToggleFavorite(s.number)}
-          />
-        ))}
-      </ul>
+      <CollapsibleGroupHeader
+        label={label}
+        count={species.length}
+        collapsed={collapsed}
+        onToggle={onToggleCollapsed}
+      />
+      {!collapsed && (
+        <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
+          {species.map((s) => (
+            <SpeciesTile
+              key={s.number}
+              species={s}
+              onPick={() => onPick(s)}
+              showFavoriteControl={showFavoriteControls}
+              favorited={isFavorite(s.number)}
+              onToggleFavorite={() => onToggleFavorite(s.number)}
+            />
+          ))}
+        </ul>
+      )}
     </li>
   )
 }
