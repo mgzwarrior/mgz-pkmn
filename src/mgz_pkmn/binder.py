@@ -6,8 +6,8 @@ Two presets are exposed via the `BinderLayout` config:
   generated cells are the right size to print, cut, and slip into 9-pocket
   binder pages as physical placeholders.
 * `CONDENSED_LAYOUT` — 6x4 grid (24 cards / page) with the same eight-line
-  caption (name, #X/Y, set, MP, 80/85/90/95% comps). Smaller image and
-  tighter type. Same data as standard, packed denser for visual scanning.
+  caption (name, #X/Y, set, market price, 80/85/90/95% comps). Smaller image
+  and tighter type. Same data as standard, packed denser for visual scanning.
 
 The drawing code is shared — the layout constants come from the config
 object so adding a new preset is just a third dataclass instance."""
@@ -73,7 +73,7 @@ class BinderLayout:
         return self.cols * self.rows_per_page
 
 
-# Always 8 caption lines: name, (#X/Y), set, MP, then four comp tiers.
+# Always 8 caption lines: name, (#X/Y), set, market price, then four comp tiers.
 CAPTION_LINES = 8
 
 STANDARD_LAYOUT = BinderLayout(
@@ -214,8 +214,9 @@ def write_binder_pdf(
     Rows are grouped by `Row.tag` (the originating input file) so that each
     list shows up as its own section with a header banner and starts on a
     fresh page. Each card cell shows: image, bold name, "(#num/total)", set
-    name, market price (labelled "MP"), and one comp tier per line at
-    80/85/90/95% — identical for both presets.
+    name, market price (labelled "Mkt", or the row's condition tier code —
+    e.g. "MP" for Moderately Played — when a condition override is priced),
+    and one comp tier per line at 80/85/90/95% — identical for both presets.
 
     `fields` restricts which of those pieces render (#262) — `None` (the
     CLI default) renders everything, matching pre-#262 behavior. A field
@@ -583,8 +584,10 @@ def _draw_cell_price(
     max_price: float | None,
     fields: frozenset[str],
 ) -> float:
-    """Market price labelled "MP". Red `! MP` above cap, green in budget,
-    oblique "no price" when unpriced. Returns the cursor below the line."""
+    """Market price labelled "Mkt" (or the row's condition tier, e.g. "MP",
+    when an explicit condition override is priced). Red `! Mkt`/`! MP` above
+    cap, green in budget, oblique "no price" when unpriced. Returns the
+    cursor below the line."""
     line_y -= layout.caption_leading + 1
     if "market" not in fields:
         return line_y
@@ -594,7 +597,13 @@ def _draw_cell_price(
         is_over_cap = max_price is not None and market > max_price
         c.setFont("Helvetica-Bold", layout.market_font_size)
         condition = row.pricing.condition
-        prefix = f"{condition} " if condition and row.pricing.adjusted_market is not None else "MP "
+        # "MP" is also the Moderately Played condition-tier code (#270) —
+        # using it as the no-condition fallback would make "MP $65.00"
+        # ambiguous between "Market Price" and "Moderately Played". "Mkt"
+        # avoids the collision with the NM/LP/MP/HP tier codes.
+        prefix = (
+            f"{condition} " if condition and row.pricing.adjusted_market is not None else "Mkt "
+        )
         if is_over_cap:
             c.setFillColorRGB(*palette.rgb01("danger-fg"))  # above-cap
             label = f"! {prefix}{sym}{market:,.2f}"
