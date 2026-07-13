@@ -443,20 +443,29 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
 
+    // Filter down first — every collapse/order click re-renders the list, and
+    // re-running that over all 1025 dex tiles times out under CI contention
+    // (same trick as the favorites test above). "chu" spans Gen I (Pikachu)
+    // and Gen II (Pichu), enough to observe group order.
+    fireEvent.change(screen.getByLabelText('Find a Pokémon'), {
+      target: { value: 'chu' },
+    })
+    await screen.findByText('Pikachu')
+
     // Dex reads Gen I first by default.
-    await screen.findByText('Bulbasaur')
     let headers = groupHeaders()
     expect(headers[0].textContent).toContain('Generation I')
+    const oldestFirst = headers.map((h) => h.textContent)
 
     // Collapse Generation I — its species fold away.
     fireEvent.click(headers[0])
     expect(headers[0]).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Bulbasaur')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pikachu')).not.toBeInTheDocument()
 
-    // Newest first puts the latest generation on top.
+    // Newest first reverses the generation sections.
     fireEvent.click(screen.getByRole('button', { name: 'Newest first' }))
     headers = groupHeaders()
-    expect(headers[0].textContent).toContain('Generation IX')
+    expect(headers.map((h) => h.textContent)).toEqual([...oldestFirst].reverse())
     expect(headers[headers.length - 1].textContent).toContain('Generation I')
   })
 })
