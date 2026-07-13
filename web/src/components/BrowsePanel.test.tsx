@@ -439,11 +439,11 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     expect(groupHeaders()[0].textContent).toContain('Base')
   })
 
-  it('pokedex view: collapses a generation and flips the generation order (#914)', async () => {
+  it('pokedex view: flips the generation order (#914)', async () => {
     render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
 
-    // Filter down first — every collapse/order click re-renders the list, and
+    // Filter down first — every order click re-renders the list, and
     // re-running that over all 1025 dex tiles times out under CI contention
     // (same trick as the favorites test above). "chu" spans Gen I (Pikachu)
     // and Gen II (Pichu), enough to observe group order.
@@ -456,16 +456,33 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     let headers = groupHeaders()
     expect(headers[0].textContent).toContain('Generation I')
     const oldestFirst = headers.map((h) => h.textContent)
-
-    // Collapse Generation I — its species fold away.
-    fireEvent.click(headers[0])
-    expect(headers[0]).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Pikachu')).not.toBeInTheDocument()
+    expect(oldestFirst.length).toBeGreaterThan(1)
 
     // Newest first reverses the generation sections.
     fireEvent.click(screen.getByRole('button', { name: 'Newest first' }))
     headers = groupHeaders()
     expect(headers.map((h) => h.textContent)).toEqual([...oldestFirst].reverse())
     expect(headers[headers.length - 1].textContent).toContain('Generation I')
+  })
+
+  it('pokedex view: collapses a generation; searching still surfaces its matches (#914)', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By Pokédex #' }))
+
+    // Collapse Generation I on the unfiltered list — its species fold away.
+    // (Only one full-dex re-render; more times out under CI contention.)
+    const genOne = groupHeaders().find((h) =>
+      /^Generation I\b/.test(h.textContent ?? ''),
+    )!
+    fireEvent.click(genOne)
+    expect(genOne).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Pikachu')).not.toBeInTheDocument()
+
+    // A search match inside the folded group still shows — collapse state is
+    // ignored while a filter is active.
+    fireEvent.change(screen.getByLabelText('Find a Pokémon'), {
+      target: { value: 'pikachu' },
+    })
+    expect(await screen.findByText('Pikachu')).toBeInTheDocument()
   })
 })

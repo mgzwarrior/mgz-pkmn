@@ -853,8 +853,9 @@ function PokedexListView({
   // The pinned favorites group only makes sense as a "jump to what I love"
   // shortcut on the unfiltered list — once you're searching, the matching
   // generation groups already surface the species.
+  const searching = filter.trim() !== ''
   const showFavorites =
-    showFavoriteControls && favoriteEntries.length > 0 && filter.trim() === ''
+    showFavoriteControls && favoriteEntries.length > 0 && !searching
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
@@ -904,7 +905,9 @@ function PokedexListView({
                 showFavoriteControls={showFavoriteControls}
                 isFavorite={isFavorite}
                 onToggleFavorite={onToggleFavorite}
-                collapsed={collapsedGroups.has(group.label)}
+                // A match folded away inside a collapsed generation would read
+                // as a missing result, so searching ignores collapse state.
+                collapsed={!searching && collapsedGroups.has(group.label)}
                 onToggleCollapsed={() => onToggleCollapsed(group.label)}
               />
             ))}
