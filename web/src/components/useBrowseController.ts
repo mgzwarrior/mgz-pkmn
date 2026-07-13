@@ -10,7 +10,8 @@
  * lands on the set list, not whatever they were browsing last time.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchPokedexCards, fetchSetCards, fetchSets } from '../api/client'
+import { fetchClassCards, fetchPokedexCards, fetchSetCards, fetchSets } from '../api/client'
+import type { CardClassEntry } from '../data/cardClasses'
 import { BAKED_POKEDEX, POKEDEX_GENERATIONS } from '../data/pokedex'
 import { BAKED_SETS } from '../data/sets'
 import { useAppStore } from '../store'
@@ -34,9 +35,10 @@ export interface PokedexGroup {
 /**
  * Which organisation Browse is showing: `set` walks series → set → cards;
  * `pokedex` walks national dex # → every printing of that species across
- * every set (issue #577).
+ * every set (issue #577); `class` walks card class → every Supporter /
+ * Item / Special Energy / … across every set (issue #911).
  */
-export type BrowseViewMode = 'set' | 'pokedex'
+export type BrowseViewMode = 'set' | 'pokedex' | 'class'
 
 /** Order of the top-level groups in either browse list (#914). */
 export type GroupOrder = 'newest' | 'oldest'
@@ -151,6 +153,16 @@ export interface BrowseController {
   pokedexCardsError: string | null
   addPokedexCards: (toAdd: PokedexCard[]) => void
   addAllPrintings: () => void
+  // Class view (#911) — card class → every card in that class across all sets.
+  activeClass: CardClassEntry | null
+  setActiveClass: (c: CardClassEntry | null) => void
+  classCards: PokedexCard[] | null
+  filteredClassCards: PokedexCard[]
+  classCardsLoading: boolean
+  classCardsError: string | null
+  classSearch: string
+  setClassSearch: (v: string) => void
+  addAllClassCards: () => void
 }
 
 export function useBrowseController(active: boolean): BrowseController {
@@ -181,8 +193,15 @@ export function useBrowseController(active: boolean): BrowseController {
   const [pokedexCardsError, setPokedexCardsError] = useState<string | null>(null)
   const [pokedexCardsLoading, setPokedexCardsLoading] = useState(false)
 
+  const [activeClass, setActiveClass] = useState<CardClassEntry | null>(null)
+  const [classCards, setClassCards] = useState<PokedexCard[] | null>(null)
+  const [classCardsError, setClassCardsError] = useState<string | null>(null)
+  const [classCardsLoading, setClassCardsLoading] = useState(false)
+  const [classSearch, setClassSearch] = useState('')
+
   const cardCacheRef = useRef<Map<string, SetCard[]>>(new Map())
   const pokedexCacheRef = useRef<Map<number, PokedexCard[]>>(new Map())
+  const classCacheRef = useRef<Map<string, PokedexCard[]>>(new Map())
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -203,17 +222,23 @@ export function useBrowseController(active: boolean): BrowseController {
     setPokedexCards(null)
     setPokedexCardsError(null)
     setPokedexFilter('')
+    setActiveClass(null)
+    setClassCards(null)
+    setClassCardsError(null)
+    setClassSearch('')
   }, [active])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Switching organisation always lands on that view's top-level list:
-  // set view → the set grid, pokedex view → the species index. Clears the
-  // drill-in state on both sides and the shared "added N lines" status so
-  // the toggle is a clean reset, not a half-remembered prior position.
+  // set view → the set grid, pokedex view → the species index, class view →
+  // the class picker. Clears the drill-in state on every side and the shared
+  // "added N lines" status so the toggle is a clean reset, not a
+  // half-remembered prior position.
   function setViewMode(mode: BrowseViewMode) {
     setViewModeState(mode)
     setActiveSet(null)
     setActivePokemon(null)
+    setActiveClass(null)
     setAddedCount(null)
   }
 
@@ -303,6 +328,41 @@ export function useBrowseController(active: boolean): BrowseController {
     }
   }, [activePokemon, settings.apiKey])
 
+  useEffect(() => {
+    if (!activeClass) return
+    let cancelled = false
+    const load = async () => {
+      setAddedCount(null)
+      setClassCardsError(null)
+      setClassSearch('')
+
+      const cached = classCacheRef.current.get(activeClass.id)
+      if (cached) {
+        setClassCards(cached)
+        setClassCardsLoading(false)
+        return
+      }
+
+      setClassCardsLoading(true)
+      setClassCards(null)
+      try {
+        const data = await fetchClassCards(activeClass.id, settings.apiKey || undefined)
+        if (!cancelled) {
+          classCacheRef.current.set(activeClass.id, data)
+          setClassCards(data)
+        }
+      } catch (err) {
+        if (!cancelled) setClassCardsError(err instanceof Error ? err.message : String(err))
+      } finally {
+        if (!cancelled) setClassCardsLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [activeClass, settings.apiKey])
+
   const groups = useMemo(() => groupBySeries(sets, seriesOrder), [sets, seriesOrder])
 
   const pokedexGroups = useMemo(() => {
@@ -369,6 +429,26 @@ export function useBrowseController(active: boolean): BrowseController {
     addPokedexCards(pokedexCards ?? [])
   }
 
+  // Class view (#911). Classes run big (Supporter is 1000+ cards), so the
+  // detail grid gets its own name/set search over the loaded rows — that's
+  // also the "walk Marnie" path: drill into Supporters, search her name.
+  const filteredClassCards = useMemo(() => {
+    if (!classCards) return []
+    const term = classSearch.trim().toLowerCase()
+    if (!term) return classCards
+    return classCards.filter(
+      (c) =>
+        (c.name || '').toLowerCase().includes(term) ||
+        (c.setName || '').toLowerCase().includes(term) ||
+        (c.number || '').toLowerCase().includes(term) ||
+        (c.rarity || '').toLowerCase().includes(term),
+    )
+  }, [classCards, classSearch])
+
+  function addAllClassCards() {
+    addPokedexCards(filteredClassCards)
+  }
+
   return {
     viewMode,
     setViewMode,
@@ -408,5 +488,14 @@ export function useBrowseController(active: boolean): BrowseController {
     pokedexCardsError,
     addPokedexCards,
     addAllPrintings,
+    activeClass,
+    setActiveClass,
+    classCards,
+    filteredClassCards,
+    classCardsLoading,
+    classCardsError,
+    classSearch,
+    setClassSearch,
+    addAllClassCards,
   }
 }

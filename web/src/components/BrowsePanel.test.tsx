@@ -32,6 +32,37 @@ const CHARIZARD_PRINTINGS: PokedexCard[] = [
   },
 ]
 
+const SUPPORTER_CARDS: PokedexCard[] = [
+  {
+    id: 'sv2-185',
+    name: 'Iono',
+    number: '185',
+    rarity: 'Ultra Rare',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 30,
+    dexNumbers: [],
+    setId: 'sv2',
+    setName: 'Paldea Evolved',
+    releaseDate: '2023/06/09',
+  },
+  {
+    id: 'swsh1-169',
+    name: 'Marnie',
+    number: '169',
+    rarity: 'Rare Ultra',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 40,
+    dexNumbers: [],
+    setId: 'swsh1',
+    setName: 'Sword & Shield',
+    releaseDate: '2020/02/07',
+  },
+]
+
 describe('BrowsePanel — pokedex view (#577)', () => {
   beforeEach(() => {
     useAppStore.setState({ inputText: '' })
@@ -484,5 +515,69 @@ describe('BrowsePanel — pokedex view (#577)', () => {
       target: { value: 'pikachu' },
     })
     expect(await screen.findByText('Pikachu')).toBeInTheDocument()
+  })
+
+  it('class view: toggles to the class picker and lists the baked classes (#911)', async () => {
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'By class' }))
+
+    expect(screen.getByText('Browse by class')).toBeInTheDocument()
+    // The baked class index seeds the picker with zero round-trips.
+    expect(screen.getByText('Trainers')).toBeInTheDocument()
+    expect(screen.getByText('Supporters')).toBeInTheDocument()
+    expect(screen.getByText('Special Energy')).toBeInTheDocument()
+    expect(screen.getByText('ACE SPEC')).toBeInTheDocument()
+  })
+
+  it('class view: drills into a class, fetches its cards, and searches within it (#911)', async () => {
+    const fetchClass = vi
+      .spyOn(client, 'fetchClassCards')
+      .mockResolvedValue(SUPPORTER_CARDS)
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By class' }))
+    fireEvent.click(screen.getByText('Supporters'))
+
+    // The fetch keys off the baked class id.
+    await waitFor(() => expect(fetchClass).toHaveBeenCalledWith('supporter', undefined))
+
+    // Class tiles lead with the card's name (the set is the subtitle).
+    expect(await screen.findByText('Marnie')).toBeInTheDocument()
+    expect(screen.getByText('Iono')).toBeInTheDocument()
+    expect(screen.getByText('Sword & Shield')).toBeInTheDocument()
+    expect(screen.getByText('2 of 2 cards')).toBeInTheDocument()
+
+    // Searching within the class is the "walk Marnie" path.
+    fireEvent.change(screen.getByLabelText('Search cards in this class'), {
+      target: { value: 'marnie' },
+    })
+    expect(screen.getByText('1 of 2 cards')).toBeInTheDocument()
+    expect(screen.queryByText('Iono')).not.toBeInTheDocument()
+
+    // Clicking a card opens the same detail modal the other views use.
+    fireEvent.click(
+      screen.getByRole('button', { name: /View details for Marnie from Sword & Shield/ }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getAllByText('Marnie').length).toBeGreaterThan(0)
+    expect(within(dialog).getByText('$40.00')).toBeInTheDocument()
+  })
+
+  it('class view: shows the per-card save actions and ownership surface when signed in (#911)', async () => {
+    vi.spyOn(client, 'fetchClassCards').mockResolvedValue(SUPPORTER_CARDS)
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By class' }))
+    fireEvent.click(screen.getByText('Supporters'))
+
+    expect(await screen.findByText('Marnie')).toBeInTheDocument()
+
+    // Same one-tap want / own quick actions Pokemon printings get (#761);
+    // useAuth resolves async, so wait for the per-card actions to mount.
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /^want$/i })).toHaveLength(2)
+    })
+    expect(screen.getAllByRole('button', { name: /^own$/i })).toHaveLength(2)
   })
 })

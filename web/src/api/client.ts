@@ -352,6 +352,33 @@ export async function fetchPokedexCards(
   return data.cards as PokedexCard[]
 }
 
+/**
+ * Fetch every card in one card class (Supporters, Items, Special Energy, …)
+ * across all sets, newest-first, for Browse's by-class view (#911). `classId`
+ * is one of the baked ids in `data/cardClasses.ts`; rows arrive pre-sorted
+ * with the same per-card set context the pokedex view uses, so they share
+ * the `PokedexCard` shape. Browser-cacheable for a day like `fetchSetCards`.
+ */
+export async function fetchClassCards(
+  classId: string,
+  apiKey?: string,
+): Promise<PokedexCard[]> {
+  const params = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  const res = await fetch(`${BASE}/classes/${encodeURIComponent(classId)}/cards${params}`)
+  if (!res.ok) {
+    let detail = `class cards failed: ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* fall through */
+    }
+    throw new Error(detail)
+  }
+  const data = await res.json()
+  return data.cards as PokedexCard[]
+}
+
 // ---------------------------------------------------------------------------
 // overrides
 // ---------------------------------------------------------------------------

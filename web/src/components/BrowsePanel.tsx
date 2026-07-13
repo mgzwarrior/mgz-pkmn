@@ -1,10 +1,11 @@
 /**
  * BrowsePanel — the inline "browse cards" view rendered by the Browse
  * discovery-mode tab in App.tsx. A view-mode toggle flips the whole panel
- * between two organisations (#577): **set view** (series → set → cards in
- * that set) and **pokedex view** (national dex # → every printing of one
- * Pokémon across every set). State + effects live in
- * [useBrowseController](./useBrowseController.ts).
+ * between three organisations: **set view** (series → set → cards in that
+ * set), **pokedex view** (#577: national dex # → every printing of one
+ * Pokémon across every set), and **class view** (#911: card class → every
+ * Supporter / Item / Special Energy / … across every set). State + effects
+ * live in [useBrowseController](./useBrowseController.ts).
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
@@ -23,6 +24,7 @@ import {
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
+import { CARD_CLASS_GROUPS, type CardClassEntry } from '../data/cardClasses'
 import { BAKED_POKEDEX } from '../data/pokedex'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
@@ -117,6 +119,15 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     pokedexCardsLoading,
     pokedexCardsError,
     addAllPrintings,
+    activeClass,
+    setActiveClass,
+    classCards,
+    filteredClassCards,
+    classCardsLoading,
+    classCardsError,
+    classSearch,
+    setClassSearch,
+    addAllClassCards,
   } = controller
 
   // Hoist the auth read here (not per tile) so the grid fires one `/me`
@@ -190,9 +201,23 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     if (seed) setPendingCreate({ kind, ...seed })
   }
 
-  const drilledIn = viewMode === 'set' ? !!activeSet : !!activePokemon
-  const onBack = () =>
-    viewMode === 'set' ? setActiveSet(null) : setActivePokemon(null)
+  const drilledIn =
+    viewMode === 'set' ? !!activeSet : viewMode === 'pokedex' ? !!activePokemon : !!activeClass
+  const onBack = () => {
+    if (viewMode === 'set') setActiveSet(null)
+    else if (viewMode === 'pokedex') setActivePokemon(null)
+    else setActiveClass(null)
+  }
+  // The New ▾ create-from-Browse menu needs a smart-collection rule to
+  // offer, and collection rules speak set_id / name — there's no card-class
+  // rule (yet), so class view leans on the per-card save actions instead.
+  const showCreateMenu = drilledIn && showSavedActions && viewMode !== 'class'
+  const backLabel =
+    viewMode === 'set'
+      ? 'Back to set list'
+      : viewMode === 'pokedex'
+        ? 'Back to Pokédex list'
+        : 'Back to class list'
 
   let headerTitle: string
   let description: string
@@ -201,13 +226,18 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     description = activeSet
       ? 'Click a card for its details and comps, or use the bulk actions below to build your list.'
       : 'Pick a set to see every card with its market price, sortable and filterable.'
-  } else {
+  } else if (viewMode === 'pokedex') {
     headerTitle = activePokemon
       ? `#${activePokemon.number} ${activePokemon.name}`
       : 'Browse by Pokédex #'
     description = activePokemon
       ? 'Every printing we found, newest first. Click a card for its details and comps.'
       : 'Pick a Pokémon to see every printing across every set, newest first.'
+  } else {
+    headerTitle = activeClass ? activeClass.label : 'Browse by class'
+    description = activeClass
+      ? 'Every card in this class, newest first. Search within it to walk one character or item.'
+      : 'Pick a card class — Supporters, Items, Special Energy, and more — to walk it across every set.'
   }
 
   return (
@@ -221,7 +251,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             <button
               type="button"
               onClick={onBack}
-              aria-label={viewMode === 'set' ? 'Back to set list' : 'Back to Pokédex list'}
+              aria-label={backLabel}
               className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-700 dark:hover:text-sand-50"
             >
               <ArrowLeft size={16} />
@@ -249,7 +279,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
               withLabel
             />
           )}
-          {drilledIn && showSavedActions && (
+          {showCreateMenu && (
             <BrowseCreateMenu
               kind={viewMode}
               seedLoading={seedLoading}
@@ -297,30 +327,46 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             onToggleCollapsed={toggleGroupCollapsed}
           />
         )
-      ) : activePokemon ? (
-        <PokedexDetailView
+      ) : viewMode === 'pokedex' ? (
+        activePokemon ? (
+          <PokedexDetailView
+            showSavedActions={showSavedActions}
+            cards={pokedexCards}
+            loading={pokedexCardsLoading}
+            error={pokedexCardsError}
+            addedCount={addedCount}
+            onAddAll={addAllPrintings}
+          />
+        ) : (
+          <PokedexListView
+            groups={pokedexGroups}
+            filter={pokedexFilter}
+            onFilter={setPokedexFilter}
+            onPick={(p) => setActivePokemon(p)}
+            favoriteEntries={favoriteEntries}
+            showFavoriteControls={showSavedActions}
+            isFavorite={isFavorite}
+            onToggleFavorite={toggleFavorite}
+            order={generationOrder}
+            onOrder={setGenerationOrder}
+            collapsedGroups={collapsedGroups}
+            onToggleCollapsed={toggleGroupCollapsed}
+          />
+        )
+      ) : activeClass ? (
+        <ClassDetailView
           showSavedActions={showSavedActions}
-          cards={pokedexCards}
-          loading={pokedexCardsLoading}
-          error={pokedexCardsError}
+          cards={filteredClassCards}
+          total={classCards?.length ?? 0}
+          loading={classCardsLoading}
+          error={classCardsError}
+          search={classSearch}
+          onSearch={setClassSearch}
           addedCount={addedCount}
-          onAddAll={addAllPrintings}
+          onAddAll={addAllClassCards}
         />
       ) : (
-        <PokedexListView
-          groups={pokedexGroups}
-          filter={pokedexFilter}
-          onFilter={setPokedexFilter}
-          onPick={(p) => setActivePokemon(p)}
-          favoriteEntries={favoriteEntries}
-          showFavoriteControls={showSavedActions}
-          isFavorite={isFavorite}
-          onToggleFavorite={toggleFavorite}
-          order={generationOrder}
-          onOrder={setGenerationOrder}
-          collapsedGroups={collapsedGroups}
-          onToggleCollapsed={toggleGroupCollapsed}
-        />
+        <ClassListView onPick={(c) => setActiveClass(c)} />
       )}
 
       {/* Create-from-Browse dialogs (#737), seeded from the active set/species.
@@ -450,6 +496,7 @@ function BrowseCreateItem({
 const VIEW_MODES: { value: BrowseViewMode; label: string }[] = [
   { value: 'set', label: 'By set' },
   { value: 'pokedex', label: 'By Pokédex #' },
+  { value: 'class', label: 'By class' },
 ]
 
 function ViewModeToggle({
@@ -1160,6 +1207,156 @@ function PokedexDetailView({
   )
 }
 
+/** The class picker (#911) — a dozen fixed tiles, grouped Trainers / Energy /
+ *  vintage. No search or collapse: the whole index fits on one screen. */
+function ClassListView({ onPick }: { onPick: (entry: CardClassEntry) => void }) {
+  return (
+    <div className="flex-1 overflow-y-auto px-5 py-3">
+      <ul className="space-y-4">
+        {CARD_CLASS_GROUPS.map((group) => (
+          <li key={group.label}>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200">
+              {group.label}
+              <span className="ml-1 font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
+                ({group.classes.length})
+              </span>
+            </h3>
+            <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
+              {group.classes.map((entry) => (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(entry)}
+                    className="flex w-full flex-col gap-0.5 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 px-3 py-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+                  >
+                    <span className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
+                      {entry.label}
+                    </span>
+                    <span className="truncate text-xs text-coconut-400 dark:text-sand-400">
+                      {entry.blurb}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Class drill-in (#911) — the pokedex printings grid plus a search box,
+ *  because a class runs far bigger than one species (Supporter is 1000+
+ *  cards). Searching within the class is the "walk Marnie" path. */
+function ClassDetailView({
+  showSavedActions,
+  cards,
+  total,
+  loading,
+  error,
+  search,
+  onSearch,
+  addedCount,
+  onAddAll,
+}: {
+  showSavedActions: boolean
+  cards: PokedexCard[]
+  total: number
+  loading: boolean
+  error: string | null
+  search: string
+  onSearch: (v: string) => void
+  addedCount: number | null
+  onAddAll: () => void
+}) {
+  // Same modal-index pattern as the other detail views: track the position
+  // in the displayed (filtered) rows so ←/→ navigation follows the filter.
+  const [detailIndex, setDetailIndex] = useState<number | null>(null)
+  const rows = useMemo<Row[]>(() => cards.map((c) => browseCardToRow(c)), [cards])
+  // Cross-collection ownership badges (#576), signed-in only. Each card
+  // carries its own set id, like a pokedex printing.
+  const ownershipIds = useMemo(
+    () =>
+      showSavedActions ? cards.map((c) => ({ setId: c.setId, number: c.number })) : [],
+    [showSavedActions, cards],
+  )
+  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
+        <label className="relative flex-1 min-w-[180px]">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-coconut-400 dark:text-sand-400"
+            aria-hidden
+          />
+          <input
+            type="search"
+            placeholder="Search this class by name or set…"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 py-1.5 pl-8 pr-2 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:placeholder:text-sand-400 focus:border-sand-400 dark:focus:border-coconut-400 focus:outline-none"
+            aria-label="Search cards in this class"
+          />
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-2 text-xs text-coconut-400 dark:text-sand-300">
+        <span>
+          {cards.length} of {total} card{total === 1 ? '' : 's'}
+        </span>
+        {cards.length > 0 && (
+          <>
+            <span className="text-coconut-300 dark:text-sand-500">·</span>
+            <BulkButton onClick={onAddAll}>Add all visible</BulkButton>
+          </>
+        )}
+        {addedCount != null && (
+          <span className="ml-auto text-palm-500 dark:text-palm-200" role="status">
+            Added {addedCount} line{addedCount === 1 ? '' : 's'} to your list
+          </span>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-3">
+        {error && (
+          <p className="rounded border border-ember-500/40 dark:border-ember-500/50 bg-ember-500/10 dark:bg-ember-500/30 px-3 py-2 text-sm text-ember-400 dark:text-ember-300">
+            Couldn’t load cards: {error}
+          </p>
+        )}
+        {loading && !error && (
+          <p className="flex items-center gap-2 text-sm text-coconut-400 dark:text-sand-300">
+            <Loader2 size={14} className="animate-spin" />
+            Loading cards…
+          </p>
+        )}
+        {!loading && !error && cards.length === 0 && (
+          <p className="text-sm text-coconut-400 dark:text-sand-400">
+            {total === 0 ? 'No cards found.' : 'No cards match your search.'}
+          </p>
+        )}
+        {!loading && !error && cards.length > 0 && (
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {cards.map((c, i) => (
+              <PokedexCardTile
+                key={c.id}
+                card={c}
+                showSavedActions={showSavedActions}
+                ownership={lookupOwnership(c.setId, c.number)}
+                onOpenDetail={() => setDetailIndex(i)}
+                nameFirst
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <CardDetailModal rows={rows} index={detailIndex} onChangeIndex={setDetailIndex} />
+    </>
+  )
+}
+
 function CardTile({
   card,
   setCtx,
@@ -1229,15 +1426,22 @@ function PokedexCardTile({
   showSavedActions,
   ownership,
   onOpenDetail,
+  nameFirst = false,
 }: {
   card: PokedexCard
   showSavedActions: boolean
   ownership: CardOwnership | null | undefined
   onOpenDetail: () => void
+  /** Lead with the card's name instead of its set. A species' printings all
+   *  share one name so the set differentiates; a class's cards are the
+   *  opposite (#911) — Marnie vs Rare Candy is the headline there. */
+  nameFirst?: boolean
 }) {
   const [thumbFailed, setThumbFailed] = useState(false)
   const hidePricing = useAppStore((s) => s.settings.hidePricing)
   const year = releaseYear(card.releaseDate)
+  const title = nameFirst ? card.name : card.setName
+  const subtitle = nameFirst ? card.setName : card.rarity
   return (
     <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
       <button
@@ -1262,8 +1466,8 @@ function PokedexCardTile({
           )}
         </div>
         <div className="mt-2 min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={card.setName}>
-            {card.setName}
+          <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={title ?? undefined}>
+            {title}
           </div>
           <div className="flex items-center justify-between text-xs text-coconut-400 dark:text-sand-400">
             <span>
@@ -1274,8 +1478,8 @@ function PokedexCardTile({
               <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
             )}
           </div>
-          {card.rarity && (
-            <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{card.rarity}</div>
+          {subtitle && (
+            <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{subtitle}</div>
           )}
         </div>
       </button>
