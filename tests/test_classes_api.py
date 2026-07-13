@@ -34,7 +34,9 @@ class ClassesRouteTests(unittest.TestCase):
     """`GET /api/v1/classes/{class_id}/cards` — every card in one class (#911)."""
 
     def test_returns_cards_with_set_context(self) -> None:
-        with patch("api.routes.classes._fetch_class_cards", return_value=[_MARNIE]) as fetch_mock:
+        with patch(
+            "api.routes.classes._fetch_class_cards", return_value=([_MARNIE], "HIT")
+        ) as fetch_mock:
             resp = client.get("/api/v1/classes/supporter/cards")
 
         self.assertEqual(resp.status_code, 200)
@@ -46,7 +48,7 @@ class ClassesRouteTests(unittest.TestCase):
         for field in ("setId", "setName", "releaseDate"):
             self.assertIn(field, card)
         self.assertEqual(card["setName"], "Sword & Shield")
-        fetch_mock.assert_called_once_with("supporter", None)
+        fetch_mock.assert_called_once_with("supporter", None, cache_only=False)
 
     def test_404_for_unknown_class(self) -> None:
         resp = client.get("/api/v1/classes/holo-bird/cards")
@@ -54,13 +56,13 @@ class ClassesRouteTests(unittest.TestCase):
         self.assertIn("holo-bird", resp.json()["detail"])
 
     def test_404_when_class_has_no_cards(self) -> None:
-        with patch("api.routes.classes._fetch_class_cards", return_value=[]):
+        with patch("api.routes.classes._fetch_class_cards", return_value=([], "MISS")):
             resp = client.get("/api/v1/classes/radiant/cards")
         self.assertEqual(resp.status_code, 404)
         self.assertIn("radiant", resp.json()["detail"])
 
     def test_browser_cache_control_header(self) -> None:
-        with patch("api.routes.classes._fetch_class_cards", return_value=[_MARNIE]):
+        with patch("api.routes.classes._fetch_class_cards", return_value=([_MARNIE], "HIT")):
             resp = client.get("/api/v1/classes/supporter/cards")
         self.assertEqual(resp.status_code, 200)
         cache_control = resp.headers.get("cache-control", "")
@@ -68,9 +70,32 @@ class ClassesRouteTests(unittest.TestCase):
         self.assertIn("max-age=", cache_control)
 
     def test_api_key_passed_through(self) -> None:
-        with patch("api.routes.classes._fetch_class_cards", return_value=[_MARNIE]) as fetch_mock:
+        with patch(
+            "api.routes.classes._fetch_class_cards", return_value=([_MARNIE], "HIT")
+        ) as fetch_mock:
             client.get("/api/v1/classes/item/cards?api_key=abc")
-        fetch_mock.assert_called_once_with("item", "abc")
+        fetch_mock.assert_called_once_with("item", "abc", cache_only=False)
+
+    def test_cache_only_empty_returns_200_not_404(self) -> None:
+        # `MGZ_PKMN_CACHE_ONLY` + cold cache must not 404 (or reach upstream) —
+        # mirror `/sets/{id}/cards` and return an empty 200 the SPA renders as
+        # an empty state, tagged `X-Cache: MISS-CACHE-ONLY` and un-browser-cached.
+        with patch("api.routes.classes._fetch_class_cards", return_value=([], "MISS-CACHE-ONLY")):
+            resp = client.get("/api/v1/classes/supporter/cards")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"classId": "supporter", "cards": []})
+        self.assertEqual(resp.headers.get("x-cache"), "MISS-CACHE-ONLY")
+        self.assertNotIn("cache-control", resp.headers)
+
+    def test_cache_only_mode_passed_through(self) -> None:
+        with (
+            patch("api.routes.classes.cache_only_enabled", return_value=True),
+            patch(
+                "api.routes.classes._fetch_class_cards", return_value=([_MARNIE], "HIT")
+            ) as fetch_mock,
+        ):
+            client.get("/api/v1/classes/supporter/cards")
+        fetch_mock.assert_called_once_with("supporter", None, cache_only=True)
 
 
 class ClassesHelperTests(unittest.TestCase):
@@ -82,8 +107,8 @@ class ClassesHelperTests(unittest.TestCase):
 
         captured: list[tuple[str, int, int]] = []
 
-        def _capture(self_, query, page_size=50, max_pages=12):
-            del self_
+        def _capture(self_, query, page_size=50, max_pages=12, *, cache_only=False):
+            del self_, cache_only
             captured.append((query, page_size, max_pages))
             return [], "MISS"
 
@@ -125,13 +150,14 @@ class ClassesHelperTests(unittest.TestCase):
             },
         ]
 
-        def _stub(self_, query, page_size=50, max_pages=12):
-            del self_, query, page_size, max_pages
+        def _stub(self_, query, page_size=50, max_pages=12, *, cache_only=False):
+            del self_, query, page_size, max_pages, cache_only
             return raw, "HIT"
 
         with patch("mgz_pkmn.sources.pokemontcg.TCGClient.search_all", _stub):
-            out = _fetch_class_cards("supporter", api_key=None)
+            out, status = _fetch_class_cards("supporter", api_key=None)
 
+        self.assertEqual(status, "HIT")
         self.assertEqual([c["id"] for c in out], ["c", "b", "a"])
 
 

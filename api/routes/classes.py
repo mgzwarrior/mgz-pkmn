@@ -26,6 +26,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from mgz_pkmn.sources import TCGClient
 
+from ..cache_mode import cache_only_enabled
 from .pokedex import _collector_sort_key, _trim_pokedex_card
 from .sets import _SET_CARDS_BROWSER_TTL
 
@@ -56,22 +57,28 @@ _CLASS_PAGE_SIZE = 250
 _CLASS_MAX_PAGES = 12
 
 
-def _fetch_class_cards(class_id: str, api_key: str | None) -> list[dict[str, Any]]:
+def _fetch_class_cards(
+    class_id: str, api_key: str | None, *, cache_only: bool = False
+) -> tuple[list[dict[str, Any]], str]:
     """Fetch every card in a class via pokemontcg.io, newest first.
 
     Flows through `search_all` so the request shares the on-disk API cache
-    with the rest of the app. Sorted server-side with the pokedex view's
-    contract: release date desc, then set name, then collector number."""
+    with the rest of the app; `cache_only` (driven by `MGZ_PKMN_CACHE_ONLY`,
+    see `api.cache_mode`) keeps an uncached class from reaching upstream and
+    surfaces as a `MISS-CACHE-ONLY` status instead. Sorted server-side with
+    the pokedex view's contract: release date desc, then set name, then
+    collector number."""
     client = TCGClient(api_key=api_key)
-    cards, _status = client.search_all(
+    cards, status = client.search_all(
         CARD_CLASS_QUERIES[class_id],
         page_size=_CLASS_PAGE_SIZE,
         max_pages=_CLASS_MAX_PAGES,
+        cache_only=cache_only,
     )
     trimmed = [_trim_pokedex_card(c) for c in cards]
     trimmed.sort(key=lambda c: (c.get("setName") or "", _collector_sort_key(c.get("number") or "")))
     trimmed.sort(key=lambda c: c.get("releaseDate") or "", reverse=True)
-    return trimmed
+    return trimmed, status
 
 
 @router.get("/classes/{class_id}/cards")
@@ -88,8 +95,19 @@ async def get_class_cards(
     message as an empty state."""
     if class_id not in CARD_CLASS_QUERIES:
         raise HTTPException(status_code=404, detail=f"unknown card class {class_id!r}")
-    cards = await run_in_threadpool(_fetch_class_cards, class_id, api_key)
+    cards, cache_status = await run_in_threadpool(
+        _fetch_class_cards, class_id, api_key, cache_only=cache_only_enabled()
+    )
     if not cards:
+        # A `MISS-CACHE-ONLY` empty means "not in the disk cache and we were
+        # told not to fetch upstream" (`MGZ_PKMN_CACHE_ONLY`), not "this class
+        # has no cards" — mirror `/sets/{id}/cards` and return an empty 200
+        # the SPA renders as an empty state. Don't browser-cache it so a
+        # later warm cache isn't masked.
+        if cache_status == "MISS-CACHE-ONLY":
+            response.headers["X-Cache"] = cache_status
+            return {"classId": class_id, "cards": []}
         raise HTTPException(status_code=404, detail=f"no cards found for class {class_id!r}")
     response.headers["Cache-Control"] = f"public, max-age={_SET_CARDS_BROWSER_TTL}"
+    response.headers["X-Cache"] = cache_status
     return {"classId": class_id, "cards": cards}
