@@ -12,6 +12,10 @@ cross-set trim (`pokedex._trim_pokedex_card`) and sort — newest set first,
 ties broken set A→Z, collector number low→high — so the SPA renders the
 response verbatim with the same tile it uses for a species' printings.
 
+Trainer classes follow the same card-name grouping used by Bulbapedia's
+English Trainer-card index: repeated printings of the same trainer, object,
+character, or location stay adjacent instead of being interleaved only by release date.
+
 Classes are much bigger than a single species (Supporter alone is well
 past a thousand cards), so the fetch pages at the API's max page size with
 generous page headroom. A 1-day `Cache-Control` matches the other browse
@@ -60,12 +64,14 @@ _CLASS_MAX_PAGES = 12
 def _fetch_class_cards(
     class_id: str, api_key: str | None, *, cache_only: bool = False
 ) -> tuple[list[dict[str, Any]], str]:
-    """Fetch every card in a class via pokemontcg.io, newest first.
+    """Fetch every card in a class via pokemontcg.io, grouped by card name.
 
     Flows through `search_all` so the request shares the on-disk API cache
     with the rest of the app; `cache_only` (driven by `MGZ_PKMN_CACHE_ONLY`,
     see `api.cache_mode`) keeps an uncached class from reaching upstream and
-    surfaces as a `MISS-CACHE-ONLY` status instead. Sorted server-side with
+    surfaces as a `MISS-CACHE-ONLY` status instead. Sorted server-side by
+    card name first so cards for the same trainer, object, character, or
+    location stay together; each name group then uses
     the pokedex view's contract: release date desc, then set name, then
     collector number."""
     client = TCGClient(api_key=api_key)
@@ -76,8 +82,9 @@ def _fetch_class_cards(
         cache_only=cache_only,
     )
     trimmed = [_trim_pokedex_card(c) for c in cards]
-    trimmed.sort(key=lambda c: (c.get("setName") or "", _collector_sort_key(c.get("number") or "")))
     trimmed.sort(key=lambda c: c.get("releaseDate") or "", reverse=True)
+    trimmed.sort(key=lambda c: (c.get("setName") or "", _collector_sort_key(c.get("number") or "")))
+    trimmed.sort(key=lambda c: (c.get("name") or "").casefold())
     return trimmed, status
 
 

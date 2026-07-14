@@ -543,8 +543,9 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     await waitFor(() => expect(fetchClass).toHaveBeenCalledWith('supporter', undefined))
 
     // Class tiles lead with the card's name (the set is the subtitle).
-    expect(await screen.findByText('Marnie')).toBeInTheDocument()
-    expect(screen.getByText('Iono')).toBeInTheDocument()
+    expect(await screen.findAllByText('Marnie')).toHaveLength(2)
+    expect(screen.getAllByText('Iono')).toHaveLength(2)
+    expect(screen.getAllByText('1 printing')).toHaveLength(2)
     expect(screen.getByText('Sword & Shield')).toBeInTheDocument()
     expect(screen.getByText('2 of 2 cards')).toBeInTheDocument()
 
@@ -571,7 +572,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'By class' }))
     fireEvent.click(screen.getByText('Supporters'))
 
-    expect(await screen.findByText('Marnie')).toBeInTheDocument()
+    expect(await screen.findAllByText('Marnie')).toHaveLength(2)
 
     // Same one-tap want / own quick actions Pokemon printings get (#761);
     // useAuth resolves async, so wait for the per-card actions to mount.

@@ -124,9 +124,10 @@ class ClassesHelperTests(unittest.TestCase):
             ],
         )
 
-    def test_sorts_release_desc_then_set_then_number(self) -> None:
-        # Same contract as the pokedex view: newest set first, ties broken
-        # set A→Z, collector number low→high.
+    def test_groups_same_trainer_object_or_character_then_sorts_printings(self) -> None:
+        # Bulbapedia's English Trainer-card index groups repeated card names
+        # together; within each trainer/object/character group, keep the
+        # pokedex-style newest set first, then set A→Z, collector number.
         from api.routes.classes import _fetch_class_cards
 
         raw = [
@@ -134,7 +135,7 @@ class ClassesHelperTests(unittest.TestCase):
                 "id": "a",
                 "name": "Marnie",
                 "number": "25",
-                "set": {"id": "s1", "name": "Alpha", "releaseDate": "2020/01/01"},
+                "set": {"id": "s1", "name": "Alpha", "releaseDate": "2025/01/01"},
             },
             {
                 "id": "b",

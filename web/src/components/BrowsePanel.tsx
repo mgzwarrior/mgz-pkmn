@@ -236,7 +236,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   } else {
     headerTitle = activeClass ? activeClass.label : 'Browse by class'
     description = activeClass
-      ? 'Every card in this class, newest first. Search within it to walk one character or item.'
+      ? 'Every card in this class, grouped by trainer, object, or character. Search within it to walk one name.'
       : 'Pick a card class — Supporters, Items, Special Energy, and more — to walk it across every set.'
   }
 
@@ -1274,6 +1274,22 @@ function ClassDetailView({
   // in the displayed (filtered) rows so ←/→ navigation follows the filter.
   const [detailIndex, setDetailIndex] = useState<number | null>(null)
   const rows = useMemo<Row[]>(() => cards.map((c) => browseCardToRow(c)), [cards])
+  const cardGroups = useMemo(() => {
+    const groups: Array<{
+      name: string
+      cards: Array<{ card: PokedexCard; index: number }>
+    }> = []
+    for (const [index, card] of cards.entries()) {
+      const name = card.name || 'Unnamed card'
+      const last = groups.at(-1)
+      if (last?.name === name) {
+        last.cards.push({ card, index })
+      } else {
+        groups.push({ name, cards: [{ card, index }] })
+      }
+    }
+    return groups
+  }, [cards])
   // Cross-collection ownership badges (#576), signed-in only. Each card
   // carries its own set id, like a pokedex printing.
   const ownershipIds = useMemo(
@@ -1337,18 +1353,36 @@ function ClassDetailView({
           </p>
         )}
         {!loading && !error && cards.length > 0 && (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {cards.map((c, i) => (
-              <PokedexCardTile
-                key={c.id}
-                card={c}
-                showSavedActions={showSavedActions}
-                ownership={lookupOwnership(c.setId, c.number)}
-                onOpenDetail={() => setDetailIndex(i)}
-                nameFirst
-              />
+          <div className="space-y-5">
+            {cardGroups.map((group) => (
+              <section
+                key={group.name}
+                aria-label={`${group.name} printings`}
+                className="space-y-2"
+              >
+                <div className="flex items-baseline gap-2 border-b border-sand-200 dark:border-husk-100 pb-1">
+                  <h3 className="text-sm font-semibold text-coconut-700 dark:text-sand-50">
+                    {group.name}
+                  </h3>
+                  <span className="text-xs text-coconut-400 dark:text-sand-400">
+                    {group.cards.length} printing{group.cards.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {group.cards.map(({ card: c, index: i }) => (
+                    <PokedexCardTile
+                      key={c.id}
+                      card={c}
+                      showSavedActions={showSavedActions}
+                      ownership={lookupOwnership(c.setId, c.number)}
+                      onOpenDetail={() => setDetailIndex(i)}
+                      nameFirst
+                    />
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </div>
 
