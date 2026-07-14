@@ -32,6 +32,14 @@ export interface PokedexGroup {
   species: PokedexEntry[]
 }
 
+/** One distinct name in a class's name index (#916) — e.g. "Marnie" across
+ *  every set she's printed in. `sample` seeds the index tile's thumbnail. */
+export interface ClassNameEntry {
+  name: string
+  count: number
+  sample: PokedexCard
+}
+
 /**
  * Which organisation Browse is showing: `set` walks series → set → cards;
  * `pokedex` walks national dex # → every printing of that species across
@@ -153,15 +161,20 @@ export interface BrowseController {
   pokedexCardsError: string | null
   addPokedexCards: (toAdd: PokedexCard[]) => void
   addAllPrintings: () => void
-  // Class view (#911) — card class → every card in that class across all sets.
+  // Class view (#911, #916) — card class → the class's name index (every
+  // distinct trainer/object/character, pokedex-style) → every printing of
+  // one name across all sets.
   activeClass: CardClassEntry | null
   setActiveClass: (c: CardClassEntry | null) => void
   classCards: PokedexCard[] | null
-  filteredClassCards: PokedexCard[]
+  classNameGroups: ClassNameEntry[]
   classCardsLoading: boolean
   classCardsError: string | null
   classSearch: string
   setClassSearch: (v: string) => void
+  activeClassCardName: string | null
+  setActiveClassCardName: (n: string | null) => void
+  activeClassCards: PokedexCard[]
   addAllClassCards: () => void
 }
 
@@ -198,6 +211,7 @@ export function useBrowseController(active: boolean): BrowseController {
   const [classCardsError, setClassCardsError] = useState<string | null>(null)
   const [classCardsLoading, setClassCardsLoading] = useState(false)
   const [classSearch, setClassSearch] = useState('')
+  const [activeClassCardName, setActiveClassCardName] = useState<string | null>(null)
 
   const cardCacheRef = useRef<Map<string, SetCard[]>>(new Map())
   const pokedexCacheRef = useRef<Map<number, PokedexCard[]>>(new Map())
@@ -226,6 +240,7 @@ export function useBrowseController(active: boolean): BrowseController {
     setClassCards(null)
     setClassCardsError(null)
     setClassSearch('')
+    setActiveClassCardName(null)
   }, [active])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -239,6 +254,7 @@ export function useBrowseController(active: boolean): BrowseController {
     setActiveSet(null)
     setActivePokemon(null)
     setActiveClass(null)
+    setActiveClassCardName(null)
     setAddedCount(null)
   }
 
@@ -335,6 +351,7 @@ export function useBrowseController(active: boolean): BrowseController {
       setAddedCount(null)
       setClassCardsError(null)
       setClassSearch('')
+      setActiveClassCardName(null)
 
       const cached = classCacheRef.current.get(activeClass.id)
       if (cached) {
@@ -429,24 +446,35 @@ export function useBrowseController(active: boolean): BrowseController {
     addPokedexCards(pokedexCards ?? [])
   }
 
-  // Class view (#911). Classes run big (Supporter is 1000+ cards), so the
-  // detail grid gets its own name/set search over the loaded rows — that's
-  // also the "walk Marnie" path: drill into Supporters, search her name.
-  const filteredClassCards = useMemo(() => {
+  // Class view (#911, #916). Classes run big (Supporter is 1000+ cards), so
+  // Browse walks them the same way it walks the Pokédex: a name index first
+  // (the API already groups printings by name), then every printing of one
+  // name — that's the "walk Marnie" path, now a tap instead of a search.
+  const classNameGroups = useMemo<ClassNameEntry[]>(() => {
     if (!classCards) return []
+    const groups: ClassNameEntry[] = []
+    for (const card of classCards) {
+      const name = card.name || 'Unnamed card'
+      const last = groups.at(-1)
+      if (last?.name === name) last.count += 1
+      else groups.push({ name, count: 1, sample: card })
+    }
+    return groups
+  }, [classCards])
+
+  const filteredClassNameGroups = useMemo(() => {
     const term = classSearch.trim().toLowerCase()
-    if (!term) return classCards
-    return classCards.filter(
-      (c) =>
-        (c.name || '').toLowerCase().includes(term) ||
-        (c.setName || '').toLowerCase().includes(term) ||
-        (c.number || '').toLowerCase().includes(term) ||
-        (c.rarity || '').toLowerCase().includes(term),
-    )
-  }, [classCards, classSearch])
+    if (!term) return classNameGroups
+    return classNameGroups.filter((g) => g.name.toLowerCase().includes(term))
+  }, [classNameGroups, classSearch])
+
+  const activeClassCards = useMemo(
+    () => (classCards ?? []).filter((c) => c.name === activeClassCardName),
+    [classCards, activeClassCardName],
+  )
 
   function addAllClassCards() {
-    addPokedexCards(filteredClassCards)
+    addPokedexCards(activeClassCards)
   }
 
   return {
@@ -491,11 +519,14 @@ export function useBrowseController(active: boolean): BrowseController {
     activeClass,
     setActiveClass,
     classCards,
-    filteredClassCards,
+    classNameGroups: filteredClassNameGroups,
     classCardsLoading,
     classCardsError,
     classSearch,
     setClassSearch,
+    activeClassCardName,
+    setActiveClassCardName,
+    activeClassCards,
     addAllClassCards,
   }
 }

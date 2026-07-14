@@ -3,9 +3,10 @@
  * discovery-mode tab in App.tsx. A view-mode toggle flips the whole panel
  * between three organisations: **set view** (series → set → cards in that
  * set), **pokedex view** (#577: national dex # → every printing of one
- * Pokémon across every set), and **class view** (#911: card class → every
- * Supporter / Item / Special Energy / … across every set). State + effects
- * live in [useBrowseController](./useBrowseController.ts).
+ * Pokémon across every set), and **class view** (#911, #916: card class →
+ * a name index of every Supporter / Item / Special Energy / … in it,
+ * pokedex-style → every printing of one name across every set). State +
+ * effects live in [useBrowseController](./useBrowseController.ts).
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
@@ -46,6 +47,7 @@ import type {
   BrowseViewMode,
   CardSort,
   CategoryFilter,
+  ClassNameEntry,
   GroupOrder,
   PokedexGroup,
   RarityBucket,
@@ -122,11 +124,14 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     activeClass,
     setActiveClass,
     classCards,
-    filteredClassCards,
+    classNameGroups,
     classCardsLoading,
     classCardsError,
     classSearch,
     setClassSearch,
+    activeClassCardName,
+    setActiveClassCardName,
+    activeClassCards,
     addAllClassCards,
   } = controller
 
@@ -162,7 +167,12 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   // Collection / want-list creates snapshot the loaded cards as their seed, so
   // they're only offered once the drill-in's cards have landed — otherwise we'd
   // seed an empty list. A smart collection needs no cards, so it's always available.
-  const seedLoading = viewMode === 'set' ? cardsLoading : pokedexCardsLoading
+  const seedLoading =
+    viewMode === 'set'
+      ? cardsLoading
+      : viewMode === 'pokedex'
+        ? pokedexCardsLoading
+        : classCardsLoading
 
   // Build the seed for the current drill-in: the list name, the cards to
   // pre-populate (the whole set / all printings), and the rule a smart collection
@@ -190,6 +200,14 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
         ruleValue: activePokemon.name,
       }
     }
+    if (viewMode === 'class' && activeClassCardName) {
+      return {
+        name: activeClassCardName,
+        seedCards: activeClassCards.map((c) => browseCardToPayload(c)),
+        ruleField: 'name',
+        ruleValue: activeClassCardName,
+      }
+    }
     return null
   }
 
@@ -206,18 +224,24 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   const onBack = () => {
     if (viewMode === 'set') setActiveSet(null)
     else if (viewMode === 'pokedex') setActivePokemon(null)
+    // Class view is a level deeper than the others (#916): class → name
+    // index → one name's printings. Back walks up one level at a time.
+    else if (activeClassCardName) setActiveClassCardName(null)
     else setActiveClass(null)
   }
   // The New ▾ create-from-Browse menu needs a smart-collection rule to
-  // offer, and collection rules speak set_id / name — there's no card-class
-  // rule (yet), so class view leans on the per-card save actions instead.
-  const showCreateMenu = drilledIn && showSavedActions && viewMode !== 'class'
+  // offer, and collection rules speak set_id / name — a class only has a
+  // name to key off once you've drilled into one (#916).
+  const showCreateMenu =
+    drilledIn && showSavedActions && (viewMode !== 'class' || !!activeClassCardName)
   const backLabel =
     viewMode === 'set'
       ? 'Back to set list'
       : viewMode === 'pokedex'
         ? 'Back to Pokédex list'
-        : 'Back to class list'
+        : activeClassCardName
+          ? `Back to ${activeClass?.label ?? 'class'} list`
+          : 'Back to class list'
 
   let headerTitle: string
   let description: string
@@ -233,10 +257,13 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     description = activePokemon
       ? 'Every printing we found, newest first. Click a card for its details and comps.'
       : 'Pick a Pokémon to see every printing across every set, newest first.'
+  } else if (activeClassCardName) {
+    headerTitle = activeClassCardName
+    description = 'Every printing we found, newest first. Click a card for its details and comps.'
   } else {
     headerTitle = activeClass ? activeClass.label : 'Browse by class'
     description = activeClass
-      ? 'Every card in this class, grouped by trainer, object, or character. Search within it to walk one name.'
+      ? 'Pick a name to see every printing across every set, newest first.'
       : 'Pick a card class — Supporters, Items, Special Energy, and more — to walk it across every set.'
   }
 
@@ -354,17 +381,26 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
           />
         )
       ) : activeClass ? (
-        <ClassDetailView
-          showSavedActions={showSavedActions}
-          cards={filteredClassCards}
-          total={classCards?.length ?? 0}
-          loading={classCardsLoading}
-          error={classCardsError}
-          search={classSearch}
-          onSearch={setClassSearch}
-          addedCount={addedCount}
-          onAddAll={addAllClassCards}
-        />
+        activeClassCardName ? (
+          <PokedexDetailView
+            showSavedActions={showSavedActions}
+            cards={activeClassCards}
+            loading={classCardsLoading}
+            error={classCardsError}
+            addedCount={addedCount}
+            onAddAll={addAllClassCards}
+          />
+        ) : (
+          <ClassNameIndexView
+            groups={classNameGroups}
+            total={classCards?.length ?? 0}
+            loading={classCardsLoading}
+            error={classCardsError}
+            search={classSearch}
+            onSearch={setClassSearch}
+            onPick={(name) => setActiveClassCardName(name)}
+          />
+        )
       ) : (
         <ClassListView onPick={(c) => setActiveClass(c)} />
       )}
@@ -420,7 +456,7 @@ function BrowseCreateMenu({
   seedLoading: boolean
   onCreate: (kind: CreateKind) => void
 }) {
-  const noun = kind === 'set' ? 'set' : 'Pokémon'
+  const noun = kind === 'set' ? 'set' : kind === 'class' ? 'card' : 'Pokémon'
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -1246,58 +1282,28 @@ function ClassListView({ onPick }: { onPick: (entry: CardClassEntry) => void }) 
   )
 }
 
-/** Class drill-in (#911) — the pokedex printings grid plus a search box,
- *  because a class runs far bigger than one species (Supporter is 1000+
- *  cards). Searching within the class is the "walk Marnie" path. */
-function ClassDetailView({
-  showSavedActions,
-  cards,
+/** Class name index (#911, #916) — the same organisation as the Pokédex
+ *  species index, one level up: every distinct trainer/object/character in
+ *  this class (e.g. every Supporter), searchable by name. Picking one drills
+ *  into its printings, mirroring `PokedexDetailView` — that's the "walk
+ *  Marnie" path, now a tap instead of an in-page search. */
+function ClassNameIndexView({
+  groups,
   total,
   loading,
   error,
   search,
   onSearch,
-  addedCount,
-  onAddAll,
+  onPick,
 }: {
-  showSavedActions: boolean
-  cards: PokedexCard[]
+  groups: ClassNameEntry[]
   total: number
   loading: boolean
   error: string | null
   search: string
   onSearch: (v: string) => void
-  addedCount: number | null
-  onAddAll: () => void
+  onPick: (name: string) => void
 }) {
-  // Same modal-index pattern as the other detail views: track the position
-  // in the displayed (filtered) rows so ←/→ navigation follows the filter.
-  const [detailIndex, setDetailIndex] = useState<number | null>(null)
-  const rows = useMemo<Row[]>(() => cards.map((c) => browseCardToRow(c)), [cards])
-  const cardGroups = useMemo(() => {
-    const groups: Array<{
-      name: string
-      cards: Array<{ card: PokedexCard; index: number }>
-    }> = []
-    for (const [index, card] of cards.entries()) {
-      const name = card.name || 'Unnamed card'
-      const last = groups.at(-1)
-      if (last?.name === name) {
-        last.cards.push({ card, index })
-      } else {
-        groups.push({ name, cards: [{ card, index }] })
-      }
-    }
-    return groups
-  }, [cards])
-  // Cross-collection ownership badges (#576), signed-in only. Each card
-  // carries its own set id, like a pokedex printing.
-  const ownershipIds = useMemo(
-    () =>
-      showSavedActions ? cards.map((c) => ({ setId: c.setId, number: c.number })) : [],
-    [showSavedActions, cards],
-  )
-  const { lookup: lookupOwnership } = useCardOwnership(ownershipIds)
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
@@ -1309,30 +1315,13 @@ function ClassDetailView({
           />
           <input
             type="search"
-            placeholder="Search this class by name or set…"
+            placeholder="Find a name in this class…"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
             className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 py-1.5 pl-8 pr-2 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:placeholder:text-sand-400 focus:border-sand-400 dark:focus:border-coconut-400 focus:outline-none"
-            aria-label="Search cards in this class"
+            aria-label="Find a name in this class"
           />
         </label>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-2 text-xs text-coconut-400 dark:text-sand-300">
-        <span>
-          {cards.length} of {total} card{total === 1 ? '' : 's'}
-        </span>
-        {cards.length > 0 && (
-          <>
-            <span className="text-coconut-300 dark:text-sand-500">·</span>
-            <BulkButton onClick={onAddAll}>Add all visible</BulkButton>
-          </>
-        )}
-        {addedCount != null && (
-          <span className="ml-auto text-palm-500 dark:text-palm-200" role="status">
-            Added {addedCount} line{addedCount === 1 ? '' : 's'} to your list
-          </span>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-3">
@@ -1347,47 +1336,55 @@ function ClassDetailView({
             Loading cards…
           </p>
         )}
-        {!loading && !error && cards.length === 0 && (
+        {!loading && !error && groups.length === 0 && (
           <p className="text-sm text-coconut-400 dark:text-sand-400">
-            {total === 0 ? 'No cards found.' : 'No cards match your search.'}
+            {total === 0 ? 'No cards found.' : `No names match “${search}”.`}
           </p>
         )}
-        {!loading && !error && cards.length > 0 && (
-          <div className="space-y-5">
-            {cardGroups.map((group) => (
-              <section
-                key={group.name}
-                aria-label={`${group.name} printings`}
-                className="space-y-2"
-              >
-                <div className="flex items-baseline gap-2 border-b border-sand-200 dark:border-husk-100 pb-1">
-                  <h3 className="text-sm font-semibold text-coconut-700 dark:text-sand-50">
-                    {group.name}
-                  </h3>
-                  <span className="text-xs text-coconut-400 dark:text-sand-400">
-                    {group.cards.length} printing{group.cards.length === 1 ? '' : 's'}
-                  </span>
-                </div>
-                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  {group.cards.map(({ card: c, index: i }) => (
-                    <PokedexCardTile
-                      key={c.id}
-                      card={c}
-                      showSavedActions={showSavedActions}
-                      ownership={lookupOwnership(c.setId, c.number)}
-                      onOpenDetail={() => setDetailIndex(i)}
-                      nameFirst
-                    />
-                  ))}
-                </ul>
-              </section>
+        {!loading && !error && groups.length > 0 && (
+          <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
+            {groups.map((g) => (
+              <ClassNameTile key={g.name} entry={g} onPick={() => onPick(g.name)} />
             ))}
-          </div>
+          </ul>
         )}
       </div>
-
-      <CardDetailModal rows={rows} index={detailIndex} onChangeIndex={setDetailIndex} />
     </>
+  )
+}
+
+function ClassNameTile({ entry, onPick }: { entry: ClassNameEntry; onPick: () => void }) {
+  const [thumbFailed, setThumbFailed] = useState(false)
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onPick}
+        className="flex w-full items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 py-2 pl-3 pr-3 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+      >
+        <span className="flex h-9 w-9 flex-none items-center justify-center overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
+          {entry.sample.thumb && !thumbFailed ? (
+            <img
+              src={entry.sample.thumb}
+              alt=""
+              className="h-full w-full object-contain"
+              loading="lazy"
+              onError={() => setThumbFailed(true)}
+            />
+          ) : (
+            <ImageOff size={14} className="text-coconut-300 dark:text-sand-500" aria-hidden />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
+            {entry.name}
+          </span>
+          <span className="block text-xs text-coconut-400 dark:text-sand-400">
+            {entry.count} printing{entry.count === 1 ? '' : 's'}
+          </span>
+        </span>
+      </button>
+    </li>
   )
 }
 
@@ -1460,22 +1457,17 @@ function PokedexCardTile({
   showSavedActions,
   ownership,
   onOpenDetail,
-  nameFirst = false,
 }: {
   card: PokedexCard
   showSavedActions: boolean
   ownership: CardOwnership | null | undefined
   onOpenDetail: () => void
-  /** Lead with the card's name instead of its set. A species' printings all
-   *  share one name so the set differentiates; a class's cards are the
-   *  opposite (#911) — Marnie vs Rare Candy is the headline there. */
-  nameFirst?: boolean
 }) {
   const [thumbFailed, setThumbFailed] = useState(false)
   const hidePricing = useAppStore((s) => s.settings.hidePricing)
   const year = releaseYear(card.releaseDate)
-  const title = nameFirst ? card.name : card.setName
-  const subtitle = nameFirst ? card.setName : card.rarity
+  const title = card.setName
+  const subtitle = card.rarity
   return (
     <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
       <button

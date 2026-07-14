@@ -61,6 +61,20 @@ const SUPPORTER_CARDS: PokedexCard[] = [
     setName: 'Sword & Shield',
     releaseDate: '2020/02/07',
   },
+  {
+    id: 'swsh6-201',
+    name: 'Marnie',
+    number: '201',
+    rarity: 'Secret Rare',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 90,
+    dexNumbers: [],
+    setId: 'swsh6',
+    setName: 'Chilling Reign',
+    releaseDate: '2021/06/18',
+  },
 ]
 
 describe('BrowsePanel — pokedex view (#577)', () => {
@@ -530,7 +544,7 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     expect(screen.getByText('ACE SPEC')).toBeInTheDocument()
   })
 
-  it('class view: drills into a class, fetches its cards, and searches within it (#911)', async () => {
+  it('class view: drills into a class to a name index, then into one name’s printings (#911, #916)', async () => {
     const fetchClass = vi
       .spyOn(client, 'fetchClassCards')
       .mockResolvedValue(SUPPORTER_CARDS)
@@ -542,37 +556,52 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     // The fetch keys off the baked class id.
     await waitFor(() => expect(fetchClass).toHaveBeenCalledWith('supporter', undefined))
 
-    // Class tiles lead with the card's name (the set is the subtitle).
-    expect(await screen.findAllByText('Marnie')).toHaveLength(2)
-    expect(screen.getAllByText('Iono')).toHaveLength(2)
-    expect(screen.getAllByText('1 printing')).toHaveLength(2)
-    expect(screen.getByText('Sword & Shield')).toBeInTheDocument()
-    expect(screen.getByText('2 of 2 cards')).toBeInTheDocument()
+    // The name index shows one tile per distinct name, pokedex-style — not
+    // one tile per printing.
+    expect(await screen.findByText('Marnie')).toBeInTheDocument()
+    expect(screen.getByText('2 printings')).toBeInTheDocument()
+    expect(screen.getByText('Iono')).toBeInTheDocument()
+    expect(screen.getByText('1 printing')).toBeInTheDocument()
 
-    // Searching within the class is the "walk Marnie" path.
-    fireEvent.change(screen.getByLabelText('Search cards in this class'), {
+    // Finding a name in the class is the "walk Marnie" path.
+    fireEvent.change(screen.getByLabelText('Find a name in this class'), {
       target: { value: 'marnie' },
     })
-    expect(screen.getByText('1 of 2 cards')).toBeInTheDocument()
+    expect(screen.getByText('Marnie')).toBeInTheDocument()
     expect(screen.queryByText('Iono')).not.toBeInTheDocument()
 
-    // Clicking a card opens the same detail modal the other views use.
+    // Picking the name drills into every printing of it, same as a Pokédex
+    // species detail.
+    fireEvent.click(screen.getByText('Marnie'))
+    expect(screen.getByRole('heading', { name: 'Marnie' })).toBeInTheDocument()
+    expect(screen.getByText('2 printings')).toBeInTheDocument()
+    expect(screen.getByText('Sword & Shield')).toBeInTheDocument()
+    expect(screen.getByText('Chilling Reign')).toBeInTheDocument()
+
+    // Clicking a printing opens the same detail modal the other views use.
     fireEvent.click(
       screen.getByRole('button', { name: /View details for Marnie from Sword & Shield/ }),
     )
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getAllByText('Marnie').length).toBeGreaterThan(0)
     expect(within(dialog).getByText('$40.00')).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+
+    // Back walks up one level at a time: printings → name index → class list.
+    fireEvent.click(screen.getByRole('button', { name: /Back to Supporters list/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to class list' }))
+    expect(screen.getByText('Browse by class')).toBeInTheDocument()
   })
 
-  it('class view: shows the per-card save actions and ownership surface when signed in (#911)', async () => {
+  it('class view: shows the per-card save actions and ownership surface when signed in (#911, #916)', async () => {
     vi.spyOn(client, 'fetchClassCards').mockResolvedValue(SUPPORTER_CARDS)
 
     render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: 'By class' }))
     fireEvent.click(screen.getByText('Supporters'))
+    fireEvent.click(await screen.findByText('Marnie'))
 
-    expect(await screen.findAllByText('Marnie')).toHaveLength(2)
+    expect(await screen.findByText('Sword & Shield')).toBeInTheDocument()
 
     // Same one-tap want / own quick actions Pokemon printings get (#761);
     // useAuth resolves async, so wait for the per-card actions to mount.
