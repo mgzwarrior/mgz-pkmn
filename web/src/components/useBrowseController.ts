@@ -38,17 +38,22 @@ export interface PokedexGroup {
  */
 export type BrowseViewMode = 'set' | 'pokedex'
 
+/** Order of the top-level groups in either browse list (#914). */
+export type GroupOrder = 'newest' | 'oldest'
+
 const OTHER_SERIES = 'Other'
 
 function seriesKey(set: SetInfo): string {
   return set.series || OTHER_SERIES
 }
 
-function groupBySeries(sets: SetInfo[]): SeriesGroup[] {
+/** The catalog arrives oldest-first; `newest` walks it in reverse so both
+ *  the series order and the sets within each series flip together. */
+function groupBySeries(sets: SetInfo[], groupOrder: GroupOrder): SeriesGroup[] {
   const order: string[] = []
   const buckets = new Map<string, SetInfo[]>()
-  for (let i = sets.length - 1; i >= 0; i--) {
-    const s = sets[i]
+  const source = groupOrder === 'newest' ? [...sets].reverse() : sets
+  for (const s of source) {
     const key = seriesKey(s)
     if (!buckets.has(key)) {
       buckets.set(key, [])
@@ -59,11 +64,12 @@ function groupBySeries(sets: SetInfo[]): SeriesGroup[] {
   return order.map((series) => ({ series, sets: buckets.get(series)! }))
 }
 
-function groupByGeneration(species: PokedexEntry[]): PokedexGroup[] {
-  return POKEDEX_GENERATIONS.map((gen) => ({
+function groupByGeneration(species: PokedexEntry[], order: GroupOrder): PokedexGroup[] {
+  const groups = POKEDEX_GENERATIONS.map((gen) => ({
     label: gen.label,
     species: species.filter((s) => s.number >= gen.start && s.number <= gen.end),
   })).filter((group) => group.species.length > 0)
+  return order === 'newest' ? groups.reverse() : groups
 }
 
 export type RarityBucket = 'all' | 'holo' | 'rare' | 'ultra'
@@ -122,6 +128,13 @@ export interface BrowseController {
   setCategory: (c: CategoryFilter) => void
   sort: CardSort
   setSort: (s: CardSort) => void
+  // Group order + collapse for both top-level lists (#914).
+  seriesOrder: GroupOrder
+  setSeriesOrder: (o: GroupOrder) => void
+  generationOrder: GroupOrder
+  setGenerationOrder: (o: GroupOrder) => void
+  collapsedGroups: ReadonlySet<string>
+  toggleGroupCollapsed: (label: string) => void
   addedCount: number | null
   addCards: (toAdd: SetCard[]) => void
   addAll: () => void
@@ -154,6 +167,11 @@ export function useBrowseController(active: boolean): BrowseController {
   const [bucket, setBucket] = useState<RarityBucket>('all')
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [sort, setSort] = useState<CardSort>('number')
+  // Group order + collapse (#914). Set view defaults newest-first (matching
+  // the pre-existing order); the dex reads naturally Gen I → Gen IX.
+  const [seriesOrder, setSeriesOrder] = useState<GroupOrder>('newest')
+  const [generationOrder, setGenerationOrder] = useState<GroupOrder>('oldest')
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set())
   const [addedCount, setAddedCount] = useState<number | null>(null)
 
   const [viewMode, setViewModeState] = useState<BrowseViewMode>('set')
@@ -177,6 +195,9 @@ export function useBrowseController(active: boolean): BrowseController {
     setBucket('all')
     setCategory('all')
     setSort('number')
+    setSeriesOrder('newest')
+    setGenerationOrder('oldest')
+    setCollapsedGroups(new Set())
     setAddedCount(null)
     setActivePokemon(null)
     setPokedexCards(null)
@@ -282,7 +303,7 @@ export function useBrowseController(active: boolean): BrowseController {
     }
   }, [activePokemon, settings.apiKey])
 
-  const groups = useMemo(() => groupBySeries(sets), [sets])
+  const groups = useMemo(() => groupBySeries(sets, seriesOrder), [sets, seriesOrder])
 
   const pokedexGroups = useMemo(() => {
     const term = pokedexFilter.trim().toLowerCase()
@@ -291,8 +312,17 @@ export function useBrowseController(active: boolean): BrowseController {
           (s) => s.name.toLowerCase().includes(term) || String(s.number) === term,
         )
       : BAKED_POKEDEX
-    return groupByGeneration(species)
-  }, [pokedexFilter])
+    return groupByGeneration(species, generationOrder)
+  }, [pokedexFilter, generationOrder])
+
+  function toggleGroupCollapsed(label: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
+  }
 
   const filteredCards = useMemo(() => {
     if (!cards) return []
@@ -357,6 +387,12 @@ export function useBrowseController(active: boolean): BrowseController {
     setCategory,
     sort,
     setSort,
+    seriesOrder,
+    setSeriesOrder,
+    generationOrder,
+    setGenerationOrder,
+    collapsedGroups,
+    toggleGroupCollapsed,
     addedCount,
     addCards,
     addAll,
