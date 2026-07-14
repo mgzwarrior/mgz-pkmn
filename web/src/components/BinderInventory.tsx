@@ -26,6 +26,10 @@ import { useBinders } from './useBinders'
 import { useCollections } from './useCollections'
 import { useWishlists } from './useWishlists'
 
+interface BinderInventoryProps {
+  onOpenBinder?: (binder: BinderSummary) => void
+}
+
 /** The "what's filed" line under a binder: collections and/or want-lists, or
  *  "Empty" when nothing is filed yet (#774). */
 function filedSummary(collections: number, wishlists: number): string {
@@ -36,7 +40,7 @@ function filedSummary(collections: number, wishlists: number): string {
   return parts.join(' · ')
 }
 
-export function BinderInventory() {
+export function BinderInventory({ onOpenBinder }: BinderInventoryProps = {}) {
   const { binders, loading, error, create, remove, refresh } = useBinders()
   const { collections, create: createCollection } = useCollections()
   const { wishlists } = useWishlists()
@@ -242,20 +246,29 @@ export function BinderInventory() {
                 className="rounded border border-sand-200 px-2 py-1.5 dark:border-husk-100"
               >
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`h-6 w-5 shrink-0 rounded-sm ${swatch.className}`}
-                    style={swatch.style}
-                    aria-hidden
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-coconut-700 dark:text-sand-50">{b.name}</p>
-                    <p className="text-[11px] text-coconut-400 dark:text-sand-300">
-                      {filedSummary(filed.length, filedWishlists.length)}
-                      {storageType ? ` · ${storageType}` : ''}
-                      {b.binder_format ? ` · ${b.binder_format}` : ''}
-                      {b.capacity ? ` · ${b.capacity} slots` : ''}
-                    </p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenBinder?.(b)}
+                    aria-label={`Open binder "${b.name}"`}
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded py-1 pr-1 text-left hover:bg-sand-100 dark:hover:bg-husk-100"
+                  >
+                    <span
+                      className={`h-6 w-5 shrink-0 rounded-sm ${swatch.className}`}
+                      style={swatch.style}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-coconut-700 dark:text-sand-50">
+                        {b.name}
+                      </span>
+                      <span className="block text-[11px] text-coconut-400 dark:text-sand-300">
+                        {filedSummary(filed.length, filedWishlists.length)}
+                        {storageType ? ` · ${storageType}` : ''}
+                        {b.binder_format ? ` · ${b.binder_format}` : ''}
+                        {b.capacity ? ` · ${b.capacity} slots` : ''}
+                      </span>
+                    </span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setFilingBinder(b)}

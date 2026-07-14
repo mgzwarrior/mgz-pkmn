@@ -986,6 +986,12 @@ export async function fetchBinders(): Promise<BinderSummary[]> {
   return data.binders as BinderSummary[]
 }
 
+export async function fetchBinder(binderId: number): Promise<Binder> {
+  const res = await fetch(`${BASE}/binders/${binderId}`)
+  if (!res.ok) throw new Error(`binder failed: ${res.status}`)
+  return (await res.json()) as Binder
+}
+
 export async function createBinder(name: string, input?: BinderInput): Promise<Binder> {
   const res = await fetch(`${BASE}/binders`, {
     method: 'POST',
