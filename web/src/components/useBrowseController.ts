@@ -10,7 +10,13 @@
  * lands on the set list, not whatever they were browsing last time.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchClassCards, fetchPokedexCards, fetchSetCards, fetchSets } from '../api/client'
+import {
+  fetchClassCards,
+  fetchPokedexCards,
+  fetchSetCards,
+  fetchSets,
+  trainerDisplayName,
+} from '../api/client'
 import type { CardClassEntry } from '../data/cardClasses'
 import { BAKED_POKEDEX, POKEDEX_GENERATIONS } from '../data/pokedex'
 import { BAKED_SETS } from '../data/sets'
@@ -447,20 +453,27 @@ export function useBrowseController(active: boolean): BrowseController {
   }
 
   // Class view (#911, #916). Classes run big (Supporter is 1000+ cards), so
-  // Browse walks them the same way it walks the Pokédex: a name index first
-  // (the API already groups printings by name), then every printing of one
-  // name — that's the "walk Marnie" path, now a tap instead of a search.
+  // Browse walks them the same way it walks the Pokédex: a name index first,
+  // then every printing of one name — that's the "walk Marnie" path, now a
+  // tap instead of a search. Supporters group by their headline trainer
+  // rather than the exact card name — "Bianca" and "Bianca's Devotion" both
+  // walk under one Bianca tile — since the API's card-name sort keeps every
+  // variant of a trainer's name alphabetically adjacent regardless.
+  const groupByTrainer = activeClass?.id === 'supporter'
+
   const classNameGroups = useMemo<ClassNameEntry[]>(() => {
     if (!classCards) return []
     const groups: ClassNameEntry[] = []
     for (const card of classCards) {
-      const name = card.name || 'Unnamed card'
+      const name = groupByTrainer
+        ? trainerDisplayName(card.name || '') || 'Unnamed card'
+        : card.name || 'Unnamed card'
       const last = groups.at(-1)
       if (last?.name === name) last.count += 1
       else groups.push({ name, count: 1, sample: card })
     }
     return groups
-  }, [classCards])
+  }, [classCards, groupByTrainer])
 
   const filteredClassNameGroups = useMemo(() => {
     const term = classSearch.trim().toLowerCase()
@@ -469,8 +482,14 @@ export function useBrowseController(active: boolean): BrowseController {
   }, [classNameGroups, classSearch])
 
   const activeClassCards = useMemo(
-    () => (classCards ?? []).filter((c) => c.name === activeClassCardName),
-    [classCards, activeClassCardName],
+    () =>
+      (classCards ?? []).filter((c) => {
+        const name = groupByTrainer
+          ? trainerDisplayName(c.name || '') || 'Unnamed card'
+          : c.name || 'Unnamed card'
+        return name === activeClassCardName
+      }),
+    [classCards, activeClassCardName, groupByTrainer],
   )
 
   function addAllClassCards() {

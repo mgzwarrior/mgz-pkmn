@@ -77,6 +77,43 @@ const SUPPORTER_CARDS: PokedexCard[] = [
   },
 ]
 
+// A Supporter's card name is often a title rather than the trainer's own
+// name — grouping must key off the headline trainer ("Bianca"), not the
+// exact card name, so "Bianca" and "Bianca's Devotion" walk one tile (#916).
+// Order matches the API's card-name-casefold sort ("bianca" sorts before
+// "bianca's devotion" as its prefix), which the client-side grouping relies
+// on to keep same-trainer cards contiguous.
+const TRAINER_TITLE_CARDS: PokedexCard[] = [
+  {
+    id: 'bw11-90',
+    name: 'Bianca',
+    number: '90',
+    rarity: 'Uncommon',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 2,
+    dexNumbers: [],
+    setId: 'bw11',
+    setName: 'Legendary Treasures',
+    releaseDate: '2013/11/06',
+  },
+  {
+    id: 'swsh8-159',
+    name: "Bianca's Devotion",
+    number: '159',
+    rarity: 'Ultra Rare',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 15,
+    dexNumbers: [],
+    setId: 'swsh8',
+    setName: 'Fusion Strike',
+    releaseDate: '2021/11/12',
+  },
+]
+
 describe('BrowsePanel — pokedex view (#577)', () => {
   beforeEach(() => {
     useAppStore.setState({ inputText: '' })
@@ -591,6 +628,27 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Back to Supporters list/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Back to class list' }))
     expect(screen.getByText('Browse by class')).toBeInTheDocument()
+  })
+
+  it('class view: groups Supporters by their headline trainer, not the exact card name (#916)', async () => {
+    vi.spyOn(client, 'fetchClassCards').mockResolvedValue(TRAINER_TITLE_CARDS)
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By class' }))
+    fireEvent.click(screen.getByText('Supporters'))
+
+    // "Bianca" and "Bianca's Devotion" are two different cards, but one
+    // trainer — the index shows a single Bianca tile with both printings,
+    // not two separate tiles.
+    expect(await screen.findByText('Bianca')).toBeInTheDocument()
+    expect(screen.getByText('2 printings')).toBeInTheDocument()
+    expect(screen.queryByText("Bianca's Devotion")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Bianca'))
+    expect(screen.getByRole('heading', { name: 'Bianca' })).toBeInTheDocument()
+    expect(screen.getByText('2 printings')).toBeInTheDocument()
+    expect(screen.getByText('Legendary Treasures')).toBeInTheDocument()
+    expect(screen.getByText('Fusion Strike')).toBeInTheDocument()
   })
 
   it('class view: shows the per-card save actions and ownership surface when signed in (#911, #916)', async () => {
