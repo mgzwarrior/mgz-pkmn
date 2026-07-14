@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
+import { pokemonSpriteUrl, setLogoUrl, trainerSpriteUrl } from '../api/client'
 import { CARD_CLASS_GROUPS, type CardClassEntry } from '../data/cardClasses'
 import { BAKED_POKEDEX } from '../data/pokedex'
 import { useAuth } from '../hooks/useAuth'
@@ -398,6 +398,8 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             error={classCardsError}
             search={classSearch}
             onSearch={setClassSearch}
+            // Trainer sprites read as people — only Supporters are (#916).
+            useTrainerSprites={activeClass?.id === 'supporter'}
             onPick={(name) => setActiveClassCardName(name)}
           />
         )
@@ -1294,6 +1296,7 @@ function ClassNameIndexView({
   error,
   search,
   onSearch,
+  useTrainerSprites,
   onPick,
 }: {
   groups: ClassNameEntry[]
@@ -1302,6 +1305,10 @@ function ClassNameIndexView({
   error: string | null
   search: string
   onSearch: (v: string) => void
+  /** Lead each tile with its Showdown trainer sprite (#916) instead of the
+   *  sample printing's thumbnail — only true for character classes
+   *  (Supporters); an Item or Stadium name has no trainer to draw. */
+  useTrainerSprites: boolean
   onPick: (name: string) => void
 }) {
   return (
@@ -1344,7 +1351,12 @@ function ClassNameIndexView({
         {!loading && !error && groups.length > 0 && (
           <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
             {groups.map((g) => (
-              <ClassNameTile key={g.name} entry={g} onPick={() => onPick(g.name)} />
+              <ClassNameTile
+                key={g.name}
+                entry={g}
+                useTrainerSprite={useTrainerSprites}
+                onPick={() => onPick(g.name)}
+              />
             ))}
           </ul>
         )}
@@ -1353,8 +1365,25 @@ function ClassNameIndexView({
   )
 }
 
-function ClassNameTile({ entry, onPick }: { entry: ClassNameEntry; onPick: () => void }) {
-  const [thumbFailed, setThumbFailed] = useState(false)
+function ClassNameTile({
+  entry,
+  useTrainerSprite,
+  onPick,
+}: {
+  entry: ClassNameEntry
+  useTrainerSprite: boolean
+  onPick: () => void
+}) {
+  // Two-stage fallback: the Showdown guess is a name slug, not a lookup, so
+  // a miss (no sprite for that name, or not a character at all) drops to
+  // the sample printing's own thumbnail before the bare icon — one rung
+  // softer than SpeciesTile's sprite-or-icon, since we have a real card
+  // image to fall back to and the dex tiles don't.
+  const [stage, setStage] = useState<'sprite' | 'thumb' | 'none'>(
+    useTrainerSprite ? 'sprite' : entry.sample.thumb ? 'thumb' : 'none',
+  )
+  const src =
+    stage === 'sprite' ? trainerSpriteUrl(entry.name) : stage === 'thumb' ? entry.sample.thumb : null
   return (
     <li>
       <button
@@ -1363,13 +1392,15 @@ function ClassNameTile({ entry, onPick }: { entry: ClassNameEntry; onPick: () =>
         className="flex w-full items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 py-2 pl-3 pr-3 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
       >
         <span className="flex h-9 w-9 flex-none items-center justify-center overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
-          {entry.sample.thumb && !thumbFailed ? (
+          {src ? (
             <img
-              src={entry.sample.thumb}
+              src={src}
               alt=""
               className="h-full w-full object-contain"
               loading="lazy"
-              onError={() => setThumbFailed(true)}
+              onError={() =>
+                setStage((s) => (s === 'sprite' && entry.sample.thumb ? 'thumb' : 'none'))
+              }
             />
           ) : (
             <ImageOff size={14} className="text-coconut-300 dark:text-sand-500" aria-hidden />

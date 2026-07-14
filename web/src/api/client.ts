@@ -291,6 +291,25 @@ export function pokemonSpriteUrl(number: number): string {
   return `${_POKEMON_SPRITE_BASE}/${number}.png`
 }
 
+// Showdown's trainer CDN keys sprites off the character's given name,
+// lowercased with no separators (e.g. "iono.png", "n.png") — no id to bake,
+// so the URL is a best-effort slug of a Supporter card's headline name: its
+// first word, a trailing possessive stripped, non-alnum squashed. Most
+// modern character Supporters (Marnie, Iono, N, Colress…) resolve; the rest
+// 404 onto the card's own thumbnail, same soft-fallback shape as above.
+const _TRAINER_SPRITE_BASE = 'https://play.pokemonshowdown.com/sprites/trainers'
+
+/** Showdown trainer sprite guess for a Supporter card's name (Browse's
+ *  by-class name index). */
+export function trainerSpriteUrl(cardName: string): string {
+  const firstWord = cardName.trim().split(/\s+/)[0] ?? ''
+  const slug = firstWord
+    .replace(/['’]s$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+  return `${_TRAINER_SPRITE_BASE}/${slug}.png`
+}
+
 // ---------------------------------------------------------------------------
 // sets
 // ---------------------------------------------------------------------------
