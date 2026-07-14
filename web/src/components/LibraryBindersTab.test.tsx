@@ -7,6 +7,7 @@ import { _resetBindersCacheForTests } from './useBinders'
 import {
   fetchCollections,
   fetchCollection,
+  fetchBinder,
   createCollection,
   deleteCollection,
   downloadCollectionIdCardPdf,
@@ -23,6 +24,7 @@ import {
 vi.mock('../api/client', () => ({
   fetchCollections: vi.fn(),
   fetchCollection: vi.fn(),
+  fetchBinder: vi.fn(),
   createCollection: vi.fn(),
   updateCollection: vi.fn(),
   addCardToCollection: vi.fn(),
@@ -46,6 +48,7 @@ vi.mock('../api/client', () => ({
 
 const mockCollections = vi.mocked(fetchCollections)
 const mockFetchCollection = vi.mocked(fetchCollection)
+const mockFetchBinder = vi.mocked(fetchBinder)
 const mockWishlists = vi.mocked(fetchWishlists)
 const mockBinders = vi.mocked(fetchBinders)
 const mockCreate = vi.mocked(createCollection)
@@ -83,6 +86,7 @@ describe('LibraryBindersTab', () => {
     mockBinders.mockResolvedValue([])
     mockCollections.mockReset()
     mockFetchCollection.mockReset()
+    mockFetchBinder.mockReset()
     mockWishlists.mockReset()
     mockCreate.mockReset()
     mockDeleteCollection.mockReset()
@@ -94,6 +98,20 @@ describe('LibraryBindersTab', () => {
     mockUpdateWishlist.mockReset()
     mockCollections.mockResolvedValue([])
     mockWishlists.mockResolvedValue([])
+    mockFetchBinder.mockResolvedValue({
+      id: 3,
+      name: 'Show binder',
+      created_at: '2026-06-01T00:00:00',
+      binder_format: '9-pocket',
+      binder_color: null,
+      binder_type: null,
+      capacity: 360,
+      collection_count: 0,
+      wishlist_count: 0,
+      is_empty: true,
+      collections: [],
+      wishlists: [],
+    })
   })
 
   it('shows the combined empty state when there are no binders', async () => {
@@ -248,6 +266,80 @@ describe('LibraryBindersTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /edit binder "trade binder"/i }))
     expect(screen.getByRole('heading', { name: /edit binder/i })).toBeInTheDocument()
     expect(screen.getByDisplayValue('Trade binder')).toBeInTheDocument()
+  })
+
+  it('opens a physical binder detail spread from the inventory row (#743)', async () => {
+    mockBinders.mockResolvedValue([
+      {
+        id: 3,
+        name: 'Show binder',
+        created_at: '2026-06-01T00:00:00',
+        binder_format: '4-pocket',
+        binder_color: 'sky',
+        binder_type: 'regular',
+        capacity: 4,
+        collection_count: 1,
+        wishlist_count: 0,
+        is_empty: false,
+      },
+    ])
+    mockCollections.mockResolvedValue([
+      {
+        id: 4,
+        name: 'Base holos',
+        description: null,
+        created_at: '2026-06-06T00:00:00',
+        item_count: 1,
+        binder_id: 3,
+      },
+    ])
+    mockFetchBinder.mockResolvedValue({
+      id: 3,
+      name: 'Show binder',
+      created_at: '2026-06-01T00:00:00',
+      binder_format: '4-pocket',
+      binder_color: 'sky',
+      binder_type: 'regular',
+      capacity: 4,
+      collection_count: 1,
+      wishlist_count: 0,
+      is_empty: false,
+      collections: [{ id: 4, name: 'Base holos', item_count: 1, total_quantity: 1 }],
+      wishlists: [],
+    })
+    mockFetchCollection.mockResolvedValue({
+      id: 4,
+      name: 'Base holos',
+      description: null,
+      created_at: '2026-06-06T00:00:00',
+      kind: 'manual',
+      binder_id: 3,
+      items: [
+        {
+          id: 1,
+          card: { name: 'Charizard' },
+          notes: null,
+          added_at: '2026-06-06T00:00:00',
+          quantity: 1,
+          card_set_id: 'base1',
+          card_number: '4',
+          card_name: 'Charizard',
+          card_rarity: 'Rare Holo',
+          card_image_url: null,
+          price_snapshot: 250,
+        },
+      ],
+    })
+    render(<LibraryBindersTab />)
+    await waitFor(() => expect(screen.getByText('Show binder')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /open binder "show binder"/i }))
+
+    await waitFor(() => expect(mockFetchBinder).toHaveBeenCalledWith(3))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getAllByText('Page 1').length).toBeGreaterThan(0)
+    expect(within(dialog).getByLabelText(/slot 1: charizard/i)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Export' })).toBeInTheDocument()
   })
 
   it('wraps row content instead of overflowing on narrow viewports (#844)', async () => {
