@@ -131,6 +131,12 @@ credentials, callback URLs, and production session settings. Anonymous
 hosted-demo lookups run against the warmed cache only; sign in to let a
 cache miss query the live upstream API.
 
+The Backpack library separates the collector workflow into wishlists
+(cards you want), collections (cards you have), and physical binders
+(cards you have organized). Opening a binder shows its ordered pocket
+spread using the saved 4-pocket, 9-pocket, or 12-pocket layout, with the
+same export menu available from collection and wishlist detail views.
+
 For deeper docs (endpoint reference, troubleshooting, architecture),
 see [api/README.md](api/README.md) and [web/README.md](web/README.md).
 
