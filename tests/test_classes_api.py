@@ -134,20 +134,23 @@ class ClassesHelperTests(unittest.TestCase):
             {
                 "id": "a",
                 "name": "Marnie",
-                "number": "25",
-                "set": {"id": "s1", "name": "Alpha", "releaseDate": "2025/01/01"},
+                "number": "1",
+                # Alphabetically first but the older printing — a naive sort
+                # that orders by set name before release date would put this
+                # ahead of "b" and fail the newest-first assertion below.
+                "set": {"id": "s1", "name": "Alpha Expedition", "releaseDate": "2019/01/01"},
             },
             {
                 "id": "b",
                 "name": "Marnie",
-                "number": "4",
-                "set": {"id": "s1", "name": "Alpha", "releaseDate": "2020/01/01"},
+                "number": "1",
+                "set": {"id": "s2", "name": "Zenith Zone", "releaseDate": "2024/01/01"},
             },
             {
                 "id": "c",
                 "name": "Iono",
                 "number": "1",
-                "set": {"id": "s2", "name": "Zephyr", "releaseDate": "2024/01/01"},
+                "set": {"id": "s3", "name": "Middle Set", "releaseDate": "2022/01/01"},
             },
         ]
 
@@ -159,6 +162,10 @@ class ClassesHelperTests(unittest.TestCase):
             out, status = _fetch_class_cards("supporter", api_key=None)
 
         self.assertEqual(status, "HIT")
+        # Name groups alphabetically (Iono before Marnie); within Marnie the
+        # newer printing ("b", Zenith Zone 2024) leads the older one ("a",
+        # Alpha Expedition 2019) despite Alpha Expedition sorting first by
+        # set name.
         self.assertEqual([c["id"] for c in out], ["c", "b", "a"])
 
 

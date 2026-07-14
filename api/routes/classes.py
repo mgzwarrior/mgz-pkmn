@@ -82,8 +82,13 @@ def _fetch_class_cards(
         cache_only=cache_only,
     )
     trimmed = [_trim_pokedex_card(c) for c in cards]
+    # Stable multi-key sort: apply lowest-priority key first so each later
+    # pass only breaks ties in the one before it, not overrides it — sorting
+    # release date after set name (as this used to) let two printings in
+    # differently-named sets land in set-name order instead of newest-first.
+    trimmed.sort(key=lambda c: _collector_sort_key(c.get("number") or ""))
+    trimmed.sort(key=lambda c: c.get("setName") or "")
     trimmed.sort(key=lambda c: c.get("releaseDate") or "", reverse=True)
-    trimmed.sort(key=lambda c: (c.get("setName") or "", _collector_sort_key(c.get("number") or "")))
     trimmed.sort(key=lambda c: (c.get("name") or "").casefold())
     return trimmed, status
 
