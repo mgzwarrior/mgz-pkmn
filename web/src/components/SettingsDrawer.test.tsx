@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { SettingsDrawer } from './SettingsDrawer'
 import { fetchCacheStats } from '../api/client'
 import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
+import { DEFAULT_CONDITION_MULTIPLIERS } from '../utils/conditionPricing'
 
 vi.mock('../api/client', () => ({
   fetchCacheStats: vi.fn(),
@@ -27,6 +28,8 @@ vi.mock('../store', () => ({
       showEbay: false,
       hideOwned: false,
       hidePricing: false,
+      condition: 'NM',
+      conditionMultipliers: DEFAULT_CONDITION_MULTIPLIERS,
       exportFields: DEFAULT_EXPORT_FIELDS,
     },
     updateSettings: mockUpdateSettings,
@@ -99,6 +102,30 @@ describe('SettingsDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
     fireEvent.click(screen.getByLabelText(/hide pricing/i))
     expect(mockUpdateSettings).toHaveBeenCalledWith({ hidePricing: true })
+  })
+
+  it('changing the default condition calls updateSettings with the selected tier', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    fireEvent.change(screen.getByLabelText(/default condition/i), {
+      target: { value: 'LP' },
+    })
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ condition: 'LP' })
+  })
+
+  it('editing a condition multiplier stores the decimal multiplier', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    fireEvent.click(screen.getByText('Condition multipliers'))
+    fireEvent.change(screen.getByLabelText(/lightly played/i), {
+      target: { value: '80' },
+    })
+    expect(mockUpdateSettings).toHaveBeenCalledWith({
+      conditionMultipliers: {
+        ...DEFAULT_CONDITION_MULTIPLIERS,
+        LP: 0.8,
+      },
+    })
   })
 
   it('"Export columns" section lists every xlsx field, all checked by default', () => {

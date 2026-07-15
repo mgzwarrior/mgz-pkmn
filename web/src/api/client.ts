@@ -9,6 +9,7 @@
 import type {
   BulkEvent,
   CacheStats,
+  CardCondition,
   CardQuery,
   ChangelogRelease,
   ExportFormat,
@@ -485,6 +486,30 @@ export async function saveRun(
     throw new Error(detail)
   }
   return (await res.json()) as RunSummary
+}
+
+export interface RunRowConditionPatch {
+  condition: CardCondition | null
+  condition_multiplier: number | null
+}
+
+/** Persist one run row's explicit condition override in its pricing JSON. */
+export async function updateRunRowCondition(
+  runId: number,
+  position: number,
+  patch: RunRowConditionPatch,
+): Promise<void> {
+  const res = await fetch(`${BASE}/runs/${runId}/rows/${position}/condition`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  // 401 means the visitor isn't signed in — auth-enabled deploys 401 every
+  // per-account resource (runs included) for anonymous requests. Surfacing
+  // this distinctly from other failures lets the caller point the user at
+  // sign-in instead of a generic "something went wrong."
+  if (res.status === 401) throw new Error('sign-in required')
+  if (!res.ok) throw new Error(`condition update failed: ${res.status}`)
 }
 
 /** Delete a saved search (run) and its rows (#698). Owner-only server-side. */

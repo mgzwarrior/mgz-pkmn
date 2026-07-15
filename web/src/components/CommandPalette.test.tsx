@@ -283,7 +283,16 @@ describe('CommandPalette (#525)', () => {
 
     await waitFor(() => expect(client.exportFile).toHaveBeenCalledTimes(1))
     expect(client.exportFile).toHaveBeenCalledWith(
-      useAppStore.getState().rows,
+      [
+        expect.objectContaining({
+          card: expect.objectContaining({ id: 'c1' }),
+          pricing: expect.objectContaining({
+            condition: 'NM',
+            condition_multiplier: 1,
+            adjusted_market: 10,
+          }),
+        }),
+      ],
       'xlsx',
       expect.objectContaining({ title: 'cards' }),
     )

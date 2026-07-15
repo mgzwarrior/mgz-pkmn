@@ -347,6 +347,71 @@ class SavedSearchesTests(_IsolatedDbMixin):
             with session_mod.get_session_factory()() as s:
                 self.assertIsNotNone(s.get(Run, other_id))
 
+    def test_patch_run_row_condition_updates_pricing_json(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(
+                f"/api/v1/runs/{run_id}/rows/0/condition",
+                json={
+                    "condition": "HP",
+                    "condition_multiplier": 0.45,
+                },
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json()["pricing"]["condition"], "HP")
+            self.assertEqual(resp.json()["pricing"]["condition_multiplier"], 0.45)
+            # adjusted_market is always server-recomputed from the row's own
+            # market_price (seeded at 42.50) — never trusted from the client.
+            self.assertEqual(resp.json()["pricing"]["adjusted_market"], 19.12)
+
+            detail = c.get(f"/api/v1/runs/{run_id}").json()
+            self.assertEqual(detail["rows"][0]["pricing"]["condition"], "HP")
+
+    def test_patch_run_row_condition_recomputes_adjusted_market_server_side(self) -> None:
+        """A client-supplied `adjusted_market` in the request body is ignored;
+        the server always derives it from the row's stored `market_price`."""
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(
+                f"/api/v1/runs/{run_id}/rows/0/condition",
+                json={
+                    "condition": "LP",
+                    "condition_multiplier": 0.85,
+                    "adjusted_market": 999999,
+                },
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json()["pricing"]["adjusted_market"], 36.12)
+
+    def test_patch_run_row_condition_can_clear_override(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            c.patch(
+                f"/api/v1/runs/{run_id}/rows/0/condition",
+                json={
+                    "condition": "LP",
+                    "condition_multiplier": 0.85,
+                },
+            )
+            resp = c.patch(
+                f"/api/v1/runs/{run_id}/rows/0/condition",
+                json={
+                    "condition": None,
+                    "condition_multiplier": None,
+                },
+            )
+            self.assertEqual(resp.status_code, 200)
+            pricing = resp.json()["pricing"]
+            self.assertNotIn("condition", pricing)
+            self.assertNotIn("condition_multiplier", pricing)
+            self.assertNotIn("adjusted_market", pricing)
+
 
 class SavedSearchesAuthGateTests(_IsolatedDbMixin):
     """Hosted-demo auth-on saved searches are scoped to the session user.
@@ -621,6 +686,29 @@ class SerializeRoundTripTests(unittest.TestCase):
         restored = run_row_to_row(row_to_run_row(row, position=0))
         self.assertEqual(restored.pricing.ebay_sold_median, 230.0)
         self.assertEqual(restored.pricing.ebay_active_floor, 199.99)
+
+    def test_condition_pricing_round_trip(self) -> None:
+        """Browser-side condition pricing fields survive Row → RunRow → Row."""
+        from api.db.serialize import row_to_run_row, run_row_to_row
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        row = Row(
+            query=CardQuery(raw="charizard", name="charizard"),
+            card={"id": "x"},
+            pricing=Pricing(
+                market=250.0,
+                condition="HP",
+                condition_multiplier=0.45,
+                adjusted_market=112.5,
+            ),
+            tag="",
+        )
+        restored = run_row_to_row(row_to_run_row(row, position=0))
+        self.assertEqual(restored.pricing.condition, "HP")
+        self.assertEqual(restored.pricing.condition_multiplier, 0.45)
+        self.assertEqual(restored.pricing.adjusted_market, 112.5)
 
     def test_currency_is_null_on_unpriced_miss(self) -> None:
         """An unmatched/unpriced row stores `currency = NULL`, not the

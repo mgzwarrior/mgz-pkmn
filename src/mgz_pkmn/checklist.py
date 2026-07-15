@@ -186,10 +186,14 @@ def _row_label(card: dict[str, Any], fields: frozenset[str]) -> str:
 
 
 def _format_mp(pricing: Pricing) -> str:
-    if pricing.market is None:
+    market = pricing.effective_market
+    if market is None:
         return ""
     sym = "€" if pricing.currency == "EUR" else "$"
-    return f"{sym}{pricing.market:,.2f}"
+    prefix = (
+        f"{pricing.condition} " if pricing.condition and pricing.adjusted_market is not None else ""
+    )
+    return f"{prefix}{sym}{market:,.2f}"
 
 
 def _truncate_to_width(c: canvas.Canvas, text: str, font: str, size: int, max_w: float) -> str:

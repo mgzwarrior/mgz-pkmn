@@ -31,6 +31,7 @@ import { exportFile, ownCard, wantCard } from '../api/client'
 import { enabledFields } from '../data/exportFields'
 import { useAppStore } from '../store'
 import type { ExportFormat, Row } from '../types'
+import { rowsWithConditionPricing } from '../utils/conditionPricing'
 import { exportTheme } from './exportTheme'
 import { invalidateOwnership } from './useCardOwnership'
 import { useCollections } from './useCollections'
@@ -67,6 +68,7 @@ export function BulkActionBar({
   showBinderActions,
 }: Props) {
   const settings = useAppStore((s) => s.settings)
+  const rowConditionOverrides = useAppStore((s) => s.rowConditionOverrides)
   const cards = selectedRows
     .filter((r) => r.matched && r.card)
     .map((r) => r.card as unknown as Record<string, unknown>)
@@ -87,15 +89,19 @@ export function BulkActionBar({
     setExporting(format)
     setError(null)
     try {
-      await exportFile(selectedRows, format, {
-        maxPrice: settings.maxPrice,
-        title: settings.tag || 'cards',
-        sort: settings.sort,
-        noImages: settings.noImages,
-        dedupe: settings.dedupe,
-        fields: enabledFields(settings.exportFields[format]),
-        theme: exportTheme(format, settings.darkPdfExports),
-      })
+      await exportFile(
+        rowsWithConditionPricing(selectedRows, settings, rowConditionOverrides),
+        format,
+        {
+          maxPrice: settings.maxPrice,
+          title: settings.tag || 'cards',
+          sort: settings.sort,
+          noImages: settings.noImages,
+          dedupe: settings.dedupe,
+          fields: enabledFields(settings.exportFields[format]),
+          theme: exportTheme(format, settings.darkPdfExports),
+        },
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {

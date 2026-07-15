@@ -15,10 +15,16 @@ from openpyxl.utils import get_column_letter
 
 from . import branding, palette
 from .export_fields import (
+    ADJUSTED_COMP_80,
+    ADJUSTED_COMP_85,
+    ADJUSTED_COMP_90,
+    ADJUSTED_COMP_95,
+    ADJUSTED_MARKET,
     COMP_80,
     COMP_85,
     COMP_90,
     COMP_95,
+    CONDITION,
     MARKET,
     NAME,
     NUMBER,
@@ -56,11 +62,17 @@ _COLUMNS: tuple[_ColumnSpec, ...] = (
     _ColumnSpec("rarity", RARITY, "Rarity", 14),
     _ColumnSpec("variant", VARIANT, "Variant", 16),
     _ColumnSpec("database", None, "Database", 18),
+    _ColumnSpec("condition", CONDITION, "Condition", 12),
     _ColumnSpec("market", MARKET, "Market", 12),
+    _ColumnSpec("adjusted_market", ADJUSTED_MARKET, "Adjusted Market", 16),
     _ColumnSpec("comp_80", COMP_80, "80%", 10),
     _ColumnSpec("comp_85", COMP_85, "85%", 10),
     _ColumnSpec("comp_90", COMP_90, "90%", 10),
     _ColumnSpec("comp_95", COMP_95, "95%", 10),
+    _ColumnSpec("adjusted_comp_80", ADJUSTED_COMP_80, "Adjusted 80%", 14),
+    _ColumnSpec("adjusted_comp_85", ADJUSTED_COMP_85, "Adjusted 85%", 14),
+    _ColumnSpec("adjusted_comp_90", ADJUSTED_COMP_90, "Adjusted 90%", 14),
+    _ColumnSpec("adjusted_comp_95", ADJUSTED_COMP_95, "Adjusted 95%", 14),
     _ColumnSpec("ebay_sold", None, "eBay Sold (median)", 16),
     _ColumnSpec("ebay_active", None, "eBay Active (floor)", 16),
     _ColumnSpec("source", SOURCE, "Price Source", 14),
@@ -198,32 +210,95 @@ def _write_pricing_cells(
     col_idx: dict[str, int],
 ) -> None:
     market = row.pricing.market
-    is_over_cap = max_price is not None and market is not None and market > max_price
+    adjusted_market = row.pricing.adjusted_market
 
-    if "market" in col_idx:
-        if market is not None:
-            market_cell = ws.cell(row=i, column=col_idx["market"], value=market)
-            market_cell.number_format = money_fmt
-            if is_over_cap:
-                market_cell.fill = over_cap_fill
-                market_cell.font = Font(bold=True, color=palette.hex("warning-fg"))
-            else:
-                # In-budget market in brand green, matching the binder/checklist.
-                market_cell.font = Font(bold=True, color=palette.hex("success-fg"))
-        else:
-            ws.cell(row=i, column=col_idx["market"], value="—")
+    if "condition" in col_idx:
+        ws.cell(row=i, column=col_idx["condition"], value=row.pricing.condition or "")
 
-    if market is not None:
-        for col_id, pct in zip(
-            ("comp_80", "comp_85", "comp_90", "comp_95"), COMP_PERCENTS, strict=True
-        ):
-            if col_id not in col_idx:
-                continue
-            cell = ws.cell(row=i, column=col_idx[col_id], value=round(market * pct / 100, 2))
-            cell.number_format = money_fmt
-            if is_over_cap:
-                cell.fill = over_cap_fill
+    _write_money_cell(ws, i, "market", market, money_fmt, max_price, over_cap_fill, col_idx)
+    _write_money_cell(
+        ws,
+        i,
+        "adjusted_market",
+        adjusted_market,
+        money_fmt,
+        max_price,
+        over_cap_fill,
+        col_idx,
+    )
+    _write_comp_cells(
+        ws,
+        i,
+        ("comp_80", "comp_85", "comp_90", "comp_95"),
+        market,
+        money_fmt,
+        max_price,
+        over_cap_fill,
+        col_idx,
+    )
+    _write_comp_cells(
+        ws,
+        i,
+        ("adjusted_comp_80", "adjusted_comp_85", "adjusted_comp_90", "adjusted_comp_95"),
+        adjusted_market,
+        money_fmt,
+        max_price,
+        over_cap_fill,
+        col_idx,
+    )
+    _write_ebay_cells(ws, i, row, money_fmt, col_idx)
+    _write_source_cells(ws, i, row, col_idx)
 
+
+def _write_money_cell(
+    ws: Any,
+    i: int,
+    col_id: str,
+    value: float | None,
+    money_fmt: str,
+    max_price: float | None,
+    over_cap_fill: Any,
+    col_idx: dict[str, int],
+) -> None:
+    if col_id not in col_idx:
+        return
+    if value is None:
+        ws.cell(row=i, column=col_idx[col_id], value="—")
+        return
+
+    cell = ws.cell(row=i, column=col_idx[col_id], value=value)
+    cell.number_format = money_fmt
+    if _is_over_cap(value, max_price):
+        cell.fill = over_cap_fill
+        cell.font = Font(bold=True, color=palette.hex("warning-fg"))
+    else:
+        # In-budget market in brand green, matching the binder/checklist.
+        cell.font = Font(bold=True, color=palette.hex("success-fg"))
+
+
+def _write_comp_cells(
+    ws: Any,
+    i: int,
+    col_ids: tuple[str, str, str, str],
+    market: float | None,
+    money_fmt: str,
+    max_price: float | None,
+    over_cap_fill: Any,
+    col_idx: dict[str, int],
+) -> None:
+    if market is None:
+        return
+    is_over_cap = _is_over_cap(market, max_price)
+    for col_id, pct in zip(col_ids, COMP_PERCENTS, strict=True):
+        if col_id not in col_idx:
+            continue
+        cell = ws.cell(row=i, column=col_idx[col_id], value=round(market * pct / 100, 2))
+        cell.number_format = money_fmt
+        if is_over_cap:
+            cell.fill = over_cap_fill
+
+
+def _write_ebay_cells(ws: Any, i: int, row: Row, money_fmt: str, col_idx: dict[str, int]) -> None:
     for col_id, value in (
         ("ebay_sold", row.pricing.ebay_sold_median),
         ("ebay_active", row.pricing.ebay_active_floor),
@@ -234,12 +309,18 @@ def _write_pricing_cells(
         if value is not None:
             cell.number_format = money_fmt
 
+
+def _write_source_cells(ws: Any, i: int, row: Row, col_idx: dict[str, int]) -> None:
     if "source" in col_idx:
         ws.cell(row=i, column=col_idx["source"], value=row.pricing.source or "")
     if "source_url" in col_idx and row.pricing.url:
         link_cell = ws.cell(row=i, column=col_idx["source_url"], value=row.pricing.url)
         link_cell.hyperlink = row.pricing.url
         link_cell.font = Font(color=palette.hex("fg-link"), underline="single")
+
+
+def _is_over_cap(value: float, max_price: float | None) -> bool:
+    return max_price is not None and value > max_price
 
 
 def _embed_thumbnail(ws: Any, i: int, row: Row, col_idx: dict[str, int]) -> None:
@@ -269,7 +350,18 @@ def _write_totals_footer(ws: Any, row_count: int, col_idx: dict[str, int]) -> No
     last = row_count + 2
     pricing_cols = [
         col_idx[col_id]
-        for col_id in ("market", "comp_80", "comp_85", "comp_90", "comp_95")
+        for col_id in (
+            "market",
+            "adjusted_market",
+            "comp_80",
+            "comp_85",
+            "comp_90",
+            "comp_95",
+            "adjusted_comp_80",
+            "adjusted_comp_85",
+            "adjusted_comp_90",
+            "adjusted_comp_95",
+        )
         if col_id in col_idx
     ]
     if "database" in col_idx:

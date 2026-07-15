@@ -9,7 +9,12 @@ import { Database, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react'
 import { fetchCacheStats } from '../api/client'
 import { EXPORT_FIELD_LABELS, EXPORT_FIELD_OPTIONS } from '../data/exportFields'
 import { useAppStore } from '../store'
-import type { CacheStats, Density, ExportField, ExportFormat, SortMode } from '../types'
+import type { CacheStats, CardCondition, Density, ExportField, ExportFormat, SortMode } from '../types'
+import {
+  CONDITION_OPTIONS,
+  DEFAULT_CONDITION,
+  DEFAULT_CONDITION_MULTIPLIERS,
+} from '../utils/conditionPricing'
 
 const EXPORT_FORMAT_LABELS: Record<ExportFormat, string> = {
   xlsx: 'xlsx',
@@ -145,6 +150,8 @@ export function SettingsDrawer({ open: openProp, onOpenChange: onOpenChangeProp 
                 working through long lists.
               </p>
             </Field>
+
+            <ConditionPricingSection />
 
             {/* Max price */}
             <Field label="Max price cap ($)" htmlFor="maxPrice">
@@ -331,6 +338,78 @@ function ExportFieldsSection() {
         ))}
       </div>
     </details>
+  )
+}
+
+function ConditionPricingSection() {
+  const { settings, updateSettings } = useAppStore()
+  const condition = settings.condition ?? DEFAULT_CONDITION
+  const multipliers = {
+    ...DEFAULT_CONDITION_MULTIPLIERS,
+    ...(settings.conditionMultipliers ?? {}),
+  }
+
+  function updateMultiplier(tier: CardCondition, percentText: string) {
+    const percent = Number(percentText)
+    if (!Number.isFinite(percent)) return
+    updateSettings({
+      conditionMultipliers: {
+        ...multipliers,
+        [tier]: Math.max(0, percent) / 100,
+      },
+    })
+  }
+
+  return (
+    <div className="space-y-2">
+      <Field label="Default condition" htmlFor="condition">
+        <select
+          id="condition"
+          value={condition}
+          onChange={(e) => updateSettings({ condition: e.target.value as CardCondition })}
+          className="w-full rounded-md border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-3 py-1.5 text-sm text-coconut-700 dark:text-sand-50 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
+        >
+          {CONDITION_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <details className="group rounded-md border border-sand-300 dark:border-husk-50">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-sm font-medium text-coconut-600 dark:text-sand-200">
+          Condition multipliers
+          <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-2 border-t border-sand-300 dark:border-husk-50 px-3 py-3">
+          {CONDITION_OPTIONS.map((opt) => {
+            const inputId = `condition-multiplier-${opt.value}`
+            return (
+              <label
+                key={opt.value}
+                htmlFor={inputId}
+                className="flex items-center justify-between gap-3 text-xs text-coconut-600 dark:text-sand-200"
+              >
+                <span>{opt.label}</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    id={inputId}
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={Math.round(multipliers[opt.value] * 100)}
+                    onChange={(e) => updateMultiplier(opt.value, e.target.value)}
+                    className="w-16 rounded border border-sand-300 dark:border-coconut-500 bg-sand-200 dark:bg-husk-100 px-2 py-1 text-right text-xs text-coconut-700 dark:text-sand-50 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:ring-sun-300"
+                  />
+                  <span className="text-coconut-400 dark:text-sand-300">%</span>
+                </div>
+              </label>
+            )
+          })}
+        </div>
+      </details>
+    </div>
   )
 }
 

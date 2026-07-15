@@ -28,15 +28,22 @@ import {
   Filter,
   X,
 } from 'lucide-react'
-import { addOverride, hasPersonalOwnership } from '../api/client'
+import { addOverride, hasPersonalOwnership, updateRunRowCondition } from '../api/client'
 import { BulkActionBar } from './BulkActionBar'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
-import type { ResultsFilters, Row } from '../types'
+import type { CardCondition, ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
+import {
+  conditionPricingForRow,
+  multiplierFor,
+  rowConditionKey,
+  type ConditionPricing,
+} from '../utils/conditionPricing'
 import { QuickActions } from './QuickActions'
 import { AffiliateLinks } from './AffiliateLinks'
 import { CardDetailModal } from './CardDetailModal'
+import { ConditionOverrideSelect } from './ConditionOverrideSelect'
 import { ResultCard } from './ResultCard'
 import { ResultsEmptyState } from './ResultsEmptyState'
 import { useCardOwnership } from './useCardOwnership'
@@ -106,8 +113,19 @@ interface Props {
 }
 
 export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
-  const { rows, setRows, progress, isRunning, settings, viewState, setViewState, resetViewState } =
-    useAppStore()
+  const {
+    rows,
+    setRows,
+    progress,
+    isRunning,
+    settings,
+    rowConditionOverrides,
+    currentRunId,
+    setRowConditionOverride,
+    viewState,
+    setViewState,
+    resetViewState,
+  } = useAppStore()
   const { sortColumn, sortDir, showFilters, filters } = viewState
   // Hoist the auth read here (not in ResultRow) so we don't fire one
   // `/me` request per row on mount. Pass the boolean down — the rows
@@ -119,6 +137,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
   // `null` keeps the modal closed. Tracking the index (not the row) lets
   // ←/→ navigation in the modal stay synced with the live filter+sort.
   const [detailIndex, setDetailIndex] = useState<number | null>(null)
+  const [conditionSaveError, setConditionSaveError] = useState<string | null>(null)
   // Mobile-only: the desktop Filter toggle reveals an inline table row, but
   // there's no table to attach one to below `lg`, so a separate boolean
   // drives a bottom sheet instead (#521).
@@ -173,9 +192,19 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
     setViewState({ ...current, showFilters: !current.showFilters })
   }, [setViewState])
 
+  const adjustedMarketForRow = useCallback(
+    (row: Row) => conditionPricingForRow(row, settings, rowConditionOverrides).adjustedMarket,
+    [settings, rowConditionOverrides],
+  )
+
   const displayedRows = useMemo(
-    () => applySort(applyFilters(rows, filters), sortColumn, sortDir),
-    [rows, filters, sortColumn, sortDir],
+    () => applySort(
+      applyFilters(rows, filters, adjustedMarketForRow),
+      sortColumn,
+      sortDir,
+      adjustedMarketForRow,
+    ),
+    [rows, filters, sortColumn, sortDir, adjustedMarketForRow],
   )
 
   // Map each Row object to its insertion index so the React key stays
@@ -187,6 +216,33 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
     rows.forEach((r, i) => map.set(r, i))
     return map
   }, [rows])
+
+  const handleConditionOverrideChange = useCallback(
+    (row: Row, condition: CardCondition | null) => {
+      setRowConditionOverride(rowConditionKey(row), condition)
+      setConditionSaveError(null)
+      const position = rowKeys.get(row)
+      if (currentRunId == null || position == null) return
+      const patch =
+        condition === null
+          ? {
+              condition: null,
+              condition_multiplier: null,
+            }
+          : {
+              condition,
+              condition_multiplier: multiplierFor(condition, settings.conditionMultipliers),
+            }
+      void updateRunRowCondition(currentRunId, position, patch).catch((err: unknown) => {
+        setConditionSaveError(
+          err instanceof Error && err.message === 'sign-in required'
+            ? 'Sign in to keep condition overrides across visits.'
+            : 'Condition override was not saved.',
+        )
+      })
+    },
+    [currentRunId, rowKeys, setRowConditionOverride, settings.conditionMultipliers],
+  )
 
   // Cross-collection ownership badges (#576). Batch the matched rows'
   // identities into one lookup; signed-out users get no library, so skip it.
@@ -461,6 +517,11 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
           </p>
         </div>
       </div>
+      {conditionSaveError && (
+        <p role="status" className="text-xs text-ember-500 dark:text-ember-300">
+          {conditionSaveError}
+        </p>
+      )}
 
       {/* Table — desktop only; mobile renders ResultCards below (#521). */}
       {!isMobile && (
@@ -513,8 +574,11 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
               />
               {!settings.hidePricing && (
                 <>
+                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-left">
+                    Cond.
+                  </th>
                   <SortableHeader
-                    label="Market"
+                    label="Adj. market"
                     column="market"
                     active={sortColumn}
                     dir={sortDir}
@@ -585,6 +649,9 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 </FilterCell>
                 {!settings.hidePricing && (
                   <>
+                    <th>
+                      <span className="sr-only">Condition (no filter)</span>
+                    </th>
                     <FilterCell>
                       <div className="flex gap-1">
                         <FilterInput
@@ -643,6 +710,12 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
               <ResultRow
                 key={rowKeys.get(row) ?? -1}
                 row={row}
+                conditionPricing={conditionPricingForRow(row, settings, rowConditionOverrides)}
+                conditionOverride={rowConditionOverrides[rowConditionKey(row)] ?? null}
+                defaultCondition={settings.condition ?? 'NM'}
+                onConditionOverrideChange={(condition) =>
+                  handleConditionOverrideChange(row, condition)
+                }
                 showImage={!settings.noImages}
                 showSavedActions={showSavedActions}
                 showMarket={!settings.hidePricing}
@@ -656,7 +729,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
             ))}
             {isRunning && (
               <tr>
-                <td colSpan={14} className="py-2 px-3 compact:py-1">
+                <td colSpan={15} className="py-2 px-3 compact:py-1">
                   <div className="h-1 w-24 rounded animate-pulse bg-sand-200 dark:bg-husk-100" />
                 </td>
               </tr>
@@ -675,6 +748,12 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
           <ResultCard
             key={rowKeys.get(row) ?? -1}
             row={row}
+            conditionPricing={conditionPricingForRow(row, settings, rowConditionOverrides)}
+            conditionOverride={rowConditionOverrides[rowConditionKey(row)] ?? null}
+            defaultCondition={settings.condition ?? 'NM'}
+            onConditionOverrideChange={(condition) =>
+              handleConditionOverrideChange(row, condition)
+            }
             showImage={!settings.noImages}
             showSavedActions={showSavedActions}
             showMarket={!settings.hidePricing}
@@ -719,6 +798,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
         rows={visibleRows}
         index={detailIndex}
         onChangeIndex={setDetailIndex}
+        onConditionOverrideChange={handleConditionOverrideChange}
       />
     </div>
   )
@@ -962,12 +1042,35 @@ function SheetField({ label, children }: { label: string; children: React.ReactN
   )
 }
 
+function PriceStack({
+  primary,
+  secondary,
+}: {
+  primary: string
+  secondary?: string
+}) {
+  return (
+    <span className="inline-flex flex-col items-end leading-tight">
+      <span>{primary}</span>
+      {secondary && (
+        <span className="text-[10px] font-normal text-coconut-400 dark:text-sand-400">
+          {secondary}
+        </span>
+      )}
+    </span>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Single row
 // ---------------------------------------------------------------------------
 
 function ResultRow({
   row,
+  conditionPricing,
+  conditionOverride,
+  defaultCondition,
+  onConditionOverrideChange,
   showImage,
   showSavedActions,
   showMarket,
@@ -979,6 +1082,10 @@ function ResultRow({
   onSelect,
 }: {
   row: Row
+  conditionPricing: ConditionPricing
+  conditionOverride: CardCondition | null
+  defaultCondition: CardCondition
+  onConditionOverrideChange: (condition: CardCondition | null) => void
   showImage: boolean
   showSavedActions: boolean
   showMarket: boolean
@@ -1003,8 +1110,8 @@ function ResultRow({
   const isOverCap =
     showMarket &&
     useAppStore.getState().settings.maxPrice != null &&
-    p.market != null &&
-    p.market > (useAppStore.getState().settings.maxPrice ?? Infinity)
+    conditionPricing.adjustedMarket != null &&
+    conditionPricing.adjustedMarket > (useAppStore.getState().settings.maxPrice ?? Infinity)
 
   async function handleSaveOverride() {
     if (!overrideUrl.trim()) return
@@ -1153,27 +1260,76 @@ function ResultRow({
 
         {showMarket && (
           <>
+            {/* Condition override */}
+            <td className="px-3 py-2 compact:py-1">
+              {row.matched ? (
+                <ConditionOverrideSelect
+                  label={`Condition for ${(card?.name as string | undefined) ?? row.query.raw}`}
+                  value={conditionOverride}
+                  defaultCondition={defaultCondition}
+                  onChange={onConditionOverrideChange}
+                />
+              ) : (
+                <span className="text-xs text-coconut-400 dark:text-sand-300">—</span>
+              )}
+            </td>
+
             {/* Market */}
             <td
               className={`px-3 py-2 compact:py-1 text-right font-mono tabular-nums ${
-                isOverCap ? 'text-sun-600 dark:text-sun-300 font-bold' : p.market ? 'text-palm-500 dark:text-palm-200' : 'text-coconut-400 dark:text-sand-300'
+                isOverCap ? 'text-sun-600 dark:text-sun-300 font-bold' : conditionPricing.adjustedMarket != null ? 'text-palm-500 dark:text-palm-200' : 'text-coconut-400 dark:text-sand-300'
               }`}
             >
-              {formatMoney(p.market, p.currency)}
+              <PriceStack
+                primary={formatMoney(conditionPricing.adjustedMarket, p.currency)}
+                secondary={
+                  conditionPricing.hasAdjustment
+                    ? `NM ${formatMoney(p.market, p.currency)}`
+                    : undefined
+                }
+              />
             </td>
 
             {/* Comp tiers */}
             <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-              {formatComp(p.market, 80, p.currency)}
+              <PriceStack
+                primary={formatComp(conditionPricing.adjustedMarket, 80, p.currency)}
+                secondary={
+                  conditionPricing.hasAdjustment
+                    ? `NM ${formatComp(p.market, 80, p.currency)}`
+                    : undefined
+                }
+              />
             </td>
             <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-              {formatComp(p.market, 85, p.currency)}
+              <PriceStack
+                primary={formatComp(conditionPricing.adjustedMarket, 85, p.currency)}
+                secondary={
+                  conditionPricing.hasAdjustment
+                    ? `NM ${formatComp(p.market, 85, p.currency)}`
+                    : undefined
+                }
+              />
             </td>
             <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-              {formatComp(p.market, 90, p.currency)}
+              <PriceStack
+                primary={formatComp(conditionPricing.adjustedMarket, 90, p.currency)}
+                secondary={
+                  conditionPricing.hasAdjustment
+                    ? `NM ${formatComp(p.market, 90, p.currency)}`
+                    : undefined
+                }
+              />
             </td>
             <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-              {formatComp(p.market, 95, p.currency)}
+              <PriceStack
+                primary={formatComp(conditionPricing.adjustedMarket, 95, p.currency)}
+                secondary={
+                  conditionPricing.hasAdjustment
+                    ? `NM ${formatComp(p.market, 95, p.currency)}`
+                    : undefined
+                }
+              />
             </td>
           </>
         )}
@@ -1228,7 +1384,7 @@ function ResultRow({
       {/* Override URL form (inline, expands below row) */}
       {showOverrideForm && (
         <tr className="border-b border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200/60">
-          <td colSpan={14} className="px-3 py-2 compact:py-1">
+          <td colSpan={15} className="px-3 py-2 compact:py-1">
             <div className="flex items-center gap-2">
               <input
                 type="url"

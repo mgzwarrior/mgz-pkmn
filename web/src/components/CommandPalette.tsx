@@ -45,6 +45,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import type { DiscoveryMode } from '../App'
 import type { ExportFormat } from '../types'
+import { rowsWithConditionPricing } from '../utils/conditionPricing'
 import { exportTheme } from './exportTheme'
 import { loadSavedRun } from './loadSavedRun'
 import { fuzzyScore, readRecentCommandIds, recordRecentCommandId } from './commandPaletteMatch'
@@ -110,6 +111,7 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
   const setRuns = useAppStore((s) => s.setRuns)
   const rows = useAppStore((s) => s.rows)
   const settings = useAppStore((s) => s.settings)
+  const rowConditionOverrides = useAppStore((s) => s.rowConditionOverrides)
 
   // `Cmd/Ctrl+K` always intercepts (see module doc for why there's no
   // input-focus guard here, unlike the app's other global shortcuts).
@@ -222,15 +224,19 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
         disabled: matchedRowCount === 0,
         icon: opt.icon,
         run: () =>
-          exportFile(rows, opt.format, {
-            maxPrice: settings.maxPrice,
-            title: settings.tag || 'cards',
-            sort: settings.sort,
-            noImages: settings.noImages,
-            dedupe: settings.dedupe,
-            fields: enabledFields(settings.exportFields[opt.format]),
-            theme: exportTheme(opt.format, settings.darkPdfExports),
-          }),
+          exportFile(
+            rowsWithConditionPricing(rows, settings, rowConditionOverrides),
+            opt.format,
+            {
+              maxPrice: settings.maxPrice,
+              title: settings.tag || 'cards',
+              sort: settings.sort,
+              noImages: settings.noImages,
+              dedupe: settings.dedupe,
+              fields: enabledFields(settings.exportFields[opt.format]),
+              theme: exportTheme(opt.format, settings.darkPdfExports),
+            },
+          ),
       })
     }
 
@@ -259,6 +265,7 @@ export function CommandPalette({ mode, onSetMode, onOpenSettings, onOpenHelp, on
     matchedRowCount,
     rows,
     settings,
+    rowConditionOverrides,
     onOpenSettings,
     onOpenHelp,
     onOpenLibrary,

@@ -35,6 +35,7 @@ from ..db.models import DEFAULT_USER_ID, Run, RunRow, User
 from ..db.session import get_db
 
 router = APIRouter()
+CARD_CONDITIONS = {"NM", "LP", "MP", "HP"}
 
 # Annotated dependency aliases keep `Depends(...)` out of argument defaults
 # (ruff B008) while preserving the FastAPI-native dependency-injection
@@ -91,6 +92,25 @@ class SaveRunRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     view_state: dict | None = None
+
+
+class RunRowConditionRequest(BaseModel):
+    """Body for PATCH /runs/{id}/rows/{position}/condition.
+
+    `condition=None` clears the explicit row override and removes the
+    derived browser-side condition price fields from `pricing_json`.
+    `condition_multiplier` is browser-supplied (the Settings drawer lets a
+    user customize it per condition tier, and the server has no copy of
+    that config) but `adjusted_market` is always recomputed server-side
+    from the row's own `market_price` — never trusted verbatim from the
+    client — so a stale or manipulated client value can't get persisted."""
+
+    condition: str | None = None
+    condition_multiplier: float | None = Field(default=None, ge=0)
+
+
+def _run_visible_to_current_user(run: Run, current_user: User) -> bool:
+    return run.user_id == current_user.id or (run.user_id == DEFAULT_USER_ID and run.name is None)
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +180,7 @@ def get_run(run_id: int, db: DbSession, current_user: CurrentUser) -> dict:
     run = db.scalar(select(Run).where(Run.id == run_id).options(selectinload(Run.rows)))
     if run is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
-    if run.user_id != current_user.id and not (run.user_id == DEFAULT_USER_ID and run.name is None):
+    if not _run_visible_to_current_user(run, current_user):
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
     return RunOut(
         id=run.id,
@@ -220,6 +240,56 @@ def save_run(run_id: int, req: SaveRunRequest, db: DbSession, current_user: Curr
         row_count=row_count,
         name=run.name,
         view_state=run.view_state,
+    ).model_dump()
+
+
+@router.patch("/runs/{run_id}/rows/{position}/condition")
+def update_run_row_condition(
+    run_id: int,
+    position: int,
+    req: RunRowConditionRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Persist or clear one row's explicit condition override.
+
+    The run-row already owns opaque `pricing_json`, so condition pricing can
+    round-trip through saved searches without a schema migration. Raw market
+    columns stay unchanged; the adjusted value remains an export/UI field."""
+    run = db.scalar(select(Run).where(Run.id == run_id))
+    if run is None or not _run_visible_to_current_user(run, current_user):
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    row = db.scalar(select(RunRow).where(RunRow.run_id == run.id, RunRow.position == position))
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"run row {position} not found")
+
+    pricing = dict(row.pricing_json or {})
+    if req.condition is None:
+        pricing.pop("condition", None)
+        pricing.pop("condition_multiplier", None)
+        pricing.pop("adjusted_market", None)
+    else:
+        condition = req.condition.strip().upper()
+        if condition not in CARD_CONDITIONS:
+            raise HTTPException(status_code=422, detail="condition must be NM, LP, MP, or HP")
+        pricing["condition"] = condition
+        pricing["condition_multiplier"] = req.condition_multiplier
+        pricing["adjusted_market"] = (
+            round(row.market_price * req.condition_multiplier, 2)
+            if row.market_price is not None and req.condition_multiplier is not None
+            else None
+        )
+    row.pricing_json = pricing
+    db.commit()
+    db.refresh(row)
+    return RunRowOut(
+        position=row.position,
+        tag=row.tag,
+        market_price=float(row.market_price) if row.market_price is not None else None,
+        currency=row.currency,
+        query=row.query_json,
+        card=row.card_json,
+        pricing=row.pricing_json,
     ).model_dump()
 
 

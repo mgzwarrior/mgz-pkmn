@@ -12,7 +12,13 @@ vi.mock('../api/client', () => ({
 // setter mutates `storeState` synchronously so a *second* `rerender()` call
 // (this mock has no real reactivity of its own) picks up the change, same
 // as every other field here.
-const { mockSetInputText, mockClearRows, mockSetEditorCollapsed, storeState } = vi.hoisted(() => {
+const {
+  mockSetInputText,
+  mockClearRows,
+  mockClearRowConditionOverrides,
+  mockSetEditorCollapsed,
+  storeState,
+} = vi.hoisted(() => {
   const storeState = {
     inputText: '',
     isRunning: false,
@@ -22,7 +28,13 @@ const { mockSetInputText, mockClearRows, mockSetEditorCollapsed, storeState } = 
   const mockSetEditorCollapsed = vi.fn((v: boolean) => {
     storeState.editorCollapsed = v
   })
-  return { mockSetInputText: vi.fn(), mockClearRows: vi.fn(), mockSetEditorCollapsed, storeState }
+  return {
+    mockSetInputText: vi.fn(),
+    mockClearRows: vi.fn(),
+    mockClearRowConditionOverrides: vi.fn(),
+    mockSetEditorCollapsed,
+    storeState,
+  }
 })
 
 vi.mock('../store', () => ({
@@ -31,6 +43,7 @@ vi.mock('../store', () => ({
     setInputText: mockSetInputText,
     isRunning: storeState.isRunning,
     clearRows: mockClearRows,
+    clearRowConditionOverrides: mockClearRowConditionOverrides,
     editorCollapsed: storeState.editorCollapsed,
     setEditorCollapsed: mockSetEditorCollapsed,
     // LookupTimer (rendered under the toolbar) reads these fields.
@@ -53,6 +66,7 @@ describe('InputEditor', () => {
   beforeEach(() => {
     mockSetInputText.mockClear()
     mockClearRows.mockClear()
+    mockClearRowConditionOverrides.mockClear()
     mockSetEditorCollapsed.mockClear()
     storeState.inputText = ''
     storeState.isRunning = false
@@ -258,6 +272,7 @@ describe('InputEditor', () => {
       fireEvent.click(screen.getByRole('button', { name: /clear/i }))
 
       expect(mockClearRows).toHaveBeenCalled()
+      expect(mockClearRowConditionOverrides).toHaveBeenCalled()
       expect(mockSetInputText).toHaveBeenCalledWith('')
       expect(mockSetEditorCollapsed).toHaveBeenCalledWith(false)
     })

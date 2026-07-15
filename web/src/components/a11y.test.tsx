@@ -39,6 +39,7 @@ vi.mock('../api/client', () => ({
   downloadSetCardsPdf: vi.fn(),
   parseLine: vi.fn(),
   addOverride: vi.fn(),
+  updateRunRowCondition: vi.fn(),
   // SignInChip's useAuth fires `fetchMe` on mount; the anonymous
   // resolution lets the chip settle on the Sign-in button shape under
   // axe, while the signed-in-state scan below overrides it per-test.
@@ -93,6 +94,7 @@ const { storeState, storeApi } = vi.hoisted(() => {
     isRunning: false,
     progress: null as { done: number; total: number } | null,
     processingLines: [] as { line: string; status: 'pending' | 'resolved' | 'error' }[],
+    rowConditionOverrides: {} as Record<string, 'NM' | 'LP' | 'MP' | 'HP'>,
     settings: {
       apiKey: '',
       maxPrice: null as number | null,
@@ -103,6 +105,8 @@ const { storeState, storeApi } = vi.hoisted(() => {
       showTimer: false,
       showEbay: false,
       density: 'comfortable' as 'comfortable' | 'compact',
+      condition: 'NM' as const,
+      conditionMultipliers: { NM: 1, LP: 0.85, MP: 0.65, HP: 0.45 },
       // Per-format toggle record (#262) — empty sub-objects are fine, the
       // component falls back to "checked" for any field key not present.
       exportFields: { xlsx: {}, pdf: {}, 'condensed-pdf': {}, checklist: {} },
@@ -119,6 +123,16 @@ const { storeState, storeApi } = vi.hoisted(() => {
       state.rows = []
     }),
     setProcessingLines: vi.fn(),
+    setRowConditionOverrides: vi.fn((v: typeof state.rowConditionOverrides) => {
+      state.rowConditionOverrides = v
+    }),
+    setRowConditionOverride: vi.fn((key: string, condition: 'NM' | 'LP' | 'MP' | 'HP' | null) => {
+      if (condition === null) delete state.rowConditionOverrides[key]
+      else state.rowConditionOverrides[key] = condition
+    }),
+    clearRowConditionOverrides: vi.fn(() => {
+      state.rowConditionOverrides = {}
+    }),
     setProgress: vi.fn(),
     setIsRunning: vi.fn(),
     updateSettings: vi.fn(),
@@ -166,6 +180,7 @@ beforeEach(() => {
   storeState.isRunning = false
   storeState.progress = null
   storeState.processingLines = []
+  storeState.rowConditionOverrides = {}
   _resetAuthStoreForTests()
 })
 

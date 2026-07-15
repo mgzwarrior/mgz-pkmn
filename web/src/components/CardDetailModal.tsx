@@ -25,8 +25,12 @@ import {
 } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
-import type { CardData, CardSet, EbaySoldComp, Pricing, Row } from '../types'
+import type { CardCondition, CardData, CardSet, EbaySoldComp, Pricing, Row } from '../types'
 import { ebayAffiliateUrl, tcgplayerAffiliateUrl } from '../utils/affiliateLinks'
+import {
+  conditionPricingForRow,
+  rowConditionKey,
+} from '../utils/conditionPricing'
 import { formatComp, formatMoney } from '../utils/format'
 import { AffiliateLinks } from './AffiliateLinks'
 import {
@@ -37,6 +41,7 @@ import {
 import { EbaySparkline } from './EbaySparkline'
 import { hasEbayData, soldPriceSeries } from './ebayComps'
 import { AddToListPicker } from './AddToListPicker'
+import { ConditionOverrideSelect } from './ConditionOverrideSelect'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
 import { invalidateOwnership, useCardOwnership } from './useCardOwnership'
@@ -57,6 +62,7 @@ interface Props {
    * controls — rendered as siblings, not inside the dialog — stay clickable.
    */
   modal?: boolean
+  onConditionOverrideChange?: (row: Row, condition: CardCondition | null) => void
 }
 
 function shouldIgnoreModalArrowKey(e: KeyboardEvent) {
@@ -66,7 +72,13 @@ function shouldIgnoreModalArrowKey(e: KeyboardEvent) {
   return target.closest('input, textarea, select, [contenteditable="true"], [role="menu"]') !== null
 }
 
-export function CardDetailModal({ rows, index, onChangeIndex, modal = true }: Props) {
+export function CardDetailModal({
+  rows,
+  index,
+  onChangeIndex,
+  modal = true,
+  onConditionOverrideChange,
+}: Props) {
   const isOpen = index !== null && index >= 0 && index < rows.length
   const row = isOpen ? rows[index] : null
 
@@ -148,6 +160,7 @@ export function CardDetailModal({ rows, index, onChangeIndex, modal = true }: Pr
               total={rows.length}
               showActions={showActions}
               ownership={ownership}
+              onConditionOverrideChange={onConditionOverrideChange}
               onPrev={
                 index! > 0 ? () => onChangeIndex(index! - 1) : undefined
               }
@@ -174,6 +187,7 @@ function CardDetailBody({
   total,
   showActions,
   ownership,
+  onConditionOverrideChange,
   onPrev,
   onNext,
 }: {
@@ -182,12 +196,18 @@ function CardDetailBody({
   total: number
   showActions: boolean
   ownership: CardOwnership | null | undefined
+  onConditionOverrideChange?: (row: Row, condition: CardCondition | null) => void
   onPrev?: () => void
   onNext?: () => void
 }) {
   const card = row.card
   const pricing = row.pricing
-  const hidePricing = useAppStore((s) => s.settings.hidePricing)
+  const settings = useAppStore((s) => s.settings)
+  const rowConditionOverrides = useAppStore((s) => s.rowConditionOverrides)
+  const setRowConditionOverride = useAppStore((s) => s.setRowConditionOverride)
+  const hidePricing = settings.hidePricing
+  const conditionPricing = conditionPricingForRow(row, settings, rowConditionOverrides)
+  const conditionOverride = rowConditionOverrides[rowConditionKey(row)] ?? null
   const imgUrl =
     (card?.images?.large as string | undefined) ??
     (card?.images?.small as string | undefined)
@@ -199,6 +219,15 @@ function CardDetailBody({
   const cardNumber = card?.number as string | undefined
   const rarity = card?.rarity as string | undefined
   const variant = pricing.variant ?? row.query.variant_hint
+  const conditionLabel = `Condition for ${(card?.name as string | undefined) ?? row.query.raw}`
+
+  function handleConditionChange(condition: CardCondition | null) {
+    if (onConditionOverrideChange) {
+      onConditionOverrideChange(row, condition)
+    } else {
+      setRowConditionOverride(rowConditionKey(row), condition)
+    }
+  }
 
   return (
     <>
@@ -305,32 +334,66 @@ function CardDetailBody({
               />
               {!hidePricing && (
                 <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300 mb-2">
-                    Pricing
-                  </h3>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
+                      Pricing
+                    </h3>
+                    <ConditionOverrideSelect
+                      label={conditionLabel}
+                      value={conditionOverride}
+                      defaultCondition={settings.condition ?? 'NM'}
+                      onChange={handleConditionChange}
+                    />
+                  </div>
                   <div className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 p-3 space-y-1">
                     <PriceLine
-                      label="Market"
-                      value={formatMoney(pricing.market, pricing.currency)}
+                      label={`${conditionPricing.condition} market`}
+                      value={formatMoney(conditionPricing.adjustedMarket, pricing.currency)}
                       bold
                       highlight
                     />
+                    {conditionPricing.hasAdjustment && (
+                      <PriceLine
+                        label="NM market"
+                        value={formatMoney(pricing.market, pricing.currency)}
+                      />
+                    )}
                     <PriceLine
-                      label="95%"
-                      value={formatComp(pricing.market, 95, pricing.currency)}
+                      label={`${conditionPricing.condition} 95%`}
+                      value={formatComp(conditionPricing.adjustedMarket, 95, pricing.currency)}
                     />
                     <PriceLine
-                      label="90%"
-                      value={formatComp(pricing.market, 90, pricing.currency)}
+                      label={`${conditionPricing.condition} 90%`}
+                      value={formatComp(conditionPricing.adjustedMarket, 90, pricing.currency)}
                     />
                     <PriceLine
-                      label="85%"
-                      value={formatComp(pricing.market, 85, pricing.currency)}
+                      label={`${conditionPricing.condition} 85%`}
+                      value={formatComp(conditionPricing.adjustedMarket, 85, pricing.currency)}
                     />
                     <PriceLine
-                      label="80%"
-                      value={formatComp(pricing.market, 80, pricing.currency)}
+                      label={`${conditionPricing.condition} 80%`}
+                      value={formatComp(conditionPricing.adjustedMarket, 80, pricing.currency)}
                     />
+                    {conditionPricing.hasAdjustment && (
+                      <>
+                        <PriceLine
+                          label="NM 95%"
+                          value={formatComp(pricing.market, 95, pricing.currency)}
+                        />
+                        <PriceLine
+                          label="NM 90%"
+                          value={formatComp(pricing.market, 90, pricing.currency)}
+                        />
+                        <PriceLine
+                          label="NM 85%"
+                          value={formatComp(pricing.market, 85, pricing.currency)}
+                        />
+                        <PriceLine
+                          label="NM 80%"
+                          value={formatComp(pricing.market, 80, pricing.currency)}
+                        />
+                      </>
+                    )}
                   </div>
                   {pricing.source && (
                     <p className="mt-2 text-xs text-coconut-400 dark:text-sand-300">

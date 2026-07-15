@@ -47,6 +47,9 @@ def _pricing_to_dict(p: Pricing) -> dict[str, Any]:
         "source": p.source,
         "url": p.url,
         "currency": p.currency,
+        "condition": p.condition,
+        "condition_multiplier": p.condition_multiplier,
+        "adjusted_market": p.adjusted_market,
         "ebay_sold_median": p.ebay_sold_median,
         "ebay_active_floor": p.ebay_active_floor,
     }
@@ -113,6 +116,9 @@ def run_row_to_row(rr: RunRow) -> Row:
         source=p.get("source"),
         url=p.get("url"),
         currency=p.get("currency") or "USD",
+        condition=p.get("condition"),
+        condition_multiplier=p.get("condition_multiplier"),
+        adjusted_market=p.get("adjusted_market"),
         ebay_sold_median=p.get("ebay_sold_median"),
         ebay_active_floor=p.get("ebay_active_floor"),
     )

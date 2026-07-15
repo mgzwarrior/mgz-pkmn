@@ -25,11 +25,17 @@ export const EMPTY_FILTERS: Filters = {
   source: '',
 }
 
+type MarketAccessor = (row: Row) => number | null
+
 export function hasActiveFilters(f: Filters): boolean {
   return Object.values(f).some((v) => v !== '')
 }
 
-export function applyFilters(rows: Row[], filters: Filters): Row[] {
+export function applyFilters(
+  rows: Row[],
+  filters: Filters,
+  marketForRow: MarketAccessor = defaultMarketForRow,
+): Row[] {
   const min = filters.marketMin === '' ? null : Number(filters.marketMin)
   const max = filters.marketMax === '' ? null : Number(filters.marketMax)
   return rows.filter((row) => {
@@ -40,7 +46,7 @@ export function applyFilters(rows: Row[], filters: Filters): Row[] {
       return false
     }
     if (min != null || max != null) {
-      const m = row.pricing.market
+      const m = marketForRow(row)
       if (m == null) return false
       if (min != null && m < min) return false
       if (max != null && m > max) return false
@@ -49,10 +55,16 @@ export function applyFilters(rows: Row[], filters: Filters): Row[] {
   })
 }
 
-export function applySort(rows: Row[], column: SortColumn | null, dir: SortDir | null): Row[] {
+export function applySort(
+  rows: Row[],
+  column: SortColumn | null,
+  dir: SortDir | null,
+  marketForRow: MarketAccessor = defaultMarketForRow,
+): Row[] {
   if (!column || !dir) return rows
   const mul = dir === 'asc' ? 1 : -1
-  const get = SORT_ACCESSORS[column]
+  const get = (row: Row) =>
+    column === 'market' ? marketForRow(row) : SORT_ACCESSORS[column](row)
   const indexed = rows.map((row, i) => ({ row, i }))
   indexed.sort((a, b) => {
     const av = get(a.row)
@@ -73,8 +85,12 @@ const SORT_ACCESSORS: Record<SortColumn, (row: Row) => string | number | null> =
   name: (row) => getName(row),
   set: (row) => getSet(row),
   rarity: (row) => getRarity(row),
-  market: (row) => row.pricing.market,
+  market: (row) => defaultMarketForRow(row),
   source: (row) => row.pricing.source,
+}
+
+function defaultMarketForRow(row: Row): number | null {
+  return row.pricing.adjusted_market ?? row.pricing.market
 }
 
 function text(v: unknown): string {

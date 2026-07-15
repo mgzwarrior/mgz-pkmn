@@ -81,7 +81,7 @@ class PricingDefaultsTests(unittest.TestCase):
 class XlsxColumnTests(unittest.TestCase):
     def test_headers_carry_ebay_columns_before_price_source(self) -> None:
         self.assertEqual(
-            HEADERS[15:19],
+            HEADERS[21:25],
             ["eBay Sold (median)", "eBay Active (floor)", "Price Source", "Listing URL"],
         )
 
@@ -97,16 +97,16 @@ class XlsxColumnTests(unittest.TestCase):
                 market=250.0, source="ebay_active", ebay_sold_median=230.0, ebay_active_floor=199.99
             )
         )
-        # Row 2, columns P (16) / Q (17) carry the aggregates; R (18) the source.
-        self.assertEqual(ws.cell(row=2, column=16).value, 230.0)
-        self.assertEqual(ws.cell(row=2, column=17).value, 199.99)
-        self.assertEqual(ws.cell(row=2, column=18).value, "ebay_active")
+        # Row 2, columns V (22) / W (23) carry the aggregates; X (24) the source.
+        self.assertEqual(ws.cell(row=2, column=22).value, 230.0)
+        self.assertEqual(ws.cell(row=2, column=23).value, 199.99)
+        self.assertEqual(ws.cell(row=2, column=24).value, "ebay_active")
 
     def test_ebay_cells_dash_when_absent(self) -> None:
         ws = self._write_and_load(Pricing(market=12.5, source="tcgplayer"))
-        self.assertEqual(ws.cell(row=2, column=16).value, "—")
-        self.assertEqual(ws.cell(row=2, column=17).value, "—")
-        self.assertEqual(ws.cell(row=2, column=18).value, "tcgplayer")
+        self.assertEqual(ws.cell(row=2, column=22).value, "—")
+        self.assertEqual(ws.cell(row=2, column=23).value, "—")
+        self.assertEqual(ws.cell(row=2, column=24).value, "tcgplayer")
 
 
 class JsonReportTests(unittest.TestCase):

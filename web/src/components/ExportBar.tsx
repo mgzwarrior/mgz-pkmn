@@ -31,6 +31,7 @@ import { enabledFields } from '../data/exportFields'
 import { exportTheme } from './exportTheme'
 import { useAppStore } from '../store'
 import type { ExportFormat, Row } from '../types'
+import { rowsWithConditionPricing } from '../utils/conditionPricing'
 import { SetPickerModal } from './SetPickerModal'
 
 interface ExportBarProps {
@@ -62,7 +63,7 @@ export function ExportBar({
   showSetIdCards = true,
   collectionId,
 }: ExportBarProps = {}) {
-  const { rows: storeRows, settings } = useAppStore()
+  const { rows: storeRows, settings, rowConditionOverrides } = useAppStore()
   const [loading, setLoading] = useState<ExportFormat | 'id-card' | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Set ID cards now opens the picker modal rather than firing an
@@ -81,16 +82,20 @@ export function ExportBar({
     setLoading(format)
     setError(null)
     try {
-      await exportFile(sourceRows, format, {
-        maxPrice: settings.maxPrice,
-        title: title ?? (settings.tag || 'cards'),
-        sort: settings.sort,
-        noImages: settings.noImages,
-        dedupe: settings.dedupe,
-        fields: enabledFields(settings.exportFields[format]),
-        leadWithIdCard: settings.leadWithIdCard,
-        theme: exportTheme(format, settings.darkPdfExports),
-      })
+      await exportFile(
+        rowsWithConditionPricing(sourceRows, settings, rowConditionOverrides),
+        format,
+        {
+          maxPrice: settings.maxPrice,
+          title: title ?? (settings.tag || 'cards'),
+          sort: settings.sort,
+          noImages: settings.noImages,
+          dedupe: settings.dedupe,
+          fields: enabledFields(settings.exportFields[format]),
+          leadWithIdCard: settings.leadWithIdCard,
+          theme: exportTheme(format, settings.darkPdfExports),
+        },
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
