@@ -44,6 +44,22 @@ Bulk lookups (`top:N` / `All …`) cull above-cap candidates before the
 top-N cut instead of flagging them, so the highlight only fires for
 explicit single-card lines.
 
+### Rarity highlighting
+
+The **Rarity** cell is tinted per tier so common vs. uncommon vs. rare
+stands out scanning down the column:
+
+| Tier | Palette token | Matches |
+|---|---|---|
+| Common | `rarity-common` | Rarity strings containing "common" (but not "uncommon"). |
+| Uncommon | `rarity-uncommon` | Rarity strings containing "uncommon". |
+| Rare | `rarity-rare` | Everything else containing "rare" — Rare, Rare Holo, Ultra Rare, Illustration Rare, Rare Secret, etc. all share this tier. |
+
+Rarities that don't match any of the above (promos, unrecognized
+strings) render with no fill. Colors come from the same design tokens
+the web SPA uses (`design/tokens/colors_and_type.css`) — see
+[`palette.py`](../src/mgz_pkmn/palette.py).
+
 ## JSON report (`--report-json`)
 
 Pass `--report-json output/summary.json` to get a structured digest

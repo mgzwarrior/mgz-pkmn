@@ -99,6 +99,30 @@ class Row:
     tag: str = ""  # input-file stem so rows stay grouped per source list
 
 
+# Rarity tiers the palette already defines (design/tokens/colors_and_type.css
+# → palette.py). Bucketed by substring rather than an exact-match table since
+# pokemontcg.io's rarity strings multiply constantly (Illustration Rare, Ultra
+# Rare, Rare Secret, ACE SPEC Rare, …) — anything beyond plain Common/Uncommon
+# reads as the same "rare" tier here. Order matters: "uncommon" must be
+# checked before "common" since it contains that substring.
+_RARITY_TIER_TOKENS: dict[str, str] = {
+    "uncommon": "rarity-uncommon",
+    "common": "rarity-common",
+    "rare": "rarity-rare",
+}
+
+
+def _rarity_fill_token(rarity: str | None) -> str | None:
+    """Return the palette token for `rarity`'s tier, or `None` if unmapped."""
+    if not rarity:
+        return None
+    lowered = rarity.lower()
+    for substring, token in _RARITY_TIER_TOKENS.items():
+        if substring in lowered:
+            return token
+    return None
+
+
 def _money_format(currency: str) -> str:
     if currency == "EUR":
         return '"€"#,##0.00'
@@ -128,12 +152,16 @@ def write_spreadsheet(
     ws.title = "Cards"
 
     over_cap_fill = PatternFill("solid", fgColor=palette.hex("warning-bg"))  # above-cap rows
+    rarity_fills = {
+        token: PatternFill("solid", fgColor=palette.hex(token))
+        for token in set(_RARITY_TIER_TOKENS.values())
+    }
 
     _write_header_row(ws, columns)
     _apply_column_widths(ws, columns)
 
     for i, row in enumerate(rows, start=2):
-        _write_data_row(ws, i, row, max_price, over_cap_fill, col_idx)
+        _write_data_row(ws, i, row, max_price, over_cap_fill, rarity_fills, col_idx)
 
     if "src_tag" in col_idx:
         freeze_col = get_column_letter(col_idx["src_tag"] + 1)
@@ -168,6 +196,7 @@ def _write_data_row(
     row: Row,
     max_price: float | None,
     over_cap_fill: Any,
+    rarity_fills: dict[str, Any],
     col_idx: dict[str, int],
 ) -> None:
     ws.row_dimensions[i].height = THUMB_H * 0.78  # excel "points", approx px*0.75
@@ -176,14 +205,21 @@ def _write_data_row(
     card_set = card.get("set") or {}
     money_fmt = _money_format(row.pricing.currency)
 
-    _write_card_cells(ws, i, row, card, card_set, col_idx)
+    _write_card_cells(ws, i, row, card, card_set, rarity_fills, col_idx)
     _write_pricing_cells(ws, i, row, money_fmt, max_price, over_cap_fill, col_idx)
     _embed_thumbnail(ws, i, row, col_idx)
 
 
 def _write_card_cells(
-    ws: Any, i: int, row: Row, card: dict[str, Any], card_set: dict, col_idx: dict[str, int]
+    ws: Any,
+    i: int,
+    row: Row,
+    card: dict[str, Any],
+    card_set: dict,
+    rarity_fills: dict[str, Any],
+    col_idx: dict[str, int],
 ) -> None:
+    rarity = card.get("rarity")
     values = {
         "src_tag": row.tag,
         "input": row.query.raw,
@@ -191,13 +227,18 @@ def _write_card_cells(
         "set": card_set.get("name"),
         "series": card_set.get("series"),
         "number": card.get("number"),
-        "rarity": card.get("rarity"),
+        "rarity": rarity,
         "variant": row.pricing.variant,
         "database": card.get("_database") or "",
     }
     for col_id, value in values.items():
         if col_id in col_idx:
             ws.cell(row=i, column=col_idx[col_id], value=value)
+
+    if "rarity" in col_idx:
+        fill_token = _rarity_fill_token(rarity)
+        if fill_token is not None:
+            ws.cell(row=i, column=col_idx["rarity"]).fill = rarity_fills[fill_token]
 
 
 def _write_pricing_cells(
