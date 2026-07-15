@@ -19,14 +19,7 @@ gh issue view <N> --repo mgzwarrior/mgz-pkmn --json number,title,body,labels,mil
 - If it's labelled `wip`, `blocked`, or `needs-discussion`, stop and tell the user why that label blocks pickup (see CLAUDE.md Step 1) — don't proceed without their explicit go-ahead.
 - If the issue is ambiguous and intent can't be inferred from the body plus linked context, leave a clarifying comment on the issue and report back instead of guessing.
 
-**If no issue number was given**, run the selection filter:
-
-```bash
-gh issue list --repo mgzwarrior/mgz-pkmn --state open --limit 500 --json number,title,labels,milestone \
-  | jq '.[] | select(.labels | map(.name) | (contains(["wip"]) or contains(["blocked"]) or contains(["needs-discussion"])) | not)'
-```
-
-Rank the survivors by CLAUDE.md's priority order — bugs before features, smaller well-scoped issues before large ones, `area:*` label consistent with the current milestone — and propose the single best candidate to the user with a one-line rationale before starting. If they're away (background session), proceed with the top pick and note the choice.
+**If no issue number was given**, run CLAUDE.md Step 1's selection procedure verbatim — find the current milestone first (hard filter, not a tiebreaker), then list and rank only that milestone's open issues. Don't reach into `Backlog` or a later milestone for a cleaner-looking issue. Propose the single best candidate to the user with a one-line rationale before starting. If they're away (background session), proceed with the top pick and note the choice.
 
 ## Step 2 — Check what's already in flight
 

@@ -5,17 +5,38 @@ prep CLI written in Python (repo: `mgzwarrior/mgz-pkmn`).
 
 ## Step 1 — Pick the right issue
 
-Review all open GitHub issues:
+**Issues must come from the current milestone. This is a hard filter, not a
+ranking tiebreaker** — a small, well-scoped, low-ambiguity issue several
+milestones away from the current one is still the wrong pick. Don't reach
+into `Backlog` or a future-numbered milestone just because it looks cleaner
+than what's actually queued up next.
+
+First, find the current milestone — the lowest-numbered **open** milestone
+that isn't `Backlog` (release milestones close in order, so this is always
+the one actually being worked toward; `Backlog` is an explicit pool of
+uncommitted/deferred work, never "current"):
 
 ```bash
-gh issue list --repo mgzwarrior/mgz-pkmn --state open --json number,title,labels,milestone \
+gh api "repos/mgzwarrior/mgz-pkmn/milestones?state=open&per_page=100" \
+  | jq -r '[.[] | select(.title != "Backlog")] | sort_by(.number) | .[0] | "\(.number)\t\(.title)"'
+```
+
+Then list only that milestone's open issues (substitute the title found above):
+
+```bash
+gh issue list --repo mgzwarrior/mgz-pkmn --state open --milestone "<title from above>" \
+  --json number,title,labels,milestone \
   | jq '.[] | select(.labels | map(.name) | (contains(["wip"]) or contains(["blocked"]) or contains(["needs-discussion"])) | not)'
 ```
 
-Select the **single highest-value issue** using this priority order:
+If nothing in the current milestone survives that filter (everything left is
+`wip`/`blocked`/`needs-discussion`), say so and ask before reaching into
+another milestone — don't silently substitute a "good" issue from elsewhere.
+
+Select the **single highest-value issue** among the survivors using this
+priority order:
 1. Bugs before features
 2. Smaller, well-scoped issues before large ones
-3. Issues whose `area:*` label is consistent with the current milestone
 
 Skip anything labelled:
 
