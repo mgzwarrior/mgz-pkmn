@@ -35,7 +35,6 @@ import { useAppStore } from '../store'
 import type { CardCondition, ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
 import {
-  adjustedMarketFor,
   conditionPricingForRow,
   multiplierFor,
   rowConditionKey,
@@ -229,16 +228,10 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
           ? {
               condition: null,
               condition_multiplier: null,
-              adjusted_market: null,
             }
           : {
               condition,
               condition_multiplier: multiplierFor(condition, settings.conditionMultipliers),
-              adjusted_market: adjustedMarketFor(
-                row.pricing.market,
-                condition,
-                settings.conditionMultipliers,
-              ),
             }
       void updateRunRowCondition(currentRunId, position, patch).catch(() => {
         setConditionSaveError('Condition override was not saved.')

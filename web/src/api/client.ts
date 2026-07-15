@@ -491,7 +491,6 @@ export async function saveRun(
 export interface RunRowConditionPatch {
   condition: CardCondition | null
   condition_multiplier: number | null
-  adjusted_market: number | null
 }
 
 /** Persist one run row's explicit condition override in its pricing JSON. */

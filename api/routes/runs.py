@@ -98,11 +98,15 @@ class RunRowConditionRequest(BaseModel):
     """Body for PATCH /runs/{id}/rows/{position}/condition.
 
     `condition=None` clears the explicit row override and removes the
-    derived browser-side condition price fields from `pricing_json`."""
+    derived browser-side condition price fields from `pricing_json`.
+    `condition_multiplier` is browser-supplied (the Settings drawer lets a
+    user customize it per condition tier, and the server has no copy of
+    that config) but `adjusted_market` is always recomputed server-side
+    from the row's own `market_price` — never trusted verbatim from the
+    client — so a stale or manipulated client value can't get persisted."""
 
     condition: str | None = None
     condition_multiplier: float | None = Field(default=None, ge=0)
-    adjusted_market: float | None = Field(default=None, ge=0)
 
 
 def _run_visible_to_current_user(run: Run, current_user: User) -> bool:
@@ -270,7 +274,11 @@ def update_run_row_condition(
             raise HTTPException(status_code=422, detail="condition must be NM, LP, MP, or HP")
         pricing["condition"] = condition
         pricing["condition_multiplier"] = req.condition_multiplier
-        pricing["adjusted_market"] = req.adjusted_market
+        pricing["adjusted_market"] = (
+            round(row.market_price * req.condition_multiplier, 2)
+            if row.market_price is not None and req.condition_multiplier is not None
+            else None
+        )
     row.pricing_json = pricing
     db.commit()
     db.refresh(row)

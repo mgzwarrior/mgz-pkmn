@@ -784,7 +784,39 @@ describe('ResultsTable: hide pricing (#764)', () => {
     expect(updateRunRowCondition).toHaveBeenCalledWith(77, 0, {
       condition: 'HP',
       condition_multiplier: 0.45,
-      adjusted_market: 45,
+    })
+    useAppStore.getState().resetSettings()
+    useAppStore.getState().clearRowConditionOverrides()
+    useAppStore.setState({ rows: [], currentRunId: null })
+  })
+
+  it('clears a per-row condition override back to the default', () => {
+    useAppStore.getState().updateSettings({ condition: 'LP' })
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: { market: 100, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+      currentRunId: 77,
+      rowConditionOverrides: { 'card:base1-4': 'HP' },
+    })
+    render(<ResultsTable />)
+
+    expect(screen.getByText('$45.00')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/condition for charizard/i), {
+      target: { value: '' },
+    })
+
+    expect(screen.getByText('$85.00')).toBeInTheDocument()
+    expect(useAppStore.getState().rowConditionOverrides).toEqual({})
+    expect(updateRunRowCondition).toHaveBeenCalledWith(77, 0, {
+      condition: null,
+      condition_multiplier: null,
     })
     useAppStore.getState().resetSettings()
     useAppStore.getState().clearRowConditionOverrides()

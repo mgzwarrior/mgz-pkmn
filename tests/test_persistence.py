@@ -357,16 +357,35 @@ class SavedSearchesTests(_IsolatedDbMixin):
                 json={
                     "condition": "HP",
                     "condition_multiplier": 0.45,
-                    "adjusted_market": 19.13,
                 },
             )
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(resp.json()["pricing"]["condition"], "HP")
             self.assertEqual(resp.json()["pricing"]["condition_multiplier"], 0.45)
-            self.assertEqual(resp.json()["pricing"]["adjusted_market"], 19.13)
+            # adjusted_market is always server-recomputed from the row's own
+            # market_price (seeded at 42.50) — never trusted from the client.
+            self.assertEqual(resp.json()["pricing"]["adjusted_market"], 19.12)
 
             detail = c.get(f"/api/v1/runs/{run_id}").json()
             self.assertEqual(detail["rows"][0]["pricing"]["condition"], "HP")
+
+    def test_patch_run_row_condition_recomputes_adjusted_market_server_side(self) -> None:
+        """A client-supplied `adjusted_market` in the request body is ignored;
+        the server always derives it from the row's stored `market_price`."""
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(
+                f"/api/v1/runs/{run_id}/rows/0/condition",
+                json={
+                    "condition": "LP",
+                    "condition_multiplier": 0.85,
+                    "adjusted_market": 999999,
+                },
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json()["pricing"]["adjusted_market"], 36.12)
 
     def test_patch_run_row_condition_can_clear_override(self) -> None:
         from api.main import app
@@ -378,7 +397,6 @@ class SavedSearchesTests(_IsolatedDbMixin):
                 json={
                     "condition": "LP",
                     "condition_multiplier": 0.85,
-                    "adjusted_market": 36.12,
                 },
             )
             resp = c.patch(
@@ -386,7 +404,6 @@ class SavedSearchesTests(_IsolatedDbMixin):
                 json={
                     "condition": None,
                     "condition_multiplier": None,
-                    "adjusted_market": None,
                 },
             )
             self.assertEqual(resp.status_code, 200)
