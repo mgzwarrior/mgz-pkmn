@@ -823,6 +823,56 @@ describe('ResultsTable: hide pricing (#764)', () => {
     useAppStore.setState({ rows: [], currentRunId: null })
   })
 
+  it('tells a signed-out visitor to sign in when the condition save 401s', async () => {
+    vi.mocked(updateRunRowCondition).mockRejectedValueOnce(new Error('sign-in required'))
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: { market: 100, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+      currentRunId: 77,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.change(screen.getByLabelText(/condition for charizard/i), {
+      target: { value: 'HP' },
+    })
+
+    expect(
+      await screen.findByText('Sign in to keep condition overrides across visits.'),
+    ).toBeInTheDocument()
+    useAppStore.getState().clearRowConditionOverrides()
+    useAppStore.setState({ rows: [], currentRunId: null })
+  })
+
+  it('shows a generic message when the condition save fails for a non-auth reason', async () => {
+    vi.mocked(updateRunRowCondition).mockRejectedValueOnce(new Error('condition update failed: 500'))
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: { market: 100, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+      currentRunId: 77,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.change(screen.getByLabelText(/condition for charizard/i), {
+      target: { value: 'HP' },
+    })
+
+    expect(await screen.findByText('Condition override was not saved.')).toBeInTheDocument()
+    useAppStore.getState().clearRowConditionOverrides()
+    useAppStore.setState({ rows: [], currentRunId: null })
+  })
+
   it('hides the Market column, comp tiers, and price values when the setting is on', () => {
     useAppStore.getState().updateSettings({ hidePricing: true })
     useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })

@@ -233,8 +233,12 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
               condition,
               condition_multiplier: multiplierFor(condition, settings.conditionMultipliers),
             }
-      void updateRunRowCondition(currentRunId, position, patch).catch(() => {
-        setConditionSaveError('Condition override was not saved.')
+      void updateRunRowCondition(currentRunId, position, patch).catch((err: unknown) => {
+        setConditionSaveError(
+          err instanceof Error && err.message === 'sign-in required'
+            ? 'Sign in to keep condition overrides across visits.'
+            : 'Condition override was not saved.',
+        )
       })
     },
     [currentRunId, rowKeys, setRowConditionOverride, settings.conditionMultipliers],

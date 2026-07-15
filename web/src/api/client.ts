@@ -504,6 +504,11 @@ export async function updateRunRowCondition(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   })
+  // 401 means the visitor isn't signed in — auth-enabled deploys 401 every
+  // per-account resource (runs included) for anonymous requests. Surfacing
+  // this distinctly from other failures lets the caller point the user at
+  // sign-in instead of a generic "something went wrong."
+  if (res.status === 401) throw new Error('sign-in required')
   if (!res.ok) throw new Error(`condition update failed: ${res.status}`)
 }
 
