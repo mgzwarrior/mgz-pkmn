@@ -321,6 +321,31 @@ class ExportThemeTests(unittest.TestCase):
         self.assertEqual(str(rare_holo_fill.fgColor.rgb)[-6:], palette.hex("rarity-rare"))
         self.assertIsNone(no_rarity_fill.patternType)
 
+    def test_dark_xlsx_rarity_cell_keeps_readable_font_on_its_fill(self) -> None:
+        import io
+
+        from openpyxl import load_workbook
+
+        from mgz_pkmn import palette
+
+        rows = [_row_payload(cid="sv8-1", name="A", rarity="Rare Holo")]
+        resp = client.post(
+            "/api/v1/export",
+            json={"rows": rows, "format": "xlsx", "theme": "dark"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        ws = load_workbook(io.BytesIO(resp.content)).active
+        rarity_cell = ws.cell(row=2, column=8)
+
+        # Rarity tokens don't have dark-theme overrides, so the fill is the
+        # same bright light-theme color — the font must stay pinned to a
+        # dark, on-fill color rather than getting rewritten to the light
+        # dark-theme foreground `_apply_dark_body` uses everywhere else.
+        with palette.use_theme("dark"):
+            dark_fg_on_primary = palette.hex("fg-on-primary")
+        self.assertEqual(str(rarity_cell.fill.fgColor.rgb)[-6:], palette.hex("rarity-rare"))
+        self.assertEqual(str(rarity_cell.font.color.rgb)[-6:], dark_fg_on_primary)
+
 
 if __name__ == "__main__":
     unittest.main()

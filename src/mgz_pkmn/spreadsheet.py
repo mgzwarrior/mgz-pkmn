@@ -238,7 +238,14 @@ def _write_card_cells(
     if "rarity" in col_idx:
         fill_token = _rarity_fill_token(rarity)
         if fill_token is not None:
-            ws.cell(row=i, column=col_idx["rarity"]).fill = rarity_fills[fill_token]
+            cell = ws.cell(row=i, column=col_idx["rarity"])
+            cell.fill = rarity_fills[fill_token]
+            # Rarity tokens don't have dark-theme overrides (same bright fill
+            # in both themes), so pin an explicit dark, on-brand-surface font
+            # color rather than leaving it unset — otherwise `_apply_dark_body`
+            # rewrites it to the light dark-theme foreground, which is nearly
+            # unreadable against a light fill like rarity-rare/sun-300.
+            cell.font = Font(color=palette.hex("fg-on-primary"))
 
 
 def _write_pricing_cells(
