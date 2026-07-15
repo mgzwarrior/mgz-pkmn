@@ -46,6 +46,7 @@ from .routes import (
     binders,
     cards,
     changelog,
+    classes,
     collections,
     ebay,
     export,
@@ -548,6 +549,7 @@ app.include_router(sets.router, prefix="/api/v1", tags=["sets"])
 app.include_router(set_cards.router, prefix="/api/v1", tags=["set-cards"])
 app.include_router(subscribe.router, prefix="/api/v1", tags=["subscribe"])
 app.include_router(pokedex.router, prefix="/api/v1", tags=["pokedex"])
+app.include_router(classes.router, prefix="/api/v1", tags=["classes"])
 app.include_router(cards.router, prefix="/api/v1", tags=["cards"])
 app.include_router(overrides.router, prefix="/api/v1", tags=["overrides"])
 app.include_router(changelog.router, prefix="/api/v1", tags=["changelog"])

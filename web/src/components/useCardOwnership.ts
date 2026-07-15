@@ -39,6 +39,13 @@ const inflight = new Set<string>()
 const listeners = new Set<() => void>()
 let version = 0
 
+/** Server-side cap on one `POST /cards/ownership` batch — `MAX_CARDS` in
+ *  `api/routes/ownership.py`. Bigger surfaces (a browse class like
+ *  Supporters runs 1000+ cards, #911) split into requests of this size; a
+ *  single oversized batch would 422 and falsely cache everything as
+ *  unowned. */
+const MAX_BATCH = 500
+
 function notify() {
   version += 1
   for (const fn of listeners) fn()
@@ -57,23 +64,31 @@ async function ensureOwnership(identities: CardIdentity[]): Promise<void> {
   if (missing.length === 0) return
 
   for (const c of missing) inflight.add(ownershipKey(c.setId, c.number))
-  try {
-    const result = await fetchCardOwnership(
-      missing.map((c) => ({ set_id: c.setId, number: c.number })),
-    )
-    for (const c of missing) {
-      const key = ownershipKey(c.setId, c.number)
-      cache.set(key, result[key] ?? null)
-    }
-  } catch {
-    // Anonymous / offline → no badges. Mark absent so we don't refetch on
-    // every render; an explicit invalidate (e.g. after sign-in + save)
-    // clears this.
-    for (const c of missing) cache.set(ownershipKey(c.setId, c.number), null)
-  } finally {
-    for (const c of missing) inflight.delete(ownershipKey(c.setId, c.number))
-    notify()
+  const chunks: CardIdentity[][] = []
+  for (let i = 0; i < missing.length; i += MAX_BATCH) {
+    chunks.push(missing.slice(i, i + MAX_BATCH))
   }
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      try {
+        const result = await fetchCardOwnership(
+          chunk.map((c) => ({ set_id: c.setId, number: c.number })),
+        )
+        for (const c of chunk) {
+          const key = ownershipKey(c.setId, c.number)
+          cache.set(key, result[key] ?? null)
+        }
+      } catch {
+        // Anonymous / offline → no badges. Mark absent so we don't refetch on
+        // every render; an explicit invalidate (e.g. after sign-in + save)
+        // clears this.
+        for (const c of chunk) cache.set(ownershipKey(c.setId, c.number), null)
+      } finally {
+        for (const c of chunk) inflight.delete(ownershipKey(c.setId, c.number))
+      }
+    }),
+  )
+  notify()
 }
 
 /**

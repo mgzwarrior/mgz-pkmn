@@ -10,7 +10,14 @@
  * lands on the set list, not whatever they were browsing last time.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchPokedexCards, fetchSetCards, fetchSets } from '../api/client'
+import {
+  fetchClassCards,
+  fetchPokedexCards,
+  fetchSetCards,
+  fetchSets,
+  trainerDisplayName,
+} from '../api/client'
+import type { CardClassEntry } from '../data/cardClasses'
 import { BAKED_POKEDEX, POKEDEX_GENERATIONS } from '../data/pokedex'
 import { BAKED_SETS } from '../data/sets'
 import { useAppStore } from '../store'
@@ -31,12 +38,21 @@ export interface PokedexGroup {
   species: PokedexEntry[]
 }
 
+/** One distinct name in a class's name index (#916) — e.g. "Marnie" across
+ *  every set she's printed in. `sample` seeds the index tile's thumbnail. */
+export interface ClassNameEntry {
+  name: string
+  count: number
+  sample: PokedexCard
+}
+
 /**
  * Which organisation Browse is showing: `set` walks series → set → cards;
  * `pokedex` walks national dex # → every printing of that species across
- * every set (issue #577).
+ * every set (issue #577); `class` walks card class → every Supporter /
+ * Item / Special Energy / … across every set (issue #911).
  */
-export type BrowseViewMode = 'set' | 'pokedex'
+export type BrowseViewMode = 'set' | 'pokedex' | 'class'
 
 /** Order of the top-level groups in either browse list (#914). */
 export type GroupOrder = 'newest' | 'oldest'
@@ -151,6 +167,21 @@ export interface BrowseController {
   pokedexCardsError: string | null
   addPokedexCards: (toAdd: PokedexCard[]) => void
   addAllPrintings: () => void
+  // Class view (#911, #916) — card class → the class's name index (every
+  // distinct trainer/object/character, pokedex-style) → every printing of
+  // one name across all sets.
+  activeClass: CardClassEntry | null
+  setActiveClass: (c: CardClassEntry | null) => void
+  classCards: PokedexCard[] | null
+  classNameGroups: ClassNameEntry[]
+  classCardsLoading: boolean
+  classCardsError: string | null
+  classSearch: string
+  setClassSearch: (v: string) => void
+  activeClassCardName: string | null
+  setActiveClassCardName: (n: string | null) => void
+  activeClassCards: PokedexCard[]
+  addAllClassCards: () => void
 }
 
 export function useBrowseController(active: boolean): BrowseController {
@@ -181,8 +212,16 @@ export function useBrowseController(active: boolean): BrowseController {
   const [pokedexCardsError, setPokedexCardsError] = useState<string | null>(null)
   const [pokedexCardsLoading, setPokedexCardsLoading] = useState(false)
 
+  const [activeClass, setActiveClass] = useState<CardClassEntry | null>(null)
+  const [classCards, setClassCards] = useState<PokedexCard[] | null>(null)
+  const [classCardsError, setClassCardsError] = useState<string | null>(null)
+  const [classCardsLoading, setClassCardsLoading] = useState(false)
+  const [classSearch, setClassSearch] = useState('')
+  const [activeClassCardName, setActiveClassCardName] = useState<string | null>(null)
+
   const cardCacheRef = useRef<Map<string, SetCard[]>>(new Map())
   const pokedexCacheRef = useRef<Map<number, PokedexCard[]>>(new Map())
+  const classCacheRef = useRef<Map<string, PokedexCard[]>>(new Map())
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -203,17 +242,25 @@ export function useBrowseController(active: boolean): BrowseController {
     setPokedexCards(null)
     setPokedexCardsError(null)
     setPokedexFilter('')
+    setActiveClass(null)
+    setClassCards(null)
+    setClassCardsError(null)
+    setClassSearch('')
+    setActiveClassCardName(null)
   }, [active])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Switching organisation always lands on that view's top-level list:
-  // set view → the set grid, pokedex view → the species index. Clears the
-  // drill-in state on both sides and the shared "added N lines" status so
-  // the toggle is a clean reset, not a half-remembered prior position.
+  // set view → the set grid, pokedex view → the species index, class view →
+  // the class picker. Clears the drill-in state on every side and the shared
+  // "added N lines" status so the toggle is a clean reset, not a
+  // half-remembered prior position.
   function setViewMode(mode: BrowseViewMode) {
     setViewModeState(mode)
     setActiveSet(null)
     setActivePokemon(null)
+    setActiveClass(null)
+    setActiveClassCardName(null)
     setAddedCount(null)
   }
 
@@ -303,6 +350,42 @@ export function useBrowseController(active: boolean): BrowseController {
     }
   }, [activePokemon, settings.apiKey])
 
+  useEffect(() => {
+    if (!activeClass) return
+    let cancelled = false
+    const load = async () => {
+      setAddedCount(null)
+      setClassCardsError(null)
+      setClassSearch('')
+      setActiveClassCardName(null)
+
+      const cached = classCacheRef.current.get(activeClass.id)
+      if (cached) {
+        setClassCards(cached)
+        setClassCardsLoading(false)
+        return
+      }
+
+      setClassCardsLoading(true)
+      setClassCards(null)
+      try {
+        const data = await fetchClassCards(activeClass.id, settings.apiKey || undefined)
+        if (!cancelled) {
+          classCacheRef.current.set(activeClass.id, data)
+          setClassCards(data)
+        }
+      } catch (err) {
+        if (!cancelled) setClassCardsError(err instanceof Error ? err.message : String(err))
+      } finally {
+        if (!cancelled) setClassCardsLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [activeClass, settings.apiKey])
+
   const groups = useMemo(() => groupBySeries(sets, seriesOrder), [sets, seriesOrder])
 
   const pokedexGroups = useMemo(() => {
@@ -369,6 +452,50 @@ export function useBrowseController(active: boolean): BrowseController {
     addPokedexCards(pokedexCards ?? [])
   }
 
+  // Class view (#911, #916). Classes run big (Supporter is 1000+ cards), so
+  // Browse walks them the same way it walks the Pokédex: a name index first,
+  // then every printing of one name — that's the "walk Marnie" path, now a
+  // tap instead of a search. Supporters group by their headline trainer
+  // rather than the exact card name — "Bianca" and "Bianca's Devotion" both
+  // walk under one Bianca tile — since the API's card-name sort keeps every
+  // variant of a trainer's name alphabetically adjacent regardless.
+  const groupByTrainer = activeClass?.id === 'supporter'
+
+  const classNameGroups = useMemo<ClassNameEntry[]>(() => {
+    if (!classCards) return []
+    const groups: ClassNameEntry[] = []
+    for (const card of classCards) {
+      const name = groupByTrainer
+        ? trainerDisplayName(card.name || '') || 'Unnamed card'
+        : card.name || 'Unnamed card'
+      const last = groups.at(-1)
+      if (last?.name === name) last.count += 1
+      else groups.push({ name, count: 1, sample: card })
+    }
+    return groups
+  }, [classCards, groupByTrainer])
+
+  const filteredClassNameGroups = useMemo(() => {
+    const term = classSearch.trim().toLowerCase()
+    if (!term) return classNameGroups
+    return classNameGroups.filter((g) => g.name.toLowerCase().includes(term))
+  }, [classNameGroups, classSearch])
+
+  const activeClassCards = useMemo(
+    () =>
+      (classCards ?? []).filter((c) => {
+        const name = groupByTrainer
+          ? trainerDisplayName(c.name || '') || 'Unnamed card'
+          : c.name || 'Unnamed card'
+        return name === activeClassCardName
+      }),
+    [classCards, activeClassCardName, groupByTrainer],
+  )
+
+  function addAllClassCards() {
+    addPokedexCards(activeClassCards)
+  }
+
   return {
     viewMode,
     setViewMode,
@@ -408,5 +535,17 @@ export function useBrowseController(active: boolean): BrowseController {
     pokedexCardsError,
     addPokedexCards,
     addAllPrintings,
+    activeClass,
+    setActiveClass,
+    classCards,
+    classNameGroups: filteredClassNameGroups,
+    classCardsLoading,
+    classCardsError,
+    classSearch,
+    setClassSearch,
+    activeClassCardName,
+    setActiveClassCardName,
+    activeClassCards,
+    addAllClassCards,
   }
 }
