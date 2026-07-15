@@ -1,10 +1,12 @@
 /**
  * BrowsePanel — the inline "browse cards" view rendered by the Browse
  * discovery-mode tab in App.tsx. A view-mode toggle flips the whole panel
- * between two organisations (#577): **set view** (series → set → cards in
- * that set) and **pokedex view** (national dex # → every printing of one
- * Pokémon across every set). State + effects live in
- * [useBrowseController](./useBrowseController.ts).
+ * between three organisations: **set view** (series → set → cards in that
+ * set), **pokedex view** (#577: national dex # → every printing of one
+ * Pokémon across every set), and **class view** (#911, #916: card class →
+ * a name index of every Supporter / Item / Special Energy / … in it,
+ * pokedex-style → every printing of one name across every set). State +
+ * effects live in [useBrowseController](./useBrowseController.ts).
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
@@ -22,7 +24,8 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { pokemonSpriteUrl, setLogoUrl } from '../api/client'
+import { pokemonSpriteUrl, setLogoUrl, trainerSpriteUrl } from '../api/client'
+import { CARD_CLASS_GROUPS, type CardClassEntry } from '../data/cardClasses'
 import { BAKED_POKEDEX } from '../data/pokedex'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
@@ -44,6 +47,7 @@ import type {
   BrowseViewMode,
   CardSort,
   CategoryFilter,
+  ClassNameEntry,
   GroupOrder,
   PokedexGroup,
   RarityBucket,
@@ -117,6 +121,18 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     pokedexCardsLoading,
     pokedexCardsError,
     addAllPrintings,
+    activeClass,
+    setActiveClass,
+    classCards,
+    classNameGroups,
+    classCardsLoading,
+    classCardsError,
+    classSearch,
+    setClassSearch,
+    activeClassCardName,
+    setActiveClassCardName,
+    activeClassCards,
+    addAllClassCards,
   } = controller
 
   // Hoist the auth read here (not per tile) so the grid fires one `/me`
@@ -151,7 +167,12 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   // Collection / want-list creates snapshot the loaded cards as their seed, so
   // they're only offered once the drill-in's cards have landed — otherwise we'd
   // seed an empty list. A smart collection needs no cards, so it's always available.
-  const seedLoading = viewMode === 'set' ? cardsLoading : pokedexCardsLoading
+  const seedLoading =
+    viewMode === 'set'
+      ? cardsLoading
+      : viewMode === 'pokedex'
+        ? pokedexCardsLoading
+        : classCardsLoading
 
   // Build the seed for the current drill-in: the list name, the cards to
   // pre-populate (the whole set / all printings), and the rule a smart collection
@@ -179,6 +200,14 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
         ruleValue: activePokemon.name,
       }
     }
+    if (viewMode === 'class' && activeClassCardName) {
+      return {
+        name: activeClassCardName,
+        seedCards: activeClassCards.map((c) => browseCardToPayload(c)),
+        ruleField: 'name',
+        ruleValue: activeClassCardName,
+      }
+    }
     return null
   }
 
@@ -190,9 +219,29 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     if (seed) setPendingCreate({ kind, ...seed })
   }
 
-  const drilledIn = viewMode === 'set' ? !!activeSet : !!activePokemon
-  const onBack = () =>
-    viewMode === 'set' ? setActiveSet(null) : setActivePokemon(null)
+  const drilledIn =
+    viewMode === 'set' ? !!activeSet : viewMode === 'pokedex' ? !!activePokemon : !!activeClass
+  const onBack = () => {
+    if (viewMode === 'set') setActiveSet(null)
+    else if (viewMode === 'pokedex') setActivePokemon(null)
+    // Class view is a level deeper than the others (#916): class → name
+    // index → one name's printings. Back walks up one level at a time.
+    else if (activeClassCardName) setActiveClassCardName(null)
+    else setActiveClass(null)
+  }
+  // The New ▾ create-from-Browse menu needs a smart-collection rule to
+  // offer, and collection rules speak set_id / name — a class only has a
+  // name to key off once you've drilled into one (#916).
+  const showCreateMenu =
+    drilledIn && showSavedActions && (viewMode !== 'class' || !!activeClassCardName)
+  const backLabel =
+    viewMode === 'set'
+      ? 'Back to set list'
+      : viewMode === 'pokedex'
+        ? 'Back to Pokédex list'
+        : activeClassCardName
+          ? `Back to ${activeClass?.label ?? 'class'} list`
+          : 'Back to class list'
 
   let headerTitle: string
   let description: string
@@ -201,13 +250,21 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
     description = activeSet
       ? 'Click a card for its details and comps, or use the bulk actions below to build your list.'
       : 'Pick a set to see every card with its market price, sortable and filterable.'
-  } else {
+  } else if (viewMode === 'pokedex') {
     headerTitle = activePokemon
       ? `#${activePokemon.number} ${activePokemon.name}`
       : 'Browse by Pokédex #'
     description = activePokemon
       ? 'Every printing we found, newest first. Click a card for its details and comps.'
       : 'Pick a Pokémon to see every printing across every set, newest first.'
+  } else if (activeClassCardName) {
+    headerTitle = activeClassCardName
+    description = 'Every printing we found, newest first. Click a card for its details and comps.'
+  } else {
+    headerTitle = activeClass ? activeClass.label : 'Browse by class'
+    description = activeClass
+      ? 'Pick a name to see every printing across every set, newest first.'
+      : 'Pick a card class — Supporters, Items, Special Energy, and more — to walk it across every set.'
   }
 
   return (
@@ -221,7 +278,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             <button
               type="button"
               onClick={onBack}
-              aria-label={viewMode === 'set' ? 'Back to set list' : 'Back to Pokédex list'}
+              aria-label={backLabel}
               className="rounded p-1 text-coconut-400 dark:text-sand-300 hover:bg-sand-200 dark:hover:bg-husk-100 hover:text-coconut-700 dark:hover:text-sand-50"
             >
               <ArrowLeft size={16} />
@@ -249,7 +306,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
               withLabel
             />
           )}
-          {drilledIn && showSavedActions && (
+          {showCreateMenu && (
             <BrowseCreateMenu
               kind={viewMode}
               seedLoading={seedLoading}
@@ -297,30 +354,57 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             onToggleCollapsed={toggleGroupCollapsed}
           />
         )
-      ) : activePokemon ? (
-        <PokedexDetailView
-          showSavedActions={showSavedActions}
-          cards={pokedexCards}
-          loading={pokedexCardsLoading}
-          error={pokedexCardsError}
-          addedCount={addedCount}
-          onAddAll={addAllPrintings}
-        />
+      ) : viewMode === 'pokedex' ? (
+        activePokemon ? (
+          <PokedexDetailView
+            showSavedActions={showSavedActions}
+            cards={pokedexCards}
+            loading={pokedexCardsLoading}
+            error={pokedexCardsError}
+            addedCount={addedCount}
+            onAddAll={addAllPrintings}
+          />
+        ) : (
+          <PokedexListView
+            groups={pokedexGroups}
+            filter={pokedexFilter}
+            onFilter={setPokedexFilter}
+            onPick={(p) => setActivePokemon(p)}
+            favoriteEntries={favoriteEntries}
+            showFavoriteControls={showSavedActions}
+            isFavorite={isFavorite}
+            onToggleFavorite={toggleFavorite}
+            order={generationOrder}
+            onOrder={setGenerationOrder}
+            collapsedGroups={collapsedGroups}
+            onToggleCollapsed={toggleGroupCollapsed}
+          />
+        )
+      ) : activeClass ? (
+        activeClassCardName ? (
+          <PokedexDetailView
+            showSavedActions={showSavedActions}
+            cards={activeClassCards}
+            loading={classCardsLoading}
+            error={classCardsError}
+            addedCount={addedCount}
+            onAddAll={addAllClassCards}
+          />
+        ) : (
+          <ClassNameIndexView
+            groups={classNameGroups}
+            total={classCards?.length ?? 0}
+            loading={classCardsLoading}
+            error={classCardsError}
+            search={classSearch}
+            onSearch={setClassSearch}
+            // Trainer sprites read as people — only Supporters are (#916).
+            useTrainerSprites={activeClass?.id === 'supporter'}
+            onPick={(name) => setActiveClassCardName(name)}
+          />
+        )
       ) : (
-        <PokedexListView
-          groups={pokedexGroups}
-          filter={pokedexFilter}
-          onFilter={setPokedexFilter}
-          onPick={(p) => setActivePokemon(p)}
-          favoriteEntries={favoriteEntries}
-          showFavoriteControls={showSavedActions}
-          isFavorite={isFavorite}
-          onToggleFavorite={toggleFavorite}
-          order={generationOrder}
-          onOrder={setGenerationOrder}
-          collapsedGroups={collapsedGroups}
-          onToggleCollapsed={toggleGroupCollapsed}
-        />
+        <ClassListView onPick={(c) => setActiveClass(c)} />
       )}
 
       {/* Create-from-Browse dialogs (#737), seeded from the active set/species.
@@ -374,7 +458,7 @@ function BrowseCreateMenu({
   seedLoading: boolean
   onCreate: (kind: CreateKind) => void
 }) {
-  const noun = kind === 'set' ? 'set' : 'Pokémon'
+  const noun = kind === 'set' ? 'set' : kind === 'class' ? 'card' : 'Pokémon'
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -450,6 +534,7 @@ function BrowseCreateItem({
 const VIEW_MODES: { value: BrowseViewMode; label: string }[] = [
   { value: 'set', label: 'By set' },
   { value: 'pokedex', label: 'By Pokédex #' },
+  { value: 'class', label: 'By class' },
 ]
 
 function ViewModeToggle({
@@ -1160,6 +1245,180 @@ function PokedexDetailView({
   )
 }
 
+/** The class picker (#911) — a dozen fixed tiles, grouped Trainers / Energy /
+ *  vintage. No search or collapse: the whole index fits on one screen. */
+function ClassListView({ onPick }: { onPick: (entry: CardClassEntry) => void }) {
+  return (
+    <div className="flex-1 overflow-y-auto px-5 py-3">
+      <ul className="space-y-4">
+        {CARD_CLASS_GROUPS.map((group) => (
+          <li key={group.label}>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-coconut-600 dark:text-sand-200">
+              {group.label}
+              <span className="ml-1 font-normal normal-case tracking-normal text-coconut-400 dark:text-sand-400">
+                ({group.classes.length})
+              </span>
+            </h3>
+            <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
+              {group.classes.map((entry) => (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(entry)}
+                    className="flex w-full flex-col gap-0.5 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 px-3 py-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+                  >
+                    <span className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
+                      {entry.label}
+                    </span>
+                    <span className="truncate text-xs text-coconut-400 dark:text-sand-400">
+                      {entry.blurb}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Class name index (#911, #916) — the same organisation as the Pokédex
+ *  species index, one level up: every distinct trainer/object/character in
+ *  this class (e.g. every Supporter), searchable by name. Picking one drills
+ *  into its printings, mirroring `PokedexDetailView` — that's the "walk
+ *  Marnie" path, now a tap instead of an in-page search. */
+function ClassNameIndexView({
+  groups,
+  total,
+  loading,
+  error,
+  search,
+  onSearch,
+  useTrainerSprites,
+  onPick,
+}: {
+  groups: ClassNameEntry[]
+  total: number
+  loading: boolean
+  error: string | null
+  search: string
+  onSearch: (v: string) => void
+  /** Lead each tile with its Showdown trainer sprite (#916) instead of the
+   *  sample printing's thumbnail — only true for character classes
+   *  (Supporters); an Item or Stadium name has no trainer to draw. */
+  useTrainerSprites: boolean
+  onPick: (name: string) => void
+}) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 border-b border-sand-200 dark:border-husk-100 px-5 py-3">
+        <label className="relative flex-1 min-w-[180px]">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-coconut-400 dark:text-sand-400"
+            aria-hidden
+          />
+          <input
+            type="search"
+            placeholder="Find a name in this class…"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            className="w-full rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 py-1.5 pl-8 pr-2 text-sm text-coconut-700 dark:text-sand-50 placeholder:text-coconut-400 dark:placeholder:text-sand-400 focus:border-sand-400 dark:focus:border-coconut-400 focus:outline-none"
+            aria-label="Find a name in this class"
+          />
+        </label>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-3">
+        {error && (
+          <p className="rounded border border-ember-500/40 dark:border-ember-500/50 bg-ember-500/10 dark:bg-ember-500/30 px-3 py-2 text-sm text-ember-400 dark:text-ember-300">
+            Couldn’t load cards: {error}
+          </p>
+        )}
+        {loading && !error && (
+          <p className="flex items-center gap-2 text-sm text-coconut-400 dark:text-sand-300">
+            <Loader2 size={14} className="animate-spin" />
+            Loading cards…
+          </p>
+        )}
+        {!loading && !error && groups.length === 0 && (
+          <p className="text-sm text-coconut-400 dark:text-sand-400">
+            {total === 0 ? 'No cards found.' : `No names match “${search}”.`}
+          </p>
+        )}
+        {!loading && !error && groups.length > 0 && (
+          <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
+            {groups.map((g) => (
+              <ClassNameTile
+                key={g.name}
+                entry={g}
+                useTrainerSprite={useTrainerSprites}
+                onPick={() => onPick(g.name)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  )
+}
+
+function ClassNameTile({
+  entry,
+  useTrainerSprite,
+  onPick,
+}: {
+  entry: ClassNameEntry
+  useTrainerSprite: boolean
+  onPick: () => void
+}) {
+  // Two-stage fallback: the Showdown guess is a name slug, not a lookup, so
+  // a miss (no sprite for that name, or not a character at all) drops to
+  // the sample printing's own thumbnail before the bare icon — one rung
+  // softer than SpeciesTile's sprite-or-icon, since we have a real card
+  // image to fall back to and the dex tiles don't.
+  const [stage, setStage] = useState<'sprite' | 'thumb' | 'none'>(
+    useTrainerSprite ? 'sprite' : entry.sample.thumb ? 'thumb' : 'none',
+  )
+  const src =
+    stage === 'sprite' ? trainerSpriteUrl(entry.name) : stage === 'thumb' ? entry.sample.thumb : null
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onPick}
+        className="flex w-full items-center gap-2 rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 py-2 pl-3 pr-3 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200 focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
+      >
+        <span className="flex h-9 w-9 flex-none items-center justify-center overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
+          {src ? (
+            <img
+              src={src}
+              alt=""
+              className="h-full w-full object-contain"
+              loading="lazy"
+              onError={() =>
+                setStage((s) => (s === 'sprite' && entry.sample.thumb ? 'thumb' : 'none'))
+              }
+            />
+          ) : (
+            <ImageOff size={14} className="text-coconut-300 dark:text-sand-500" aria-hidden />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-coconut-700 dark:text-sand-50">
+            {entry.name}
+          </span>
+          <span className="block text-xs text-coconut-400 dark:text-sand-400">
+            {entry.count} printing{entry.count === 1 ? '' : 's'}
+          </span>
+        </span>
+      </button>
+    </li>
+  )
+}
+
 function CardTile({
   card,
   setCtx,
@@ -1238,6 +1497,8 @@ function PokedexCardTile({
   const [thumbFailed, setThumbFailed] = useState(false)
   const hidePricing = useAppStore((s) => s.settings.hidePricing)
   const year = releaseYear(card.releaseDate)
+  const title = card.setName
+  const subtitle = card.rarity
   return (
     <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
       <button
@@ -1262,8 +1523,8 @@ function PokedexCardTile({
           )}
         </div>
         <div className="mt-2 min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={card.setName}>
-            {card.setName}
+          <div className="truncate text-sm font-medium text-coconut-700 dark:text-sand-50" title={title ?? undefined}>
+            {title}
           </div>
           <div className="flex items-center justify-between text-xs text-coconut-400 dark:text-sand-400">
             <span>
@@ -1274,8 +1535,8 @@ function PokedexCardTile({
               <span className="text-palm-500 dark:text-palm-200">${card.market.toFixed(2)}</span>
             )}
           </div>
-          {card.rarity && (
-            <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{card.rarity}</div>
+          {subtitle && (
+            <div className="truncate text-[11px] text-coconut-400 dark:text-sand-400">{subtitle}</div>
           )}
         </div>
       </button>

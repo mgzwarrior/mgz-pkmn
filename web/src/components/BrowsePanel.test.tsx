@@ -32,6 +32,88 @@ const CHARIZARD_PRINTINGS: PokedexCard[] = [
   },
 ]
 
+const SUPPORTER_CARDS: PokedexCard[] = [
+  {
+    id: 'sv2-185',
+    name: 'Iono',
+    number: '185',
+    rarity: 'Ultra Rare',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 30,
+    dexNumbers: [],
+    setId: 'sv2',
+    setName: 'Paldea Evolved',
+    releaseDate: '2023/06/09',
+  },
+  {
+    id: 'swsh1-169',
+    name: 'Marnie',
+    number: '169',
+    rarity: 'Rare Ultra',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 40,
+    dexNumbers: [],
+    setId: 'swsh1',
+    setName: 'Sword & Shield',
+    releaseDate: '2020/02/07',
+  },
+  {
+    id: 'swsh6-201',
+    name: 'Marnie',
+    number: '201',
+    rarity: 'Secret Rare',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 90,
+    dexNumbers: [],
+    setId: 'swsh6',
+    setName: 'Chilling Reign',
+    releaseDate: '2021/06/18',
+  },
+]
+
+// A Supporter's card name is often a title rather than the trainer's own
+// name — grouping must key off the headline trainer ("Bianca"), not the
+// exact card name, so "Bianca" and "Bianca's Devotion" walk one tile (#916).
+// Order matches the API's card-name-casefold sort ("bianca" sorts before
+// "bianca's devotion" as its prefix), which the client-side grouping relies
+// on to keep same-trainer cards contiguous.
+const TRAINER_TITLE_CARDS: PokedexCard[] = [
+  {
+    id: 'bw11-90',
+    name: 'Bianca',
+    number: '90',
+    rarity: 'Uncommon',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 2,
+    dexNumbers: [],
+    setId: 'bw11',
+    setName: 'Legendary Treasures',
+    releaseDate: '2013/11/06',
+  },
+  {
+    id: 'swsh8-159',
+    name: "Bianca's Devotion",
+    number: '159',
+    rarity: 'Ultra Rare',
+    supertype: 'Trainer',
+    subtypes: ['Supporter'],
+    thumb: null,
+    market: 15,
+    dexNumbers: [],
+    setId: 'swsh8',
+    setName: 'Fusion Strike',
+    releaseDate: '2021/11/12',
+  },
+]
+
 describe('BrowsePanel — pokedex view (#577)', () => {
   beforeEach(() => {
     useAppStore.setState({ inputText: '' })
@@ -484,5 +566,106 @@ describe('BrowsePanel — pokedex view (#577)', () => {
       target: { value: 'pikachu' },
     })
     expect(await screen.findByText('Pikachu')).toBeInTheDocument()
+  })
+
+  it('class view: toggles to the class picker and lists the baked classes (#911)', async () => {
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'By class' }))
+
+    expect(screen.getByText('Browse by class')).toBeInTheDocument()
+    // The baked class index seeds the picker with zero round-trips.
+    expect(screen.getByText('Trainers')).toBeInTheDocument()
+    expect(screen.getByText('Supporters')).toBeInTheDocument()
+    expect(screen.getByText('Special Energy')).toBeInTheDocument()
+    expect(screen.getByText('ACE SPEC')).toBeInTheDocument()
+  })
+
+  it('class view: drills into a class to a name index, then into one name’s printings (#911, #916)', async () => {
+    const fetchClass = vi
+      .spyOn(client, 'fetchClassCards')
+      .mockResolvedValue(SUPPORTER_CARDS)
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By class' }))
+    fireEvent.click(screen.getByText('Supporters'))
+
+    // The fetch keys off the baked class id.
+    await waitFor(() => expect(fetchClass).toHaveBeenCalledWith('supporter', undefined))
+
+    // The name index shows one tile per distinct name, pokedex-style — not
+    // one tile per printing.
+    expect(await screen.findByText('Marnie')).toBeInTheDocument()
+    expect(screen.getByText('2 printings')).toBeInTheDocument()
+    expect(screen.getByText('Iono')).toBeInTheDocument()
+    expect(screen.getByText('1 printing')).toBeInTheDocument()
+
+    // Finding a name in the class is the "walk Marnie" path.
+    fireEvent.change(screen.getByLabelText('Find a name in this class'), {
+      target: { value: 'marnie' },
+    })
+    expect(screen.getByText('Marnie')).toBeInTheDocument()
+    expect(screen.queryByText('Iono')).not.toBeInTheDocument()
+
+    // Picking the name drills into every printing of it, same as a Pokédex
+    // species detail.
+    fireEvent.click(screen.getByText('Marnie'))
+    expect(screen.getByRole('heading', { name: 'Marnie' })).toBeInTheDocument()
+    expect(screen.getByText('2 printings')).toBeInTheDocument()
+    expect(screen.getByText('Sword & Shield')).toBeInTheDocument()
+    expect(screen.getByText('Chilling Reign')).toBeInTheDocument()
+
+    // Clicking a printing opens the same detail modal the other views use.
+    fireEvent.click(
+      screen.getByRole('button', { name: /View details for Marnie from Sword & Shield/ }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getAllByText('Marnie').length).toBeGreaterThan(0)
+    expect(within(dialog).getByText('$40.00')).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+
+    // Back walks up one level at a time: printings → name index → class list.
+    fireEvent.click(screen.getByRole('button', { name: /Back to Supporters list/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to class list' }))
+    expect(screen.getByText('Browse by class')).toBeInTheDocument()
+  })
+
+  it('class view: groups Supporters by their headline trainer, not the exact card name (#916)', async () => {
+    vi.spyOn(client, 'fetchClassCards').mockResolvedValue(TRAINER_TITLE_CARDS)
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By class' }))
+    fireEvent.click(screen.getByText('Supporters'))
+
+    // "Bianca" and "Bianca's Devotion" are two different cards, but one
+    // trainer — the index shows a single Bianca tile with both printings,
+    // not two separate tiles.
+    expect(await screen.findByText('Bianca')).toBeInTheDocument()
+    expect(screen.getByText('2 printings')).toBeInTheDocument()
+    expect(screen.queryByText("Bianca's Devotion")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Bianca'))
+    expect(screen.getByRole('heading', { name: 'Bianca' })).toBeInTheDocument()
+    expect(screen.getByText('2 printings')).toBeInTheDocument()
+    expect(screen.getByText('Legendary Treasures')).toBeInTheDocument()
+    expect(screen.getByText('Fusion Strike')).toBeInTheDocument()
+  })
+
+  it('class view: shows the per-card save actions and ownership surface when signed in (#911, #916)', async () => {
+    vi.spyOn(client, 'fetchClassCards').mockResolvedValue(SUPPORTER_CARDS)
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'By class' }))
+    fireEvent.click(screen.getByText('Supporters'))
+    fireEvent.click(await screen.findByText('Marnie'))
+
+    expect(await screen.findByText('Sword & Shield')).toBeInTheDocument()
+
+    // Same one-tap want / own quick actions Pokemon printings get (#761);
+    // useAuth resolves async, so wait for the per-card actions to mount.
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /^want$/i })).toHaveLength(2)
+    })
+    expect(screen.getAllByRole('button', { name: /^own$/i })).toHaveLength(2)
   })
 })

@@ -92,4 +92,21 @@ describe('useCardOwnership', () => {
     renderHook(() => useCardOwnership([]))
     expect(mockFetch).not.toHaveBeenCalled()
   })
+
+  it('splits oversized identity sets into ≤500-card batches (#911)', async () => {
+    // A browse class like Supporters hands the hook 1000+ identities; the
+    // server caps one POST at 500 (`MAX_CARDS` in api/routes/ownership.py),
+    // so the hook must chunk instead of firing one 422-bound request.
+    mockFetch.mockResolvedValue({ 'sv2::1': OWNED })
+    const ids = Array.from({ length: 1001 }, (_, i) => ({
+      setId: 'sv2',
+      number: String(i + 1),
+    }))
+    const { result } = renderHook(() => useCardOwnership(ids))
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3))
+    const sizes = mockFetch.mock.calls.map(([cards]) => cards.length)
+    expect(sizes).toEqual([500, 500, 1])
+    await waitFor(() => expect(result.current.lookup('sv2', '1')).toEqual(OWNED))
+    expect(result.current.lookup('sv2', '1001')).toBeNull()
+  })
 })
