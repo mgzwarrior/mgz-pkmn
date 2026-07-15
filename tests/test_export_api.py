@@ -25,6 +25,7 @@ def _row_payload(
     market: float | None = 12.5,
     tag: str = "test",
     images: dict | None = None,
+    rarity: str | None = None,
 ) -> dict:
     card = {
         "id": cid,
@@ -36,6 +37,8 @@ def _row_payload(
     }
     if images is not None:
         card["images"] = images
+    if rarity is not None:
+        card["rarity"] = rarity
     pricing = {"market": market, "currency": "USD"}
     return {
         "query": {"raw": name, "name": name},
@@ -287,6 +290,61 @@ class ExportThemeTests(unittest.TestCase):
         ws = load_workbook(io.BytesIO(resp.content)).active
         name_cell = ws.cell(row=2, column=3)
         self.assertIsNone(name_cell.fill.patternType)
+
+    def test_xlsx_tints_the_rarity_cell_per_tier(self) -> None:
+        import io
+
+        from openpyxl import load_workbook
+
+        from mgz_pkmn import palette
+
+        rows = [
+            _row_payload(cid="sv8-1", name="A", rarity="Common"),
+            _row_payload(cid="sv8-2", name="B", rarity="Uncommon"),
+            _row_payload(cid="sv8-3", name="C", rarity="Rare Holo"),
+            _row_payload(cid="sv8-4", name="D", rarity=None),
+        ]
+        resp = client.post("/api/v1/export", json={"rows": rows, "format": "xlsx"})
+        self.assertEqual(resp.status_code, 200)
+        ws = load_workbook(io.BytesIO(resp.content)).active
+        rarity_col = 8  # Image, Source, Input, Name, Set, Series, Number, Rarity
+
+        common_fill = ws.cell(row=2, column=rarity_col).fill
+        uncommon_fill = ws.cell(row=3, column=rarity_col).fill
+        rare_holo_fill = ws.cell(row=4, column=rarity_col).fill
+        no_rarity_fill = ws.cell(row=5, column=rarity_col).fill
+
+        self.assertEqual(str(common_fill.fgColor.rgb)[-6:], palette.hex("rarity-common"))
+        self.assertEqual(str(uncommon_fill.fgColor.rgb)[-6:], palette.hex("rarity-uncommon"))
+        # "Rare Holo" doesn't get its own tier — it shares the "rare" bucket
+        # with every other rarity beyond plain Common/Uncommon.
+        self.assertEqual(str(rare_holo_fill.fgColor.rgb)[-6:], palette.hex("rarity-rare"))
+        self.assertIsNone(no_rarity_fill.patternType)
+
+    def test_dark_xlsx_rarity_cell_keeps_readable_font_on_its_fill(self) -> None:
+        import io
+
+        from openpyxl import load_workbook
+
+        from mgz_pkmn import palette
+
+        rows = [_row_payload(cid="sv8-1", name="A", rarity="Rare Holo")]
+        resp = client.post(
+            "/api/v1/export",
+            json={"rows": rows, "format": "xlsx", "theme": "dark"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        ws = load_workbook(io.BytesIO(resp.content)).active
+        rarity_cell = ws.cell(row=2, column=8)
+
+        # Rarity tokens don't have dark-theme overrides, so the fill is the
+        # same bright light-theme color — the font must stay pinned to a
+        # dark, on-fill color rather than getting rewritten to the light
+        # dark-theme foreground `_apply_dark_body` uses everywhere else.
+        with palette.use_theme("dark"):
+            dark_fg_on_primary = palette.hex("fg-on-primary")
+        self.assertEqual(str(rarity_cell.fill.fgColor.rgb)[-6:], palette.hex("rarity-rare"))
+        self.assertEqual(str(rarity_cell.font.color.rgb)[-6:], dark_fg_on_primary)
 
 
 if __name__ == "__main__":
