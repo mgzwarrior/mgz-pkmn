@@ -114,10 +114,23 @@ def install_session_middleware(app: FastAPI) -> None:
     off-posture never need to configure ``MGZ_PKMN_SESSION_SECRET`` and
     don't see a warning for a secret nothing reads. The real
     production-refusal / dev-warning kicks in only when auth is on,
-    which is the only path that ever exercises the secret."""
+    which is the only path that ever exercises the secret.
+
+    The resolved secret is also stashed on ``app.state.session_secret``.
+    ``SessionMiddleware``'s ``secret_key`` is fixed at this one
+    construction call, but ``resolve_session_secret()`` re-reads the env
+    var on every call (by design — magic-link and Apple's OAuth-state
+    serializers rely on that to pick up a rotated secret without a
+    restart). A caller that needs the cookie's *actual* signing key
+    (`api/auth/native.py`'s session-cookie replication) must read
+    ``app.state.session_secret`` instead of calling
+    ``resolve_session_secret()`` again, or it would silently diverge
+    from the mounted middleware the moment the env var changes."""
+    secret = resolve_session_secret()
+    app.state.session_secret = secret
     app.add_middleware(
         SessionMiddleware,
-        secret_key=resolve_session_secret(),
+        secret_key=secret,
         session_cookie=SESSION_COOKIE_NAME,
         same_site="lax",
         https_only=_is_production(),

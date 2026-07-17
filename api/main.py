@@ -39,6 +39,7 @@ from .auth import github as auth_github
 from .auth import google as auth_google
 from .auth import install_session_middleware
 from .auth import magic as auth_magic
+from .auth import native as auth_native
 from .auth import routes as auth_routes
 from .db import migrate
 from .db.session import get_engine
@@ -569,6 +570,7 @@ app.include_router(auth_google.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_discord.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_magic.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_apple.router, prefix="/api/v1", tags=["auth"])
+app.include_router(auth_native.router, prefix="/api/v1", tags=["auth"])
 
 
 @app.get("/health")

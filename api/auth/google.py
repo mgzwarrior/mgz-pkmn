@@ -45,6 +45,14 @@ from .linking import (
     post_link_error_redirect,
     stage_link_request,
 )
+from .native import (
+    NATIVE_NEXT_VALUE,
+    consume_native_next,
+    mark_native_next,
+    mint_native_code,
+    native_error_redirect,
+    native_success_redirect,
+)
 from .session import CurrentUserRequired, DbSession, auth_enabled
 
 _log = logging.getLogger(__name__)
@@ -160,13 +168,19 @@ async def fetch_google_profile(oauth: OAuth, token: dict) -> GoogleProfile:
 
 
 @router.get("/auth/google/login")
-async def google_login(request: Request, _: AuthGate) -> RedirectResponse:
+async def google_login(request: Request, _: AuthGate, next: str | None = None) -> RedirectResponse:
     """Start the Google OAuth flow.
 
     Generates an Authlib state token + nonce, stashes both in the
     session cookie, and 302s to Google's authorize URL pulled from the
     OIDC discovery doc. The user lands on
-    `/api/v1/auth/google/callback` after granting consent."""
+    `/api/v1/auth/google/callback` after granting consent.
+
+    `?next=app` (native-app handoff, #924) is remembered in the same
+    session cookie Authlib's own state rides in, and read back by the
+    callback."""
+    if next == NATIVE_NEXT_VALUE:
+        mark_native_next(request)
     oauth = _oauth_client()
     redirect_uri = str(request.url_for("google_callback"))
     return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -206,19 +220,31 @@ async def google_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
       depends on a verified email anchor.
     - Google returns no `sub` → 400 `no_google_sub`. We can't ground a
       unique `users.name` row without a stable identifier; refuse
-      cleanly instead of falling back to a colliding constant."""
+      cleanly instead of falling back to a colliding constant.
+
+    When the login was started with `?next=app` (#924), errors redirect
+    to `mgzpkmn://auth/callback?error=<reason>` instead of raising, and
+    success mints a one-time code for `POST /auth/native/exchange`
+    instead of setting the session cookie directly — the native app's
+    `ASWebAuthenticationSession` can't read this response's cookies."""
+    next_app = consume_native_next(request)
     oauth = _oauth_client()
     try:
         token = await oauth.google.authorize_access_token(request)
+        profile = await fetch_google_profile(oauth, token)
+        if not profile.verified_email:
+            raise HTTPException(status_code=400, detail="no_verified_email")
+        if not profile.sub:
+            raise HTTPException(status_code=400, detail="no_google_sub")
     except OAuthError as exc:
         _log.warning("google oauth state/code exchange failed: %s", exc.error)
+        if next_app:
+            return native_error_redirect("oauth_failed")
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
-
-    profile = await fetch_google_profile(oauth, token)
-    if not profile.verified_email:
-        raise HTTPException(status_code=400, detail="no_verified_email")
-    if not profile.sub:
-        raise HTTPException(status_code=400, detail="no_google_sub")
+    except HTTPException as exc:
+        if next_app:
+            return native_error_redirect(str(exc.detail))
+        raise
 
     # Slice 1 of #491 — same identity-first resolver the GitHub callback
     # uses. ``provider_subject`` is Google's opaque ``sub`` (typically a
@@ -231,6 +257,9 @@ async def google_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
         display_name=profile.name or None,
         name_prefix="google",
     )
+
+    if next_app:
+        return native_success_redirect(mint_native_code(user.id))
 
     # `get_db` commits on normal return; no explicit commit here.
     request.session["user_id"] = user.id

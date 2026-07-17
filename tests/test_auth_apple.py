@@ -81,7 +81,7 @@ from api.auth.apple import (
     extract_profile,
     mint_client_secret,
 )
-from api.auth.session import AUTH_ENABLED_ENV, SESSION_SECRET_ENV
+from api.auth.session import AUTH_ENABLED_ENV, SESSION_COOKIE_NAME, SESSION_SECRET_ENV
 from api.db import session as session_mod
 from api.db.models import User
 
@@ -100,7 +100,7 @@ _TEST_PUBLIC_JWK["use"] = "sig"
 _TEST_JWKS = {"keys": [_TEST_PUBLIC_JWK]}
 
 
-def _make_state(*, link_user_id: int | None = None) -> str:
+def _make_state(*, link_user_id: int | None = None, next_app: bool = False) -> str:
     """Mint a valid Apple OAuth state token.
 
     Drives the cookie-less state validation path: tests build a real
@@ -110,7 +110,7 @@ def _make_state(*, link_user_id: int | None = None) -> str:
     without any cookie. Mirrors how Apple's actual cross-site POST
     would behave.
     """
-    return apple_mod._build_state_token(link_user_id=link_user_id)
+    return apple_mod._build_state_token(link_user_id=link_user_id, next_app=next_app)
 
 
 def _make_id_token(
@@ -706,6 +706,88 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
             me = client.get("/api/v1/me")
             self.assertEqual(me.status_code, 200)
             self.assertEqual(me.json()["user"]["email"], "cross-site@example.com")
+
+
+class NativeHandoffTests(_IsolatedDbMixin):
+    """`?next=app` (#924) — native-app one-time-code handoff instead of
+    the browser session cookie. Apple's cross-site POST callback can't
+    read the session cookie the other providers use to carry the
+    ``next=app`` flag, so it rides the signed state token instead — see
+    ``api.auth.apple._build_state_token``. See ``tests/test_auth_native.py``
+    for the code-mint/burn/exchange mechanics themselves."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        os.environ[APPLE_CLIENT_ID_ENV] = _TEST_SERVICES_ID
+        os.environ[APPLE_TEAM_ID_ENV] = _TEST_TEAM_ID
+        os.environ[APPLE_KEY_ID_ENV] = _TEST_KEY_ID
+        os.environ[APPLE_PRIVATE_KEY_ENV] = _TEST_PRIVATE_PEM
+
+    def test_login_next_app_bakes_flag_into_signed_state(self) -> None:
+        from urllib.parse import parse_qs, urlparse
+
+        from api.main import app
+
+        with TestClient(app) as client:
+            r = client.get("/api/v1/auth/apple/login?next=app", follow_redirects=False)
+            self.assertEqual(r.status_code, 302)
+            parsed = urlparse(r.headers["location"])
+            params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+            payload = apple_mod._verify_state_token(params["state"])
+            assert payload is not None
+            self.assertTrue(payload.get("app"))
+
+    def test_callback_next_app_mints_code_and_redirects_to_native_scheme(self) -> None:
+        from api.main import app
+
+        token_str = _make_id_token(sub="app.001", email="app@example.com")
+        exchange = {"access_token": "x", "id_token": token_str, "token_type": "bearer"}
+
+        with TestClient(app) as client:
+            with (
+                patch(
+                    "api.auth.apple.exchange_code_for_token",
+                    new=AsyncMock(return_value=exchange),
+                ),
+                patch(
+                    "api.auth.apple.fetch_apple_jwks",
+                    new=AsyncMock(return_value=_TEST_JWKS),
+                ),
+            ):
+                r = client.post(
+                    "/api/v1/auth/apple/callback",
+                    data={"code": "abc", "state": _make_state(next_app=True)},
+                    follow_redirects=False,
+                )
+            self.assertEqual(r.status_code, 302)
+            location = r.headers["location"]
+            self.assertTrue(location.startswith("mgzpkmn://auth/callback?code="))
+            self.assertNotIn(SESSION_COOKIE_NAME, client.cookies)
+
+            code = location.split("code=", 1)[1]
+            exchange_resp = client.post("/api/v1/auth/native/exchange", json={"code": code})
+            self.assertEqual(exchange_resp.status_code, 200)
+            self.assertTrue(exchange_resp.json()["session_token"])
+
+    def test_callback_next_app_error_redirects_to_native_scheme(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/v1/auth/apple/callback",
+                data={
+                    "code": "abc",
+                    "state": _make_state(next_app=True),
+                    "error": "user_cancelled",
+                },
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(
+                r.headers["location"],
+                "mgzpkmn://auth/callback?error=oauth_failed",
+            )
 
 
 class ClientSecretMintingTests(unittest.TestCase):

@@ -74,6 +74,12 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from ..db.models import PROVIDER_APPLE
 from .identity import IdentityConflictError, link_identity_to_user, resolve_or_link_identity
 from .linking import POST_LINK_REDIRECT, post_link_error_redirect
+from .native import (
+    NATIVE_NEXT_VALUE,
+    mint_native_code,
+    native_error_redirect,
+    native_success_redirect,
+)
 from .session import CurrentUserRequired, DbSession, auth_enabled, resolve_session_secret
 
 _log = logging.getLogger(__name__)
@@ -290,7 +296,7 @@ def _state_serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(resolve_session_secret(), salt=STATE_TOKEN_SALT)
 
 
-def _build_state_token(*, link_user_id: int | None = None) -> str:
+def _build_state_token(*, link_user_id: int | None = None, next_app: bool = False) -> str:
     """Sign an OAuth ``state`` value carrying a random nonce.
 
     The state token survives Apple's cross-site POST callback because
@@ -299,10 +305,17 @@ def _build_state_token(*, link_user_id: int | None = None) -> str:
     proved identity to the originally-signed-in user without needing a
     session cookie either (browsers won't send our ``SameSite=Lax``
     session cookie on Apple's cross-site POST).
+
+    ``next_app`` (native-app handoff, #924) carries the same
+    ``?next=app`` intent the GitHub / Google / Discord logins stash in
+    the session cookie — Apple's cross-site callback can't read that
+    cookie either, so the flag rides the signed state instead.
     """
     payload: dict[str, Any] = {"n": secrets.token_urlsafe(16)}
     if link_user_id is not None:
         payload["link"] = link_user_id
+    if next_app:
+        payload["app"] = True
     return _state_serializer().dumps(payload)
 
 
@@ -520,16 +533,19 @@ async def _process_apple_callback(
 
 
 @router.get("/auth/apple/login")
-async def apple_login(request: Request, _: AuthGate) -> RedirectResponse:
+async def apple_login(request: Request, _: AuthGate, next: str | None = None) -> RedirectResponse:
     """Start the Apple OAuth flow.
 
     Builds Apple's authorize URL with ``response_mode=form_post`` and a
     signed ``state`` token (no session storage), then 302s the browser
     to Apple. The user lands on ``/api/v1/auth/apple/callback`` via
-    Apple's cross-site POST."""
+    Apple's cross-site POST.
+
+    ``?next=app`` (native-app handoff, #924) is baked into the signed
+    state token and read back by the callback."""
     services_id, *_ = _read_apple_env()
     redirect_uri = str(request.url_for("apple_callback"))
-    state = _build_state_token()
+    state = _build_state_token(next_app=(next == NATIVE_NEXT_VALUE))
     return RedirectResponse(
         url=_build_authorize_url(
             services_id=services_id,
@@ -596,28 +612,43 @@ async def apple_callback(
     - ``id_token`` missing or unverified ``email`` claim → 400
       ``no_verified_email``.
     - ``id_token`` missing ``sub`` → 400 ``no_apple_sub``.
-    """
-    if error or not code:
-        _log.warning("apple oauth callback returned error: %s", error or "no_code")
-        raise HTTPException(status_code=400, detail="oauth_failed")
-    state_payload = _verify_state_token(state)
-    if state_payload is None:
-        raise HTTPException(status_code=400, detail="oauth_failed")
-    if "link" in state_payload:
-        # A link-flow state token must not be replayable as a sign-in.
-        # Refuse here so a leaked link state can't be used to sign in
-        # someone else.
-        _log.warning("apple oauth state rejected: link payload used on sign-in callback")
-        raise HTTPException(status_code=400, detail="oauth_failed")
 
-    redirect_uri = str(request.url_for("apple_callback"))
-    profile, _services_id = await _process_apple_callback(
-        request=request,
-        code=code,
-        state_payload=state_payload,
-        user_form=user,
-        redirect_uri=redirect_uri,
-    )
+    When the login was started with ``?next=app`` (#924), the signed
+    state token carries that intent (Apple's cross-site POST won't
+    carry our session cookie, so the flag can't ride there like it does
+    for the other providers). Errors then redirect to
+    ``mgzpkmn://auth/callback?error=<reason>`` instead of raising, and
+    success mints a one-time code for ``POST /auth/native/exchange``
+    instead of setting the session cookie directly.
+    """
+    state_payload = _verify_state_token(state)
+    next_app = bool(state_payload and state_payload.get("app"))
+
+    try:
+        if error or not code:
+            _log.warning("apple oauth callback returned error: %s", error or "no_code")
+            raise HTTPException(status_code=400, detail="oauth_failed")
+        if state_payload is None:
+            raise HTTPException(status_code=400, detail="oauth_failed")
+        if "link" in state_payload:
+            # A link-flow state token must not be replayable as a
+            # sign-in. Refuse here so a leaked link state can't be used
+            # to sign in someone else.
+            _log.warning("apple oauth state rejected: link payload used on sign-in callback")
+            raise HTTPException(status_code=400, detail="oauth_failed")
+
+        redirect_uri = str(request.url_for("apple_callback"))
+        profile, _services_id = await _process_apple_callback(
+            request=request,
+            code=code,
+            state_payload=state_payload,
+            user_form=user,
+            redirect_uri=redirect_uri,
+        )
+    except HTTPException as exc:
+        if next_app:
+            return native_error_redirect(str(exc.detail))
+        raise
 
     # Same identity-first resolver the other providers use. Apple's
     # ``sub`` is the stable per-(team, services-id, user) identifier;
@@ -631,6 +662,9 @@ async def apple_callback(
         display_name=profile.name or None,
         name_prefix="apple",
     )
+
+    if next_app:
+        return native_success_redirect(mint_native_code(resolved.id))
 
     request.session["user_id"] = resolved.id
     return RedirectResponse(url=POST_SIGNIN_REDIRECT, status_code=302)
