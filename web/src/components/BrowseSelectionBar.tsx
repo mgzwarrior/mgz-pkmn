@@ -51,6 +51,14 @@ export function BrowseSelectionBar({
     return c.set?.id && c.number ? lookupOwnership(c.set.id, c.number) : null
   }
 
+  // `undefined` means the batched ownership lookup for that card hasn't
+  // resolved yet — acting now would treat an unknown card as "not owned/
+  // wanted", write it anyway (harmless, idempotent), but then undo would
+  // wrongly assume this action added it and strip pre-existing ownership.
+  // Block the buttons until every selected card's ownership is known,
+  // matching QuickActions' same loading guard (#767).
+  const ownershipLoading = selected.some((c) => ownershipOf(c) === undefined)
+
   function unownedOf(cards: CardData[]): CardData[] {
     return cards.filter((c) => !hasPersonalOwnership(ownershipOf(c)))
   }
@@ -66,9 +74,12 @@ export function BrowseSelectionBar({
     setBusy(kind)
     setError(null)
     try {
+      // Write exactly the cards undo will later reverse — a card already
+      // owned/wanted is skipped rather than idempotently re-written, so the
+      // write set and the undo set can never drift apart (#934 review).
       const toAdd = kind === 'own' ? unownedOf(selected) : unwantedOf(selected)
       const write = kind === 'own' ? ownCard : wantCard
-      await Promise.all(selected.map((c) => write(c as unknown as Record<string, unknown>)))
+      await Promise.all(toAdd.map((c) => write(c as unknown as Record<string, unknown>)))
       invalidateOwnership()
       await (kind === 'own' ? refreshCollectionsCache() : refreshWishlistsCache())
       setLastAction({ kind, cards: toAdd })
@@ -117,7 +128,7 @@ export function BrowseSelectionBar({
               icon={Book}
               tone="palm"
               busy={busy === 'own'}
-              disabled={busy !== null}
+              disabled={busy !== null || ownershipLoading}
               onClick={() => void run('own')}
             />
             <SelectionButton
@@ -125,7 +136,7 @@ export function BrowseSelectionBar({
               icon={Footprints}
               tone="sun"
               busy={busy === 'want'}
-              disabled={busy !== null}
+              disabled={busy !== null || ownershipLoading}
               onClick={() => void run('want')}
             />
           </>

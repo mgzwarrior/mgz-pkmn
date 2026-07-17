@@ -76,8 +76,9 @@ describe('BrowseSelectionBar (#913)', () => {
 
   it('undoes a bulk own by unowning only the cards it actually added', async () => {
     // Charizard was already owned before the bulk action; Blastoise was not.
-    // Own is idempotent for Charizard, so undo must skip it — otherwise it'd
-    // strip ownership the user held before this selection ever ran.
+    // Own only writes the not-yet-owned cards, so the write set and the undo
+    // set can never drift apart — Charizard is skipped entirely rather than
+    // idempotently rewritten, and undo only has Blastoise to reverse.
     const lookupOwnership = (setId: string, number: string) =>
       setId === 'base1' && number === '4' ? OWNED : EMPTY
 
@@ -89,11 +90,30 @@ describe('BrowseSelectionBar (#913)', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: /own selected cards/i }))
-    await waitFor(() => expect(client.ownCard).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(client.ownCard).toHaveBeenCalledTimes(1))
+    expect(client.ownCard).toHaveBeenCalledWith(BLASTOISE)
 
     fireEvent.click(await screen.findByRole('button', { name: /undo/i }))
     await waitFor(() => expect(client.unownCard).toHaveBeenCalledTimes(1))
     expect(client.unownCard).toHaveBeenCalledWith(BLASTOISE)
+  })
+
+  it('disables Own/Want while any selected card’s ownership is still loading (#767)', () => {
+    // `undefined` = the batched ownership lookup hasn't resolved for that
+    // card yet. Acting now risks writing a card that's already owned/wanted
+    // and then having undo strip that pre-existing state, so both buttons
+    // stay disabled until every selected card's ownership is known.
+    render(
+      <BrowseSelectionBar
+        selected={[CHARIZARD, BLASTOISE]}
+        lookupOwnership={(setId, number) =>
+          setId === 'base1' && number === '4' ? EMPTY : undefined
+        }
+        onClear={onClear}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /own selected cards/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /want selected cards/i })).toBeDisabled()
   })
 
   it('surfaces a write failure without clearing the selection', async () => {
