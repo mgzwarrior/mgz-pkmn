@@ -46,8 +46,15 @@ that the same way [`api/auth/native.py`](native.py) bridges sign-in:
 the token itself carries the initiating user's id
 (`sign_link_native_token` / `verify_link_native_token`, a distinct
 salt from the sign-in token pair above so the two shapes can never be
-mixed up), and the callback mints a one-time code + redirects to
-`mgzpkmn://auth/callback` instead of relying on the session.
+mixed up), and the callback redirects to `mgzpkmn://auth/callback`
+instead of relying on the session. Unlike sign-in, the link callback
+does *not* mint a native handoff code: whoever can open that URL only
+proved control of the mailbox the link was sent to, not that they're
+the initiating user, so handing out a bearer code here would let a
+mistyped or hostile mailbox exchange it for a full session as the
+account that requested the link. The app that started the link
+already holds its own session from the `/start` call; the callback
+only needs to report success or failure.
 """
 
 from __future__ import annotations
@@ -297,6 +304,25 @@ def _native_link_conflict_redirect(provider: str) -> RedirectResponse:
     existing `mgzpkmn://auth/callback?error=...` handling doesn't need
     any special-casing to also read `provider` off this one error."""
     query = urlencode({"error": "identity_already_linked", "provider": provider})
+    return RedirectResponse(url=f"{NATIVE_CALLBACK_SCHEME}?{query}", status_code=302)
+
+
+def _native_link_success_redirect(provider: str) -> RedirectResponse:
+    """Build the `mgzpkmn://auth/callback?linked=<provider>` redirect for
+    a successful native-app account link (#936).
+
+    Deliberately does **not** mint a `mint_native_code` bearer credential
+    the way sign-in's `native_success_redirect` does. The sign-in code is
+    safe to hand to whoever opens the callback URL because opening it
+    *is* the proof of email ownership. The link flow is different: the
+    code would carry the *initiating* user's id, not the clicking
+    party's, so anyone who can read the mailbox the link was sent to
+    (including via a typo'd address or a compromised inbox) could
+    exchange it via the unauthenticated `/auth/native/exchange` and take
+    over the initiating account. The app already holds its own session
+    from the `/start` call, so the callback only needs to report which
+    provider just got linked."""
+    query = urlencode({"linked": provider})
     return RedirectResponse(url=f"{NATIVE_CALLBACK_SCHEME}?{query}", status_code=302)
 
 
@@ -650,9 +676,11 @@ def magic_link_callback(
     `consume_link_request` entirely — no session dependency — and
     decodes the initiating user's id straight out of the token
     (`verify_link_native_token`, minted by `magic_link_start`) instead.
-    On success it mints a native handoff code and redirects to
-    `mgzpkmn://auth/callback?code=...` (`native_success_redirect`)
-    instead of `/account`; on an identity conflict it redirects to
+    On success it redirects to `mgzpkmn://auth/callback?linked=magic`
+    (`_native_link_success_redirect`) instead of `/account` — note this
+    does *not* mint a bearer code the way the sign-in callback does, see
+    that helper's docstring for why; on an identity conflict it
+    redirects to
     `mgzpkmn://auth/callback?error=identity_already_linked&provider=magic`
     instead of raising. `user` is only required (401 if absent) on the
     web path — the whole point of the token carrying the user id is
@@ -689,7 +717,7 @@ def magic_link_callback(
         return RedirectResponse(url=post_link_error_redirect(exc.provider), status_code=302)
 
     if next_app:
-        return native_success_redirect(mint_native_code(link_user_id))
+        return _native_link_success_redirect(PROVIDER_MAGIC)
 
     return RedirectResponse(url=POST_LINK_REDIRECT, status_code=302)
 

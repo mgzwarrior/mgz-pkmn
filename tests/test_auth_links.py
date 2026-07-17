@@ -392,6 +392,13 @@ class NativeLinkTests(_IsolatedDbMixin):
     def test_link_callback_next_app_links_identity_and_redirects_to_native_scheme(
         self,
     ) -> None:
+        """Success redirects with a `linked=<provider>` signal only — no
+        bearer code. Minting a native handoff code here would let
+        whoever can open this URL (i.e. whoever controls the mailbox the
+        link was sent to, not necessarily the initiating user) exchange
+        it via the unauthenticated `/auth/native/exchange` for a full
+        session as the *initiating* account. See
+        `_native_link_success_redirect`'s docstring in `api/auth/magic.py`."""
         from api.main import app
 
         with TestClient(app) as client:
@@ -402,13 +409,10 @@ class NativeLinkTests(_IsolatedDbMixin):
                 follow_redirects=False,
             )
             self.assertEqual(r.status_code, 302)
-            location = r.headers["location"]
-            self.assertTrue(location.startswith("mgzpkmn://auth/callback?code="))
-
-            code = location.split("code=", 1)[1]
-            exchange_resp = client.post("/api/v1/auth/native/exchange", json={"code": code})
-            self.assertEqual(exchange_resp.status_code, 200)
-            self.assertTrue(exchange_resp.json()["session_token"])
+            self.assertEqual(
+                r.headers["location"],
+                f"mgzpkmn://auth/callback?linked={PROVIDER_MAGIC}",
+            )
 
         with session_mod.get_session_factory()() as s:
             user = s.get(User, user_id)
@@ -421,6 +425,26 @@ class NativeLinkTests(_IsolatedDbMixin):
                     (PROVIDER_MAGIC, "primary@example.com", "primary@example.com"),
                 ],
             )
+
+    def test_link_callback_next_app_does_not_grant_a_session_for_the_initiating_user(
+        self,
+    ) -> None:
+        """Regression for the account-takeover flagged in PR #937 review:
+        clicking the link (proving only mailbox control, not that you're
+        the initiating user) must never yield a code that
+        `/auth/native/exchange` will turn into a session for the account
+        that started the link."""
+        from api.main import app
+
+        with TestClient(app) as client:
+            user_id = _sign_in_magic(client, "primary@example.com")
+            token = sign_link_native_token("attacker@example.com", user_id)
+            r = client.get(
+                f"/api/v1/auth/link/magic/callback?token={token}&next=app",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertNotIn("code=", r.headers["location"])
 
     def test_link_callback_next_app_invalid_token_redirects_to_native_scheme_error(
         self,
