@@ -34,6 +34,14 @@ from .linking import (
     post_link_error_redirect,
     stage_link_request,
 )
+from .native import (
+    NATIVE_NEXT_VALUE,
+    consume_native_next,
+    mark_native_next,
+    mint_native_code,
+    native_error_redirect,
+    native_success_redirect,
+)
 from .session import CurrentUserRequired, DbSession, auth_enabled
 
 _log = logging.getLogger(__name__)
@@ -114,8 +122,14 @@ async def fetch_discord_profile(oauth: OAuth, token: dict) -> DiscordProfile:
 
 
 @router.get("/auth/discord/login")
-async def discord_login(request: Request, _: AuthGate) -> RedirectResponse:
-    """Start the Discord OAuth flow."""
+async def discord_login(request: Request, _: AuthGate, next: str | None = None) -> RedirectResponse:
+    """Start the Discord OAuth flow.
+
+    `?next=app` (native-app handoff, #924) is remembered in the same
+    session cookie Authlib's own state rides in, and read back by the
+    callback."""
+    if next == NATIVE_NEXT_VALUE:
+        mark_native_next(request)
     oauth = _oauth_client()
     redirect_uri = str(request.url_for("discord_callback"))
     return await oauth.discord.authorize_redirect(request, redirect_uri)
@@ -136,19 +150,31 @@ async def discord_link_start(
 
 @router.get("/auth/discord/callback", name="discord_callback")
 async def discord_callback(request: Request, db: DbSession, _: AuthGate) -> RedirectResponse:
-    """Finish the OAuth handshake and sign the user in."""
+    """Finish the OAuth handshake and sign the user in.
+
+    When the login was started with `?next=app` (#924), errors redirect
+    to `mgzpkmn://auth/callback?error=<reason>` instead of raising, and
+    success mints a one-time code for `POST /auth/native/exchange`
+    instead of setting the session cookie directly — the native app's
+    `ASWebAuthenticationSession` can't read this response's cookies."""
+    next_app = consume_native_next(request)
     oauth = _oauth_client()
     try:
         token = await oauth.discord.authorize_access_token(request)
+        profile = await fetch_discord_profile(oauth, token)
+        if not profile.verified_email:
+            raise HTTPException(status_code=400, detail="no_verified_email")
+        if not profile.user_id:
+            raise HTTPException(status_code=400, detail="no_discord_user_id")
     except OAuthError as exc:
         _log.warning("discord oauth state/code exchange failed: %s", exc.error)
+        if next_app:
+            return native_error_redirect("oauth_failed")
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
-
-    profile = await fetch_discord_profile(oauth, token)
-    if not profile.verified_email:
-        raise HTTPException(status_code=400, detail="no_verified_email")
-    if not profile.user_id:
-        raise HTTPException(status_code=400, detail="no_discord_user_id")
+    except HTTPException as exc:
+        if next_app:
+            return native_error_redirect(str(exc.detail))
+        raise
 
     user = resolve_or_link_identity(
         db,
@@ -158,6 +184,9 @@ async def discord_callback(request: Request, db: DbSession, _: AuthGate) -> Redi
         display_name=profile.display_name,
         name_prefix="discord",
     )
+
+    if next_app:
+        return native_success_redirect(mint_native_code(user.id))
 
     request.session["user_id"] = user.id
     return RedirectResponse(url=POST_SIGNIN_REDIRECT, status_code=302)

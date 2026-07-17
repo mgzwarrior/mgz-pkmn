@@ -40,7 +40,7 @@ from api.auth.google import (
     GOOGLE_CLIENT_SECRET_ENV,
     GoogleProfile,
 )
-from api.auth.session import AUTH_ENABLED_ENV, SESSION_SECRET_ENV
+from api.auth.session import AUTH_ENABLED_ENV, SESSION_COOKIE_NAME, SESSION_SECRET_ENV
 from api.db import session as session_mod
 from api.db.models import User
 
@@ -410,6 +410,112 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                     select(func.count()).select_from(User).where(User.email == "eve@example.com")
                 )
                 self.assertEqual(n, 1)
+
+
+class NativeHandoffTests(_IsolatedDbMixin):
+    """`?next=app` (#924) — native-app one-time-code handoff instead of
+    the browser session cookie. See `tests/test_auth_native.py` for the
+    code-mint/burn/exchange mechanics themselves."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        os.environ[GOOGLE_CLIENT_ID_ENV] = "test-client-id"
+        os.environ[GOOGLE_CLIENT_SECRET_ENV] = "test-client-secret"
+
+    def test_login_next_app_survives_to_callback_as_native_redirect(self) -> None:
+        """Drive login (which stashes the flag in the session cookie the
+        TestClient persists) then the callback, and confirm the
+        callback redirects to the custom scheme with a code instead of
+        `/` with a `Set-Cookie`."""
+        from api.main import app
+
+        token = {"access_token": "test-token", "token_type": "bearer"}
+        profile = GoogleProfile(sub="55556666", name="App User", verified_email="app@example.com")
+
+        from fastapi.responses import RedirectResponse
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_redirect",
+                new=AsyncMock(
+                    return_value=RedirectResponse(
+                        url="https://accounts.google.com/x", status_code=302
+                    )
+                ),
+            ),
+            TestClient(app) as client,
+        ):
+            login_resp = client.get("/api/v1/auth/google/login?next=app", follow_redirects=False)
+            self.assertEqual(login_resp.status_code, 302)
+
+            with (
+                patch(
+                    "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                    new=AsyncMock(return_value=token),
+                ),
+                patch(
+                    "api.auth.google.fetch_google_profile",
+                    new=AsyncMock(return_value=profile),
+                ),
+            ):
+                callback_resp = client.get(
+                    "/api/v1/auth/google/callback?code=abc&state=anything",
+                    follow_redirects=False,
+                )
+            self.assertEqual(callback_resp.status_code, 302)
+            location = callback_resp.headers["location"]
+            self.assertTrue(location.startswith("mgzpkmn://auth/callback?code="))
+            # No session cookie for the native path — the code is the
+            # handoff, not a cookie the app's ephemeral browser jar
+            # can't read anyway.
+            self.assertNotIn(SESSION_COOKIE_NAME, client.cookies)
+
+            code = location.split("code=", 1)[1]
+            exchange_resp = client.post("/api/v1/auth/native/exchange", json={"code": code})
+            self.assertEqual(exchange_resp.status_code, 200)
+            self.assertTrue(exchange_resp.json()["session_token"])
+
+    def test_login_next_app_error_redirects_to_native_scheme(self) -> None:
+        from api.main import app
+
+        no_email_profile = GoogleProfile(sub="1", name="Anon", verified_email=None)
+        token = {"access_token": "test-token", "token_type": "bearer"}
+
+        from fastapi.responses import RedirectResponse
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_redirect",
+                new=AsyncMock(
+                    return_value=RedirectResponse(
+                        url="https://accounts.google.com/x", status_code=302
+                    )
+                ),
+            ),
+            TestClient(app) as client,
+        ):
+            client.get("/api/v1/auth/google/login?next=app", follow_redirects=False)
+
+            with (
+                patch(
+                    "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                    new=AsyncMock(return_value=token),
+                ),
+                patch(
+                    "api.auth.google.fetch_google_profile",
+                    new=AsyncMock(return_value=no_email_profile),
+                ),
+            ):
+                r = client.get(
+                    "/api/v1/auth/google/callback?code=abc&state=anything",
+                    follow_redirects=False,
+                )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(
+                r.headers["location"],
+                "mgzpkmn://auth/callback?error=no_verified_email",
+            )
 
 
 if __name__ == "__main__":

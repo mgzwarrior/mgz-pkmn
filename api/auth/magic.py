@@ -58,6 +58,12 @@ from .linking import (
     post_link_error_redirect,
     stage_link_request,
 )
+from .native import (
+    NATIVE_NEXT_VALUE,
+    mint_native_code,
+    native_error_redirect,
+    native_success_redirect,
+)
 from .session import CurrentUserRequired, DbSession, auth_enabled, resolve_session_secret
 
 _log = logging.getLogger(__name__)
@@ -355,13 +361,21 @@ def _get_sender() -> str:
     return sender
 
 
-def _build_callback_url(request: Request, token: str) -> str:
+def _build_callback_url(request: Request, token: str, *, next_app: bool = False) -> str:
     """Build the absolute callback URL the email will link to.
 
     Uses `request.url_for` so the same code works locally, on the
     hosted demo, and behind a reverse proxy without an env var that
-    has to be kept in sync with the deploy host."""
-    return str(request.url_for("magic_callback").include_query_params(token=token))
+    has to be kept in sync with the deploy host.
+
+    `next_app` (native-app handoff, #924) rides as a plain query param
+    rather than inside the signed token — it only steers where the
+    callback redirects the *result*, not who gets authenticated, so it
+    doesn't need to be tamper-proof."""
+    url = request.url_for("magic_callback").include_query_params(token=token)
+    if next_app:
+        url = url.include_query_params(next=NATIVE_NEXT_VALUE)
+    return str(url)
 
 
 def _build_link_callback_url(request: Request, token: str) -> str:
@@ -408,20 +422,25 @@ def magic_request(
     request: Request,
     background_tasks: BackgroundTasks,
     _: AuthGate,
+    next: str | None = None,
 ) -> Response:
     """Request a magic-link email.
 
     Always returns 202 with an empty body once the SMTP layer is
     configured — no enumeration leak. If SMTP is missing we 503 with a
     setup hint (this only happens on a misconfigured deploy, never as
-    a runtime signal about the requester's email)."""
+    a runtime signal about the requester's email).
+
+    `?next=app` (native-app handoff, #924) is threaded into the
+    callback link so clicking the emailed link redirects to the app
+    instead of the SPA."""
     mailer = _get_mailer()
     sender = _get_sender()
     # Normalize once, then use everywhere — token, To: header, and the
     # downstream callback's merge anchor all see the same string.
     email = _normalize_email(payload.email)
     token = sign_token(email)
-    link = _build_callback_url(request, token)
+    link = _build_callback_url(request, token, next_app=(next == NATIVE_NEXT_VALUE))
     message = _build_message(email, sender, link)
     # Queue the send so the response time is independent of how slow
     # the SMTP relay is — also keeps the response timing flat across
@@ -461,14 +480,24 @@ def magic_callback(
     request: Request,
     db: DbSession,
     _: AuthGate,
+    next: str | None = None,
 ) -> RedirectResponse:
     """Verify a magic-link token and sign the user in.
 
     On success: upsert `users` keyed on the verified email, issue the
     session cookie, 302 to `/`. On expiry / tamper: 400 — the user can
-    request a fresh link from the SPA."""
+    request a fresh link from the SPA.
+
+    When the request was started with `?next=app` (#924), errors
+    redirect to `mgzpkmn://auth/callback?error=<reason>` instead of
+    raising, and success mints a one-time code for
+    `POST /auth/native/exchange` instead of setting the session cookie
+    directly."""
+    next_app = next == NATIVE_NEXT_VALUE
     email = verify_token(token)
     if email is None:
+        if next_app:
+            return native_error_redirect("invalid_or_expired_token")
         raise HTTPException(status_code=400, detail="invalid_or_expired_token")
 
     # Slice 1 of #491: the identity-first resolver in `api/auth/identity.py`
@@ -484,6 +513,9 @@ def magic_callback(
         display_name=None,
         name_prefix="magic",
     )
+
+    if next_app:
+        return native_success_redirect(mint_native_code(user.id))
 
     request.session["user_id"] = user.id
     return RedirectResponse(url=POST_SIGNIN_REDIRECT, status_code=302)

@@ -21,7 +21,7 @@ from api.auth.discord import (
     DISCORD_CLIENT_SECRET_ENV,
     DiscordProfile,
 )
-from api.auth.session import AUTH_ENABLED_ENV, SESSION_SECRET_ENV
+from api.auth.session import AUTH_ENABLED_ENV, SESSION_COOKIE_NAME, SESSION_SECRET_ENV
 from api.db import session as session_mod
 from api.db.models import PROVIDER_DISCORD, User, UserIdentity
 
@@ -307,6 +307,108 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                 user = s.get(User, existing_id)
                 assert user is not None
                 self.assertEqual(user.display_name, "carol")
+
+
+class NativeHandoffTests(_IsolatedDbMixin):
+    """`?next=app` (#924) — native-app one-time-code handoff instead of
+    the browser session cookie. See `tests/test_auth_native.py` for the
+    code-mint/burn/exchange mechanics themselves."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        os.environ[DISCORD_CLIENT_ID_ENV] = "test-client-id"
+        os.environ[DISCORD_CLIENT_SECRET_ENV] = "test-client-secret"
+
+    def test_login_next_app_survives_to_callback_as_native_redirect(self) -> None:
+        from fastapi.responses import RedirectResponse
+
+        from api.main import app
+
+        token = {"access_token": "test-token", "token_type": "bearer"}
+        profile = DiscordProfile(
+            user_id="999",
+            username="app-user",
+            global_name="App User",
+            verified_email="app@example.com",
+        )
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_redirect",
+                new=AsyncMock(
+                    return_value=RedirectResponse(url="https://discord.com/x", status_code=302)
+                ),
+            ),
+            TestClient(app) as client,
+        ):
+            login_resp = client.get("/api/v1/auth/discord/login?next=app", follow_redirects=False)
+            self.assertEqual(login_resp.status_code, 302)
+
+            with (
+                patch(
+                    "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                    new=AsyncMock(return_value=token),
+                ),
+                patch(
+                    "api.auth.discord.fetch_discord_profile",
+                    new=AsyncMock(return_value=profile),
+                ),
+            ):
+                callback_resp = client.get(
+                    "/api/v1/auth/discord/callback?code=abc&state=anything",
+                    follow_redirects=False,
+                )
+            self.assertEqual(callback_resp.status_code, 302)
+            location = callback_resp.headers["location"]
+            self.assertTrue(location.startswith("mgzpkmn://auth/callback?code="))
+            self.assertNotIn(SESSION_COOKIE_NAME, client.cookies)
+
+            code = location.split("code=", 1)[1]
+            exchange_resp = client.post("/api/v1/auth/native/exchange", json={"code": code})
+            self.assertEqual(exchange_resp.status_code, 200)
+            self.assertTrue(exchange_resp.json()["session_token"])
+
+    def test_login_next_app_error_redirects_to_native_scheme(self) -> None:
+        from fastapi.responses import RedirectResponse
+
+        from api.main import app
+
+        no_email_profile = DiscordProfile(
+            user_id="1", username="anon", global_name=None, verified_email=None
+        )
+        token = {"access_token": "test-token", "token_type": "bearer"}
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_redirect",
+                new=AsyncMock(
+                    return_value=RedirectResponse(url="https://discord.com/x", status_code=302)
+                ),
+            ),
+            TestClient(app) as client,
+        ):
+            client.get("/api/v1/auth/discord/login?next=app", follow_redirects=False)
+
+            with (
+                patch(
+                    "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                    new=AsyncMock(return_value=token),
+                ),
+                patch(
+                    "api.auth.discord.fetch_discord_profile",
+                    new=AsyncMock(return_value=no_email_profile),
+                ),
+            ):
+                r = client.get(
+                    "/api/v1/auth/discord/callback?code=abc&state=anything",
+                    follow_redirects=False,
+                )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(
+                r.headers["location"],
+                "mgzpkmn://auth/callback?error=no_verified_email",
+            )
 
 
 if __name__ == "__main__":

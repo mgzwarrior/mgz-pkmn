@@ -41,6 +41,14 @@ from .linking import (
     post_link_error_redirect,
     stage_link_request,
 )
+from .native import (
+    NATIVE_NEXT_VALUE,
+    consume_native_next,
+    mark_native_next,
+    mint_native_code,
+    native_error_redirect,
+    native_success_redirect,
+)
 from .session import CurrentUserRequired, DbSession, auth_enabled
 
 _log = logging.getLogger(__name__)
@@ -157,12 +165,18 @@ async def fetch_github_profile(oauth: OAuth, token: dict) -> GitHubProfile:
 
 
 @router.get("/auth/github/login")
-async def github_login(request: Request, _: AuthGate) -> RedirectResponse:
+async def github_login(request: Request, _: AuthGate, next: str | None = None) -> RedirectResponse:
     """Start the GitHub OAuth flow.
 
     Generates an Authlib state token, stashes it in the session cookie,
     and 302s to GitHub's authorize URL. The user lands on
-    `/api/v1/auth/github/callback` after granting access."""
+    `/api/v1/auth/github/callback` after granting access.
+
+    `?next=app` (native-app handoff, #924) is remembered in the same
+    session cookie Authlib's own state rides in, and read back by the
+    callback."""
+    if next == NATIVE_NEXT_VALUE:
+        mark_native_next(request)
     oauth = _oauth_client()
     redirect_uri = str(request.url_for("github_callback"))
     return await oauth.github.authorize_redirect(request, redirect_uri)
@@ -198,26 +212,39 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
       `OAuthError`; we surface as 400. The user can retry from the
       header chip.
     - GitHub returns no verified primary email → 400 with a clear
-      message. Account-merge depends on a verified email anchor."""
+      message. Account-merge depends on a verified email anchor.
+
+    When the login was started with `?next=app` (#924), errors redirect
+    to `mgzpkmn://auth/callback?error=<reason>` instead of raising, and
+    success mints a one-time code for `POST /auth/native/exchange`
+    instead of setting the session cookie directly — the native app's
+    `ASWebAuthenticationSession` can't read this response's cookies."""
+    next_app = consume_native_next(request)
     oauth = _oauth_client()
     try:
         token = await oauth.github.authorize_access_token(request)
+        profile = await fetch_github_profile(oauth, token)
+        if not profile.verified_primary_email:
+            # ADR-0019: account-merge needs an email anchor. No anchor
+            # → we refuse rather than minting an anonymous-shaped row.
+            raise HTTPException(status_code=400, detail="no_verified_email")
+        if not profile.login:
+            # A valid GitHub `/user` response always carries a login.
+            # An empty one means GitHub gave us something we can't
+            # ground a `users.name` row on — fall back to a constant
+            # ("gh:user") would collide on the next empty-login signup
+            # and 500 at commit on the unique constraint. Refuse
+            # cleanly instead.
+            raise HTTPException(status_code=400, detail="no_github_login")
     except OAuthError as exc:
         _log.warning("github oauth state/code exchange failed: %s", exc.error)
+        if next_app:
+            return native_error_redirect("oauth_failed")
         raise HTTPException(status_code=400, detail="oauth_failed") from exc
-
-    profile = await fetch_github_profile(oauth, token)
-    if not profile.verified_primary_email:
-        # ADR-0019: account-merge needs an email anchor. No anchor →
-        # we refuse rather than minting an anonymous-shaped row.
-        raise HTTPException(status_code=400, detail="no_verified_email")
-    if not profile.login:
-        # A valid GitHub `/user` response always carries a login. An
-        # empty one means GitHub gave us something we can't ground a
-        # `users.name` row on — fall back to a constant ("gh:user")
-        # would collide on the next empty-login signup and 500 at
-        # commit on the unique constraint. Refuse cleanly instead.
-        raise HTTPException(status_code=400, detail="no_github_login")
+    except HTTPException as exc:
+        if next_app:
+            return native_error_redirect(str(exc.detail))
+        raise
 
     # Slice 1 of #491: the identity-first resolver in `api/auth/identity.py`
     # owns the email-fallback + cold-mint + race-recovery branches that
@@ -232,6 +259,9 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
         display_name=profile.name or profile.login or None,
         name_prefix="gh",
     )
+
+    if next_app:
+        return native_success_redirect(mint_native_code(user.id))
 
     # `get_db` commits on normal return; no explicit commit here.
     request.session["user_id"] = user.id

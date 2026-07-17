@@ -45,7 +45,7 @@ from api.auth.magic import (
     SMTP_USERNAME_ENV,
     sign_token,
 )
-from api.auth.session import AUTH_ENABLED_ENV, SESSION_SECRET_ENV
+from api.auth.session import AUTH_ENABLED_ENV, SESSION_COOKIE_NAME, SESSION_SECRET_ENV
 from api.db import session as session_mod
 from api.db.models import User
 
@@ -401,6 +401,75 @@ class CallbackHappyPathTests(_IsolatedDbMixin):
                     select(func.count()).select_from(User).where(User.email == "race@example.com")
                 )
                 self.assertEqual(n, 1)
+
+
+class NativeHandoffTests(_IsolatedDbMixin):
+    """`?next=app` (#924) — native-app one-time-code handoff instead of
+    the browser session cookie. See `tests/test_auth_native.py` for the
+    code-mint/burn/exchange mechanics themselves."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        os.environ[AUTH_ENABLED_ENV] = "1"
+        _set_smtp_env()
+
+    def test_request_next_app_threads_into_callback_link(self) -> None:
+        from api.main import app
+
+        sends: list[EmailMessage] = []
+
+        def record_send(self_mailer, message: EmailMessage) -> None:
+            sends.append(message)
+
+        with (
+            patch("api.auth.magic.SmtpMailer.send", new=record_send),
+            TestClient(app) as client,
+        ):
+            r = client.post(
+                "/api/v1/auth/magic/request?next=app",
+                json={"email": "app@example.com"},
+            )
+            self.assertEqual(r.status_code, 202)
+
+        self.assertEqual(len(sends), 1)
+        plain = sends[0].get_body(preferencelist=("plain",))
+        assert plain is not None
+        body = plain.get_content()
+        self.assertIn("/api/v1/auth/magic/callback?token=", body)
+        self.assertIn("next=app", body)
+
+    def test_callback_next_app_mints_code_and_redirects_to_native_scheme(self) -> None:
+        from api.main import app
+
+        token = sign_token("appuser@example.com")
+        with TestClient(app) as client:
+            r = client.get(
+                f"/api/v1/auth/magic/callback?token={token}&next=app",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 302)
+            location = r.headers["location"]
+            self.assertTrue(location.startswith("mgzpkmn://auth/callback?code="))
+            self.assertNotIn(SESSION_COOKIE_NAME, client.cookies)
+
+            code = location.split("code=", 1)[1]
+            exchange_resp = client.post("/api/v1/auth/native/exchange", json={"code": code})
+            self.assertEqual(exchange_resp.status_code, 200)
+            self.assertTrue(exchange_resp.json()["session_token"])
+
+    def test_callback_next_app_error_redirects_to_native_scheme(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as client:
+            r = client.get(
+                "/api/v1/auth/magic/callback?token=garbage&next=app",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(
+                r.headers["location"],
+                "mgzpkmn://auth/callback?error=invalid_or_expired_token",
+            )
 
 
 if __name__ == "__main__":
