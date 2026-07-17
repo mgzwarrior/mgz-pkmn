@@ -6,10 +6,10 @@
  * the listing. Unmatched rows show an amber "not found" badge.
  *
  * Headers for Name / Set / Rarity / Market / Source are click-to-sort
- * (asc → desc → off). A Filter toggle reveals a row of per-column
- * inputs — text match for strings, min/max for the Market column. The
- * column sort/filter is view-only; exports still honor the sort mode
- * in Settings.
+ * (asc → desc → off). A Filter toggle reveals a dedicated panel above the
+ * table (#541) — text match for strings, min/max for the Market column,
+ * plus a chip summary of active filters. The sort/filter is view-only;
+ * exports still honor the sort mode in Settings.
  *
  * Below the `lg` breakpoint the table gives way to a stacked list of
  * {@link ResultCard}s (#521) — seven columns don't fit a phone, and Swipe
@@ -197,14 +197,25 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
     [settings, rowConditionOverrides],
   )
 
+  // A market range set before "hide pricing" was turned on must stop
+  // narrowing rows once the column (and its filter chip) is hidden —
+  // otherwise rows vanish with no visible reason (review feedback on #541).
+  // The stored filter value is left alone so it comes back if pricing is
+  // re-enabled; only its effect on the displayed rows is suppressed.
+  const effectiveFilters = useMemo(
+    () =>
+      settings.hidePricing ? { ...filters, marketMin: '', marketMax: '' } : filters,
+    [filters, settings.hidePricing],
+  )
+
   const displayedRows = useMemo(
     () => applySort(
-      applyFilters(rows, filters, adjustedMarketForRow),
+      applyFilters(rows, effectiveFilters, adjustedMarketForRow),
       sortColumn,
       sortDir,
       adjustedMarketForRow,
     ),
-    [rows, filters, sortColumn, sortDir, adjustedMarketForRow],
+    [rows, effectiveFilters, sortColumn, sortDir, adjustedMarketForRow],
   )
 
   // Map each Row object to its insertion index so the React key stays
@@ -523,6 +534,18 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
         </p>
       )}
 
+      {/* Filter panel — desktop only; mobile keeps its own bottom sheet
+          (#521). Lifted out of the table's header row (#541) into its own
+          bar so it doesn't compete for column width and has room for a
+          chip summary of active filters. */}
+      {!isMobile && showFilters && (
+        <FiltersPanel
+          filters={filters}
+          onFilterChange={setFilterValue}
+          showMarket={!settings.hidePricing}
+        />
+      )}
+
       {/* Table — desktop only; mobile renders ResultCards below (#521). */}
       {!isMobile && (
       <div className="overflow-x-auto rounded-md border border-sand-300 dark:border-husk-50">
@@ -608,102 +631,6 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 Buy
               </th>
             </tr>
-            {showFilters && (
-              <tr className="border-b border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-200">
-                <th>
-                  <span className="sr-only">Select (no filter)</span>
-                </th>
-                {showSavedActions && (
-                  <th>
-                    <span className="sr-only">Save actions (no filter)</span>
-                  </th>
-                )}
-                {!settings.noImages && (
-                  <th>
-                    <span className="sr-only">Image (no filter)</span>
-                  </th>
-                )}
-                <FilterCell>
-                  <FilterInput
-                    aria-label="Filter by name"
-                    placeholder="contains…"
-                    value={filters.name}
-                    onChange={(v) => setFilterValue('name', v)}
-                  />
-                </FilterCell>
-                <FilterCell className="hidden md:table-cell">
-                  <FilterInput
-                    aria-label="Filter by set"
-                    placeholder="contains…"
-                    value={filters.set}
-                    onChange={(v) => setFilterValue('set', v)}
-                  />
-                </FilterCell>
-                <FilterCell className="hidden lg:table-cell">
-                  <FilterInput
-                    aria-label="Filter by rarity"
-                    placeholder="contains…"
-                    value={filters.rarity}
-                    onChange={(v) => setFilterValue('rarity', v)}
-                  />
-                </FilterCell>
-                {!settings.hidePricing && (
-                  <>
-                    <th>
-                      <span className="sr-only">Condition (no filter)</span>
-                    </th>
-                    <FilterCell>
-                      <div className="flex gap-1">
-                        <FilterInput
-                          aria-label="Min market price"
-                          type="number"
-                          placeholder="min"
-                          value={filters.marketMin}
-                          onChange={(v) => setFilterValue('marketMin', v)}
-                        />
-                        <FilterInput
-                          aria-label="Max market price"
-                          type="number"
-                          placeholder="max"
-                          value={filters.marketMax}
-                          onChange={(v) => setFilterValue('marketMax', v)}
-                        />
-                      </div>
-                    </FilterCell>
-                    {/* Comp-tier columns have no filter — sr-only labels keep
-                        axe happy without adding visible noise. */}
-                    <th className="hidden xl:table-cell">
-                      <span className="sr-only">80% (no filter)</span>
-                    </th>
-                    <th className="hidden xl:table-cell">
-                      <span className="sr-only">85% (no filter)</span>
-                    </th>
-                    <th className="hidden xl:table-cell">
-                      <span className="sr-only">90% (no filter)</span>
-                    </th>
-                    <th className="hidden xl:table-cell">
-                      <span className="sr-only">95% (no filter)</span>
-                    </th>
-                  </>
-                )}
-                {showEbay && (
-                  <th className="hidden lg:table-cell">
-                    <span className="sr-only">eBay sold (no filter)</span>
-                  </th>
-                )}
-                <FilterCell className="hidden sm:table-cell">
-                  <FilterInput
-                    aria-label="Filter by source"
-                    placeholder="contains…"
-                    value={filters.source}
-                    onChange={(v) => setFilterValue('source', v)}
-                  />
-                </FilterCell>
-                <th>
-                  <span className="sr-only">Buy (no filter)</span>
-                </th>
-              </tr>
-            )}
           </thead>
           <tbody>
             {visibleRows.map((row, displayedIdx) => (
@@ -846,14 +773,165 @@ function SortableHeader({
   )
 }
 
-function FilterCell({
-  children,
-  className = '',
+// ---------------------------------------------------------------------------
+// Desktop filter panel (#541)
+// ---------------------------------------------------------------------------
+
+type ChipDef = { id: string; label: string; onRemove: () => void }
+
+function buildChips(
+  filters: ResultsFilters,
+  onFilterChange: <K extends keyof ResultsFilters>(key: K, value: ResultsFilters[K]) => void,
+  showMarket: boolean,
+): ChipDef[] {
+  const chips: ChipDef[] = []
+  if (filters.name) {
+    chips.push({ id: 'name', label: `Name: ${filters.name}`, onRemove: () => onFilterChange('name', '') })
+  }
+  if (filters.set) {
+    chips.push({ id: 'set', label: `Set: ${filters.set}`, onRemove: () => onFilterChange('set', '') })
+  }
+  if (filters.rarity) {
+    chips.push({
+      id: 'rarity',
+      label: `Rarity: ${filters.rarity}`,
+      onRemove: () => onFilterChange('rarity', ''),
+    })
+  }
+  if (filters.marketMin || filters.marketMax) {
+    const clear = () => {
+      onFilterChange('marketMin', '')
+      onFilterChange('marketMax', '')
+    }
+    // Pricing hidden: the range itself isn't applied to the displayed rows
+    // (see effectiveFilters above) and showing the numbers would defeat the
+    // "hide pricing" setting, so the chip stays but drops the values.
+    if (!showMarket) {
+      chips.push({ id: 'market', label: 'Market filter (hidden while pricing is off)', onRemove: clear })
+    } else {
+      const range =
+        filters.marketMin && filters.marketMax
+          ? `$${filters.marketMin}–$${filters.marketMax}`
+          : filters.marketMin
+            ? `≥ $${filters.marketMin}`
+            : `≤ $${filters.marketMax}`
+      chips.push({ id: 'market', label: `Market: ${range}`, onRemove: clear })
+    }
+  }
+  if (filters.source) {
+    chips.push({
+      id: 'source',
+      label: `Source: ${filters.source}`,
+      onRemove: () => onFilterChange('source', ''),
+    })
+  }
+  return chips
+}
+
+function FiltersPanel({
+  filters,
+  onFilterChange,
+  showMarket,
 }: {
-  children: React.ReactNode
-  className?: string
+  filters: ResultsFilters
+  onFilterChange: <K extends keyof ResultsFilters>(key: K, value: ResultsFilters[K]) => void
+  showMarket: boolean
 }) {
-  return <th className={`px-2 py-1.5 compact:py-0.5 ${className}`}>{children}</th>
+  const chips = buildChips(filters, onFilterChange, showMarket)
+  return (
+    <div
+      role="region"
+      aria-label="Result filters"
+      className="flex flex-col gap-3 rounded-md border border-sand-300 bg-sand-50 p-3 dark:border-husk-50 dark:bg-husk-200"
+    >
+      {chips.length > 0 ? (
+        <ul className="flex flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <li key={chip.id}>
+              <button
+                type="button"
+                onClick={chip.onRemove}
+                className="flex items-center gap-1 rounded-full border border-palm-400 bg-palm-50 px-2 py-0.5 text-xs text-palm-700 hover:bg-palm-100 dark:border-sun-300/60 dark:bg-sun-400/15 dark:text-sun-300 dark:hover:bg-sun-400/25"
+              >
+                {chip.label}
+                <X size={11} aria-hidden />
+                <span className="sr-only">Remove filter</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-coconut-400 dark:text-sand-300">
+          No filters applied — narrow the results with the fields below.
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <FilterField label="Name">
+          <FilterInput
+            aria-label="Filter by name"
+            placeholder="contains…"
+            value={filters.name}
+            onChange={(v) => onFilterChange('name', v)}
+          />
+        </FilterField>
+        <FilterField label="Set">
+          <FilterInput
+            aria-label="Filter by set"
+            placeholder="contains…"
+            value={filters.set}
+            onChange={(v) => onFilterChange('set', v)}
+          />
+        </FilterField>
+        <FilterField label="Rarity">
+          <FilterInput
+            aria-label="Filter by rarity"
+            placeholder="contains…"
+            value={filters.rarity}
+            onChange={(v) => onFilterChange('rarity', v)}
+          />
+        </FilterField>
+        {showMarket && (
+          <FilterField label="Market price">
+            <div className="flex gap-1">
+              <FilterInput
+                aria-label="Min market price"
+                type="number"
+                placeholder="min"
+                value={filters.marketMin}
+                onChange={(v) => onFilterChange('marketMin', v)}
+              />
+              <FilterInput
+                aria-label="Max market price"
+                type="number"
+                placeholder="max"
+                value={filters.marketMax}
+                onChange={(v) => onFilterChange('marketMax', v)}
+              />
+            </div>
+          </FilterField>
+        )}
+        <FilterField label="Source">
+          <FilterInput
+            aria-label="Filter by source"
+            placeholder="contains…"
+            value={filters.source}
+            onChange={(v) => onFilterChange('source', v)}
+          />
+        </FilterField>
+      </div>
+    </div>
+  )
+}
+
+// Not a <label> — see SheetField above; kept as a matching sibling for the
+// desktop panel's fields.
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1 text-xs text-coconut-400 dark:text-sand-300">
+      <span>{label}</span>
+      {children}
+    </div>
+  )
 }
 
 function FilterInput({
