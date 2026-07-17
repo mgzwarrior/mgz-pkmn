@@ -366,6 +366,64 @@ describe('BrowsePanel — pokedex view (#577)', () => {
     expect(screen.getByRole('button', { name: /^own$/i })).toBeInTheDocument()
   })
 
+  it('set view: multi-select mode bulk-owns the checked cards (#913)', async () => {
+    const SET_CARDS: SetCard[] = [
+      {
+        id: 'base1-4',
+        name: 'Charizard',
+        number: '4',
+        rarity: 'Rare Holo',
+        supertype: 'Pokémon',
+        subtypes: ['Stage 2'],
+        thumb: null,
+        market: 250,
+        dexNumbers: [6],
+      },
+      {
+        id: 'base1-2',
+        name: 'Blastoise',
+        number: '2',
+        rarity: 'Rare Holo',
+        supertype: 'Pokémon',
+        subtypes: ['Stage 2'],
+        thumb: null,
+        market: 150,
+        dexNumbers: [9],
+      },
+    ]
+    vi.spyOn(client, 'fetchSetCards').mockResolvedValue(SET_CARDS)
+    const own = vi.spyOn(client, 'ownCard').mockResolvedValue({} as never)
+
+    render(<Harness />)
+    const setTile = screen
+      .getAllByRole('button')
+      .find((b) => /\bcards$|count unknown/.test(b.textContent ?? ''))!
+    fireEvent.click(setTile)
+    expect(await screen.findByText('2 of 2 cards')).toBeInTheDocument()
+
+    // Entering select mode swaps the "N selected" prompt in for the normal
+    // per-card want/own quick actions.
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    expect(screen.getByText('Tap cards to select')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^own$/i })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^select charizard$/i }))
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /own selected cards/i }))
+    await waitFor(() =>
+      expect(own).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Charizard', number: '4' }),
+      ),
+    )
+    expect(own).toHaveBeenCalledTimes(1)
+
+    // The bar clears the checked selection back to zero after a successful
+    // bulk write, and Blastoise (never checked) was left untouched.
+    await waitFor(() => expect(screen.getByText('Tap cards to select')).toBeInTheDocument())
+    expect(own).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'Blastoise' }))
+  })
+
   // A single set card to seed a create from, returned by fetchSetCards once
   // we drill into a set. Shape matches SetCard.
   const SEED_SET_CARD = {

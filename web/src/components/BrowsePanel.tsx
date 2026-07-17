@@ -11,6 +11,7 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
   ChevronRight,
   FolderPlus,
@@ -22,7 +23,7 @@ import {
   Sparkles,
   Star,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { pokemonSpriteUrl, setLogoUrl, trainerSpriteUrl } from '../api/client'
 import { CARD_CLASS_GROUPS, type CardClassEntry } from '../data/cardClasses'
@@ -33,10 +34,12 @@ import { useFavoritePokemon } from './useFavoritePokemon'
 import type { CardData, PokedexCard, PokedexEntry, Row, SetCard, SetInfo } from '../types'
 import { BinderModal } from './BinderModal'
 import { browseCardToPayload, browseCardToRow, type BrowseSetContext } from './browseCard'
+import { BrowseSelectionBar } from './BrowseSelectionBar'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from './cardCategories'
 import { CardDetailModal } from './CardDetailModal'
 import { CollectionCreateDialog } from './CollectionCreateDialog'
 import { WishlistCreateDialog } from './WishlistCreateDialog'
+import { useBrowseSelection, type BrowseSelection } from './useBrowseSelection'
 import { useCardOwnership } from './useCardOwnership'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
@@ -140,6 +143,17 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
   // render save buttons", matching ResultsTable's row pattern.
   const { user } = useAuth()
   const showSavedActions = user !== null
+
+  // Multi-select mode (#913) — tap cards in any grid to build a selection,
+  // then bulk-mark it owned/chasing via BrowseSelectionBar. Local/transient
+  // (not server-synced), so it resets whenever the drilled-in target changes
+  // rather than following stale identities across sets/species/classes.
+  const selection = useBrowseSelection()
+  const drillKey = `${viewMode}:${activeSet?.id ?? ''}:${activePokemon?.number ?? ''}:${activeClassCardName ?? ''}`
+  useEffect(() => {
+    selection.clear()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drillKey])
 
   // Favorite Pokémon (#742) — the inline star toggle on the pokedex tiles and
   // the pinned "Your favorites" group. Signed-in only; a signed-out visitor
@@ -343,6 +357,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             onAddAll={addAll}
             onAddHolos={addHolos}
             onAddRares={addRares}
+            selection={showSavedActions ? selection : null}
           />
         ) : (
           <SetListView
@@ -363,6 +378,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             error={pokedexCardsError}
             addedCount={addedCount}
             onAddAll={addAllPrintings}
+            selection={showSavedActions ? selection : null}
           />
         ) : (
           <PokedexListView
@@ -389,6 +405,7 @@ export function BrowsePanel({ controller }: BrowsePanelProps) {
             error={classCardsError}
             addedCount={addedCount}
             onAddAll={addAllClassCards}
+            selection={showSavedActions ? selection : null}
           />
         ) : (
           <ClassNameIndexView
@@ -729,6 +746,9 @@ interface SetDetailProps {
   onAddAll: () => void
   onAddHolos: () => void
   onAddRares: () => void
+  /** Multi-select (#913). `null` hides the select toggle entirely — signed
+   *  out visitors have no collection/wishlist to write bulk actions to. */
+  selection: BrowseSelection | null
 }
 
 const BUCKETS: { value: RarityBucket; label: string }[] = [
@@ -768,6 +788,7 @@ function SetDetailView({
   onAddAll,
   onAddHolos,
   onAddRares,
+  selection,
 }: SetDetailProps) {
   // Index into the displayed `cards` for the open detail modal; `null`
   // keeps it closed. Tracking the index (not the card) keeps ←/→ modal
@@ -860,6 +881,11 @@ function SetDetailView({
         <BulkButton onClick={onAddAll}>Add all visible</BulkButton>
         <BulkButton onClick={onAddHolos}>Add holos</BulkButton>
         <BulkButton onClick={onAddRares}>Add rares</BulkButton>
+        {selection && (
+          <Chip active={selection.selectMode} onClick={selection.toggleSelectMode}>
+            {selection.selectMode ? 'Done selecting' : 'Select'}
+          </Chip>
+        )}
         {addedCount != null && (
           <span className="ml-auto text-palm-500 dark:text-palm-200" role="status">
             Added {addedCount} line{addedCount === 1 ? '' : 's'} to your list
@@ -884,19 +910,32 @@ function SetDetailView({
         )}
         {!loading && !error && cards.length > 0 && (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {cards.map((c, i) => (
-              <CardTile
-                key={c.id}
-                card={c}
-                setCtx={setCtx}
-                showSavedActions={showSavedActions}
-                ownership={lookupOwnership(setInfo.id, c.number)}
-                onOpenDetail={() => setDetailIndex(i)}
-              />
-            ))}
+            {cards.map((c, i) => {
+              const payload = browseCardToPayload(c, setCtx)
+              return (
+                <CardTile
+                  key={c.id}
+                  card={c}
+                  setCtx={setCtx}
+                  showSavedActions={showSavedActions}
+                  ownership={lookupOwnership(setInfo.id, c.number)}
+                  onOpenDetail={() => setDetailIndex(i)}
+                  selectMode={!!selection?.selectMode}
+                  selected={!!selection?.isSelected(payload)}
+                  onToggleSelect={() => selection?.toggle(payload)}
+                />
+              )
+            })}
           </ul>
         )}
       </div>
+      {selection?.selectMode && (
+        <BrowseSelectionBar
+          selected={selection.selected}
+          lookupOwnership={lookupOwnership}
+          onClear={selection.clear}
+        />
+      )}
 
       <CardDetailModal rows={rows} index={detailIndex} onChangeIndex={setDetailIndex} />
     </>
@@ -1163,6 +1202,9 @@ interface PokedexDetailProps {
   error: string | null
   addedCount: number | null
   onAddAll: () => void
+  /** Multi-select (#913). `null` hides the select toggle entirely — signed
+   *  out visitors have no collection/wishlist to write bulk actions to. */
+  selection: BrowseSelection | null
 }
 
 function PokedexDetailView({
@@ -1172,6 +1214,7 @@ function PokedexDetailView({
   error,
   addedCount,
   onAddAll,
+  selection,
 }: PokedexDetailProps) {
   const count = cards?.length ?? 0
   // PokedexCard carries its own set context, so the rows need no external
@@ -1203,6 +1246,11 @@ function PokedexDetailView({
             <BulkButton onClick={onAddAll}>Add all printings</BulkButton>
           </>
         )}
+        {selection && (
+          <Chip active={selection.selectMode} onClick={selection.toggleSelectMode}>
+            {selection.selectMode ? 'Done selecting' : 'Select'}
+          </Chip>
+        )}
         {addedCount != null && (
           <span className="ml-auto text-palm-500 dark:text-palm-200" role="status">
             Added {addedCount} line{addedCount === 1 ? '' : 's'} to your list
@@ -1227,20 +1275,33 @@ function PokedexDetailView({
         )}
         {!loading && !error && cards && count > 0 && (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {cards.map((c, i) => (
-              <PokedexCardTile
-                key={c.id}
-                card={c}
-                showSavedActions={showSavedActions}
-                ownership={lookupOwnership(c.setId, c.number)}
-                onOpenDetail={() => setDetailIndex(i)}
-              />
-            ))}
+            {cards.map((c, i) => {
+              const payload = browseCardToPayload(c)
+              return (
+                <PokedexCardTile
+                  key={c.id}
+                  card={c}
+                  showSavedActions={showSavedActions}
+                  ownership={lookupOwnership(c.setId, c.number)}
+                  onOpenDetail={() => setDetailIndex(i)}
+                  selectMode={!!selection?.selectMode}
+                  selected={!!selection?.isSelected(payload)}
+                  onToggleSelect={() => selection?.toggle(payload)}
+                />
+              )
+            })}
           </ul>
         )}
       </div>
 
       <CardDetailModal rows={rows} index={detailIndex} onChangeIndex={setDetailIndex} />
+      {selection?.selectMode && (
+        <BrowseSelectionBar
+          selected={selection.selected}
+          lookupOwnership={lookupOwnership}
+          onClear={selection.clear}
+        />
+      )}
     </>
   )
 }
@@ -1425,21 +1486,38 @@ function CardTile({
   showSavedActions,
   ownership,
   onOpenDetail,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   card: SetCard
   setCtx: BrowseSetContext
   showSavedActions: boolean
   ownership: CardOwnership | null | undefined
   onOpenDetail: () => void
+  selectMode: boolean
+  selected: boolean
+  onToggleSelect: () => void
 }) {
   const [thumbFailed, setThumbFailed] = useState(false)
   const hidePricing = useAppStore((s) => s.settings.hidePricing)
   return (
-    <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
+    <li
+      className={`group flex flex-col rounded-md border p-2 text-left hover:bg-sand-50 dark:hover:bg-husk-200 ${
+        selectMode && selected
+          ? 'border-palm-400 bg-sun-400/10 dark:border-sun-400 dark:bg-sun-400/10'
+          : 'border-sand-200 bg-sand-50 hover:border-sand-300 dark:border-husk-100 dark:bg-husk-400/40 dark:hover:border-husk-50'
+      }`}
+    >
       <button
         type="button"
-        onClick={onOpenDetail}
-        aria-label={`View details for ${card.name}`}
+        onClick={selectMode ? onToggleSelect : onOpenDetail}
+        aria-label={
+          selectMode
+            ? `${selected ? 'Deselect' : 'Select'} ${card.name}`
+            : `View details for ${card.name}`
+        }
+        aria-pressed={selectMode ? selected : undefined}
         className="flex flex-1 flex-col rounded text-left focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
       >
         <div className="relative aspect-[245/342] w-full overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
@@ -1455,6 +1533,18 @@ function CardTile({
             <div className="flex h-full w-full items-center justify-center text-coconut-700 dark:text-sand-200">
               <ImageOff size={28} aria-hidden />
             </div>
+          )}
+          {selectMode && (
+            <span
+              aria-hidden
+              className={`absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border ${
+                selected
+                  ? 'border-palm-500 bg-palm-500 text-coconut-50 dark:text-husk-300'
+                  : 'border-sand-300 bg-sand-50/90 dark:border-husk-50 dark:bg-husk-400/90'
+              }`}
+            >
+              {selected && <Check size={12} />}
+            </span>
           )}
         </div>
         <div className="mt-2 min-w-0 flex-1">
@@ -1474,7 +1564,7 @@ function CardTile({
       </button>
       <OwnershipBadge ownership={ownership} className="mt-1.5 justify-center" />
       <SaveCardActions
-        show={showSavedActions}
+        show={showSavedActions && !selectMode}
         card={browseCardToPayload(card, setCtx)}
         ownership={ownership}
         className="mt-2 justify-center"
@@ -1488,11 +1578,17 @@ function PokedexCardTile({
   showSavedActions,
   ownership,
   onOpenDetail,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   card: PokedexCard
   showSavedActions: boolean
   ownership: CardOwnership | null | undefined
   onOpenDetail: () => void
+  selectMode: boolean
+  selected: boolean
+  onToggleSelect: () => void
 }) {
   const [thumbFailed, setThumbFailed] = useState(false)
   const hidePricing = useAppStore((s) => s.settings.hidePricing)
@@ -1500,11 +1596,22 @@ function PokedexCardTile({
   const title = card.setName
   const subtitle = card.rarity
   return (
-    <li className="group flex flex-col rounded-md border border-sand-200 dark:border-husk-100 bg-sand-50 dark:bg-husk-400/40 p-2 text-left hover:border-sand-300 dark:hover:border-husk-50 hover:bg-sand-50 dark:hover:bg-husk-200">
+    <li
+      className={`group flex flex-col rounded-md border p-2 text-left hover:bg-sand-50 dark:hover:bg-husk-200 ${
+        selectMode && selected
+          ? 'border-palm-400 bg-sun-400/10 dark:border-sun-400 dark:bg-sun-400/10'
+          : 'border-sand-200 bg-sand-50 hover:border-sand-300 dark:border-husk-100 dark:bg-husk-400/40 dark:hover:border-husk-50'
+      }`}
+    >
       <button
         type="button"
-        onClick={onOpenDetail}
-        aria-label={`View details for ${card.name} from ${card.setName}`}
+        onClick={selectMode ? onToggleSelect : onOpenDetail}
+        aria-label={
+          selectMode
+            ? `${selected ? 'Deselect' : 'Select'} ${card.name} from ${card.setName}`
+            : `View details for ${card.name} from ${card.setName}`
+        }
+        aria-pressed={selectMode ? selected : undefined}
         className="flex flex-1 flex-col rounded text-left focus:outline-none focus:ring-2 focus:ring-sand-300 dark:ring-husk-50"
       >
         <div className="relative aspect-[245/342] w-full overflow-hidden rounded bg-sand-50 dark:bg-husk-400">
@@ -1520,6 +1627,18 @@ function PokedexCardTile({
             <div className="flex h-full w-full items-center justify-center text-coconut-700 dark:text-sand-200">
               <ImageOff size={28} aria-hidden />
             </div>
+          )}
+          {selectMode && (
+            <span
+              aria-hidden
+              className={`absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border ${
+                selected
+                  ? 'border-palm-500 bg-palm-500 text-coconut-50 dark:text-husk-300'
+                  : 'border-sand-300 bg-sand-50/90 dark:border-husk-50 dark:bg-husk-400/90'
+              }`}
+            >
+              {selected && <Check size={12} />}
+            </span>
           )}
         </div>
         <div className="mt-2 min-w-0 flex-1">
@@ -1542,7 +1661,7 @@ function PokedexCardTile({
       </button>
       <OwnershipBadge ownership={ownership} className="mt-1.5 justify-center" />
       <SaveCardActions
-        show={showSavedActions}
+        show={showSavedActions && !selectMode}
         card={browseCardToPayload(card)}
         ownership={ownership}
         className="mt-2 justify-center"
