@@ -197,14 +197,25 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
     [settings, rowConditionOverrides],
   )
 
+  // A market range set before "hide pricing" was turned on must stop
+  // narrowing rows once the column (and its filter chip) is hidden —
+  // otherwise rows vanish with no visible reason (review feedback on #541).
+  // The stored filter value is left alone so it comes back if pricing is
+  // re-enabled; only its effect on the displayed rows is suppressed.
+  const effectiveFilters = useMemo(
+    () =>
+      settings.hidePricing ? { ...filters, marketMin: '', marketMax: '' } : filters,
+    [filters, settings.hidePricing],
+  )
+
   const displayedRows = useMemo(
     () => applySort(
-      applyFilters(rows, filters, adjustedMarketForRow),
+      applyFilters(rows, effectiveFilters, adjustedMarketForRow),
       sortColumn,
       sortDir,
       adjustedMarketForRow,
     ),
-    [rows, filters, sortColumn, sortDir, adjustedMarketForRow],
+    [rows, effectiveFilters, sortColumn, sortDir, adjustedMarketForRow],
   )
 
   // Map each Row object to its insertion index so the React key stays
@@ -787,21 +798,25 @@ function buildChips(
       onRemove: () => onFilterChange('rarity', ''),
     })
   }
-  if (showMarket && (filters.marketMin || filters.marketMax)) {
-    const range =
-      filters.marketMin && filters.marketMax
-        ? `$${filters.marketMin}–$${filters.marketMax}`
-        : filters.marketMin
-          ? `≥ $${filters.marketMin}`
-          : `≤ $${filters.marketMax}`
-    chips.push({
-      id: 'market',
-      label: `Market: ${range}`,
-      onRemove: () => {
-        onFilterChange('marketMin', '')
-        onFilterChange('marketMax', '')
-      },
-    })
+  if (filters.marketMin || filters.marketMax) {
+    const clear = () => {
+      onFilterChange('marketMin', '')
+      onFilterChange('marketMax', '')
+    }
+    // Pricing hidden: the range itself isn't applied to the displayed rows
+    // (see effectiveFilters above) and showing the numbers would defeat the
+    // "hide pricing" setting, so the chip stays but drops the values.
+    if (!showMarket) {
+      chips.push({ id: 'market', label: 'Market filter (hidden while pricing is off)', onRemove: clear })
+    } else {
+      const range =
+        filters.marketMin && filters.marketMax
+          ? `$${filters.marketMin}–$${filters.marketMax}`
+          : filters.marketMin
+            ? `≥ $${filters.marketMin}`
+            : `≤ $${filters.marketMax}`
+      chips.push({ id: 'market', label: `Market: ${range}`, onRemove: clear })
+    }
   }
   if (filters.source) {
     chips.push({

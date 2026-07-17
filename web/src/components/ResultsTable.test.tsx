@@ -713,6 +713,34 @@ describe('ResultsTable: header sort cycle', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('a market filter set before hiding pricing stops narrowing rows and never leaks its numbers', () => {
+    useAppStore.getState().updateSettings({ hidePricing: true })
+    useAppStore.setState({
+      rows: [
+        makeRow({ card: { name: 'Charizard' }, pricing: { market: 250, currency: 'USD', variant: null, source: null, url: null } }),
+        makeRow({ card: { name: 'Pikachu' }, pricing: { market: 5, currency: 'USD', variant: null, source: null, url: null } }),
+      ],
+      isRunning: false,
+      progress: null,
+      viewState: { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters, marketMin: '100' } },
+    })
+
+    render(<ResultsTable />)
+
+    // Both rows still show — the pre-existing market filter isn't silently
+    // applied once its column (and chip) are hidden by "hide pricing".
+    const bodyRows = screen.getAllByRole('row').filter((tr) => tr.querySelector('td'))
+    expect(bodyRows).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: /^filter$/i }))
+    const panel = screen.getByRole('region', { name: /result filters/i })
+    expect(within(panel).getByText(/market filter \(hidden while pricing is off\)/i)).toBeInTheDocument()
+    expect(within(panel).queryByText(/\$100/)).toBeNull()
+
+    useAppStore.setState({ rows: [] })
+    useAppStore.getState().updateSettings({ hidePricing: false })
+  })
+
   it('shows the eBay column with median + sparkline when the setting is on', () => {
     useAppStore.getState().updateSettings({ showEbay: true })
     useAppStore.setState({
