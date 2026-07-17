@@ -4,13 +4,15 @@ import {
   fetchChangelog,
   fetchMe,
   logout,
+  lookupLine,
   removeCardFromCollection,
   removeCardFromWishlist,
   requestAccountMagicLink,
   requestMagicLink,
   unlinkIdentity,
 } from './client'
-import type { Row } from '../types'
+import type { Row, Settings } from '../types'
+import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
 
 function makeRow(over: Partial<Row> = {}): Row {
   return {
@@ -20,6 +22,29 @@ function makeRow(over: Partial<Row> = {}): Row {
     tag: '',
     matched: true,
     reason: '',
+    ...over,
+  }
+}
+
+function makeSettings(over: Partial<Settings> = {}): Settings {
+  return {
+    apiKey: '',
+    maxPrice: null,
+    noImages: false,
+    tag: '',
+    dedupe: false,
+    sort: 'number',
+    showTimer: false,
+    showEbay: false,
+    hideOwned: false,
+    hidePricing: false,
+    swipeRarityFloor: 'all',
+    swipeExcludeOwned: false,
+    swipeExcludeChasing: false,
+    density: 'comfortable',
+    exportFields: DEFAULT_EXPORT_FIELDS,
+    leadWithIdCard: false,
+    darkPdfExports: false,
     ...over,
   }
 }
@@ -54,6 +79,24 @@ describe('dedupeRows', () => {
       makeRow({ card: { id: 'c' } }),
     ]
     expect(dedupeRows(rows)).toHaveLength(3)
+  })
+})
+
+describe('lookupLine', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('sends the settings tag in the request payload (#365)', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ rows: [] }), { status: 200 }))
+
+    await lookupLine('Charizard', makeSettings({ tag: 'binder-a' }))
+
+    const [, init] = fetchSpy.mock.calls[0]
+    const body = JSON.parse(init!.body as string)
+    expect(body.settings.tag).toBe('binder-a')
   })
 })
 
