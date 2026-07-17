@@ -32,6 +32,22 @@ cleanup job. Tokens are single-use *only* up to natural expiry — a
 re-click inside the 15-minute window will sign the user in again.
 That's a deliberate trade for v1; per-token revocation is a v2
 concern when we add throttling and quota.
+
+`magic_link_start` / `magic_link_callback` (below) reuse this same
+token machinery for account *linking* (attaching a second email to an
+already-signed-in user, [`api/auth/linking.py`](linking.py)) rather
+than sign-in. That flow normally depends on `request.session`
+continuity between the `/start` POST and the `/callback` click — fine
+for the web SPA (same tab, same cookie jar) but broken for the iOS
+app, whose `URLSession` cookie jar is never the one Safari uses when
+the emailed link is tapped from Mail. `?next=app`
+([#936](https://github.com/mgzwarrior/mgz-pkmn/issues/936)) bridges
+that the same way [`api/auth/native.py`](native.py) bridges sign-in:
+the token itself carries the initiating user's id
+(`sign_link_native_token` / `verify_link_native_token`, a distinct
+salt from the sign-in token pair above so the two shapes can never be
+mixed up), and the callback mints a one-time code + redirects to
+`mgzpkmn://auth/callback` instead of relying on the session.
 """
 
 from __future__ import annotations
@@ -44,6 +60,7 @@ from email.message import EmailMessage
 from html import escape
 from pathlib import Path
 from typing import Annotated, Protocol
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, Response
@@ -59,12 +76,19 @@ from .linking import (
     stage_link_request,
 )
 from .native import (
+    NATIVE_CALLBACK_SCHEME,
     NATIVE_NEXT_VALUE,
     mint_native_code,
     native_error_redirect,
     native_success_redirect,
 )
-from .session import CurrentUserRequired, DbSession, auth_enabled, resolve_session_secret
+from .session import (
+    CurrentUserOptional,
+    CurrentUserRequired,
+    DbSession,
+    auth_enabled,
+    resolve_session_secret,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -90,6 +114,13 @@ SENDER_ENV = "MGZ_PKMN_MAGIC_LINK_FROM"
 #: future signed surfaces (e.g. CSRF, email-change confirmations) that
 #: share the session secret.
 TOKEN_SALT = "auth-magic-link"
+
+#: itsdangerous salt for the native-app account-link token (#936).
+#: Domain-separated from `TOKEN_SALT` on purpose: a sign-in token only
+#: ever carries an email, but this token also carries the *initiating
+#: user's id*, so the two shapes must never be interchangeable even
+#: though they share the session secret and a serializer class.
+LINK_NATIVE_TOKEN_SALT = "auth-link-magic-native"
 
 #: Token TTL. 15 minutes balances "the user goes to make coffee
 #: between requesting and clicking" against "an old screenshot in
@@ -207,6 +238,66 @@ def verify_token(token: str) -> str | None:
     except BadSignature:
         _log.warning("magic-link token rejected: bad signature")
         return None
+
+
+def _link_native_token_serializer() -> URLSafeTimedSerializer:
+    """Build a serializer keyed on the session secret with the
+    native-app link salt. Separate from `_token_serializer` so the two
+    token shapes (email-only vs. email+user-id) can never verify
+    against each other's salt."""
+    return URLSafeTimedSerializer(resolve_session_secret(), salt=LINK_NATIVE_TOKEN_SALT)
+
+
+def sign_link_native_token(email: str, user_id: int) -> str:
+    """Sign an email + initiating user id into a TTL-bounded token for
+    the native-app account-link handoff (#936).
+
+    Unlike `sign_token` (sign-in, email only), this token also carries
+    the *calling* user's id, so `magic_link_callback` can complete the
+    link without any session continuity between the `POST
+    /auth/link/magic/start` call and the later callback click. That
+    continuity can't be assumed here: tapping the emailed link opens
+    Safari via the Mail app, which has an entirely separate, signed-out
+    cookie jar from the app's own `URLSession` that made the `/start`
+    call — see `api/auth/native.py`'s module docstring for the same
+    problem on the sign-in side.
+
+    Public for test injection, mirroring `sign_token`."""
+    return _link_native_token_serializer().dumps({"email": email, "uid": user_id})
+
+
+def verify_link_native_token(token: str) -> tuple[str, int] | None:
+    """Verify a native-app link token and return `(email, user_id)`,
+    or `None` on expired / tampered / malformed."""
+    try:
+        payload = _link_native_token_serializer().loads(token, max_age=TOKEN_MAX_AGE_SECONDS)
+    except SignatureExpired:
+        _log.info("magic-link native-link token rejected: expired")
+        return None
+    except BadSignature:
+        _log.warning("magic-link native-link token rejected: bad signature")
+        return None
+    if not isinstance(payload, dict):
+        return None
+    email = payload.get("email")
+    uid = payload.get("uid")
+    if not isinstance(email, str) or not isinstance(uid, int):
+        return None
+    return email, uid
+
+
+def _native_link_conflict_redirect(provider: str) -> RedirectResponse:
+    """Build the `mgzpkmn://auth/callback?error=identity_already_linked&provider=<provider>`
+    redirect for a native-app account-link conflict (#936).
+
+    Mirrors `native_error_redirect`'s fixed-scheme construction, but
+    also carries `provider` — matching the shape
+    `post_link_error_redirect` already uses for the web flow
+    (`/account?link_error=...&provider=...`) — so the iOS client's
+    existing `mgzpkmn://auth/callback?error=...` handling doesn't need
+    any special-casing to also read `provider` off this one error."""
+    query = urlencode({"error": "identity_already_linked", "provider": provider})
+    return RedirectResponse(url=f"{NATIVE_CALLBACK_SCHEME}?{query}", status_code=302)
 
 
 def _build_message(to_email: str, sender: str, link: str) -> EmailMessage:
@@ -378,9 +469,18 @@ def _build_callback_url(request: Request, token: str, *, next_app: bool = False)
     return str(url)
 
 
-def _build_link_callback_url(request: Request, token: str) -> str:
-    """Build the absolute callback URL for account-link magic emails."""
-    return str(request.url_for("magic_link_callback").include_query_params(token=token))
+def _build_link_callback_url(request: Request, token: str, *, next_app: bool = False) -> str:
+    """Build the absolute callback URL for account-link magic emails.
+
+    `next_app` (native-app link handoff, #936) rides as a plain query
+    param, same posture as `_build_callback_url`'s `next_app` — it only
+    steers where the callback redirects the *result*, not who gets
+    linked (that's carried inside the signed token itself for this
+    flow), so it doesn't need to be tamper-proof."""
+    url = request.url_for("magic_link_callback").include_query_params(token=token)
+    if next_app:
+        url = url.include_query_params(next=NATIVE_NEXT_VALUE)
+    return str(url)
 
 
 def _send_magic_link(message: EmailMessage, mailer: Mailer) -> None:
@@ -461,14 +561,28 @@ def magic_link_start(
     background_tasks: BackgroundTasks,
     _: AuthGate,
     user: CurrentUserRequired,
+    next: str | None = None,
 ) -> Response:
-    """Send a magic-link email for attaching another email identity."""
-    stage_link_request(request, user)
+    """Send a magic-link email for attaching another email identity.
+
+    `?next=app` (native-app link handoff, #936) signs the calling
+    user's id directly into the token (`sign_link_native_token`)
+    instead of staging it in the session cookie (`stage_link_request`)
+    — the callback is opened from Mail into Safari, which never shares
+    a cookie jar with the app's `URLSession` that made this request, so
+    session-based staging would be unreadable by the time the callback
+    runs. Web-flow behavior (`next` unset) is unchanged."""
+    next_app = next == NATIVE_NEXT_VALUE
     mailer = _get_mailer()
     sender = _get_sender()
     email = _normalize_email(payload.email)
-    token = sign_token(email)
-    link = _build_link_callback_url(request, token)
+    if next_app:
+        token = sign_link_native_token(email, user.id)
+        link = _build_link_callback_url(request, token, next_app=True)
+    else:
+        stage_link_request(request, user)
+        token = sign_token(email)
+        link = _build_link_callback_url(request, token)
     message = _build_message(email, sender, link)
     background_tasks.add_task(_send_magic_link, message, mailer)
     return Response(status_code=status.HTTP_202_ACCEPTED)
@@ -527,13 +641,37 @@ def magic_link_callback(
     request: Request,
     db: DbSession,
     _: AuthGate,
-    user: CurrentUserRequired,
+    user: CurrentUserOptional,
+    next: str | None = None,
 ) -> RedirectResponse:
-    """Verify a magic-link token and attach that email to this account."""
-    link_user_id = consume_link_request(request, user)
-    email = verify_token(token)
-    if email is None:
-        raise HTTPException(status_code=400, detail="invalid_or_expired_token")
+    """Verify a magic-link token and attach that email to this account.
+
+    `?next=app` (native-app link handoff, #936) skips
+    `consume_link_request` entirely — no session dependency — and
+    decodes the initiating user's id straight out of the token
+    (`verify_link_native_token`, minted by `magic_link_start`) instead.
+    On success it mints a native handoff code and redirects to
+    `mgzpkmn://auth/callback?code=...` (`native_success_redirect`)
+    instead of `/account`; on an identity conflict it redirects to
+    `mgzpkmn://auth/callback?error=identity_already_linked&provider=magic`
+    instead of raising. `user` is only required (401 if absent) on the
+    web path — the whole point of the token carrying the user id is
+    that this callback's caller (Safari, opened from Mail) is never
+    signed in. Web-flow behavior (`next` unset) is unchanged."""
+    next_app = next == NATIVE_NEXT_VALUE
+
+    if next_app:
+        decoded = verify_link_native_token(token)
+        if decoded is None:
+            return native_error_redirect("invalid_or_expired_token")
+        email, link_user_id = decoded
+    else:
+        if user is None:
+            raise HTTPException(status_code=401, detail="sign-in required")
+        link_user_id = consume_link_request(request, user)
+        email = verify_token(token)
+        if email is None:
+            raise HTTPException(status_code=400, detail="invalid_or_expired_token")
 
     try:
         link_identity_to_user(
@@ -544,9 +682,14 @@ def magic_link_callback(
             email=email,
         )
     except IdentityConflictError as exc:
+        if next_app:
+            return _native_link_conflict_redirect(exc.provider)
         # Round-trip back into the Account modal with a recoverable error
         # rather than terminating on a JSON 409 page — see #536.
         return RedirectResponse(url=post_link_error_redirect(exc.provider), status_code=302)
+
+    if next_app:
+        return native_success_redirect(mint_native_code(link_user_id))
 
     return RedirectResponse(url=POST_LINK_REDIRECT, status_code=302)
 
@@ -555,6 +698,7 @@ def magic_link_callback(
 # patch through. (Defined as module-level callables above; no extra
 # wiring needed — listed here for grep-discoverability.)
 __all__ = [
+    "LINK_NATIVE_TOKEN_SALT",
     "MAIL_SUBJECT",
     "SENDER_ENV",
     "SMTP_HOST_ENV",
@@ -566,6 +710,8 @@ __all__ = [
     "Mailer",
     "SmtpMailer",
     "router",
+    "sign_link_native_token",
     "sign_token",
+    "verify_link_native_token",
     "verify_token",
 ]
