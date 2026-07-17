@@ -94,13 +94,26 @@ def _require_auth_enabled() -> None:
 AuthGate = Annotated[None, Depends(_require_auth_enabled)]
 
 
-def mark_native_next(request: Request) -> None:
-    """Remember that the in-progress login should hand off to the app.
+def sync_native_next(request: Request, *, next_app: bool) -> None:
+    """Set or clear the native-handoff flag for this login attempt.
 
-    Called from the GitHub / Google / Discord login routes when
-    ``next=app`` is present, right alongside the Authlib state Authlib
-    itself stashes in the same session cookie."""
-    request.session[NATIVE_NEXT_SESSION_KEY] = True
+    Called from the GitHub / Google / Discord login routes on every
+    login, not just native ones. The flag lives in the same session
+    cookie Authlib stashes its own OAuth state in, and that cookie can
+    outlive a single attempt — e.g. an in-app native login started with
+    ``ASWebAuthenticationSession`` (which by default shares Safari's
+    cookie jar) gets abandoned, then the user later signs in from a
+    plain browser tab on the same device with no ``?next=app``. If a
+    non-native login only set the flag when true and left it alone
+    otherwise, that abandoned attempt's flag would still be sitting in
+    the session, and the *next* callback — a legitimate browser
+    sign-in — would wrongly take the native branch and redirect to
+    ``mgzpkmn://...`` instead of setting the session cookie. Always
+    writing an explicit value (set or cleared) closes that gap."""
+    if next_app:
+        request.session[NATIVE_NEXT_SESSION_KEY] = True
+    else:
+        request.session.pop(NATIVE_NEXT_SESSION_KEY, None)
 
 
 def consume_native_next(request: Request) -> bool:
@@ -268,9 +281,9 @@ __all__ = [
     "NativeExchangeOut",
     "burn_native_code",
     "consume_native_next",
-    "mark_native_next",
     "mint_native_code",
     "native_error_redirect",
     "native_success_redirect",
     "router",
+    "sync_native_next",
 ]

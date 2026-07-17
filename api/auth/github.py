@@ -44,10 +44,10 @@ from .linking import (
 from .native import (
     NATIVE_NEXT_VALUE,
     consume_native_next,
-    mark_native_next,
     mint_native_code,
     native_error_redirect,
     native_success_redirect,
+    sync_native_next,
 )
 from .session import CurrentUserRequired, DbSession, auth_enabled
 
@@ -175,8 +175,7 @@ async def github_login(request: Request, _: AuthGate, next: str | None = None) -
     `?next=app` (native-app handoff, #924) is remembered in the same
     session cookie Authlib's own state rides in, and read back by the
     callback."""
-    if next == NATIVE_NEXT_VALUE:
-        mark_native_next(request)
+    sync_native_next(request, next_app=(next == NATIVE_NEXT_VALUE))
     oauth = _oauth_client()
     redirect_uri = str(request.url_for("github_callback"))
     return await oauth.github.authorize_redirect(request, redirect_uri)
@@ -261,6 +260,13 @@ async def github_callback(request: Request, db: DbSession, _: AuthGate) -> Redir
     )
 
     if next_app:
+        # `get_db` commits after the response is sent (FastAPI's
+        # yield-dependency contract), but a native client can call
+        # `/auth/native/exchange` with this code before that happens —
+        # and unlike a browser retrying `/me`, a burned code can't be
+        # retried. Commit now so the row is visible before we hand out
+        # a single-use code for it.
+        db.commit()
         return native_success_redirect(mint_native_code(user.id))
 
     # `get_db` commits on normal return; no explicit commit here.

@@ -664,6 +664,13 @@ async def apple_callback(
     )
 
     if next_app:
+        # `get_db` commits after the response is sent (FastAPI's
+        # yield-dependency contract), but a native client can call
+        # `/auth/native/exchange` with this code before that happens —
+        # and unlike a browser retrying `/me`, a burned code can't be
+        # retried. Commit now so the row is visible before we hand out
+        # a single-use code for it.
+        db.commit()
         return native_success_redirect(mint_native_code(resolved.id))
 
     request.session["user_id"] = resolved.id

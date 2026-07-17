@@ -508,6 +508,55 @@ class NativeHandoffTests(_IsolatedDbMixin):
                 "mgzpkmn://auth/callback?error=no_verified_email",
             )
 
+    def test_abandoned_native_login_does_not_leak_into_later_browser_login(self) -> None:
+        """An in-app native login (`ASWebAuthenticationSession`, which by
+        default shares Safari's cookie jar) can be abandoned before its
+        callback ever runs. A later plain browser sign-in on the same
+        device must not inherit the stale `auth_next_app` flag and
+        wrongly redirect to `mgzpkmn://...` instead of setting the
+        session cookie."""
+        from fastapi.responses import RedirectResponse
+
+        from api.main import app
+
+        profile = GitHubProfile(
+            login="web-user", name="Web User", verified_primary_email="web@example.com"
+        )
+        token = {"access_token": "test-token", "token_type": "bearer"}
+
+        with (
+            patch(
+                "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_redirect",
+                new=AsyncMock(
+                    return_value=RedirectResponse(url="https://github.com/x", status_code=302)
+                ),
+            ),
+            TestClient(app) as client,
+        ):
+            # Start (but never finish) a native login — sets the stale
+            # flag in the session cookie the TestClient persists.
+            client.get("/api/v1/auth/github/login?next=app", follow_redirects=False)
+            # Later, a plain browser login — no `next=app` this time.
+            client.get("/api/v1/auth/github/login", follow_redirects=False)
+
+            with (
+                patch(
+                    "authlib.integrations.starlette_client.StarletteOAuth2App.authorize_access_token",
+                    new=AsyncMock(return_value=token),
+                ),
+                patch(
+                    "api.auth.github.fetch_github_profile",
+                    new=AsyncMock(return_value=profile),
+                ),
+            ):
+                r = client.get(
+                    "/api/v1/auth/github/callback?code=abc&state=anything",
+                    follow_redirects=False,
+                )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(r.headers["location"], "/")
+            self.assertIn(SESSION_COOKIE_NAME, client.cookies)
+
 
 if __name__ == "__main__":
     unittest.main()
