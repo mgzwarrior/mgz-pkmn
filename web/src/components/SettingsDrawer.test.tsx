@@ -104,6 +104,15 @@ describe('SettingsDrawer', () => {
     expect(mockUpdateSettings).toHaveBeenCalledWith({ hidePricing: true })
   })
 
+  it('editing the source tag calls updateSettings with the typed value (#365)', () => {
+    render(<SettingsDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    fireEvent.change(screen.getByLabelText(/source tag/i), {
+      target: { value: 'binder-a' },
+    })
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ tag: 'binder-a' })
+  })
+
   it('changing the default condition calls updateSettings with the selected tier', () => {
     render(<SettingsDrawer />)
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))

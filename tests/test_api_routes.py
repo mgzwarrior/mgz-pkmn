@@ -11,7 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -224,6 +224,70 @@ class LookupRouteTests(unittest.TestCase):
         self.assertTrue(rows[0]["matched"])
         self.assertEqual(rows[0]["reason"], "matched")
         self.assertEqual(rows[0]["card"]["name"], "Charizard")
+
+
+# ---------------------------------------------------------------------------
+# Settings.tag propagation (#365) — the SPA's single "Source tag" field
+# stamps every resolved Row so binder/checklist/xlsx/JSON exports can
+# section rows by tag the same way the CLI's per-file tagging does.
+# ---------------------------------------------------------------------------
+
+
+class TagPropagationTests(unittest.TestCase):
+    def test_matched_row_carries_the_request_tag(self) -> None:
+        from api.routes.lookup import Settings, _do_lookup
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.sources.base import MatchResult
+
+        q = CardQuery(raw="Charizard", name="Charizard")
+        card = {"id": "base1-4", "name": "Charizard"}
+        with patch("api.routes.lookup.find_card", return_value=MatchResult(card, "matched")):
+            pairs, _ = _do_lookup(
+                MagicMock(), MagicMock(), MagicMock(), q, Settings(tag="binder-a")
+            )
+        self.assertEqual(pairs[0][0].tag, "binder-a")
+
+    def test_unmatched_row_still_carries_the_request_tag(self) -> None:
+        from api.routes.lookup import Settings, _do_lookup
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.sources.base import MatchResult
+
+        q = CardQuery(raw="Nonexistent", name="Nonexistent")
+        with patch("api.routes.lookup.find_card", return_value=MatchResult(None, "no_candidates")):
+            pairs, _ = _do_lookup(
+                MagicMock(), MagicMock(), MagicMock(), q, Settings(tag="binder-a")
+            )
+        self.assertEqual(pairs[0][0].tag, "binder-a")
+
+    def test_bulk_top_rows_all_carry_the_request_tag(self) -> None:
+        from api.routes.lookup import Settings, _do_lookup
+        from mgz_pkmn.parser import CardQuery
+
+        q = CardQuery(raw="top:2 Pikachu cards", name="Pikachu", bulk_top=2)
+        cards = [{"id": "base1-25", "name": "Pikachu"}, {"id": "base1-26", "name": "Pikachu"}]
+        with patch("api.routes.lookup.find_top_cards", return_value=cards):
+            pairs, _ = _do_lookup(
+                MagicMock(), MagicMock(), MagicMock(), q, Settings(tag="binder-a")
+            )
+        self.assertEqual([r.tag for r, _ in pairs], ["binder-a", "binder-a"])
+
+    def test_lookup_route_response_includes_the_request_tag(self) -> None:
+        """End to end through `/lookup`: the JSON response row carries the
+        tag posted in the request body, not just the internal `Row`."""
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        def fake(pkmn, tcgdex, pc, q, settings, **kwargs):
+            row = Row(query=q, card=None, pricing=Pricing(), tag=settings.tag)
+            return [(row, "no_candidates")], "MISS"
+
+        with patch("api.routes.lookup._do_lookup", side_effect=fake):
+            resp = client.post(
+                "/api/v1/lookup",
+                json={"line": "Pikachu", "settings": {"tag": "binder-a"}},
+            )
+
+        self.assertEqual(resp.json()["rows"][0]["tag"], "binder-a")
 
 
 # ---------------------------------------------------------------------------
