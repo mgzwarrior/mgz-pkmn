@@ -680,6 +680,39 @@ describe('ResultsTable: header sort cycle', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('filter panel lives in its own region, not the table header, with chips and an empty state', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({ card: { name: 'Charizard' } }),
+        makeRow({ card: { name: 'Pikachu' } }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+
+    render(<ResultsTable />)
+    fireEvent.click(screen.getByRole('button', { name: /^filter$/i }))
+
+    const panel = screen.getByRole('region', { name: /result filters/i })
+    // The panel sits outside the table entirely (#541) — not a header row.
+    expect(panel.closest('table')).toBeNull()
+    expect(within(panel).getByText(/no filters applied/i)).toBeInTheDocument()
+
+    fireEvent.change(within(panel).getByLabelText(/filter by name/i), {
+      target: { value: 'char' },
+    })
+
+    const chip = within(panel).getByRole('button', { name: /name: char/i })
+    expect(chip).toBeInTheDocument()
+    expect(within(panel).queryByText(/no filters applied/i)).toBeNull()
+
+    fireEvent.click(chip)
+    expect(within(panel).queryByRole('button', { name: /name: char/i })).toBeNull()
+    expect(within(panel).getByText(/no filters applied/i)).toBeInTheDocument()
+
+    useAppStore.setState({ rows: [] })
+  })
+
   it('shows the eBay column with median + sparkline when the setting is on', () => {
     useAppStore.getState().updateSettings({ showEbay: true })
     useAppStore.setState({
