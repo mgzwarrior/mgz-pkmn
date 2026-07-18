@@ -957,6 +957,29 @@ export async function updateCollectionItem(
   return (await res.json()) as CollectionItem
 }
 
+/** Nudge a card's owned quantity in a collection by its (set_id, number)
+ * identity — the card-detail quantity stepper (#762). The occupancy has no
+ * item id, so this targets the card itself, mirroring
+ * {@link removeCardFromCollection}. Takes a delta rather than an absolute
+ * count: a card can occupy a collection through more than one row (separate
+ * adds), so the server reconciles the delta across every matching row
+ * instead of a single one being overwritten with the summed total. */
+export async function updateCollectionItemByCard(
+  collectionId: number,
+  setId: string,
+  number: string,
+  delta: number,
+): Promise<{ quantity: number }> {
+  const params = new URLSearchParams({ set_id: setId, number })
+  const res = await fetch(`${BASE}/collections/${collectionId}/items?${params}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ delta }),
+  })
+  if (!res.ok) throw new Error(`update collection item failed: ${res.status}`)
+  return (await res.json()) as { quantity: number }
+}
+
 /** Result of a bulk add: the created rows plus their count (#268). */
 export interface BulkAddResult<T> {
   added: number
