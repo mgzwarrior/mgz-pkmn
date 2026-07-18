@@ -17,9 +17,9 @@ There are three ways to find cards, and you pick whichever fits your mood:
 - **Browse** — walk a whole set card by card, or flip to "By Pokédex #" to see every printing of one Pokémon across every set. Filter by rarity or type, sort by price.
 - **Search** — already know what you want? Paste a list, one card per line, and look them all up at once.
 
-Tap any card for the full-size art, the market price, and every detail the source returned — and use the arrows to step through your results without leaving the view.
+Tap any card for the full-size art, the market price, and every detail the source returned — and use the arrows to step through your results without leaving the view. Need finer control over a big result set? The filters panel narrows by name, set, rarity, and price range — stacks with any of the three ways in.
 
-Everything you save lives in your **Backpack**: collections for the cards you **own**, wishlists for the ones you're **chasing**, plus your saved searches and recent lookups. One tap on a card adds it to either list.
+Everything you save lives in your **Backpack**: collections for the cards you **own**, wishlists for the ones you're **chasing**, plus your saved searches and recent lookups. One tap on a card adds it to either list — or select multiple at once and add a whole batch to own or chasing in one pass.
 
 When you want it on paper or in a sheet, export a spreadsheet, a printable binder PDF, or a checklist — prices and negotiation comps included.
 
