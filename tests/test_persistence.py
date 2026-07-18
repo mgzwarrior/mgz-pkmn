@@ -476,6 +476,13 @@ class SavedSearchesTests(_IsolatedDbMixin):
             )
             self.assertEqual(resp.status_code, 404)
 
+    def test_patch_run_row_override_404s_on_missing_run(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            resp = c.patch("/api/v1/runs/99999/rows/0/override", json={"value": 12.0})
+            self.assertEqual(resp.status_code, 404)
+
 
 class SavedSearchesAuthGateTests(_IsolatedDbMixin):
     """Hosted-demo auth-on saved searches are scoped to the session user.

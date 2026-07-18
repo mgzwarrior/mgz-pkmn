@@ -10,6 +10,7 @@ import {
   requestAccountMagicLink,
   requestMagicLink,
   unlinkIdentity,
+  updateRunRowPricingOverride,
 } from './client'
 import type { Row, Settings } from '../types'
 import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
@@ -250,6 +251,47 @@ describe('unlinkIdentity', () => {
   it('throws on a failed unlink', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 400 }))
     await expect(unlinkIdentity(42)).rejects.toThrow(/unlink identity failed: 400/)
+  })
+})
+
+describe('updateRunRowPricingOverride (#266)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('PATCHes the override value', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }))
+    await expect(updateRunRowPricingOverride(77, 0, 12)).resolves.toBeUndefined()
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/runs/77/rows/0/override', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: 12 }),
+    })
+  })
+
+  it('PATCHes null to clear the override', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }))
+    await updateRunRowPricingOverride(77, 0, null)
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/runs/77/rows/0/override',
+      expect.objectContaining({ body: JSON.stringify({ value: null }) }),
+    )
+  })
+
+  it('throws sign-in required on a 401', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }))
+    await expect(updateRunRowPricingOverride(77, 0, 12)).rejects.toThrow('sign-in required')
+  })
+
+  it('throws a generic error on other failures', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 500 }))
+    await expect(updateRunRowPricingOverride(77, 0, 12)).rejects.toThrow(
+      /override update failed: 500/,
+    )
   })
 })
 

@@ -252,4 +252,27 @@ describe('ResultsTable — mobile card list (#521)', () => {
     expect(screen.getByText('Charizard')).toBeInTheDocument()
     expect(screen.queryByText('Squirtle')).not.toBeInTheDocument()
   })
+
+  it('sets a manual price override from the card, same as the desktop row (#266)', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: { market: 100, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText(/price override for charizard/i))
+    fireEvent.change(screen.getByLabelText(/price override for charizard/i), {
+      target: { value: '12' },
+    })
+    fireEvent.blur(screen.getByLabelText(/price override for charizard/i))
+
+    expect(screen.getAllByText('$12.00')).toHaveLength(2)
+    expect(useAppStore.getState().rows[0].pricing.pricing_override).toBe(12)
+  })
 })
