@@ -145,11 +145,13 @@ def build_run_summary(rows: list[Row]) -> dict[str, Any]:
     intentionally small — the full report payload (`build_json_report`)
     is reconstructable from `run_rows` on demand."""
     matched = [r for r in rows if r.card is not None]
-    priced = [r for r in matched if r.pricing.market is not None]
+    priced = [r for r in matched if r.pricing.market_or_override is not None]
     by_currency: dict[str, float] = {}
     for r in priced:
         cur = r.pricing.currency or "USD"
-        by_currency[cur] = round(by_currency.get(cur, 0.0) + (r.pricing.market or 0.0), 2)
+        by_currency[cur] = round(
+            by_currency.get(cur, 0.0) + (r.pricing.market_or_override or 0.0), 2
+        )
     tags: dict[str, int] = {}
     for r in rows:
         if r.tag:

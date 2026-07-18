@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..auth.session import current_user_or_default
 from ..db.models import DEFAULT_USER_ID, Run, RunRow, User
+from ..db.serialize import build_run_summary, run_row_to_row
 from ..db.session import get_db
 
 router = APIRouter()
@@ -331,6 +332,14 @@ def update_run_row_override(
     else:
         pricing["pricing_override"] = req.value
     row.pricing_json = pricing
+    # The override changes the row's basis price, so the sidebar's cached
+    # `summary_json` total (built once at persist time) would otherwise go
+    # stale the moment a saved search is overridden. Cheap to recompute —
+    # bounded by one run's row count, not the whole table.
+    all_rows = db.scalars(
+        select(RunRow).where(RunRow.run_id == run.id).order_by(RunRow.position)
+    ).all()
+    run.summary_json = build_run_summary([run_row_to_row(rr) for rr in all_rows])
     db.commit()
     db.refresh(row)
     return RunRowOut(

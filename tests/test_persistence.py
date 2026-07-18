@@ -427,6 +427,23 @@ class SavedSearchesTests(_IsolatedDbMixin):
             detail = c.get(f"/api/v1/runs/{run_id}").json()
             self.assertEqual(detail["rows"][0]["pricing"]["pricing_override"], 12.0)
 
+    def test_patch_run_row_override_refreshes_saved_search_sidebar_total(self) -> None:
+        """The sidebar's cached `summary_json` (a stub at seed time — real
+        runs get theirs from `build_run_summary` at persist time) must be
+        recomputed on override, reflecting $12 rather than the row's raw
+        $42.50 market price."""
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run(name="Show prep, June")
+
+            resp = c.patch(f"/api/v1/runs/{run_id}/rows/0/override", json={"value": 12.0})
+            self.assertEqual(resp.status_code, 200)
+
+            after = c.get("/api/v1/runs").json()["items"][0]
+            self.assertEqual(after["summary"]["totals_by_currency"]["USD"], 12.0)
+            self.assertEqual(after["summary"]["priced"], 1)
+
     def test_patch_run_row_override_rejects_negative_value(self) -> None:
         from api.main import app
 

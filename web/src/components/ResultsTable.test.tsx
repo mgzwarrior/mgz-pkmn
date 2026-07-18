@@ -1113,6 +1113,50 @@ describe('ResultsTable: manual price override (#266)', () => {
 
     expect(await screen.findByText('Price override was not saved.')).toBeInTheDocument()
   })
+
+  it('the market range filter follows the override, not the raw market price', () => {
+    // Charizard's raw market ($100) sits outside a 0-50 band, but its
+    // override ($20) is inside it — the row must stay visible because the
+    // Market column and comps are already showing the override, not $100.
+    const row = pricedRow()
+    row.pricing.pricing_override = 20
+    useAppStore.setState({
+      rows: [row],
+      isRunning: false,
+      progress: null,
+      viewState: {
+        ...EMPTY_VIEW_STATE,
+        filters: { ...EMPTY_VIEW_STATE.filters, marketMin: '0', marketMax: '50' },
+      },
+    })
+    render(<ResultsTable />)
+
+    const bodyRows = screen.getAllByRole('row').filter((tr) => tr.querySelector('td'))
+    expect(bodyRows).toHaveLength(1)
+  })
+
+  it('sorting by Adj. market orders by the override, not the raw market price', () => {
+    const overridden = pricedRow() // raw market $100, overridden to $5
+    overridden.pricing.pricing_override = 5
+    const unoverridden = makeRow({
+      card: { id: 'base1-5', name: 'Blastoise', number: '5', set: { name: 'Base Set' } },
+      pricing: { market: 50, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+    })
+    useAppStore.setState({
+      rows: [overridden, unoverridden],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByRole('button', { name: /sort by adj\. market/i }))
+
+    const names = screen
+      .getAllByText(/^(Charizard|Blastoise)$/)
+      .map((el) => el.textContent)
+    // Ascending: the $5-overridden Charizard sorts before the $50 Blastoise.
+    expect(names).toEqual(['Charizard', 'Blastoise'])
+  })
 })
 
 describe('ResultsTable: configurable comp tiers (#542)', () => {

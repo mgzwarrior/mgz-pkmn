@@ -258,7 +258,9 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
   }, [setViewState])
 
   const adjustedMarketForRow = useCallback(
-    (row: Row) => conditionPricingForRow(row, settings, rowConditionOverrides).adjustedMarket,
+    (row: Row) =>
+      row.pricing.pricing_override ??
+      conditionPricingForRow(row, settings, rowConditionOverrides).adjustedMarket,
     [settings, rowConditionOverrides],
   )
 

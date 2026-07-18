@@ -60,9 +60,19 @@ def sort_rows(rows: list[Row], mode: str) -> list[Row]:
             reverse=True,
         )
     elif mode == "price-asc":
-        rows.sort(key=lambda r: (r.pricing.market is None, r.pricing.market or 0.0))
+        rows.sort(
+            key=lambda r: (
+                r.pricing.market_or_override is None,
+                r.pricing.market_or_override or 0.0,
+            )
+        )
     elif mode == "price-desc":
-        rows.sort(key=lambda r: (r.pricing.market is None, -(r.pricing.market or 0.0)))
+        rows.sort(
+            key=lambda r: (
+                r.pricing.market_or_override is None,
+                -(r.pricing.market_or_override or 0.0),
+            )
+        )
     elif mode == "release-date":
         rows.sort(
             key=lambda r: (
