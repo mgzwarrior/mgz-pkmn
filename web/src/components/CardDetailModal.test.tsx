@@ -664,7 +664,8 @@ describe('CardDetailModal — library actions (#699)', () => {
     const locations = await screen.findByLabelText(/Library locations/i)
     expect(within(locations).getByText('In:')).toBeInTheDocument()
     expect(within(locations).getByText('Base Set masters')).toBeInTheDocument()
-    expect(within(locations).getByText('Trade binder ×3')).toBeInTheDocument()
+    expect(within(locations).getByText('Trade binder')).toBeInTheDocument()
+    expect(within(locations).getByLabelText('Quantity in Trade binder')).toHaveTextContent('3')
     expect(within(locations).getByText('Want:')).toBeInTheDocument()
     expect(within(locations).getByText('Allentown chase list')).toBeInTheDocument()
   })
@@ -683,6 +684,35 @@ describe('CardDetailModal — library actions (#699)', () => {
 
     // Removal targets the card identity, not an item id.
     await waitFor(() => expect(removeSpy).toHaveBeenCalledWith(7, 'base1', '4'))
+  })
+
+  it('adjusts a card\'s quantity in a specific collection via the location chip (#762)', async () => {
+    vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
+      'base1::4': { collections: [{ id: 7, name: 'Show binder', quantity: 2, purpose: 'personal' }], wishlists: [] },
+    })
+    const updateSpy = vi.spyOn(client, 'updateCollectionItemByCard').mockResolvedValue({
+      quantity: 3,
+    })
+
+    render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+    const locations = await screen.findByLabelText(/Library locations/i)
+    fireEvent.click(within(locations).getByRole('button', { name: /Increase quantity in Show binder/i }))
+
+    // A delta, not the absolute total — the server reconciles it across
+    // however many rows the card occupies in this collection (#938 review).
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledWith(7, 'base1', '4', 1))
+  })
+
+  it("floors a specific collection's quantity at 1 — decrement is disabled", async () => {
+    vi.spyOn(client, 'fetchCardOwnership').mockResolvedValue({
+      'base1::4': { collections: [{ id: 7, name: 'Show binder', quantity: 1, purpose: 'personal' }], wishlists: [] },
+    })
+
+    render(<CardDetailModal rows={[identifiedRow()]} index={0} onChangeIndex={() => {}} />)
+    const locations = await screen.findByLabelText(/Library locations/i)
+    expect(
+      within(locations).getByRole('button', { name: /Decrease quantity in Show binder/i }),
+    ).toBeDisabled()
   })
 
   it('removes the card from a specific want-list via the location chip (#762)', async () => {

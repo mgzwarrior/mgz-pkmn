@@ -329,6 +329,12 @@ class CollectionItemPatch(BaseModel):
     quantity: int = Field(ge=1)
 
 
+class CollectionItemQuantityDelta(BaseModel):
+    #: +1 / -1 from the card-detail quantity stepper (#762). A delta, not an
+    #: absolute count — see `update_collection_item_by_card` for why.
+    delta: int
+
+
 class BulkItemsCreate(BaseModel):
     """Add a set of matched cards to a manual/set collection in one call.
 
@@ -730,6 +736,75 @@ def update_collection_item(
     db.commit()
     db.refresh(item)
     return serialize_collection_item(item)
+
+
+@router.patch("/collections/{collection_id}/items")
+def update_collection_item_by_card(
+    collection_id: int,
+    set_id: str,
+    number: str,
+    req: CollectionItemQuantityDelta,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Adjust a card's owned quantity by its ``(set_id, number)`` identity —
+    the card-detail quantity stepper (#762), which only has the occupancy's
+    *summed* quantity, not an item id. Takes a delta rather than an absolute
+    count: a card can occupy a collection via more than one row (separate
+    adds), so there's no single row to set an absolute value on — writing
+    the stepper's summed total onto one row would double-count whatever the
+    other rows still hold (review feedback on the first cut of this).
+
+    A positive delta lands on the oldest row. A negative delta is drawn down
+    from the oldest row first, deleting any row it fully exhausts and
+    carrying the remainder to the next one, so the total tracks the click
+    exactly no matter how many rows back it. Scoped through the parent
+    collection; dynamic collections are rejected like the other item-write
+    paths."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    _reject_if_dynamic(collection)
+    items = db.scalars(
+        select(CollectionItem)
+        .where(
+            CollectionItem.collection_id == collection.id,
+            CollectionItem.card_set_id == set_id,
+            CollectionItem.card_number == number,
+        )
+        .order_by(CollectionItem.id)
+    ).all()
+    if not items:
+        raise HTTPException(
+            status_code=404,
+            detail=f"card {set_id}-{number} not found in collection {collection_id}",
+        )
+
+    total = sum(item.quantity for item in items)
+    if total + req.delta < 1:
+        raise HTTPException(
+            status_code=422,
+            detail="quantity would drop below 1 — remove the card instead",
+        )
+
+    if req.delta > 0:
+        items[0].quantity += req.delta
+    else:
+        remaining = -req.delta
+        for item in items:
+            if remaining <= 0:
+                break
+            if item.quantity <= remaining:
+                remaining -= item.quantity
+                # Same explicit clear as delete_collection_item /
+                # delete_collection_items_by_card — SQLite doesn't run the
+                # FK's ON DELETE SET NULL.
+                if collection.id_card_cover_item_id == item.id:
+                    collection.id_card_cover_item_id = None
+                db.delete(item)
+            else:
+                item.quantity -= remaining
+                remaining = 0
+    db.commit()
+    return {"quantity": total + req.delta}
 
 
 # ---------------------------------------------------------------------------

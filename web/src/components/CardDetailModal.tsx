@@ -16,11 +16,12 @@
  * patterns so we don't duplicate a11y plumbing.
  */
 import * as Dialog from '@radix-ui/react-dialog'
-import { ChevronLeft, ChevronRight, ExternalLink, Loader2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, Loader2, Minus, Plus, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   removeCardFromCollection,
   removeCardFromWishlist,
+  updateCollectionItemByCard,
   type CardOwnership,
 } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -427,11 +428,12 @@ function CardDetailBody({
   )
 }
 
-/** The lists a card sits in, with an inline remove on each chip (#762). The
- *  "organize later" complement to {@link AddToListPicker}: drop the card off a
- *  specific collection / want-list right from the detail view. Removal targets
- *  the card identity (the occupancy has no item ids) and goes through the
- *  cache-aware hooks so counts and the badge re-read. */
+/** The lists a card sits in, with an inline remove on each chip and — for
+ *  collections — a quantity stepper (#762). The "organize later" complement
+ *  to {@link AddToListPicker}: adjust or drop the card off a specific
+ *  collection / want-list right from the detail view. Both target the card
+ *  identity (the occupancy has no item ids) and go through the cache-aware
+ *  hooks so counts and the badge re-read. */
 function LibraryLocations({
   ownership,
   card,
@@ -442,12 +444,34 @@ function LibraryLocations({
   const collections = useCollections()
   const wishlists = useWishlists()
   const [removing, setRemoving] = useState<string | null>(null)
-
+  // The collection whose quantity PATCH is in flight, if any — gates the
+  // stepper the same way the collection-detail one does (#769), so a stale
+  // response can't land after a newer click.
+  const [updatingId, setUpdatingId] = useState<number | null>(null)
   const setId = (card?.set as CardSet | undefined)?.id
   const number = card?.number as string | undefined
 
-  if (!ownership || !card) return null
-  const { collections: cols, wishlists: wls } = ownership
+  // A remove/quantity edit invalidates the shared ownership cache, which
+  // reads back `undefined` for a beat while it refetches. Rendering nothing
+  // in that gap would unmount the chip the user just clicked mid-interaction
+  // — the focused button vanishes, focus falls back to the document, and
+  // Radix's dialog reads that as a click outside and closes the whole modal.
+  // Keeping the last-known occupancy on screen through the refetch (the same
+  // "stay mounted" fix `InlineRenameTitle` uses) avoids that. Reseeding on a
+  // card change is React's documented "reset on prop change" pattern, so a
+  // stale chip from the previous card can't leak onto the new one.
+  const identityKey = setId && number ? `${setId}::${number}` : null
+  const [syncedKey, setSyncedKey] = useState(identityKey)
+  const [shown, setShown] = useState(ownership)
+  if (identityKey !== syncedKey) {
+    setSyncedKey(identityKey)
+    setShown(ownership)
+  } else if (ownership !== undefined && ownership !== shown) {
+    setShown(ownership)
+  }
+
+  if (!shown || !card) return null
+  const { collections: cols, wishlists: wls } = shown
   if (cols.length === 0 && wls.length === 0) return null
 
   async function remove(
@@ -468,6 +492,18 @@ function LibraryLocations({
     }
   }
 
+  async function changeQuantity(collectionId: number, currentQty: number, delta: number) {
+    if (!setId || !number || currentQty + delta < 1 || updatingId === collectionId) return
+    setUpdatingId(collectionId)
+    try {
+      await updateCollectionItemByCard(collectionId, setId, number, delta)
+      invalidateOwnership()
+      await collections.refresh()
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
   return (
     <div
       aria-label="Library locations"
@@ -480,7 +516,8 @@ function LibraryLocations({
           chips={cols.map((c) => ({
             id: c.id,
             name: c.name,
-            display: c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name,
+            display: c.name,
+            quantity: c.quantity,
           }))}
           removingKey={removing}
           keyPrefix="collection"
@@ -489,6 +526,8 @@ function LibraryLocations({
               removeCardFromCollection(id, setId as string, number as string),
             )
           }
+          quantityBusyId={updatingId}
+          onChangeQuantity={changeQuantity}
         />
       )}
       {wls.length > 0 && (
@@ -516,25 +555,59 @@ function LocationLine({
   removingKey,
   keyPrefix,
   onRemove,
+  quantityBusyId,
+  onChangeQuantity,
 }: {
   label: string
   noun: string
-  chips: { id: number; name: string; display: string }[]
+  chips: { id: number; name: string; display: string; quantity?: number }[]
   removingKey: string | null
   keyPrefix: string
   onRemove: (id: number) => void
+  quantityBusyId?: number | null
+  onChangeQuantity?: (id: number, currentQty: number, delta: number) => void
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="font-semibold text-coconut-600 dark:text-sand-100">{label}</span>
       {chips.map((chip) => {
         const busy = removingKey === `${keyPrefix}-${chip.id}`
+        const qty = chip.quantity
+        const qtyBusy = quantityBusyId === chip.id
         return (
           <span
             key={chip.id}
             className="inline-flex items-center gap-1 rounded-full bg-sand-200 py-0.5 pl-1.5 pr-1 text-coconut-600 dark:bg-husk-100 dark:text-sand-100"
           >
             {chip.display}
+            {qty != null && onChangeQuantity && (
+              <span className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  disabled={qty <= 1 || qtyBusy}
+                  onClick={() => onChangeQuantity(chip.id, qty, -1)}
+                  aria-label={`Decrease quantity in ${chip.name}`}
+                  className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-sand-300 disabled:opacity-40 disabled:hover:bg-transparent dark:hover:bg-husk-200"
+                >
+                  <Minus size={9} />
+                </button>
+                <span
+                  className="min-w-[1rem] text-center tabular-nums"
+                  aria-label={`Quantity in ${chip.name}`}
+                >
+                  {qty}
+                </span>
+                <button
+                  type="button"
+                  disabled={qtyBusy}
+                  onClick={() => onChangeQuantity(chip.id, qty, 1)}
+                  aria-label={`Increase quantity in ${chip.name}`}
+                  className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-sand-300 disabled:opacity-40 disabled:hover:bg-transparent dark:hover:bg-husk-200"
+                >
+                  <Plus size={9} />
+                </button>
+              </span>
+            )}
             <button
               type="button"
               disabled={busy}
