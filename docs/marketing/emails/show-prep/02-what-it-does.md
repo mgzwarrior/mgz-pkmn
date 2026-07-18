@@ -29,7 +29,7 @@ Hit **Look up** and the rows stream in. Then export whatever you'll actually car
 
 Those comp tiers are the point: when a dealer names a number, you already know what 85% of market looks like.
 
-Prices come from three open sources — pokemontcg.io, TCGdex, PriceCharting — checked in order until one has the card, and you can override any row by pasting a PriceCharting link directly (handy for region-exclusive prints none of them index). Walking a set at a booth? **Browse** lets you page through a whole set on your phone, prices attached. And if your prep is already scripted into a laptop workflow, the same pipeline runs as a CLI (`./pkmn lookup`) — same exports, no browser needed, plus `./pkmn set-cards` for printable set-ID tab cutouts.
+Prices come from two open sources checked automatically — pokemontcg.io, then TCGdex — and you can paste a PriceCharting link on any row to override it directly, which is the only way to price region-exclusive prints neither of the other two indexes. Walking a set at a booth? **Browse** lets you page through a whole set on your phone, prices attached. And if your prep is already scripted into a laptop workflow, the same pipeline runs as a CLI (`./pkmn lookup`) — same exports, no browser needed, plus `./pkmn set-cards` for printable set-ID tab cutouts.
 
 [**Try it with my sample list →**](https://mgz-pkmn.onrender.com)
 
