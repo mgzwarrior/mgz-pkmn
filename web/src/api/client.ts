@@ -957,6 +957,26 @@ export async function updateCollectionItem(
   return (await res.json()) as CollectionItem
 }
 
+/** Set a card's owned quantity in a collection by its (set_id, number)
+ * identity — the card-detail quantity stepper (#762). The occupancy has no
+ * item id, so this targets the card itself, mirroring
+ * {@link removeCardFromCollection}. */
+export async function updateCollectionItemByCard(
+  collectionId: number,
+  setId: string,
+  number: string,
+  quantity: number,
+): Promise<CollectionItem> {
+  const params = new URLSearchParams({ set_id: setId, number })
+  const res = await fetch(`${BASE}/collections/${collectionId}/items?${params}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity }),
+  })
+  if (!res.ok) throw new Error(`update collection item failed: ${res.status}`)
+  return (await res.json()) as CollectionItem
+}
+
 /** Result of a bulk add: the created rows plus their count (#268). */
 export interface BulkAddResult<T> {
   added: number

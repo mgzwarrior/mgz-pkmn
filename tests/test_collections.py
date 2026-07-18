@@ -485,6 +485,44 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             resp = c.patch(f"/api/v1/collections/{cid_b}/items/{item_id}", json={"quantity": 2})
             self.assertEqual(resp.status_code, 404)
 
+    def test_patch_item_by_card_updates_quantity(self) -> None:
+        # The card-detail quantity stepper (#762) — the occupancy has no item
+        # id, so this targets the card's identity instead.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+
+            patched = c.patch(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+                json={"quantity": 5},
+            )
+            self.assertEqual(patched.status_code, 200)
+            self.assertEqual(patched.json()["quantity"], 5)
+            items = c.get(f"/api/v1/collections/{cid}").json()["items"]
+            self.assertEqual(items[0]["quantity"], 5)
+
+    def test_patch_item_by_card_rejects_zero_quantity(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
+            resp = c.patch(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+                json={"quantity": 0},
+            )
+            self.assertEqual(resp.status_code, 422)
+
+    def test_patch_item_by_card_404_when_card_absent(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            resp = c.patch(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+                json={"quantity": 2},
+            )
+            self.assertEqual(resp.status_code, 404)
+
     def test_delete_item_404_when_wrong_collection(self) -> None:
         with self._client() as c:
             cid_a = c.post("/api/v1/collections", json={"name": "a"}).json()["id"]

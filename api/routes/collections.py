@@ -732,6 +732,44 @@ def update_collection_item(
     return serialize_collection_item(item)
 
 
+@router.patch("/collections/{collection_id}/items")
+def update_collection_item_by_card(
+    collection_id: int,
+    set_id: str,
+    number: str,
+    req: CollectionItemPatch,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Adjust a card's owned quantity by its ``(set_id, number)`` identity —
+    the card-detail quantity stepper (#762), which only has the occupancy's
+    summed quantity, not an item id. Scoped through the parent collection;
+    dynamic collections are rejected like the other item-write paths. If the
+    card occupies the collection via more than one row (separate adds), the
+    update targets the oldest one — the row is incidental, the card's total
+    is what the stepper shows."""
+    collection = _load_collection(db, collection_id, current_user.id)
+    _reject_if_dynamic(collection)
+    item = db.scalar(
+        select(CollectionItem)
+        .where(
+            CollectionItem.collection_id == collection.id,
+            CollectionItem.card_set_id == set_id,
+            CollectionItem.card_number == number,
+        )
+        .order_by(CollectionItem.id)
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"card {set_id}-{number} not found in collection {collection_id}",
+        )
+    item.quantity = req.quantity
+    db.commit()
+    db.refresh(item)
+    return serialize_collection_item(item)
+
+
 # ---------------------------------------------------------------------------
 # #631 — catalog-backed target view + chase
 # ---------------------------------------------------------------------------
