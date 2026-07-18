@@ -132,6 +132,12 @@ describe('LibrarySearchesTab', () => {
         marketMax: '',
         source: '',
       },
+      compTiers: [
+        { percent: 80, visible: true },
+        { percent: 85, visible: true },
+        { percent: 90, visible: true },
+        { percent: 95, visible: true },
+      ],
     }
     vi.spyOn(client, 'listRuns').mockResolvedValue({
       items: [makeRun(7, { view_state: savedView })],

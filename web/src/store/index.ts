@@ -4,6 +4,7 @@ import { DEFAULT_EXPORT_FIELDS } from '../data/exportFields'
 import type {
   CacheStatus,
   CardCondition,
+  CompTier,
   ProcessingLine,
   RecentRun,
   Row,
@@ -15,6 +16,14 @@ import {
   DEFAULT_CONDITION,
   DEFAULT_CONDITION_MULTIPLIERS,
 } from '../utils/conditionPricing'
+
+/** Default comp-tier ladder (#542) — matches the pre-#542 hardcoded columns. */
+export const DEFAULT_COMP_TIERS: CompTier[] = [
+  { percent: 80, visible: true },
+  { percent: 85, visible: true },
+  { percent: 90, visible: true },
+  { percent: 95, visible: true },
+]
 
 /** Default ResultsTable view: no sort, no filters, filter row collapsed. */
 export const EMPTY_VIEW_STATE: SavedViewState = {
@@ -29,6 +38,29 @@ export const EMPTY_VIEW_STATE: SavedViewState = {
     marketMax: '',
     source: '',
   },
+  compTiers: DEFAULT_COMP_TIERS,
+}
+
+/** Deep-clone a view state so callers never share mutable filter/tier
+ *  objects with `EMPTY_VIEW_STATE` or with each other (mirrors the
+ *  `{ ...filters }` spread this replaces). */
+export function cloneViewState(viewState: SavedViewState): SavedViewState {
+  return {
+    ...viewState,
+    filters: { ...viewState.filters },
+    compTiers: viewState.compTiers.map((tier) => ({ ...tier })),
+  }
+}
+
+/** Saved runs persisted before #542 have no `compTiers` in their stored
+ *  `view_state`; fall back to the default ladder rather than rendering
+ *  zero comp columns. */
+export function normalizeViewState(viewState: SavedViewState | null): SavedViewState {
+  if (!viewState) return cloneViewState(EMPTY_VIEW_STATE)
+  return cloneViewState({
+    ...viewState,
+    compTiers: viewState.compTiers ?? DEFAULT_COMP_TIERS,
+  })
 }
 
 /** Cap on `recentRuns` so persisted localStorage stays small. */
@@ -369,15 +401,19 @@ export const useAppStore = create<AppState>()(
       currentRunId: null,
       setCurrentRunId: (currentRunId) => set({ currentRunId }),
 
-      viewState: { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters } },
+      viewState: cloneViewState(EMPTY_VIEW_STATE),
       setViewState: (viewState) => set({ viewState }),
+      // "Clear sort & filters" — resets sort/filter state only. compTiers is
+      // a separate column-config concern with its own "Reset to default" in
+      // the Columns menu; wiping it here would silently discard a
+      // customized ladder from a control that isn't labeled for that (#542).
       resetViewState: () =>
-        set({
+        set((state) => ({
           viewState: {
-            ...EMPTY_VIEW_STATE,
-            filters: { ...EMPTY_VIEW_STATE.filters },
+            ...cloneViewState(EMPTY_VIEW_STATE),
+            compTiers: state.viewState.compTiers.map((t) => ({ ...t })),
           },
-        }),
+        })),
 
       lastSeenChangelogVersion: null,
       setLastSeenChangelogVersion: (version) =>

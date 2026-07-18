@@ -450,6 +450,7 @@ describe('store: viewState', () => {
         marketMax: '',
         source: '',
       },
+      compTiers: [{ percent: 70, visible: true }],
     }
     useAppStore.getState().setViewState(restored)
     expect(useAppStore.getState().viewState).toEqual(restored)
@@ -461,9 +462,33 @@ describe('store: viewState', () => {
       sortDir: 'asc',
       showFilters: true,
       filters: { ...EMPTY_VIEW_STATE.filters, name: 'pika' },
+      compTiers: EMPTY_VIEW_STATE.compTiers.map((t) => ({ ...t })),
     })
     useAppStore.getState().resetViewState()
     expect(useAppStore.getState().viewState).toEqual(EMPTY_VIEW_STATE)
+  })
+
+  // #542 review feedback: "Clear sort & filters" is scoped to sort/filter
+  // state — a customized comp-tier ladder is a separate concern with its
+  // own "Reset to default" in the Columns menu, so it must survive this.
+  it('resetViewState preserves a customized comp-tier ladder', () => {
+    const customTiers = [{ percent: 70, visible: false }]
+    useAppStore.getState().setViewState({
+      sortColumn: 'name',
+      sortDir: 'asc',
+      showFilters: true,
+      filters: { ...EMPTY_VIEW_STATE.filters, name: 'pika' },
+      compTiers: customTiers,
+    })
+    useAppStore.getState().resetViewState()
+    const { sortColumn, sortDir, showFilters, filters, compTiers } = useAppStore.getState().viewState
+    expect({ sortColumn, sortDir, showFilters, filters }).toEqual({
+      sortColumn: null,
+      sortDir: null,
+      showFilters: false,
+      filters: EMPTY_VIEW_STATE.filters,
+    })
+    expect(compTiers).toEqual(customTiers)
   })
 
   it('resetViewState gives back independent filter objects (mutation safety)', () => {
