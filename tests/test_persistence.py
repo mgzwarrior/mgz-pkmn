@@ -412,6 +412,53 @@ class SavedSearchesTests(_IsolatedDbMixin):
             self.assertNotIn("condition_multiplier", pricing)
             self.assertNotIn("adjusted_market", pricing)
 
+    def test_patch_run_row_override_updates_pricing_json(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(
+                f"/api/v1/runs/{run_id}/rows/0/override",
+                json={"value": 12.0},
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json()["pricing"]["pricing_override"], 12.0)
+
+            detail = c.get(f"/api/v1/runs/{run_id}").json()
+            self.assertEqual(detail["rows"][0]["pricing"]["pricing_override"], 12.0)
+
+    def test_patch_run_row_override_rejects_negative_value(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(
+                f"/api/v1/runs/{run_id}/rows/0/override",
+                json={"value": -5.0},
+            )
+            self.assertEqual(resp.status_code, 422)
+
+    def test_patch_run_row_override_can_clear(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            c.patch(f"/api/v1/runs/{run_id}/rows/0/override", json={"value": 12.0})
+            resp = c.patch(f"/api/v1/runs/{run_id}/rows/0/override", json={"value": None})
+            self.assertEqual(resp.status_code, 200)
+            self.assertNotIn("pricing_override", resp.json()["pricing"])
+
+    def test_patch_run_row_override_404s_on_missing_row(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run()
+            resp = c.patch(
+                f"/api/v1/runs/{run_id}/rows/99/override",
+                json={"value": 12.0},
+            )
+            self.assertEqual(resp.status_code, 404)
+
 
 class SavedSearchesAuthGateTests(_IsolatedDbMixin):
     """Hosted-demo auth-on saved searches are scoped to the session user.
@@ -709,6 +756,23 @@ class SerializeRoundTripTests(unittest.TestCase):
         self.assertEqual(restored.pricing.condition, "HP")
         self.assertEqual(restored.pricing.condition_multiplier, 0.45)
         self.assertEqual(restored.pricing.adjusted_market, 112.5)
+
+    def test_pricing_override_round_trip(self) -> None:
+        """Manual price override (#266) survives Row → RunRow → Row."""
+        from api.db.serialize import row_to_run_row, run_row_to_row
+        from mgz_pkmn.parser import CardQuery
+        from mgz_pkmn.pricing import Pricing
+        from mgz_pkmn.spreadsheet import Row
+
+        row = Row(
+            query=CardQuery(raw="charizard", name="charizard"),
+            card={"id": "x"},
+            pricing=Pricing(market=250.0, pricing_override=12.0),
+            tag="",
+        )
+        restored = run_row_to_row(row_to_run_row(row, position=0))
+        self.assertEqual(restored.pricing.pricing_override, 12.0)
+        self.assertEqual(restored.pricing.effective_market, 12.0)
 
     def test_currency_is_null_on_unpriced_miss(self) -> None:
         """An unmatched/unpriced row stores `currency = NULL`, not the

@@ -45,6 +45,12 @@ export interface Pricing {
   ebay_active_floor?: number | null
   /** Recent raw sold comps, newest-first as the source returns them. */
   ebay_sold_comps?: EbaySoldComp[] | null
+  /**
+   * Manual per-row price correction (#266) — "for this row, use $X
+   * regardless of what the source returned." Takes priority over both
+   * `adjusted_market` and `market` everywhere a basis price is read.
+   */
+  pricing_override?: number | null
 }
 
 export interface CardSet {

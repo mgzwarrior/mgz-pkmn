@@ -140,6 +140,7 @@ def _pricing_to_dict(p: Pricing) -> dict[str, Any]:
         "adjusted_market": p.adjusted_market,
         "ebay_sold_median": p.ebay_sold_median,
         "ebay_active_floor": p.ebay_active_floor,
+        "pricing_override": p.pricing_override,
     }
 
 

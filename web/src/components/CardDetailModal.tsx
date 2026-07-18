@@ -209,6 +209,11 @@ function CardDetailBody({
   const hidePricing = settings.hidePricing
   const conditionPricing = conditionPricingForRow(row, settings, rowConditionOverrides)
   const conditionOverride = rowConditionOverrides[rowConditionKey(row)] ?? null
+  // #266 — a manual override, when set, is the basis price everywhere
+  // downstream, taking priority over the condition-adjusted market shown
+  // here and in the table.
+  const effectivePrice = pricing.pricing_override ?? conditionPricing.adjustedMarket
+  const isOverridden = pricing.pricing_override != null
   const imgUrl =
     (card?.images?.large as string | undefined) ??
     (card?.images?.small as string | undefined)
@@ -348,49 +353,49 @@ function CardDetailBody({
                   </div>
                   <div className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 p-3 space-y-1">
                     <PriceLine
-                      label={`${conditionPricing.condition} market`}
-                      value={formatMoney(conditionPricing.adjustedMarket, pricing.currency)}
+                      label={isOverridden ? 'Override market' : `${conditionPricing.condition} market`}
+                      value={formatMoney(effectivePrice, pricing.currency)}
                       bold
                       highlight
                     />
-                    {conditionPricing.hasAdjustment && (
+                    {(isOverridden || conditionPricing.hasAdjustment) && (
                       <PriceLine
-                        label="NM market"
+                        label={isOverridden ? 'Mkt market' : 'NM market'}
                         value={formatMoney(pricing.market, pricing.currency)}
                       />
                     )}
                     <PriceLine
-                      label={`${conditionPricing.condition} 95%`}
-                      value={formatComp(conditionPricing.adjustedMarket, 95, pricing.currency)}
+                      label={isOverridden ? 'Override 95%' : `${conditionPricing.condition} 95%`}
+                      value={formatComp(effectivePrice, 95, pricing.currency)}
                     />
                     <PriceLine
-                      label={`${conditionPricing.condition} 90%`}
-                      value={formatComp(conditionPricing.adjustedMarket, 90, pricing.currency)}
+                      label={isOverridden ? 'Override 90%' : `${conditionPricing.condition} 90%`}
+                      value={formatComp(effectivePrice, 90, pricing.currency)}
                     />
                     <PriceLine
-                      label={`${conditionPricing.condition} 85%`}
-                      value={formatComp(conditionPricing.adjustedMarket, 85, pricing.currency)}
+                      label={isOverridden ? 'Override 85%' : `${conditionPricing.condition} 85%`}
+                      value={formatComp(effectivePrice, 85, pricing.currency)}
                     />
                     <PriceLine
-                      label={`${conditionPricing.condition} 80%`}
-                      value={formatComp(conditionPricing.adjustedMarket, 80, pricing.currency)}
+                      label={isOverridden ? 'Override 80%' : `${conditionPricing.condition} 80%`}
+                      value={formatComp(effectivePrice, 80, pricing.currency)}
                     />
-                    {conditionPricing.hasAdjustment && (
+                    {(isOverridden || conditionPricing.hasAdjustment) && (
                       <>
                         <PriceLine
-                          label="NM 95%"
+                          label={isOverridden ? 'Mkt 95%' : 'NM 95%'}
                           value={formatComp(pricing.market, 95, pricing.currency)}
                         />
                         <PriceLine
-                          label="NM 90%"
+                          label={isOverridden ? 'Mkt 90%' : 'NM 90%'}
                           value={formatComp(pricing.market, 90, pricing.currency)}
                         />
                         <PriceLine
-                          label="NM 85%"
+                          label={isOverridden ? 'Mkt 85%' : 'NM 85%'}
                           value={formatComp(pricing.market, 85, pricing.currency)}
                         />
                         <PriceLine
-                          label="NM 80%"
+                          label={isOverridden ? 'Mkt 80%' : 'NM 80%'}
                           value={formatComp(pricing.market, 80, pricing.currency)}
                         />
                       </>

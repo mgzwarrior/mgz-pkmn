@@ -44,6 +44,7 @@ class PricingIn(BaseModel):
     adjusted_market: float | None = None
     ebay_sold_median: float | None = None
     ebay_active_floor: float | None = None
+    pricing_override: float | None = None
 
 
 class CardQueryIn(BaseModel):
@@ -237,6 +238,7 @@ def _to_row(
         adjusted_market=r.pricing.adjusted_market,
         ebay_sold_median=r.pricing.ebay_sold_median,
         ebay_active_floor=r.pricing.ebay_active_floor,
+        pricing_override=r.pricing.pricing_override,
     )
     image_path = _download_card_image(r.card, images_dir, session)
     return Row(query=q, card=r.card, pricing=pricing, image_path=image_path, tag=r.tag)

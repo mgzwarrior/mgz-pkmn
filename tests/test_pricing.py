@@ -100,5 +100,35 @@ class ExtractPricingTests(unittest.TestCase):
         self.assertEqual(extract_pricing({}, None), Pricing())
 
 
+class PricingOverrideTests(unittest.TestCase):
+    """`pricing_override` (#266) — "for this row, use $X regardless of what
+    the source returned" — takes priority over both `condition`-adjusted and
+    raw market pricing wherever a writer reads a basis price."""
+
+    def test_market_or_override_falls_back_to_market_when_unset(self) -> None:
+        self.assertEqual(Pricing(market=10.0).market_or_override, 10.0)
+
+    def test_market_or_override_prefers_override(self) -> None:
+        pricing = Pricing(market=10.0, pricing_override=25.0)
+        self.assertEqual(pricing.market_or_override, 25.0)
+
+    def test_effective_market_falls_back_through_adjusted_then_market(self) -> None:
+        self.assertEqual(Pricing(market=10.0).effective_market, 10.0)
+        self.assertEqual(Pricing(market=10.0, adjusted_market=8.5).effective_market, 8.5)
+
+    def test_effective_market_prefers_override_over_adjusted_and_market(self) -> None:
+        pricing = Pricing(market=10.0, adjusted_market=8.5, pricing_override=25.0)
+        self.assertEqual(pricing.effective_market, 25.0)
+
+    def test_effective_market_prefers_override_when_condition_unset(self) -> None:
+        pricing = Pricing(market=10.0, pricing_override=25.0)
+        self.assertEqual(pricing.effective_market, 25.0)
+
+    def test_zero_is_a_valid_override_not_treated_as_unset(self) -> None:
+        pricing = Pricing(market=10.0, pricing_override=0.0)
+        self.assertEqual(pricing.market_or_override, 0.0)
+        self.assertEqual(pricing.effective_market, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

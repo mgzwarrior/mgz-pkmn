@@ -52,6 +52,7 @@ def _pricing_to_dict(p: Pricing) -> dict[str, Any]:
         "adjusted_market": p.adjusted_market,
         "ebay_sold_median": p.ebay_sold_median,
         "ebay_active_floor": p.ebay_active_floor,
+        "pricing_override": p.pricing_override,
     }
 
 
@@ -121,6 +122,7 @@ def run_row_to_row(rr: RunRow) -> Row:
         adjusted_market=p.get("adjusted_market"),
         ebay_sold_median=p.get("ebay_sold_median"),
         ebay_active_floor=p.get("ebay_active_floor"),
+        pricing_override=p.get("pricing_override"),
     )
     return Row(
         query=query,

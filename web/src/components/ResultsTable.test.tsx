@@ -4,7 +4,13 @@ import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
 import { EMPTY_VIEW_STATE, useAppStore } from '../store'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
-import { exportFile, fetchCardOwnership, ownCard, updateRunRowCondition } from '../api/client'
+import {
+  exportFile,
+  fetchCardOwnership,
+  ownCard,
+  updateRunRowCondition,
+  updateRunRowPricingOverride,
+} from '../api/client'
 import { _resetCardOwnershipForTests } from './useCardOwnership'
 import { _resetCollectionsCacheForTests } from './useCollections'
 import { _resetWishlistsCacheForTests } from './useWishlists'
@@ -44,6 +50,7 @@ vi.mock('../api/client', () => ({
   ownCard: vi.fn(async () => ({})),
   exportFile: vi.fn(async () => undefined),
   updateRunRowCondition: vi.fn(async () => undefined),
+  updateRunRowPricingOverride: vi.fn(async () => undefined),
 }))
 
 beforeEach(() => {
@@ -72,6 +79,8 @@ beforeEach(() => {
   vi.mocked(exportFile).mockClear()
   vi.mocked(updateRunRowCondition).mockClear()
   vi.mocked(updateRunRowCondition).mockResolvedValue(undefined)
+  vi.mocked(updateRunRowPricingOverride).mockClear()
+  vi.mocked(updateRunRowPricingOverride).mockResolvedValue(undefined)
 })
 
 function makeRow(over: Partial<Row> = {}): Row {
@@ -476,6 +485,32 @@ describe('applyFilters', () => {
     })
     expect(filtered).toHaveLength(1)
     expect(filtered[0].card?.name as string | undefined).toBe('Charizard')
+  })
+
+  it('a manual override (#266) is the basis the market range filter compares against', () => {
+    // Charizard's live market ($100) is outside the 0-50 band, but its
+    // override ($20) is inside it — the filter should follow the override,
+    // matching what the Market column actually displays.
+    const overridden = makeRow({
+      card: { name: 'Charizard', rarity: 'Holo Rare', set: { name: 'Base Set' } },
+      pricing: {
+        market: 100,
+        pricing_override: 20,
+        currency: 'USD',
+        variant: null,
+        source: 'TCGPlayer',
+        url: null,
+      },
+    })
+    const filtered = applyFilters([overridden], {
+      name: '',
+      set: '',
+      rarity: '',
+      marketMin: '0',
+      marketMax: '50',
+      source: '',
+    })
+    expect(filtered).toHaveLength(1)
   })
 })
 
@@ -973,6 +1008,110 @@ describe('ResultsTable: hide pricing (#764)', () => {
     expect(screen.queryByText('$230.00')).toBeNull()
     useAppStore.getState().updateSettings({ showEbay: false, hidePricing: false })
     useAppStore.setState({ rows: [] })
+  })
+})
+
+describe('ResultsTable: manual price override (#266)', () => {
+  function pricedRow(): Row {
+    return makeRow({
+      card: { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+      pricing: { market: 100, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+    })
+  }
+
+  afterEach(() => {
+    useAppStore.setState({ rows: [], currentRunId: null })
+  })
+
+  it('renders the override in place of market and recalculates comps', () => {
+    useAppStore.setState({
+      rows: [pricedRow()],
+      isRunning: false,
+      progress: null,
+      currentRunId: 77,
+    })
+    render(<ResultsTable />)
+
+    expect(screen.getByText('$100.00')).toBeInTheDocument()
+    expect(screen.getByText('$80.00')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText(/price override for charizard/i))
+    fireEvent.change(screen.getByLabelText(/price override for charizard/i), {
+      target: { value: '12' },
+    })
+    fireEvent.blur(screen.getByLabelText(/price override for charizard/i))
+
+    // Both the Market cell and the Override column's own button show the
+    // committed value — the Market column echoes it as "the price in
+    // effect", the Override column as "the value you set".
+    expect(screen.getAllByText('$12.00')).toHaveLength(2)
+    expect(screen.getByText('Mkt $100.00')).toBeInTheDocument()
+    expect(screen.getByText('$9.60')).toBeInTheDocument()
+    expect(useAppStore.getState().rows[0].pricing.pricing_override).toBe(12)
+    expect(updateRunRowPricingOverride).toHaveBeenCalledWith(77, 0, 12)
+  })
+
+  it('clears an override back to the live market price', () => {
+    const row = pricedRow()
+    row.pricing.pricing_override = 12
+    useAppStore.setState({
+      rows: [row],
+      isRunning: false,
+      progress: null,
+      currentRunId: 77,
+    })
+    render(<ResultsTable />)
+
+    expect(screen.getAllByText('$12.00')).toHaveLength(2)
+
+    fireEvent.click(screen.getByLabelText('Clear override'))
+
+    expect(screen.getByText('$100.00')).toBeInTheDocument()
+    expect(screen.queryByText('Mkt $100.00')).toBeNull()
+    expect(useAppStore.getState().rows[0].pricing.pricing_override).toBeNull()
+    expect(updateRunRowPricingOverride).toHaveBeenCalledWith(77, 0, null)
+  })
+
+  it('tells a signed-out visitor to sign in when the override save 401s', async () => {
+    vi.mocked(updateRunRowPricingOverride).mockRejectedValueOnce(new Error('sign-in required'))
+    useAppStore.setState({
+      rows: [pricedRow()],
+      isRunning: false,
+      progress: null,
+      currentRunId: 77,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText(/price override for charizard/i))
+    fireEvent.change(screen.getByLabelText(/price override for charizard/i), {
+      target: { value: '12' },
+    })
+    fireEvent.blur(screen.getByLabelText(/price override for charizard/i))
+
+    expect(
+      await screen.findByText('Sign in to keep price overrides across visits.'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a generic message when the override save fails for a non-auth reason', async () => {
+    vi.mocked(updateRunRowPricingOverride).mockRejectedValueOnce(
+      new Error('override update failed: 500'),
+    )
+    useAppStore.setState({
+      rows: [pricedRow()],
+      isRunning: false,
+      progress: null,
+      currentRunId: 77,
+    })
+    render(<ResultsTable />)
+
+    fireEvent.click(screen.getByLabelText(/price override for charizard/i))
+    fireEvent.change(screen.getByLabelText(/price override for charizard/i), {
+      target: { value: '12' },
+    })
+    fireEvent.blur(screen.getByLabelText(/price override for charizard/i))
+
+    expect(await screen.findByText('Price override was not saved.')).toBeInTheDocument()
   })
 })
 

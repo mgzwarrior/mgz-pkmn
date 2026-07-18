@@ -117,6 +117,24 @@ class FieldFilterTests(unittest.TestCase):
         self.assertEqual(ws.cell(row=2, column=comp_col).value, 80.0)
         self.assertEqual(ws.cell(row=2, column=adjusted_comp_col).value, 68.0)
 
+    def test_pricing_override_replaces_market_and_its_comps(self) -> None:
+        """A manual override (#266) renders in place of market — the raw
+        Market column and its 80/85/90/95% comps all use the override
+        instead of the source's live price."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "cards.xlsx"
+            row = _row(market=100.0)
+            row.pricing.pricing_override = 12.0
+            write_spreadsheet([row], out, fields=frozenset({MARKET, COMP_80}))
+            ws = load_workbook(out).active
+
+        header_row = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+        market_col = header_row.index("Market") + 1
+        comp_col = header_row.index("80%") + 1
+
+        self.assertEqual(ws.cell(row=2, column=market_col).value, 12.0)
+        self.assertEqual(ws.cell(row=2, column=comp_col).value, 9.6)
+
 
 if __name__ == "__main__":
     unittest.main()

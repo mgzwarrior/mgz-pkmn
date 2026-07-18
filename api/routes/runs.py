@@ -109,6 +109,16 @@ class RunRowConditionRequest(BaseModel):
     condition_multiplier: float | None = Field(default=None, ge=0)
 
 
+class RunRowOverrideRequest(BaseModel):
+    """Body for PATCH /runs/{id}/rows/{position}/override.
+
+    `value=None` clears the manual price override (#266), reverting the row
+    to its live market price. `value` is otherwise the price a reviewer has
+    decided to use instead of whatever the source returned."""
+
+    value: float | None = Field(default=None, ge=0)
+
+
 def _run_visible_to_current_user(run: Run, current_user: User) -> bool:
     return run.user_id == current_user.id or (run.user_id == DEFAULT_USER_ID and run.name is None)
 
@@ -279,6 +289,47 @@ def update_run_row_condition(
             if row.market_price is not None and req.condition_multiplier is not None
             else None
         )
+    row.pricing_json = pricing
+    db.commit()
+    db.refresh(row)
+    return RunRowOut(
+        position=row.position,
+        tag=row.tag,
+        market_price=float(row.market_price) if row.market_price is not None else None,
+        currency=row.currency,
+        query=row.query_json,
+        card=row.card_json,
+        pricing=row.pricing_json,
+    ).model_dump()
+
+
+@router.patch("/runs/{run_id}/rows/{position}/override")
+def update_run_row_override(
+    run_id: int,
+    position: int,
+    req: RunRowOverrideRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Persist or clear one row's manual price override (#266).
+
+    Stored in `pricing_json` alongside `condition`/`adjusted_market` so it
+    round-trips through saved searches without a schema migration. Every
+    reader of `Pricing.effective_market` / `market_or_override` picks the
+    override up automatically — comps, exports, and the binder/checklist
+    writers never need to know it exists."""
+    run = db.scalar(select(Run).where(Run.id == run_id))
+    if run is None or not _run_visible_to_current_user(run, current_user):
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    row = db.scalar(select(RunRow).where(RunRow.run_id == run.id, RunRow.position == position))
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"run row {position} not found")
+
+    pricing = dict(row.pricing_json or {})
+    if req.value is None:
+        pricing.pop("pricing_override", None)
+    else:
+        pricing["pricing_override"] = req.value
     row.pricing_json = pricing
     db.commit()
     db.refresh(row)

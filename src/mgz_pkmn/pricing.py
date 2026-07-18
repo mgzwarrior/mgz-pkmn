@@ -52,10 +52,21 @@ class Pricing:
     # Both stay None until the eBay source contributes (see summarize_ebay_comps).
     ebay_sold_median: float | None = None
     ebay_active_floor: float | None = None
+    # Manual per-row correction (#266) — "for this row, use $X regardless of
+    # what the source returned." Takes priority over both `market` and
+    # `condition`-adjusted pricing everywhere a writer reads a basis price.
+    pricing_override: float | None = None
+
+    @property
+    def market_or_override(self) -> float | None:
+        """Raw market price, or the user's manual override when set (#266)."""
+        return self.pricing_override if self.pricing_override is not None else self.market
 
     @property
     def effective_market(self) -> float | None:
         """Market value writers should use for buyer-facing comps."""
+        if self.pricing_override is not None:
+            return self.pricing_override
         return self.adjusted_market if self.adjusted_market is not None else self.market
 
 
