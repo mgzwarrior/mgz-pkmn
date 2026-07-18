@@ -23,7 +23,7 @@ Charizard | Base | 4/102
 Hit **Look up** and the rows stream in. Then export whatever you'll actually carry:
 
 - **A printable binder PDF** — thumbnail, set, number, market price, and comp tiers at 80/85/90/95% for every card. Fold it up, slip it in a backpack pocket, walk the booths.
-- **A condensed binder PDF** — same layout, fewer pages, for when one card per page is more paper than you want.
+- **A condensed binder PDF** — 24 cards per page instead of the standard 9, for when carrying less paper matters more than card size.
 - **A checklist PDF** — one tick box per card, in set order, grouped by list. Mark cards off by hand as you find them.
 - **A spreadsheet** — same data, sortable, comps included.
 

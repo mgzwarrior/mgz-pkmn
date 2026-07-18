@@ -19,7 +19,7 @@ There are three ways to find cards, and you pick whichever fits your mood:
 
 Tap any card for the full-size art, the market price, and every detail the source returned — and use the arrows to step through your results without leaving the view. Need finer control over a big result set? The filters panel narrows by name, set, rarity, and price range — stacks with any of the three ways in.
 
-Everything you save lives in your **Backpack**: collections for the cards you **own**, wishlists for the ones you're **chasing**, plus your saved searches and recent lookups. One tap on a card adds it to either list — or select multiple at once and move a whole batch between own and chasing in one pass.
+Everything you save lives in your **Backpack**: collections for the cards you **own**, wishlists for the ones you're **chasing**, plus your saved searches and recent lookups. One tap on a card adds it to either list — or select multiple at once and add a whole batch to own or chasing in one pass.
 
 When you want it on paper or in a sheet, export a spreadsheet, a printable binder PDF, or a checklist — prices and negotiation comps included.
 
