@@ -1,4 +1,10 @@
-"""Tests for #491 slice 2: explicit provider link / unlink endpoints."""
+"""Tests for #491 slice 2: explicit provider link / unlink endpoints.
+
+`NativeLinkTests` covers #936's native-app link handoff (`?next=app`
+on `POST /auth/link/magic/start` / `GET /auth/link/magic/callback`) —
+the account-linking analog of #924's sign-in bridge in
+`tests/test_auth_magic.py::NativeHandoffTests`.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from datetime import UTC, datetime
+from email.message import EmailMessage
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -30,7 +37,9 @@ from api.auth.magic import (
     SMTP_PASSWORD_ENV,
     SMTP_PORT_ENV,
     SMTP_USERNAME_ENV,
+    sign_link_native_token,
     sign_token,
+    verify_link_native_token,
 )
 from api.auth.session import AUTH_ENABLED_ENV, SESSION_SECRET_ENV
 from api.db import session as session_mod
@@ -335,6 +344,174 @@ class MagicLinkCallbackTests(_IsolatedDbMixin):
                     (PROVIDER_MAGIC, "primary@example.com", "primary@example.com"),
                 ],
             )
+
+
+class NativeLinkTests(_IsolatedDbMixin):
+    """`?next=app` (#936) — native-app link handoff on the account-link
+    magic-link flow. The token itself carries the initiating user's id
+    (`sign_link_native_token`) so `magic_link_callback` needs zero
+    session state to complete the link, unlike the web flow's
+    `stage_link_request` / `consume_link_request` pair."""
+
+    def test_link_start_next_app_mints_native_token_and_threads_next_app_onto_link(
+        self,
+    ) -> None:
+        from api.main import app
+
+        sent: list[EmailMessage] = []
+
+        def record_send(self_mailer, message: EmailMessage) -> None:
+            sent.append(message)
+
+        with (
+            patch("api.auth.magic.SmtpMailer.send", new=record_send),
+            TestClient(app) as client,
+        ):
+            user_id = _sign_in_magic(client, "primary@example.com")
+            start = client.post(
+                "/api/v1/auth/link/magic/start?next=app",
+                json={"email": "alias@example.com"},
+            )
+            self.assertEqual(start.status_code, 202)
+
+        self.assertEqual(len(sent), 1)
+        plain = sent[0].get_body(preferencelist=("plain",))
+        assert plain is not None
+        body = plain.get_content()
+        self.assertIn("/api/v1/auth/link/magic/callback?token=", body)
+        self.assertIn("next=app", body)
+
+        token = body.split("token=", 1)[1].split("&", 1)[0].strip()
+        decoded = verify_link_native_token(token)
+        self.assertIsNotNone(decoded)
+        assert decoded is not None
+        email, uid = decoded
+        self.assertEqual(email, "alias@example.com")
+        self.assertEqual(uid, user_id)
+
+    def test_link_callback_next_app_links_identity_and_redirects_to_native_scheme(
+        self,
+    ) -> None:
+        """Success redirects with a `linked=<provider>` signal only — no
+        bearer code. Minting a native handoff code here would let
+        whoever can open this URL (i.e. whoever controls the mailbox the
+        link was sent to, not necessarily the initiating user) exchange
+        it via the unauthenticated `/auth/native/exchange` for a full
+        session as the *initiating* account. See
+        `_native_link_success_redirect`'s docstring in `api/auth/magic.py`."""
+        from api.main import app
+
+        with TestClient(app) as client:
+            user_id = _sign_in_magic(client, "primary@example.com")
+            token = sign_link_native_token("alias@example.com", user_id)
+            r = client.get(
+                f"/api/v1/auth/link/magic/callback?token={token}&next=app",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(
+                r.headers["location"],
+                f"mgzpkmn://auth/callback?linked={PROVIDER_MAGIC}",
+            )
+
+        with session_mod.get_session_factory()() as s:
+            user = s.get(User, user_id)
+            assert user is not None
+            identities = sorted((i.provider, i.provider_subject, i.email) for i in user.identities)
+            self.assertEqual(
+                identities,
+                [
+                    (PROVIDER_MAGIC, "alias@example.com", "alias@example.com"),
+                    (PROVIDER_MAGIC, "primary@example.com", "primary@example.com"),
+                ],
+            )
+
+    def test_link_callback_next_app_does_not_grant_a_session_for_the_initiating_user(
+        self,
+    ) -> None:
+        """Regression for the account-takeover flagged in PR #937 review:
+        clicking the link (proving only mailbox control, not that you're
+        the initiating user) must never yield a code that
+        `/auth/native/exchange` will turn into a session for the account
+        that started the link."""
+        from api.main import app
+
+        with TestClient(app) as client:
+            user_id = _sign_in_magic(client, "primary@example.com")
+            token = sign_link_native_token("attacker@example.com", user_id)
+            r = client.get(
+                f"/api/v1/auth/link/magic/callback?token={token}&next=app",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertNotIn("code=", r.headers["location"])
+
+    def test_link_callback_next_app_invalid_token_redirects_to_native_scheme_error(
+        self,
+    ) -> None:
+        from api.main import app
+
+        with TestClient(app) as client:
+            r = client.get(
+                "/api/v1/auth/link/magic/callback?token=garbage&next=app",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(
+                r.headers["location"],
+                "mgzpkmn://auth/callback?error=invalid_or_expired_token",
+            )
+
+    def test_link_callback_next_app_conflict_redirects_with_provider(self) -> None:
+        from api.main import app
+
+        with TestClient(app) as client:
+            user_id = _sign_in_magic(client, "primary@example.com")
+            with session_mod.get_session_factory()() as s:
+                other = User(
+                    name="magic:taken",
+                    email="other@example.com",
+                    email_verified_at=datetime.now(UTC),
+                    display_name="Other",
+                )
+                s.add(other)
+                s.flush()
+                s.add(
+                    UserIdentity(
+                        user_id=other.id,
+                        provider=PROVIDER_MAGIC,
+                        provider_subject="taken@example.com",
+                        email="taken@example.com",
+                    )
+                )
+                s.commit()
+
+            token = sign_link_native_token("taken@example.com", user_id)
+            r = client.get(
+                f"/api/v1/auth/link/magic/callback?token={token}&next=app",
+                follow_redirects=False,
+            )
+
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(
+            r.headers["location"],
+            f"mgzpkmn://auth/callback?error=identity_already_linked&provider={PROVIDER_MAGIC}",
+        )
+
+    def test_link_callback_without_next_app_is_unaffected_by_native_changes(self) -> None:
+        """Same-shape regression as `MagicLinkCallbackTests` above, but
+        specifically asserting that a signed-out caller still gets the
+        pre-#936 401 (`CurrentUserOptional` + manual check must behave
+        identically to the old `CurrentUserRequired` dependency)."""
+        from api.main import app
+
+        with TestClient(app) as client:
+            r = client.get(
+                f"/api/v1/auth/link/magic/callback?token={sign_token('alias@example.com')}",
+                follow_redirects=False,
+            )
+            self.assertEqual(r.status_code, 401)
+            self.assertEqual(r.json()["detail"], "sign-in required")
 
 
 class UnlinkTests(_IsolatedDbMixin):
