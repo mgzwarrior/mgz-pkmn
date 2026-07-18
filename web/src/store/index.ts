@@ -403,7 +403,17 @@ export const useAppStore = create<AppState>()(
 
       viewState: cloneViewState(EMPTY_VIEW_STATE),
       setViewState: (viewState) => set({ viewState }),
-      resetViewState: () => set({ viewState: cloneViewState(EMPTY_VIEW_STATE) }),
+      // "Clear sort & filters" — resets sort/filter state only. compTiers is
+      // a separate column-config concern with its own "Reset to default" in
+      // the Columns menu; wiping it here would silently discard a
+      // customized ladder from a control that isn't labeled for that (#542).
+      resetViewState: () =>
+        set((state) => ({
+          viewState: {
+            ...cloneViewState(EMPTY_VIEW_STATE),
+            compTiers: state.viewState.compTiers.map((t) => ({ ...t })),
+          },
+        })),
 
       lastSeenChangelogVersion: null,
       setLastSeenChangelogVersion: (version) =>
