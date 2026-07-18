@@ -453,6 +453,13 @@ export interface ResultsFilters {
   source: string
 }
 
+/** One comp-percentage column on the ResultsTable (#542). `visible` lets a
+ *  tier stay configured but hidden without losing its percentage. */
+export interface CompTier {
+  percent: number
+  visible: boolean
+}
+
 /**
  * Snapshot of the ResultsTable column-sort + column-filter state, stored
  * server-side on a saved run so click-to-load can replay the exact view
@@ -465,6 +472,8 @@ export interface SavedViewState {
   sortDir: ResultsSortDir | null
   showFilters: boolean
   filters: ResultsFilters
+  /** Configurable comp-percentage columns (#542), in display order. */
+  compTiers: CompTier[]
 }
 
 /**

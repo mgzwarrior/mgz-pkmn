@@ -2,8 +2,9 @@
  * ResultsTable — displays streamed lookup rows.
  *
  * Each row shows: thumbnail (if available), name, set, rarity,
- * market price, comp tiers (80/85/90/95%), price source, and a link to
- * the listing. Unmatched rows show an amber "not found" badge.
+ * market price, comp tiers (80/85/90/95% by default, configurable via the
+ * "Columns" toolbar button — #542), price source, and a link to the
+ * listing. Unmatched rows show an amber "not found" badge.
  *
  * Headers for Name / Set / Rarity / Market / Source are click-to-sort
  * (asc → desc → off). A Filter toggle reveals a dedicated panel above the
@@ -19,20 +20,24 @@
  */
 import { useCallback, useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Columns3,
   ExternalLink,
   AlertCircle,
   Filter,
+  Plus,
+  Trash2,
   X,
 } from 'lucide-react'
 import { addOverride, hasPersonalOwnership, updateRunRowCondition } from '../api/client'
 import { BulkActionBar } from './BulkActionBar'
 import { useAuth } from '../hooks/useAuth'
-import { useAppStore } from '../store'
-import type { CardCondition, ResultsFilters, Row } from '../types'
+import { DEFAULT_COMP_TIERS, useAppStore } from '../store'
+import type { CardCondition, CompTier, ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
 import {
   conditionPricingForRow,
@@ -126,7 +131,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
     setViewState,
     resetViewState,
   } = useAppStore()
-  const { sortColumn, sortDir, showFilters, filters } = viewState
+  const { sortColumn, sortDir, showFilters, filters, compTiers } = viewState
   // Hoist the auth read here (not in ResultRow) so we don't fire one
   // `/me` request per row on mount. Pass the boolean down — the rows
   // care about "should I render save buttons" not "who is the user".
@@ -192,6 +197,58 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
     setViewState({ ...current, showFilters: !current.showFilters })
   }, [setViewState])
 
+  // ---- Comp tier config (#542) ---------------------------------------
+  const setCompTierPercent = useCallback(
+    (index: number, percent: number) => {
+      const current = useAppStore.getState().viewState
+      setViewState({
+        ...current,
+        compTiers: current.compTiers.map((t, i) => (i === index ? { ...t, percent } : t)),
+      })
+    },
+    [setViewState],
+  )
+
+  const toggleCompTierVisible = useCallback(
+    (index: number) => {
+      const current = useAppStore.getState().viewState
+      setViewState({
+        ...current,
+        compTiers: current.compTiers.map((t, i) =>
+          i === index ? { ...t, visible: !t.visible } : t,
+        ),
+      })
+    },
+    [setViewState],
+  )
+
+  const addCompTier = useCallback(() => {
+    const current = useAppStore.getState().viewState
+    setViewState({
+      ...current,
+      compTiers: [...current.compTiers, { percent: 100, visible: true }],
+    })
+  }, [setViewState])
+
+  const removeCompTier = useCallback(
+    (index: number) => {
+      const current = useAppStore.getState().viewState
+      setViewState({
+        ...current,
+        compTiers: current.compTiers.filter((_, i) => i !== index),
+      })
+    },
+    [setViewState],
+  )
+
+  const resetCompTiers = useCallback(() => {
+    const current = useAppStore.getState().viewState
+    setViewState({
+      ...current,
+      compTiers: DEFAULT_COMP_TIERS.map((t) => ({ ...t })),
+    })
+  }, [setViewState])
+
   const adjustedMarketForRow = useCallback(
     (row: Row) => conditionPricingForRow(row, settings, rowConditionOverrides).adjustedMarket,
     [settings, rowConditionOverrides],
@@ -207,6 +264,8 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
       settings.hidePricing ? { ...filters, marketMin: '', marketMax: '' } : filters,
     [filters, settings.hidePricing],
   )
+
+  const visibleCompTiers = useMemo(() => compTiers.filter((t) => t.visible), [compTiers])
 
   const displayedRows = useMemo(
     () => applySort(
@@ -479,19 +538,31 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
           </button>
         ) : (
           // Toggles the inline table filter row below.
-          <button
-            type="button"
-            onClick={toggleFilters}
-            aria-pressed={showFilters}
-            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
-              showFilters
-                ? 'border-palm-400 bg-palm-50 text-palm-700 dark:border-sun-300/60 dark:bg-sun-400/15 dark:text-sun-300'
-                : 'border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100'
-            }`}
-          >
-            <Filter size={12} />
-            {showFilters ? 'Hide filters' : 'Filter'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleFilters}
+              aria-pressed={showFilters}
+              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
+                showFilters
+                  ? 'border-palm-400 bg-palm-50 text-palm-700 dark:border-sun-300/60 dark:bg-sun-400/15 dark:text-sun-300'
+                  : 'border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100'
+              }`}
+            >
+              <Filter size={12} />
+              {showFilters ? 'Hide filters' : 'Filter'}
+            </button>
+            {!settings.hidePricing && (
+              <ColumnConfig
+                compTiers={compTiers}
+                onSetPercent={setCompTierPercent}
+                onToggleVisible={toggleCompTierVisible}
+                onAdd={addCompTier}
+                onRemove={removeCompTier}
+                onReset={resetCompTiers}
+              />
+            )}
+          </div>
         )}
         <div className="flex items-center gap-3">
           {selectedRows.length > 0 && (
@@ -608,10 +679,14 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                     onClick={cycleSort}
                     align="right"
                   />
-                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">80%</th>
-                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">85%</th>
-                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">90%</th>
-                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell">95%</th>
+                  {visibleCompTiers.map((tier, i) => (
+                    <th
+                      key={i}
+                      className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-right hidden xl:table-cell"
+                    >
+                      {tier.percent}%
+                    </th>
+                  ))}
                 </>
               )}
               {showEbay && (
@@ -647,6 +722,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 showSavedActions={showSavedActions}
                 showMarket={!settings.hidePricing}
                 showEbay={showEbay}
+                compTiers={visibleCompTiers}
                 ownership={ownershipForRow(row, lookupOwnership)}
                 onRerunLine={onRerunLine}
                 onOpenDetail={() => setDetailIndex(displayedIdx)}
@@ -770,6 +846,106 @@ function SortableHeader({
         <Icon size={11} className={isActive ? 'opacity-100' : 'opacity-40'} />
       </button>
     </th>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Comp tier column config (#542) — desktop only, gated on pricing being
+// shown at all (a hidden-pricing view has no comp columns to configure).
+// ---------------------------------------------------------------------------
+
+function ColumnConfig({
+  compTiers,
+  onSetPercent,
+  onToggleVisible,
+  onAdd,
+  onRemove,
+  onReset,
+}: {
+  compTiers: CompTier[]
+  onSetPercent: (index: number, percent: number) => void
+  onToggleVisible: (index: number) => void
+  onAdd: () => void
+  onRemove: (index: number) => void
+  onReset: () => void
+}) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          aria-label="Configure comp tier columns"
+          className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 text-coconut-400 dark:text-sand-300 hover:text-coconut-700 dark:hover:text-sand-50 hover:bg-sand-200 dark:hover:bg-husk-100"
+        >
+          <Columns3 size={12} />
+          Columns
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={6}
+          className="z-50 w-64 rounded-md border border-sand-300 bg-sand-50 p-2 shadow-xl shadow-coconut-700/15 dark:border-husk-50 dark:bg-husk-200"
+        >
+          <p className="px-1 pb-1.5 text-xs font-medium text-coconut-700 dark:text-sand-50">
+            Comp tiers
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {compTiers.map((tier, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={tier.visible}
+                  onChange={() => onToggleVisible(i)}
+                  aria-label={`Show ${tier.percent}% column`}
+                  className="h-3.5 w-3.5 rounded border-sand-300 text-palm-500 focus:ring-palm-400 dark:border-husk-50 dark:text-sun-300"
+                />
+                <input
+                  type="number"
+                  value={tier.percent}
+                  // Stop the keydown from bubbling to Radix's menu-content
+                  // listener — otherwise its typeahead/roving-focus handling
+                  // steals arrow keys and digits meant for this field.
+                  onKeyDown={(e) => e.stopPropagation()}
+                  onChange={(e) => onSetPercent(i, Number(e.target.value))}
+                  aria-label={`Percentage for comp tier ${i + 1}`}
+                  className="w-16 rounded border border-sand-300 bg-sand-100 px-1.5 py-0.5 text-xs text-coconut-600 focus:outline-none focus:ring-1 focus:ring-palm-400 dark:border-husk-50 dark:bg-husk-200 dark:text-sand-200 dark:focus:ring-sun-300"
+                />
+                <span className="text-xs text-coconut-400 dark:text-sand-300">%</span>
+                <button
+                  type="button"
+                  onClick={() => onRemove(i)}
+                  aria-label={`Remove ${tier.percent}% column`}
+                  className="ml-auto text-coconut-400 hover:text-ember-500 dark:text-sand-300 dark:hover:text-ember-300"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </li>
+            ))}
+            {compTiers.length === 0 && (
+              <li className="text-xs text-coconut-400 dark:text-sand-300">No comp tiers.</li>
+            )}
+          </ul>
+          <div className="mt-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onAdd}
+              className="flex items-center gap-1 text-xs text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200"
+            >
+              <Plus size={12} />
+              Add tier
+            </button>
+            <button
+              type="button"
+              onClick={onReset}
+              className="text-xs text-coconut-400 hover:text-coconut-600 dark:text-sand-300 dark:hover:text-sand-200"
+            >
+              Reset to default
+            </button>
+          </div>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   )
 }
 
@@ -1153,6 +1329,7 @@ function ResultRow({
   showSavedActions,
   showMarket,
   showEbay,
+  compTiers,
   ownership,
   onRerunLine,
   onOpenDetail,
@@ -1168,6 +1345,7 @@ function ResultRow({
   showSavedActions: boolean
   showMarket: boolean
   showEbay: boolean
+  compTiers: CompTier[]
   ownership: CardOwnership | null | undefined
   onRerunLine?: (line: string) => void
   onOpenDetail?: () => void
@@ -1368,47 +1546,22 @@ function ResultRow({
               />
             </td>
 
-            {/* Comp tiers */}
-            <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-              <PriceStack
-                primary={formatComp(conditionPricing.adjustedMarket, 80, p.currency)}
-                secondary={
-                  conditionPricing.hasAdjustment
-                    ? `NM ${formatComp(p.market, 80, p.currency)}`
-                    : undefined
-                }
-              />
-            </td>
-            <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-              <PriceStack
-                primary={formatComp(conditionPricing.adjustedMarket, 85, p.currency)}
-                secondary={
-                  conditionPricing.hasAdjustment
-                    ? `NM ${formatComp(p.market, 85, p.currency)}`
-                    : undefined
-                }
-              />
-            </td>
-            <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-              <PriceStack
-                primary={formatComp(conditionPricing.adjustedMarket, 90, p.currency)}
-                secondary={
-                  conditionPricing.hasAdjustment
-                    ? `NM ${formatComp(p.market, 90, p.currency)}`
-                    : undefined
-                }
-              />
-            </td>
-            <td className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell">
-              <PriceStack
-                primary={formatComp(conditionPricing.adjustedMarket, 95, p.currency)}
-                secondary={
-                  conditionPricing.hasAdjustment
-                    ? `NM ${formatComp(p.market, 95, p.currency)}`
-                    : undefined
-                }
-              />
-            </td>
+            {/* Comp tiers — configurable via the toolbar's Columns menu (#542) */}
+            {compTiers.map((tier, i) => (
+              <td
+                key={i}
+                className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell"
+              >
+                <PriceStack
+                  primary={formatComp(conditionPricing.adjustedMarket, tier.percent, p.currency)}
+                  secondary={
+                    conditionPricing.hasAdjustment
+                      ? `NM ${formatComp(p.market, tier.percent, p.currency)}`
+                      : undefined
+                  }
+                />
+              </td>
+            ))}
           </>
         )}
 

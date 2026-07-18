@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { ResultsTable } from './ResultsTable'
 import { applyFilters, applySort } from './resultsTableFilter'
@@ -973,6 +973,95 @@ describe('ResultsTable: hide pricing (#764)', () => {
     expect(screen.queryByText('$230.00')).toBeNull()
     useAppStore.getState().updateSettings({ showEbay: false, hidePricing: false })
     useAppStore.setState({ rows: [] })
+  })
+})
+
+describe('ResultsTable: configurable comp tiers (#542)', () => {
+  function pricedRow(): Row {
+    return makeRow({
+      card: { id: 'x', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+      pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+    })
+  }
+
+  // Radix DropdownMenu opens on `pointerdown`, not `click` — jsdom doesn't
+  // fire it via the plain `fireEvent.click` shorthand (see ExportBar.test.tsx).
+  // Focus + Enter is the keyboard-user path and works in jsdom.
+  function openColumnsMenu() {
+    const trigger = screen.getByRole('button', { name: /configure comp tier columns/i })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+  }
+
+  afterEach(() => {
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('hiding a tier from the Columns menu removes its column but keeps its configured percentage', () => {
+    useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
+    render(<ResultsTable />)
+    expect(screen.getByText('80%')).toBeInTheDocument()
+
+    openColumnsMenu()
+    fireEvent.click(screen.getByLabelText('Show 80% column'))
+
+    expect(screen.queryByText('80%')).toBeNull()
+    expect(screen.getByText('85%')).toBeInTheDocument()
+    expect(useAppStore.getState().viewState.compTiers[0]).toEqual({ percent: 80, visible: false })
+  })
+
+  it('editing a tier percentage re-renders the column header and cell values', () => {
+    useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
+    render(<ResultsTable />)
+
+    openColumnsMenu()
+    fireEvent.change(screen.getByLabelText('Percentage for comp tier 1'), {
+      target: { value: '70' },
+    })
+
+    expect(screen.queryByText('80%')).toBeNull()
+    expect(screen.getByText('70%')).toBeInTheDocument()
+    expect(screen.getByText('$175.00')).toBeInTheDocument() // 70% of $250
+  })
+
+  it('adds a new tier at 100% and can remove it again', () => {
+    useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
+    render(<ResultsTable />)
+
+    openColumnsMenu()
+    fireEvent.click(screen.getByRole('button', { name: /add tier/i }))
+
+    expect(screen.getByText('100%')).toBeInTheDocument()
+    expect(useAppStore.getState().viewState.compTiers).toHaveLength(5)
+
+    fireEvent.click(screen.getByLabelText('Remove 100% column'))
+    expect(screen.queryByText('100%')).toBeNull()
+    expect(useAppStore.getState().viewState.compTiers).toHaveLength(4)
+  })
+
+  it('resets a customized ladder back to 80/85/90/95', () => {
+    useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
+    render(<ResultsTable />)
+
+    openColumnsMenu()
+    fireEvent.click(screen.getByLabelText('Show 80% column'))
+    fireEvent.click(screen.getByRole('button', { name: /reset to default/i }))
+
+    expect(useAppStore.getState().viewState.compTiers).toEqual([
+      { percent: 80, visible: true },
+      { percent: 85, visible: true },
+      { percent: 90, visible: true },
+      { percent: 95, visible: true },
+    ])
+    expect(screen.getByText('80%')).toBeInTheDocument()
+  })
+
+  it('hides the Columns button when pricing is hidden', () => {
+    useAppStore.getState().updateSettings({ hidePricing: true })
+    useAppStore.setState({ rows: [pricedRow()], isRunning: false, progress: null })
+    render(<ResultsTable />)
+    expect(screen.queryByRole('button', { name: /configure comp tier columns/i })).toBeNull()
+    useAppStore.getState().updateSettings({ hidePricing: false })
   })
 })
 

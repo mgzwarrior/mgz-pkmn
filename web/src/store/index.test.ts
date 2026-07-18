@@ -450,6 +450,7 @@ describe('store: viewState', () => {
         marketMax: '',
         source: '',
       },
+      compTiers: [{ percent: 70, visible: true }],
     }
     useAppStore.getState().setViewState(restored)
     expect(useAppStore.getState().viewState).toEqual(restored)
@@ -461,6 +462,7 @@ describe('store: viewState', () => {
       sortDir: 'asc',
       showFilters: true,
       filters: { ...EMPTY_VIEW_STATE.filters, name: 'pika' },
+      compTiers: [{ percent: 70, visible: false }],
     })
     useAppStore.getState().resetViewState()
     expect(useAppStore.getState().viewState).toEqual(EMPTY_VIEW_STATE)

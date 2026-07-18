@@ -6,7 +6,7 @@
  * a "load this saved search" entry point and need the same store writes.
  */
 import { getRun } from '../api/client'
-import { EMPTY_VIEW_STATE, useAppStore } from '../store'
+import { normalizeViewState, useAppStore } from '../store'
 import type { RunDetail, RunRowDetail, RunSummary, Row } from '../types'
 import { isCardCondition, rowConditionKey } from '../utils/conditionPricing'
 
@@ -43,9 +43,7 @@ export async function loadSavedRun(run: RunSummary, onShowSearch: () => void): P
   store.setRunStartedAt(null)
   store.setRunEndedAt(null)
   store.setCurrentRunId(detail.id)
-  store.setViewState(
-    detail.view_state ?? { ...EMPTY_VIEW_STATE, filters: { ...EMPTY_VIEW_STATE.filters } },
-  )
+  store.setViewState(normalizeViewState(detail.view_state))
   // A prior lookup may have left the editor collapsed to its one-line
   // summary; this path never touches `isRunning` (the only other trigger
   // that re-expands it), so without this the loaded input would sit hidden
