@@ -492,11 +492,11 @@ function LibraryLocations({
     }
   }
 
-  async function changeQuantity(collectionId: number, next: number) {
-    if (!setId || !number || next < 1 || updatingId === collectionId) return
+  async function changeQuantity(collectionId: number, currentQty: number, delta: number) {
+    if (!setId || !number || currentQty + delta < 1 || updatingId === collectionId) return
     setUpdatingId(collectionId)
     try {
-      await updateCollectionItemByCard(collectionId, setId, number, next)
+      await updateCollectionItemByCard(collectionId, setId, number, delta)
       invalidateOwnership()
       await collections.refresh()
     } finally {
@@ -565,7 +565,7 @@ function LocationLine({
   keyPrefix: string
   onRemove: (id: number) => void
   quantityBusyId?: number | null
-  onChangeQuantity?: (id: number, next: number) => void
+  onChangeQuantity?: (id: number, currentQty: number, delta: number) => void
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -585,7 +585,7 @@ function LocationLine({
                 <button
                   type="button"
                   disabled={qty <= 1 || qtyBusy}
-                  onClick={() => onChangeQuantity(chip.id, qty - 1)}
+                  onClick={() => onChangeQuantity(chip.id, qty, -1)}
                   aria-label={`Decrease quantity in ${chip.name}`}
                   className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-sand-300 disabled:opacity-40 disabled:hover:bg-transparent dark:hover:bg-husk-200"
                 >
@@ -600,7 +600,7 @@ function LocationLine({
                 <button
                   type="button"
                   disabled={qtyBusy}
-                  onClick={() => onChangeQuantity(chip.id, qty + 1)}
+                  onClick={() => onChangeQuantity(chip.id, qty, 1)}
                   aria-label={`Increase quantity in ${chip.name}`}
                   className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-sand-300 disabled:opacity-40 disabled:hover:bg-transparent dark:hover:bg-husk-200"
                 >

@@ -485,7 +485,7 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             resp = c.patch(f"/api/v1/collections/{cid_b}/items/{item_id}", json={"quantity": 2})
             self.assertEqual(resp.status_code, 404)
 
-    def test_patch_item_by_card_updates_quantity(self) -> None:
+    def test_patch_item_by_card_increments_quantity(self) -> None:
         # The card-detail quantity stepper (#762) — the occupancy has no item
         # id, so this targets the card's identity instead.
         with self._client() as c:
@@ -495,21 +495,38 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             patched = c.patch(
                 f"/api/v1/collections/{cid}/items",
                 params={"set_id": "base1", "number": "4"},
-                json={"quantity": 5},
+                json={"delta": 4},
             )
             self.assertEqual(patched.status_code, 200)
             self.assertEqual(patched.json()["quantity"], 5)
             items = c.get(f"/api/v1/collections/{cid}").json()["items"]
             self.assertEqual(items[0]["quantity"], 5)
 
-    def test_patch_item_by_card_rejects_zero_quantity(self) -> None:
+    def test_patch_item_by_card_decrements_quantity(self) -> None:
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": SAMPLE_CARD, "quantity": 3},
+            )
+
+            patched = c.patch(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+                json={"delta": -1},
+            )
+            self.assertEqual(patched.status_code, 200)
+            self.assertEqual(patched.json()["quantity"], 2)
+
+    def test_patch_item_by_card_rejects_drop_below_one(self) -> None:
+        # Dropping the sole copy to zero is a DELETE, not a delta PATCH — 422.
         with self._client() as c:
             cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
             c.post(f"/api/v1/collections/{cid}/items", json={"card": SAMPLE_CARD})
             resp = c.patch(
                 f"/api/v1/collections/{cid}/items",
                 params={"set_id": "base1", "number": "4"},
-                json={"quantity": 0},
+                json={"delta": -1},
             )
             self.assertEqual(resp.status_code, 422)
 
@@ -519,9 +536,62 @@ class CollectionsEndpointTests(_IsolatedDbMixin):
             resp = c.patch(
                 f"/api/v1/collections/{cid}/items",
                 params={"set_id": "base1", "number": "4"},
-                json={"quantity": 2},
+                json={"delta": 1},
             )
             self.assertEqual(resp.status_code, 404)
+
+    def test_patch_item_by_card_reconciles_duplicate_rows_on_increment(self) -> None:
+        # The bug review flagged (#938): a card can occupy a collection
+        # through more than one row (separate adds). The occupancy's summed
+        # quantity is what the stepper shows, so the delta has to land
+        # without over- or under-counting the untouched rows.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": SAMPLE_CARD, "quantity": 2},
+            )
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": SAMPLE_CARD, "quantity": 3},
+            )
+
+            patched = c.patch(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+                json={"delta": 1},
+            )
+            self.assertEqual(patched.status_code, 200)
+            self.assertEqual(patched.json()["quantity"], 6)
+            items = c.get(f"/api/v1/collections/{cid}").json()["items"]
+            self.assertEqual(sum(i["quantity"] for i in items), 6)
+
+    def test_patch_item_by_card_decrement_exhausts_oldest_row_first(self) -> None:
+        # A decrement past the oldest row's own count deletes that row and
+        # carries the remainder into the next one, so the total still lands
+        # exactly on target instead of clamping at the row boundary.
+        with self._client() as c:
+            cid = c.post("/api/v1/collections", json={"name": "k"}).json()["id"]
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": SAMPLE_CARD, "quantity": 1},
+            )
+            c.post(
+                f"/api/v1/collections/{cid}/items",
+                json={"card": SAMPLE_CARD, "quantity": 3},
+            )
+
+            patched = c.patch(
+                f"/api/v1/collections/{cid}/items",
+                params={"set_id": "base1", "number": "4"},
+                json={"delta": -2},
+            )
+            self.assertEqual(patched.status_code, 200)
+            self.assertEqual(patched.json()["quantity"], 2)
+            items = c.get(f"/api/v1/collections/{cid}").json()["items"]
+            # The exhausted first row is gone; only the second row remains.
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["quantity"], 2)
 
     def test_delete_item_404_when_wrong_collection(self) -> None:
         with self._client() as c:

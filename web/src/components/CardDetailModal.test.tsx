@@ -691,10 +691,6 @@ describe('CardDetailModal — library actions (#699)', () => {
       'base1::4': { collections: [{ id: 7, name: 'Show binder', quantity: 2, purpose: 'personal' }], wishlists: [] },
     })
     const updateSpy = vi.spyOn(client, 'updateCollectionItemByCard').mockResolvedValue({
-      id: 1,
-      card: {},
-      notes: null,
-      added_at: '',
       quantity: 3,
     })
 
@@ -702,7 +698,9 @@ describe('CardDetailModal — library actions (#699)', () => {
     const locations = await screen.findByLabelText(/Library locations/i)
     fireEvent.click(within(locations).getByRole('button', { name: /Increase quantity in Show binder/i }))
 
-    await waitFor(() => expect(updateSpy).toHaveBeenCalledWith(7, 'base1', '4', 3))
+    // A delta, not the absolute total — the server reconciles it across
+    // however many rows the card occupies in this collection (#938 review).
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledWith(7, 'base1', '4', 1))
   })
 
   it("floors a specific collection's quantity at 1 — decrement is disabled", async () => {
