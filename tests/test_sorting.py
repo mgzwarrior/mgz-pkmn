@@ -20,6 +20,7 @@ def _row(
     set_name: str = "Surging Sparks",
     name: str = "Card",
     market: float | None = None,
+    override: float | None = None,
     release: str | None = "2024-11-08",
 ) -> Row:
     if cid is None:
@@ -34,7 +35,7 @@ def _row(
     return Row(
         query=CardQuery(raw=name, name=name),
         card=card,
-        pricing=Pricing(market=market),
+        pricing=Pricing(market=market, pricing_override=override),
         tag=tag,
     )
 
@@ -79,6 +80,26 @@ class SortRowsTests(unittest.TestCase):
         ]
         sort_rows(rows, "price-asc")
         self.assertEqual([r.card["id"] for r in rows], ["a", "d", "c", "b"])
+
+    def test_price_desc_sorts_by_override_not_raw_market(self) -> None:
+        """A manual override (#266) is the sort key, not the row's raw
+        market — matches what price-sorted comps/exports actually show."""
+        rows = [
+            _row(cid="a", market=100, override=10),
+            _row(cid="b", market=50),
+            _row(cid="c", market=20),
+        ]
+        sort_rows(rows, "price-desc")
+        self.assertEqual([r.card["id"] for r in rows], ["b", "c", "a"])
+
+    def test_price_asc_sorts_by_override_not_raw_market(self) -> None:
+        rows = [
+            _row(cid="a", market=100, override=10),
+            _row(cid="b", market=50),
+            _row(cid="c", market=20),
+        ]
+        sort_rows(rows, "price-asc")
+        self.assertEqual([r.card["id"] for r in rows], ["a", "c", "b"])
 
     def test_release_chronological(self) -> None:
         rows = [

@@ -257,7 +257,7 @@ def _write_pricing_cells(
     over_cap_fill: Any,
     col_idx: dict[str, int],
 ) -> None:
-    market = row.pricing.market
+    market = row.pricing.market_or_override
     adjusted_market = row.pricing.adjusted_market
 
     if "condition" in col_idx:

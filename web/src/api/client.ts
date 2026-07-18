@@ -512,6 +512,21 @@ export async function updateRunRowCondition(
   if (!res.ok) throw new Error(`condition update failed: ${res.status}`)
 }
 
+/** Persist or clear one run row's manual price override (#266) in its pricing JSON. */
+export async function updateRunRowPricingOverride(
+  runId: number,
+  position: number,
+  value: number | null,
+): Promise<void> {
+  const res = await fetch(`${BASE}/runs/${runId}/rows/${position}/override`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value }),
+  })
+  if (res.status === 401) throw new Error('sign-in required')
+  if (!res.ok) throw new Error(`override update failed: ${res.status}`)
+}
+
 /** Delete a saved search (run) and its rows (#698). Owner-only server-side. */
 export async function deleteRun(runId: number): Promise<void> {
   const res = await fetch(`${BASE}/runs/${runId}`, { method: 'DELETE' })

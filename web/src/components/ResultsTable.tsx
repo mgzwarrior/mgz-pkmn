@@ -29,11 +29,17 @@ import {
   ExternalLink,
   AlertCircle,
   Filter,
+  Pin,
   Plus,
   Trash2,
   X,
 } from 'lucide-react'
-import { addOverride, hasPersonalOwnership, updateRunRowCondition } from '../api/client'
+import {
+  addOverride,
+  hasPersonalOwnership,
+  updateRunRowCondition,
+  updateRunRowPricingOverride,
+} from '../api/client'
 import { BulkActionBar } from './BulkActionBar'
 import { useAuth } from '../hooks/useAuth'
 import { DEFAULT_COMP_TIERS, useAppStore } from '../store'
@@ -49,6 +55,7 @@ import { QuickActions } from './QuickActions'
 import { AffiliateLinks } from './AffiliateLinks'
 import { CardDetailModal } from './CardDetailModal'
 import { ConditionOverrideSelect } from './ConditionOverrideSelect'
+import { PricingOverrideCell } from './PricingOverrideCell'
 import { ResultCard } from './ResultCard'
 import { ResultsEmptyState } from './ResultsEmptyState'
 import { useCardOwnership } from './useCardOwnership'
@@ -143,6 +150,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
   // ←/→ navigation in the modal stay synced with the live filter+sort.
   const [detailIndex, setDetailIndex] = useState<number | null>(null)
   const [conditionSaveError, setConditionSaveError] = useState<string | null>(null)
+  const [overrideSaveError, setOverrideSaveError] = useState<string | null>(null)
   // Mobile-only: the desktop Filter toggle reveals an inline table row, but
   // there's no table to attach one to below `lg`, so a separate boolean
   // drives a bottom sheet instead (#521).
@@ -250,7 +258,9 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
   }, [setViewState])
 
   const adjustedMarketForRow = useCallback(
-    (row: Row) => conditionPricingForRow(row, settings, rowConditionOverrides).adjustedMarket,
+    (row: Row) =>
+      row.pricing.pricing_override ??
+      conditionPricingForRow(row, settings, rowConditionOverrides).adjustedMarket,
     [settings, rowConditionOverrides],
   )
 
@@ -312,6 +322,32 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
       })
     },
     [currentRunId, rowKeys, setRowConditionOverride, settings.conditionMultipliers],
+  )
+
+  // #266 — manual per-row price override. Unlike condition (a global default
+  // layered with per-row exceptions), an override has no default layer: it
+  // lives directly on `row.pricing.pricing_override` so every downstream
+  // reader (comps, sort/filter, export) picks it up without a separate
+  // merge step.
+  const handlePricingOverrideChange = useCallback(
+    (row: Row, value: number | null) => {
+      const position = rowKeys.get(row)
+      if (position == null) return
+      const nextRows = rows.map((r, i) =>
+        i === position ? { ...r, pricing: { ...r.pricing, pricing_override: value } } : r,
+      )
+      setRows(nextRows)
+      setOverrideSaveError(null)
+      if (currentRunId == null) return
+      void updateRunRowPricingOverride(currentRunId, position, value).catch((err: unknown) => {
+        setOverrideSaveError(
+          err instanceof Error && err.message === 'sign-in required'
+            ? 'Sign in to keep price overrides across visits.'
+            : 'Price override was not saved.',
+        )
+      })
+    },
+    [rows, rowKeys, setRows, currentRunId],
   )
 
   // Cross-collection ownership badges (#576). Batch the matched rows'
@@ -604,6 +640,11 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
           {conditionSaveError}
         </p>
       )}
+      {overrideSaveError && (
+        <p role="status" className="text-xs text-ember-500 dark:text-ember-300">
+          {overrideSaveError}
+        </p>
+      )}
 
       {/* Filter panel — desktop only; mobile keeps its own bottom sheet
           (#521). Lifted out of the table's header row (#541) into its own
@@ -679,6 +720,9 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                     onClick={cycleSort}
                     align="right"
                   />
+                  <th className="px-3 py-2 compact:py-1 text-xs font-medium text-coconut-400 dark:text-sand-300 text-left hidden lg:table-cell">
+                    Override
+                  </th>
                   {visibleCompTiers.map((tier, i) => (
                     <th
                       key={i}
@@ -718,6 +762,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
                 onConditionOverrideChange={(condition) =>
                   handleConditionOverrideChange(row, condition)
                 }
+                onPricingOverrideChange={(value) => handlePricingOverrideChange(row, value)}
                 showImage={!settings.noImages}
                 showSavedActions={showSavedActions}
                 showMarket={!settings.hidePricing}
@@ -732,7 +777,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
             ))}
             {isRunning && (
               <tr>
-                <td colSpan={15} className="py-2 px-3 compact:py-1">
+                <td colSpan={16} className="py-2 px-3 compact:py-1">
                   <div className="h-1 w-24 rounded animate-pulse bg-sand-200 dark:bg-husk-100" />
                 </td>
               </tr>
@@ -757,6 +802,7 @@ export function ResultsTable({ onRerunLine, onRun, onBrowse }: Props) {
             onConditionOverrideChange={(condition) =>
               handleConditionOverrideChange(row, condition)
             }
+            onPricingOverrideChange={(value) => handlePricingOverrideChange(row, value)}
             showImage={!settings.noImages}
             showSavedActions={showSavedActions}
             showMarket={!settings.hidePricing}
@@ -1325,6 +1371,7 @@ function ResultRow({
   conditionOverride,
   defaultCondition,
   onConditionOverrideChange,
+  onPricingOverrideChange,
   showImage,
   showSavedActions,
   showMarket,
@@ -1341,6 +1388,7 @@ function ResultRow({
   conditionOverride: CardCondition | null
   defaultCondition: CardCondition
   onConditionOverrideChange: (condition: CardCondition | null) => void
+  onPricingOverrideChange: (value: number | null) => void
   showImage: boolean
   showSavedActions: boolean
   showMarket: boolean
@@ -1360,14 +1408,18 @@ function ResultRow({
 
   const imgUrl = card?.images?.small as string | undefined
   const setName = (card?.set as { name?: string } | undefined)?.name
+  // #266 — the manual price override, when set, is the basis price
+  // everywhere downstream: the Market cell, its comps, and the over-cap
+  // check all read this instead of the condition-adjusted market.
+  const effectivePrice = p.pricing_override ?? conditionPricing.adjustedMarket
   // Gated on `showMarket` too — the amber "over cap" row highlight is a
   // pricing signal on its own, so it stays off when pricing is hidden even
   // though the underlying cap still governs what a bulk lookup excludes.
   const isOverCap =
     showMarket &&
     useAppStore.getState().settings.maxPrice != null &&
-    conditionPricing.adjustedMarket != null &&
-    conditionPricing.adjustedMarket > (useAppStore.getState().settings.maxPrice ?? Infinity)
+    effectivePrice != null &&
+    effectivePrice > (useAppStore.getState().settings.maxPrice ?? Infinity)
 
   async function handleSaveOverride() {
     if (!overrideUrl.trim()) return
@@ -1530,20 +1582,46 @@ function ResultRow({
               )}
             </td>
 
-            {/* Market */}
+            {/* Market — the manual override (#266), when set, replaces the
+                condition-adjusted market as the headline value; the raw
+                market stays visible as the secondary line either way. */}
             <td
               className={`px-3 py-2 compact:py-1 text-right font-mono tabular-nums ${
-                isOverCap ? 'text-sun-600 dark:text-sun-300 font-bold' : conditionPricing.adjustedMarket != null ? 'text-palm-500 dark:text-palm-200' : 'text-coconut-400 dark:text-sand-300'
+                isOverCap ? 'text-sun-600 dark:text-sun-300 font-bold' : effectivePrice != null ? 'text-palm-500 dark:text-palm-200' : 'text-coconut-400 dark:text-sand-300'
               }`}
             >
-              <PriceStack
-                primary={formatMoney(conditionPricing.adjustedMarket, p.currency)}
-                secondary={
-                  conditionPricing.hasAdjustment
-                    ? `NM ${formatMoney(p.market, p.currency)}`
-                    : undefined
-                }
-              />
+              <span className="inline-flex items-center gap-1 justify-end">
+                {p.pricing_override != null && (
+                  <Pin
+                    className="h-3 w-3 text-palm-500 dark:text-sun-300"
+                    aria-hidden="true"
+                  />
+                )}
+                <PriceStack
+                  primary={formatMoney(effectivePrice, p.currency)}
+                  secondary={
+                    p.pricing_override != null
+                      ? `Mkt ${formatMoney(p.market, p.currency)}`
+                      : conditionPricing.hasAdjustment
+                        ? `NM ${formatMoney(p.market, p.currency)}`
+                        : undefined
+                  }
+                />
+              </span>
+            </td>
+
+            {/* Manual price override (#266) — click to edit, "×" to clear. */}
+            <td className="px-3 py-2 compact:py-1 hidden lg:table-cell">
+              {row.matched ? (
+                <PricingOverrideCell
+                  value={p.pricing_override ?? null}
+                  currency={p.currency}
+                  label={`Price override for ${(card?.name as string | undefined) ?? row.query.raw}`}
+                  onChange={onPricingOverrideChange}
+                />
+              ) : (
+                <span className="text-xs text-coconut-400 dark:text-sand-300">—</span>
+              )}
             </td>
 
             {/* Comp tiers — configurable via the toolbar's Columns menu (#542) */}
@@ -1553,11 +1631,13 @@ function ResultRow({
                 className="px-3 py-2 compact:py-1 text-right font-mono tabular-nums text-coconut-400 dark:text-sand-300 text-xs hidden xl:table-cell"
               >
                 <PriceStack
-                  primary={formatComp(conditionPricing.adjustedMarket, tier.percent, p.currency)}
+                  primary={formatComp(effectivePrice, tier.percent, p.currency)}
                   secondary={
-                    conditionPricing.hasAdjustment
-                      ? `NM ${formatComp(p.market, tier.percent, p.currency)}`
-                      : undefined
+                    p.pricing_override != null
+                      ? `Mkt ${formatComp(p.market, tier.percent, p.currency)}`
+                      : conditionPricing.hasAdjustment
+                        ? `NM ${formatComp(p.market, tier.percent, p.currency)}`
+                        : undefined
                   }
                 />
               </td>
@@ -1615,7 +1695,7 @@ function ResultRow({
       {/* Override URL form (inline, expands below row) */}
       {showOverrideForm && (
         <tr className="border-b border-sand-200 dark:border-husk-100 bg-sand-100 dark:bg-husk-200/60">
-          <td colSpan={15} className="px-3 py-2 compact:py-1">
+          <td colSpan={16} className="px-3 py-2 compact:py-1">
             <div className="flex items-center gap-2">
               <input
                 type="url"

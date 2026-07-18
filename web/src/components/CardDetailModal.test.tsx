@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { CardDetailModal } from './CardDetailModal'
 import type { Row } from '../types'
 import * as client from '../api/client'
+import { useAppStore } from '../store'
 import { _resetAuthStoreForTests } from '../hooks/useAuth'
 import { _resetCardOwnershipForTests } from './useCardOwnership'
 import { _resetCollectionsCacheForTests } from './useCollections'
@@ -123,6 +124,40 @@ describe('CardDetailModal', () => {
     })
 
     expect(onConditionOverrideChange).toHaveBeenCalledWith(row, 'MP')
+  })
+
+  it('renders the manual price override (#266) as the headline price and comps, with the raw market as a secondary line', () => {
+    const row = buildRow({ pricing: { market: 250, pricing_override: 12 } })
+    render(<CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />)
+
+    // Headline: the override, labeled "Override market" instead of the
+    // condition label, since there's no condition override on this row.
+    expect(screen.getByText('Override market')).toBeInTheDocument()
+    expect(screen.getByText('$12.00')).toBeInTheDocument()
+    expect(screen.getByText('Override 80%')).toBeInTheDocument()
+    expect(screen.getByText('$9.60')).toBeInTheDocument()
+
+    // Secondary: the raw market, labeled "Mkt" (not "NM") since this is an
+    // override, not a condition adjustment.
+    expect(screen.getByText('Mkt market')).toBeInTheDocument()
+    expect(screen.getByText('$250.00')).toBeInTheDocument()
+    expect(screen.getByText('Mkt 80%')).toBeInTheDocument()
+    expect(screen.getByText('$200.00')).toBeInTheDocument()
+  })
+
+  it('labels the secondary price lines "NM" (not "Mkt") for a condition-only adjustment', () => {
+    useAppStore.getState().updateSettings({ condition: 'LP' })
+    const row = buildRow({ pricing: { market: 250 } })
+    render(<CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />)
+
+    expect(screen.getByText('LP market')).toBeInTheDocument()
+    expect(screen.getByText('NM market')).toBeInTheDocument()
+    expect(screen.getByText('NM 95%')).toBeInTheDocument()
+    expect(screen.getByText('NM 90%')).toBeInTheDocument()
+    expect(screen.getByText('NM 85%')).toBeInTheDocument()
+    expect(screen.getByText('NM 80%')).toBeInTheDocument()
+
+    useAppStore.getState().resetSettings()
   })
 
   it('falls back to images.small when large is missing', () => {

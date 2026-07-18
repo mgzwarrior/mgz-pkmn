@@ -65,6 +65,18 @@ class CliHelpersTests(unittest.TestCase):
         )
         self.assertEqual(payload["summary"]["sort_mode"], "price-desc")
 
+    def test_json_report_rows_use_override_as_basis_price(self) -> None:
+        """A manual override (#266) is the basis price the JSON report's
+        `market` and `comps` fields carry — not the source's live market."""
+        row = _make_row("a", market=100.0)
+        row.pricing.pricing_override = 12.0
+        payload = build_json_report(rows=[row], counters={}, input_lines=1, elapsed=1.0)
+        [row_out] = payload["rows"]
+        self.assertEqual(row_out["market"], 12.0)
+        self.assertEqual(row_out["comps"]["80%"], 9.6)
+        self.assertEqual(row_out["pricing_override"], 12.0)
+        self.assertEqual(payload["summary"]["totals_by_currency"]["USD"]["market"], 12.0)
+
 
 class FormatPriceTests(unittest.TestCase):
     def test_none_renders_plain_dash_without_currency_symbol(self) -> None:

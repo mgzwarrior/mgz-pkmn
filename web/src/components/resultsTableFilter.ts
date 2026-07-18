@@ -90,7 +90,7 @@ const SORT_ACCESSORS: Record<SortColumn, (row: Row) => string | number | null> =
 }
 
 function defaultMarketForRow(row: Row): number | null {
-  return row.pricing.adjusted_market ?? row.pricing.market
+  return row.pricing.pricing_override ?? row.pricing.adjusted_market ?? row.pricing.market
 }
 
 function text(v: unknown): string {

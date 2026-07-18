@@ -221,6 +221,29 @@ class ExportApiTests(unittest.TestCase):
             68.0,
         )
 
+    def test_xlsx_export_carries_pricing_override(self) -> None:
+        """A manual override (#266) sent over the wire is the basis price
+        the xlsx writer renders — for the Market column and its comps."""
+        from openpyxl import load_workbook
+
+        payload = _row_payload(market=100.0)
+        payload["pricing"] |= {"pricing_override": 12.0}
+        resp = client.post(
+            "/api/v1/export",
+            json={
+                "rows": [payload],
+                "format": "xlsx",
+                "fields": ["market", "comp_80"],
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        import io
+
+        ws = load_workbook(io.BytesIO(resp.content)).active
+        header_row = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+        self.assertEqual(ws.cell(row=2, column=header_row.index("Market") + 1).value, 12.0)
+        self.assertEqual(ws.cell(row=2, column=header_row.index("80%") + 1).value, 9.6)
+
     def test_unsupported_field_for_format_is_silently_dropped(self) -> None:
         # "rarity" isn't in the binder PDF's supported set — shouldn't 400.
         resp = client.post(

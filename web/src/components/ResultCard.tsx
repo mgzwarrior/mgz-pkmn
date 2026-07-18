@@ -10,7 +10,7 @@
  * meta line) so the two surfaces read as the same product.
  */
 import { useState } from 'react'
-import { AlertCircle, ExternalLink, ImageOff } from 'lucide-react'
+import { AlertCircle, ExternalLink, ImageOff, Pin } from 'lucide-react'
 import { addOverride } from '../api/client'
 import type { CardOwnership } from '../api/client'
 import { useAppStore } from '../store'
@@ -20,6 +20,7 @@ import { formatComp, formatMoney } from '../utils/format'
 import { AffiliateLinks } from './AffiliateLinks'
 import { ConditionOverrideSelect } from './ConditionOverrideSelect'
 import { OwnershipBadge } from './OwnershipBadge'
+import { PricingOverrideCell } from './PricingOverrideCell'
 import { SaveCardActions } from './SaveCardActions'
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
   conditionOverride: CardCondition | null
   defaultCondition: CardCondition
   onConditionOverrideChange: (condition: CardCondition | null) => void
+  onPricingOverrideChange: (value: number | null) => void
   showImage: boolean
   showSavedActions: boolean
   showMarket: boolean
@@ -42,6 +44,7 @@ export function ResultCard({
   conditionOverride,
   defaultCondition,
   onConditionOverrideChange,
+  onPricingOverrideChange,
   showImage,
   showSavedActions,
   showMarket,
@@ -57,13 +60,16 @@ export function ResultCard({
 
   const imgUrl = card?.images?.small as string | undefined
   const setName = (card?.set as { name?: string } | undefined)?.name
+  // #266 — the manual override, when set, is the basis price everywhere
+  // downstream — same priority as the desktop table.
+  const effectivePrice = p.pricing_override ?? conditionPricing.adjustedMarket
   // Gated on `showMarket` too — the amber "over cap" highlight is itself a
   // pricing signal, so it stays off when pricing is hidden.
   const isOverCap =
     showMarket &&
     useAppStore.getState().settings.maxPrice != null &&
-    conditionPricing.adjustedMarket != null &&
-    conditionPricing.adjustedMarket > (useAppStore.getState().settings.maxPrice ?? Infinity)
+    effectivePrice != null &&
+    effectivePrice > (useAppStore.getState().settings.maxPrice ?? Infinity)
 
   async function handleSaveOverride() {
     if (!overrideUrl.trim()) return
@@ -143,15 +149,18 @@ export function ResultCard({
                 </div>
                 {showMarket && (
                   <span
-                    className={`shrink-0 font-mono text-sm tabular-nums ${
+                    className={`inline-flex shrink-0 items-center gap-1 font-mono text-sm tabular-nums ${
                       isOverCap
                         ? 'font-bold text-sun-600 dark:text-sun-300'
-                        : conditionPricing.adjustedMarket != null
+                        : effectivePrice != null
                           ? 'text-palm-500 dark:text-palm-200'
                           : 'text-coconut-400 dark:text-sand-300'
                     }`}
                   >
-                    {formatMoney(conditionPricing.adjustedMarket, p.currency)}
+                    {p.pricing_override != null && (
+                      <Pin className="h-3 w-3 text-palm-500 dark:text-sun-300" aria-hidden="true" />
+                    )}
+                    {formatMoney(effectivePrice, p.currency)}
                   </span>
                 )}
               </div>
@@ -164,22 +173,29 @@ export function ResultCard({
                 <span>{p.source ?? '—'}</span>
                 {showMarket && (
                   <span className="font-mono tabular-nums">
-                    {formatComp(conditionPricing.adjustedMarket, 85, p.currency)} · 85%
+                    {formatComp(effectivePrice, 85, p.currency)} · 85%
                   </span>
                 )}
               </div>
-              {showMarket && conditionPricing.hasAdjustment && (
+              {showMarket && (p.pricing_override != null || conditionPricing.hasAdjustment) && (
                 <div className="mt-0.5 text-right text-[11px] text-coconut-400 dark:text-sand-400">
-                  NM {formatMoney(p.market, p.currency)} · 85% {formatComp(p.market, 85, p.currency)}
+                  {p.pricing_override != null ? 'Mkt' : 'NM'} {formatMoney(p.market, p.currency)} · 85%{' '}
+                  {formatComp(p.market, 85, p.currency)}
                 </div>
               )}
               {showMarket && (
-                <div className="mt-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <ConditionOverrideSelect
                     label={`Condition for ${(card?.name as string | undefined) ?? row.query.raw}`}
                     value={conditionOverride}
                     defaultCondition={defaultCondition}
                     onChange={onConditionOverrideChange}
+                  />
+                  <PricingOverrideCell
+                    value={p.pricing_override ?? null}
+                    currency={p.currency}
+                    label={`Price override for ${(card?.name as string | undefined) ?? row.query.raw}`}
+                    onChange={onPricingOverrideChange}
                   />
                 </div>
               )}
