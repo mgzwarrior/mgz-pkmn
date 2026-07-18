@@ -23,12 +23,13 @@ Charizard | Base | 4/102
 Hit **Look up** and the rows stream in. Then export whatever you'll actually carry:
 
 - **A printable binder PDF** — thumbnail, set, number, market price, and comp tiers at 80/85/90/95% for every card. Fold it up, slip it in a backpack pocket, walk the booths.
+- **A condensed binder PDF** — same layout, fewer pages, for when one card per page is more paper than you want.
 - **A checklist PDF** — one tick box per card, in set order, grouped by list. Mark cards off by hand as you find them.
 - **A spreadsheet** — same data, sortable, comps included.
 
 Those comp tiers are the point: when a dealer names a number, you already know what 85% of market looks like.
 
-Prices come from several open sources, checked in order until one has the card — and you can override any row by pasting a PriceCharting link. Walking a set at a booth? **Browse** lets you page through a whole set on your phone, prices attached.
+Prices come from three open sources — pokemontcg.io, TCGdex, PriceCharting — checked in order until one has the card, and you can override any row by pasting a PriceCharting link directly (handy for region-exclusive prints none of them index). Walking a set at a booth? **Browse** lets you page through a whole set on your phone, prices attached. And if your prep is already scripted into a laptop workflow, the same pipeline runs as a CLI (`./pkmn lookup`) — same exports, no browser needed, plus `./pkmn set-cards` for printable set-ID tab cutouts.
 
 [**Try it with my sample list →**](https://mgz-pkmn.onrender.com)
 

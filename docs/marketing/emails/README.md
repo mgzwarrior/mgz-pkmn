@@ -4,7 +4,7 @@ The source copy for the newsletter welcome sequence. These are authored here and
 
 ## How it works
 
-The marketing signup form ([site/src/components/EmailSignup.astro](../../../site/src/components/EmailSignup.astro)) asks why the visitor is here and posts `{ email, reason }` to `POST /api/v1/subscribe` ([api/routes/subscribe.py](../../../api/routes/subscribe.py)). The route creates a Resend contact and stamps the reason onto its `properties`. A single Resend Automation triggers on "contact added to the audience" and **branches on `properties.reason`** into the three tracks below. See [ADR-0028](../../adr/0028-resend-for-subscriptions-and-automations.md) for the decision and the operator runbook.
+The marketing signup form ([site/src/components/EmailSignup.astro](../../../site/src/components/EmailSignup.astro)) asks why the visitor is here and posts `{ email, reason }` to `POST /api/v1/subscribe` ([api/routes/subscribe.py](../../../api/routes/subscribe.py)). The route creates a Resend contact, stamps the reason onto its `properties`, and fires a `New Signup` custom event carrying the reason in its payload. A single Resend Automation triggers on that **`New Signup`** event and **branches on `event.reason`** into the three tracks below. See [ADR-0028](../../adr/0028-resend-for-subscriptions-and-automations.md) for the decision and the operator runbook.
 
 ## Rendering + pasting into Resend
 
@@ -25,7 +25,9 @@ For each step of the Resend Automation, open the email step's **HTML / "Code"** 
 | [`show-prep/`](show-prep/) | `show` | Dealers and show-goers prepping to buy/sell. |
 | [`builder/`](builder/) | `builder` | Open-source contributors here for the code. |
 
-Each track is three emails, sent on signup, +3 days, and +7 days. Every file carries front-matter the operator copies into Resend:
+Each track is three emails, sent on signup, +3 days, and +7 days — a fixed onboarding sequence, not ongoing coverage. Every onboarding email ends with some version of "I'll only write when a real version ships"; [`digest/`](digest/) is the mechanism that keeps that promise — a per-release broadcast, not a signup-timed automation. See [digest/README.md](digest/README.md) for how it differs and when to send one.
+
+Every file carries front-matter the operator copies into Resend:
 
 ```yaml
 track: collector        # which track (matches the directory)
