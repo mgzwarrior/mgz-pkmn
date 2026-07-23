@@ -202,7 +202,11 @@ export function ResultCard({
               )}
               {onRerunLine && row.candidates && row.candidates.length > 1 && (
                 <div className="mt-1">
-                  <CandidatePicker candidates={row.candidates} onPick={onRerunLine} />
+                  <CandidatePicker
+                    candidates={row.candidates}
+                    variantHint={row.query.variant_hint}
+                    onPick={onRerunLine}
+                  />
                 </div>
               )}
               <OwnershipBadge ownership={ownership} className="mt-1" />

@@ -609,6 +609,34 @@ class FallbackGroupTests(unittest.TestCase):
         self.assertIn("No such option", result.output)
 
 
+class LookupCandidatesNoteTests(unittest.TestCase):
+    """A `find_card` result carrying `candidates` (#948) should print the
+    yellow ambiguity note; an unambiguous match should stay silent."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._input = Path(self._tmp.name) / "cards.txt"
+        self._input.write_text("Charizard\n", encoding="utf-8")
+
+    def _invoke(self, result: MatchResult):
+        with patch("mgz_pkmn.cli.lookup.find_card", return_value=result):
+            return CliRunner().invoke(cli, ["--no-images", str(self._input)])
+
+    def test_ambiguous_match_prints_note(self) -> None:
+        card = {"id": "base1-4", "name": "Charizard", "number": "4", "set": {"name": "S"}}
+        other = {"id": "swsh3-25", "name": "Charizard", "number": "25", "set": {"name": "S2"}}
+        result = self._invoke(MatchResult(card, "matched", candidates=[card, other]))
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("2 cards matched 'Charizard'", result.output)
+
+    def test_unambiguous_match_omits_note(self) -> None:
+        card = {"id": "base1-4", "name": "Charizard", "number": "4", "set": {"name": "S"}}
+        result = self._invoke(MatchResult(card, "matched", candidates=None))
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertNotIn("cards matched", result.output)
+
+
 class LookupSummaryCacheTests(unittest.TestCase):
     """End-to-end check that `· N cached / M fetched` appears in the summary
     when the run produced cache hits — and is suppressed when it didn't.

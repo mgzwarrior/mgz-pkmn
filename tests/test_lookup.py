@@ -21,7 +21,7 @@ from mgz_pkmn.lookup import (
     find_top_cards,
 )
 from mgz_pkmn.parser import CardQuery
-from mgz_pkmn.sources.base import MatchResult
+from mgz_pkmn.sources.base import MatchResult, rank_candidates
 from mgz_pkmn.sources.pokemontcg import API_BASE, TCGClient, search_pokemontcg
 
 
@@ -941,6 +941,45 @@ class SearchPokemontcgCandidatesTests(unittest.TestCase):
 
         self.assertEqual(result.reason, "matched")
         self.assertIsNone(result.candidates)
+
+    def test_set_hint_narrowed_ambiguity_still_populates_candidates(self) -> None:
+        # A set hint still leaves multiple candidates when two printings in
+        # the same set tie on name/set score (e.g. a duplicate listing) —
+        # the `in_set` branch must rank+expose those too, not just the
+        # unconstrained branch above.
+        cards = [
+            _card("base1-4", "Charizard", 300.0),
+            _card("base1-4h", "Charizard", 310.0),
+        ]
+        client = _StubTCGClient({'name:Charizard set.name:"Test Set"': cards})
+        q = CardQuery(raw="Charizard | Test Set", name="Charizard", set_hint="Test Set")
+        result = search_pokemontcg(client, q)
+
+        self.assertEqual(result.reason, "matched")
+        self.assertIsNotNone(result.candidates)
+        assert result.candidates is not None
+        self.assertEqual(len(result.candidates), 2)
+        self.assertIs(result.card, result.candidates[0])
+
+
+class RankCandidatesTests(unittest.TestCase):
+    """`rank_candidates` dedups by id and sorts by `score_card` (#948).
+
+    A card with no `id` (some sources omit it) can't be deduped by identity,
+    so it must pass through untouched rather than crashing or being dropped."""
+
+    def test_card_without_id_is_not_deduped_or_dropped(self) -> None:
+        cards = [
+            _card("base1-4", "Charizard", 300.0),
+            {  # no "id" key at all
+                "name": "Charizard",
+                "number": "1",
+                "set": {"name": "Test Set", "series": "Test Series"},
+            },
+        ]
+        q = CardQuery(raw="Charizard", name="Charizard")
+        ranked = rank_candidates(cards, q)
+        self.assertEqual(len(ranked), 2)
 
 
 class _StubTCGDexClient:

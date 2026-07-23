@@ -96,15 +96,19 @@ function rowIdentity(row: Row): { setId: string; number: string } | null {
 }
 
 /**
- * Build a `name | set | number` rerun line from a candidate card so picking
- * an alternate from an ambiguous match's picklist pins that exact printing
- * (#948) — the same pipe-delimited form `parse_line` already accepts.
+ * Build a `name | set | number [variant]` rerun line from a candidate card
+ * so picking an alternate from an ambiguous match's picklist pins that exact
+ * printing (#948) — the same pipe-delimited form `parse_line` already
+ * accepts. `variantHint` carries over the original query's `[reverseHolofoil]`
+ * / `[1stEditionHolofoil]`-style tag (parseable anywhere in the line) so
+ * disambiguating doesn't silently reset the priced variant back to default.
  */
-function candidateRerunLine(card: CardData): string {
+function candidateRerunLine(card: CardData, variantHint?: string | null): string {
   const name = (card.name as string | undefined) ?? ''
   const setName = (card.set as { name?: string } | undefined)?.name ?? ''
   const number = (card.number as string | undefined) ?? ''
-  return [name, setName, number].filter(Boolean).join(' | ')
+  const line = [name, setName, number].filter(Boolean).join(' | ')
+  return variantHint ? `${line} [${variantHint}]` : line
 }
 
 /** Resolve a row's ownership through the shared lookup, or undefined. */
@@ -1365,9 +1369,11 @@ function SheetField({ label, children }: { label: string; children: React.ReactN
  */
 export function CandidatePicker({
   candidates,
+  variantHint,
   onPick,
 }: {
   candidates: CardData[]
+  variantHint?: string | null
   onPick: (line: string) => void
 }) {
   return (
@@ -1392,7 +1398,7 @@ export function CandidatePicker({
             return (
               <DropdownMenu.Item
                 key={(c.id as string | undefined) ?? i}
-                onSelect={() => onPick(candidateRerunLine(c))}
+                onSelect={() => onPick(candidateRerunLine(c, variantHint))}
                 className="flex cursor-pointer flex-col rounded px-2 py-1.5 text-xs outline-none hover:bg-sand-200 focus:bg-sand-200 dark:hover:bg-husk-100 dark:focus:bg-husk-100"
               >
                 <span className="font-medium text-coconut-700 dark:text-sand-50">
@@ -1601,7 +1607,11 @@ function ResultRow({
                   line — the biggest single win toward its tighter rhythm. */}
               <div className="text-xs text-coconut-400 dark:text-sand-300 truncate compact:hidden">{row.query.raw}</div>
               {onRerunLine && row.candidates && row.candidates.length > 1 && (
-                <CandidatePicker candidates={row.candidates} onPick={onRerunLine} />
+                <CandidatePicker
+                  candidates={row.candidates}
+                  variantHint={row.query.variant_hint}
+                  onPick={onRerunLine}
+                />
               )}
               <OwnershipBadge ownership={ownership} className="mt-0.5" />
             </div>
