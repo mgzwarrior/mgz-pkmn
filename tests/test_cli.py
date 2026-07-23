@@ -620,8 +620,12 @@ class LookupCandidatesNoteTests(unittest.TestCase):
         self._input.write_text("Charizard\n", encoding="utf-8")
 
     def _invoke(self, result: MatchResult):
-        with patch("mgz_pkmn.cli.lookup.find_card", return_value=result):
-            return CliRunner().invoke(cli, ["--no-images", str(self._input)])
+        runner = CliRunner()
+        with (
+            patch("mgz_pkmn.cli.lookup.find_card", return_value=result),
+            runner.isolated_filesystem(),
+        ):
+            return runner.invoke(cli, ["--no-images", str(self._input)])
 
     def test_ambiguous_match_prints_note(self) -> None:
         card = {"id": "base1-4", "name": "Charizard", "number": "4", "set": {"name": "S"}}
