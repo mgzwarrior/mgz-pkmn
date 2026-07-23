@@ -56,6 +56,12 @@ class Pricing:
     # what the source returned." Takes priority over both `market` and
     # `condition`-adjusted pricing everywhere a writer reads a basis price.
     pricing_override: float | None = None
+    # 30-day price-trend history for the sparkline (#269): a list of
+    # {"ts": "YYYY-MM-DD", "price": float}, oldest first, present only when
+    # at least two distinct days of history exist. Populated by the API
+    # layer after a DB-backed snapshot read (`api.db.price_history`) — the
+    # CLI pipeline has no database, so this stays None there.
+    price_history: list[dict[str, Any]] | None = None
 
     @property
     def market_or_override(self) -> float | None:

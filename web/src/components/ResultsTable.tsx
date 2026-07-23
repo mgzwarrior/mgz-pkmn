@@ -56,6 +56,7 @@ import { QuickActions } from './QuickActions'
 import { AffiliateLinks } from './AffiliateLinks'
 import { CardDetailModal } from './CardDetailModal'
 import { ConditionOverrideSelect } from './ConditionOverrideSelect'
+import { PriceTrendSparkline } from './PriceTrendSparkline'
 import { PricingOverrideCell } from './PricingOverrideCell'
 import { ResultCard } from './ResultCard'
 import { ResultsEmptyState } from './ResultsEmptyState'
@@ -1678,16 +1679,25 @@ function ResultRow({
                     aria-hidden="true"
                   />
                 )}
-                <PriceStack
-                  primary={formatMoney(effectivePrice, p.currency)}
-                  secondary={
-                    p.pricing_override != null
-                      ? `Mkt ${formatMoney(p.market, p.currency)}`
-                      : conditionPricing.hasAdjustment
-                        ? `NM ${formatMoney(p.market, p.currency)}`
-                        : undefined
-                  }
-                />
+                <span className="flex flex-col items-end gap-0.5">
+                  <PriceStack
+                    primary={formatMoney(effectivePrice, p.currency)}
+                    secondary={
+                      p.pricing_override != null
+                        ? `Mkt ${formatMoney(p.market, p.currency)}`
+                        : conditionPricing.hasAdjustment
+                          ? `NM ${formatMoney(p.market, p.currency)}`
+                          : undefined
+                    }
+                  />
+                  {/* 30-day price-trend sparkline (#269) — renders nothing
+                      until at least two distinct days of history exist. */}
+                  <PriceTrendSparkline
+                    points={p.price_history}
+                    currency={p.currency}
+                    className="h-4 w-16"
+                  />
+                </span>
               </span>
             </td>
 
