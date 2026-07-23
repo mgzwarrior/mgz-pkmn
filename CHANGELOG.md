@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-07-23
+
+The web workspace rethink: a real desktop split view, a mobile-first IA, and a library that finally tells saved searches, wishlists, and collections apart.
+
+### Added
+
+- Web: **Search mode splits into a three-column workspace on wide screens** ([#835](https://github.com/mgzwarrior/mgz-pkmn/issues/835), [#841](https://github.com/mgzwarrior/mgz-pkmn/issues/841), [#856](https://github.com/mgzwarrior/mgz-pkmn/issues/856), [#839](https://github.com/mgzwarrior/mgz-pkmn/issues/839), [#867](https://github.com/mgzwarrior/mgz-pkmn/issues/867), [#846](https://github.com/mgzwarrior/mgz-pkmn/issues/846)). Above ~1100px the editor and results panes sit side by side with the Backpack rail, the results table lost its 1200px width cap, the editor pane stays sticky while you scroll a long results page, the editor auto-grows and collapses to a summary after a lookup with a useful empty state behind it, a comfortable/compact density toggle tightens spacing app-wide, and a Cmd/Ctrl+K command palette gives desktop users a quick-jump.
+- Web: **Bottom-tab navigation and card-based results replace the desktop-first mobile experience** ([#834](https://github.com/mgzwarrior/mgz-pkmn/issues/834), [#840](https://github.com/mgzwarrior/mgz-pkmn/issues/840), [#836](https://github.com/mgzwarrior/mgz-pkmn/issues/836), part of [#518](https://github.com/mgzwarrior/mgz-pkmn/issues/518)). Mobile gets its own bottom tab bar with a collapsed utility sheet, results render as cards instead of a squeezed table, and the Look up button and card-list textarea are sized for touch.
+- Web: **Saved searches, wishlists, and collections get clearer identity and cross-links** ([#869](https://github.com/mgzwarrior/mgz-pkmn/issues/869), [#830](https://github.com/mgzwarrior/mgz-pkmn/issues/830), [#828](https://github.com/mgzwarrior/mgz-pkmn/issues/828), [#831](https://github.com/mgzwarrior/mgz-pkmn/issues/831), [#889](https://github.com/mgzwarrior/mgz-pkmn/issues/889), [#902](https://github.com/mgzwarrior/mgz-pkmn/issues/902)). Searches + Recent moved out of the Backpack into the Search workspace where they're actually used, a collection or wishlist can be renamed from its own detail view, "want-list" is renamed to Wishlist everywhere to match the data model, promoting a wishlist card into a collection now deep-links straight there, collections gained a personal / trade / bulk purpose, and binders got an exportable, physical-binder-styled detail spread.
+- Web: **Configurable comp columns and condition-aware pricing** ([#943](https://github.com/mgzwarrior/mgz-pkmn/issues/943), [#901](https://github.com/mgzwarrior/mgz-pkmn/issues/901), [#917](https://github.com/mgzwarrior/mgz-pkmn/issues/917)). The desktop results table swaps its hardcoded 80/85/90/95% comp columns for a configurable, savable ladder, NM/LP/MP/HP condition multipliers now drive per-row price overrides from the table, mobile cards, and card detail, and the xlsx export tints the Rarity cell by tier.
+- Design: **Dark-mode export variants and a theme-matched gallery** ([#900](https://github.com/mgzwarrior/mgz-pkmn/issues/900), closes [#598](https://github.com/mgzwarrior/mgz-pkmn/issues/598)). Every generated artifact can now render in the dark tropical theme, and the marketing gallery preview follows the site's light/dark toggle.
+- API: **Native-app handoff for iOS sign-in and account linking** ([#926](https://github.com/mgzwarrior/mgz-pkmn/issues/926), [#937](https://github.com/mgzwarrior/mgz-pkmn/issues/937)). A one-time code + exchange lets the iOS app complete both OAuth sign-in and magic-link account linking inside `ASWebAuthenticationSession`.
+- CLI: **A real plugin surface for commands, writers, and sources** ([#842](https://github.com/mgzwarrior/mgz-pkmn/issues/842)). `pkmn` discovers `importlib.metadata` entry points at startup across all three groups, per ADR-0012 — the OSS half of the open-core boundary.
+- Web: **Multi-select bulk actions in Browse, a quantity stepper on card detail, and a slimmer favorite-sets panel** ([#934](https://github.com/mgzwarrior/mgz-pkmn/issues/934), [#938](https://github.com/mgzwarrior/mgz-pkmn/issues/938), [#832](https://github.com/mgzwarrior/mgz-pkmn/issues/832)). Browse's grids gained a Select toggle for bulk owned/chasing actions, a card's Library-locations chip picked up a −/+ quantity control, and Swipe's favorite-sets panel now starts collapsed and caps its suggestions to five.
+
+### Fixed
+
+- Web: **A round of mobile fit-and-finish fixes** ([#858](https://github.com/mgzwarrior/mgz-pkmn/issues/858), [#838](https://github.com/mgzwarrior/mgz-pkmn/issues/838), [#855](https://github.com/mgzwarrior/mgz-pkmn/issues/855), [#853](https://github.com/mgzwarrior/mgz-pkmn/issues/853), [#874](https://github.com/mgzwarrior/mgz-pkmn/issues/874), [#847](https://github.com/mgzwarrior/mgz-pkmn/issues/847), [#854](https://github.com/mgzwarrior/mgz-pkmn/issues/854)). Backpack/Account details now open full-screen instead of as centered dialogs, the Discover mode tabs stay on one row at every width, the swipe card surfaces above the fold with its actions reachable in the first viewport, Binders/wishlist rows wrap instead of overflowing, and the Browse set/Pokédex header no longer overlaps its contents.
+
+### Changed
+
+- Site: **Tighter onboarding email copy and a release-digest track on deck** ([#940](https://github.com/mgzwarrior/mgz-pkmn/issues/940)).
+
 ## [1.8.0] - 2026-06-30
 
 The "make it honest" release: the app now leads with Swipe, the Tour and Help walk the surfaces that actually shipped, the end-user docs match the live SPA, and the welcome email moved to a reason-branched drip on Resend.
@@ -253,6 +276,7 @@ Foundation release. Establishes the full CLI pipeline, a FastAPI / React web UI,
 - Parser ReDoS vulnerabilities were eliminated across multiple regex passes.
 - URL substring sanitization and workflow permissions were hardened in response to CodeQL alerts.
 
+[1.9.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.0...v1.6.1
