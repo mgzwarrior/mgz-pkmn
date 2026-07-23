@@ -216,13 +216,13 @@ def create_wishlist(req: WishlistCreate, db: DbSession, current_user: CurrentUse
     db.add(wishlist)
     db.commit()
     db.refresh(wishlist)
-    return _serialize_wishlist(wishlist)
+    return serialize_wishlist(wishlist)
 
 
 @router.get("/wishlists/{wishlist_id}")
 def get_wishlist(wishlist_id: int, db: DbSession, current_user: CurrentUser) -> dict:
     wishlist = _load_wishlist(db, wishlist_id, current_user.id)
-    return _serialize_wishlist(wishlist)
+    return serialize_wishlist(wishlist)
 
 
 @router.patch("/wishlists/{wishlist_id}")
@@ -247,7 +247,7 @@ def patch_wishlist(
         wishlist.binder_id = req.binder_id
     db.commit()
     db.refresh(wishlist)
-    return _serialize_wishlist(wishlist)
+    return serialize_wishlist(wishlist)
 
 
 @router.delete("/wishlists/{wishlist_id}", status_code=204)
@@ -474,7 +474,7 @@ def _load_wishlist(db: Session, wishlist_id: int, user_id: int) -> Wishlist:
     return wishlist
 
 
-def _serialize_wishlist(wishlist: Wishlist) -> dict:
+def serialize_wishlist(wishlist: Wishlist) -> dict:
     return WishlistOut(
         id=wishlist.id,
         name=wishlist.name,
