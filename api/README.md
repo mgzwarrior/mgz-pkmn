@@ -76,6 +76,7 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | `GET`  | `/api/v1/runs` | Paginated list of **saved** runs (summary only, filtered to `name IS NOT NULL`) |
 | `GET`  | `/api/v1/runs/{id}` | Full run record including all `run_rows` |
 | `PATCH`| `/api/v1/runs/{id}` | Save / rename a run (sets `name` + ResultsTable view-state snapshot) |
+| `GET`  | `/api/v1/me/export` | Stream the signed-in user's full data export (runs, collections, wishlists, binders, favorites, swipe memory) as one JSON document |
 
 `/bulk` now writes a `runs` row + N `run_rows` to the persistence layer on
 successful stream completion (see [ADR-0013](../docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
@@ -179,6 +180,21 @@ Cached on disk at `~/.cache/mgz-pkmn/sets.json` (7-day TTL). Pass
 Records a `(name, set) → URL` mapping in the same disk store the CLI
 consults (`~/.cache/mgz-pkmn/url_overrides.json`). Future lookups for that
 pair use PriceCharting automatically — no need to re-paste the URL.
+
+### GET `/api/v1/me/export`
+
+```bash
+curl -o export.json http://localhost:8000/api/v1/me/export
+```
+
+Streams a JSON document with `exported_at`, `schema_version`, and one key
+per resource: `user`, `identities`, `runs`, `collections`, `wishlists`,
+`binders`, `favorite_sets`, `favorite_species`, `swipe_seen`. Requires
+sign-in on a hosted deploy (`401` when signed out and
+`MGZ_PKMN_AUTH_ENABLED=1`); resolves to the self-host sentinel user when
+auth is off. Rate-limited to 5 requests per 5 minutes per user
+(in-process — see [`api/routes/me_export.py`](routes/me_export.py)) —
+past the cap the response is `429` with a `Retry-After` header.
 
 ## Architecture
 
