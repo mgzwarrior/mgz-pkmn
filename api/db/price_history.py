@@ -54,10 +54,18 @@ def fetch_price_history(
     *,
     card_set_id: str,
     card_number: str,
+    currency: str,
     now: datetime | None = None,
 ) -> list[dict[str, Any]] | None:
     """Up to `HISTORY_WINDOW_DAYS` of history for one card, downsampled to
     one point per calendar day (the latest snapshot that day wins).
+
+    Scoped to `currency` — the same card can carry snapshots from sources
+    in different currencies (USD from TCGPlayer/PriceCharting, EUR from
+    Cardmarket per `mgz_pkmn.pricing`), and mixing raw amounts across
+    currencies would make the returned series' min/max/delta meaningless
+    against the row's own currency. Callers pass the currency of the row
+    the history is for.
 
     Returns `None` when fewer than two distinct days of history exist —
     the API/SPA treat that as "no trend yet" rather than a one-point line.
@@ -68,6 +76,7 @@ def fetch_price_history(
         .where(
             PriceSnapshot.card_set_id == card_set_id,
             PriceSnapshot.card_number == card_number,
+            PriceSnapshot.currency == currency,
             PriceSnapshot.captured_at >= since,
         )
         .order_by(PriceSnapshot.captured_at.asc())

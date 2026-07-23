@@ -31,7 +31,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..auth.session import current_user_or_default
+from ..db.card_payload import extract_card_identity
 from ..db.models import DEFAULT_USER_ID, Run, RunRow, User
+from ..db.price_history import fetch_price_history
 from ..db.serialize import build_run_summary, run_row_to_row
 from ..db.session import get_db
 
@@ -124,6 +126,28 @@ def _run_visible_to_current_user(run: Run, current_user: User) -> bool:
     return run.user_id == current_user.id or (run.user_id == DEFAULT_USER_ID and run.name is None)
 
 
+def _pricing_with_live_history(db: Session, rr: RunRow) -> dict:
+    """`pricing_json` plus a freshly computed `price_history` overlay (#269).
+
+    `price_history` is deliberately not part of what a saved run captures
+    (see the PR #957 design notes) — it's a live view over `price_snapshots`
+    recomputed on every read, so a reopened saved run shows the current
+    30-day trend rather than whatever was true the moment it was saved.
+    Falls back to whatever `pricing_json` already carries (nothing, today)
+    when the row's card identity can't be resolved."""
+    pricing = dict(rr.pricing_json or {})
+    identity = extract_card_identity(rr.card_json)
+    set_id, number = identity["card_set_id"], identity["card_number"]
+    if set_id and number:
+        pricing["price_history"] = fetch_price_history(
+            db,
+            card_set_id=set_id,
+            card_number=number,
+            currency=pricing.get("currency") or "USD",
+        )
+    return pricing
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -207,7 +231,7 @@ def get_run(run_id: int, db: DbSession, current_user: CurrentUser) -> dict:
                 currency=rr.currency,
                 query=rr.query_json,
                 card=rr.card_json,
-                pricing=rr.pricing_json,
+                pricing=_pricing_with_live_history(db, rr),
             )
             for rr in run.rows
         ],

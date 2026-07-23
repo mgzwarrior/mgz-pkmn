@@ -148,7 +148,7 @@ class RecordAndFetchPriceHistoryTests(_IsolatedDbMixin):
             currency="USD",
         )
         session.commit()
-        history = fetch_price_history(session, card_set_id="base1", card_number="4")
+        history = fetch_price_history(session, card_set_id="base1", card_number="4", currency="USD")
         self.assertIsNone(history)
 
     def test_two_distinct_days_return_sorted_points(self) -> None:
@@ -178,7 +178,9 @@ class RecordAndFetchPriceHistoryTests(_IsolatedDbMixin):
         )
         session.commit()
 
-        history = fetch_price_history(session, card_set_id="base1", card_number="4", now=now)
+        history = fetch_price_history(
+            session, card_set_id="base1", card_number="4", currency="USD", now=now
+        )
         self.assertEqual(
             history,
             [
@@ -221,7 +223,9 @@ class RecordAndFetchPriceHistoryTests(_IsolatedDbMixin):
         )
         session.commit()
 
-        history = fetch_price_history(session, card_set_id="base1", card_number="4", now=other_day)
+        history = fetch_price_history(
+            session, card_set_id="base1", card_number="4", currency="USD", now=other_day
+        )
         # Two distinct days: `day` keeps its *later* observation (95.0, not
         # the first 80.0 write), `other_day` has its own single point.
         self.assertEqual(
@@ -258,7 +262,9 @@ class RecordAndFetchPriceHistoryTests(_IsolatedDbMixin):
         session.commit()
 
         # Only one snapshot falls inside the window — not a trend yet.
-        history = fetch_price_history(session, card_set_id="base1", card_number="4", now=now)
+        history = fetch_price_history(
+            session, card_set_id="base1", card_number="4", currency="USD", now=now
+        )
         self.assertIsNone(history)
 
     def test_history_is_scoped_to_the_specific_card(self) -> None:
@@ -286,8 +292,63 @@ class RecordAndFetchPriceHistoryTests(_IsolatedDbMixin):
         )
         session.commit()
 
-        history = fetch_price_history(session, card_set_id="base1", card_number="4", now=now)
+        history = fetch_price_history(
+            session, card_set_id="base1", card_number="4", currency="USD", now=now
+        )
         self.assertIsNone(history)
+
+    def test_history_is_scoped_to_the_row_currency(self) -> None:
+        """Same card, two currencies (e.g. USD from TCGPlayer, EUR from
+        Cardmarket) — a currency's series must not pick up the other's
+        points, or min/max/delta computed against one currency would be
+        wrong."""
+        session = self._session()
+        now = datetime(2026, 7, 22, tzinfo=UTC)
+        session.add_all(
+            [
+                PriceSnapshot(
+                    card_set_id="base1",
+                    card_number="4",
+                    source="cardmarket",
+                    price=40.0,
+                    currency="EUR",
+                    captured_at=now - timedelta(days=5),
+                ),
+                PriceSnapshot(
+                    card_set_id="base1",
+                    card_number="4",
+                    source="cardmarket",
+                    price=45.0,
+                    currency="EUR",
+                    captured_at=now,
+                ),
+                PriceSnapshot(
+                    card_set_id="base1",
+                    card_number="4",
+                    source="tcgplayer",
+                    price=100.0,
+                    currency="USD",
+                    captured_at=now,
+                ),
+            ]
+        )
+        session.commit()
+
+        # Two distinct EUR days form a trend; the lone USD day does not.
+        eur_history = fetch_price_history(
+            session, card_set_id="base1", card_number="4", currency="EUR", now=now
+        )
+        self.assertEqual(
+            eur_history,
+            [
+                {"ts": (now - timedelta(days=5)).date().isoformat(), "price": 40.0},
+                {"ts": now.date().isoformat(), "price": 45.0},
+            ],
+        )
+        usd_history = fetch_price_history(
+            session, card_set_id="base1", card_number="4", currency="USD", now=now
+        )
+        self.assertIsNone(usd_history)
 
 
 # ---------------------------------------------------------------------------

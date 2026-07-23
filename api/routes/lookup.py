@@ -345,7 +345,10 @@ def _attach_price_history(pairs: list[tuple[Row, str]]) -> None:
         session.commit()
         for row, set_id, number in identities:
             row.pricing.price_history = fetch_price_history(
-                session, card_set_id=set_id, card_number=number
+                session,
+                card_set_id=set_id,
+                card_number=number,
+                currency=row.pricing.currency or "USD",
             )
     except Exception:
         session.rollback()
