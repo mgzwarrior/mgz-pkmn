@@ -54,6 +54,7 @@ from .routes import (
     favorite_pokemon,
     favorite_sets,
     lookup,
+    me_export,
     overrides,
     ownership,
     parse,
@@ -571,6 +572,7 @@ app.include_router(auth_discord.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_magic.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_apple.router, prefix="/api/v1", tags=["auth"])
 app.include_router(auth_native.router, prefix="/api/v1", tags=["auth"])
+app.include_router(me_export.router, prefix="/api/v1", tags=["me-export"])
 
 
 @app.get("/health")
