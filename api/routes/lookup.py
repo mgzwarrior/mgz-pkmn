@@ -164,9 +164,15 @@ def _row_to_dict(row: Row, reason: str) -> dict[str, Any]:
     # Rewrite cached image URLs to our self-hosted route (#371). Cache
     # miss leaves the upstream URL in place so the SPA still renders.
     serialised_card = rewrite_card_image_urls(card if card else None)
+    # Other plausible matches for an ambiguous name-only query (#948), so the
+    # SPA can offer a picklist instead of silently committing to `card`.
+    serialised_candidates = (
+        [rewrite_card_image_urls(c) for c in row.candidates] if row.candidates else None
+    )
     return {
         "query": _query_to_dict(row.query),
         "card": serialised_card,
+        "candidates": serialised_candidates,
         "pricing": _pricing_to_dict(row.pricing),
         "tag": row.tag,
         "matched": matched,
@@ -272,7 +278,13 @@ def _do_lookup(
             pricing = _with_ebay(extract_pricing(result.card, q.variant_hint), result.card)
             out.append(
                 (
-                    Row(query=q, card=result.card, pricing=pricing, tag=settings.tag),
+                    Row(
+                        query=q,
+                        card=result.card,
+                        pricing=pricing,
+                        tag=settings.tag,
+                        candidates=result.candidates,
+                    ),
                     "matched",
                 )
             )

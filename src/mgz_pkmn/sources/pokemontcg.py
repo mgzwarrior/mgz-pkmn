@@ -12,7 +12,7 @@ import requests
 from .. import cache as disk_cache
 from ..parser import CardQuery, detect_card_language, strip_noise
 from ._common import USER_AGENT
-from .base import MatchResult, name_clause, score_card, set_overlap, worse_cache_status
+from .base import MatchResult, name_clause, rank_candidates, set_overlap, worse_cache_status
 
 API_BASE = "https://api.pokemontcg.io/v2"
 
@@ -226,14 +226,18 @@ def search_pokemontcg(client: TCGClient, q: CardQuery, *, cache_only: bool = Fal
         in_set = [c for c in all_candidates if set_overlap(c, q.set_hint)]
         if not in_set:
             return MatchResult(None, "set_mismatch", cache_status=aggregate_status)
+        ranked = rank_candidates(in_set, q)
         return MatchResult(
-            max(in_set, key=lambda c: score_card(c, q)),
+            ranked[0],
             "matched",
+            candidates=ranked if len(ranked) > 1 else None,
             cache_status=aggregate_status,
         )
 
+    ranked = rank_candidates(all_candidates, q)
     return MatchResult(
-        max(all_candidates, key=lambda c: score_card(c, q)),
+        ranked[0],
         "matched",
+        candidates=ranked if len(ranked) > 1 else None,
         cache_status=aggregate_status,
     )

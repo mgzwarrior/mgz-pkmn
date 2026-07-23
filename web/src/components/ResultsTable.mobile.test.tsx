@@ -149,6 +149,58 @@ describe('ResultsTable — mobile card list (#521)', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
+  it('an ambiguous match shows a candidate picklist that reruns the line pinned to the chosen printing, with the variant hint carried over (#948)', () => {
+    const onRerunLine = vi.fn()
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          query: {
+            raw: 'Charizard [reverseHolofoil]',
+            name: 'Charizard',
+            variant_hint: 'reverseHolofoil',
+          } as Row['query'],
+          card: { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          candidates: [
+            { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+            {
+              id: 'swsh3-25',
+              name: 'Charizard',
+              number: '25',
+              set: { name: 'Darkness Ablaze' },
+            },
+          ],
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable onRerunLine={onRerunLine} />)
+
+    const trigger = screen.getByRole('button', { name: /2 matches/i })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+    fireEvent.click(screen.getByRole('menuitem', { name: /Darkness Ablaze/i }))
+
+    expect(onRerunLine).toHaveBeenCalledWith(
+      'Charizard | Darkness Ablaze | 25 [reverseHolofoil]',
+    )
+  })
+
+  it('an unambiguous match does not show a candidate picklist', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'base1-58', name: 'Pikachu', number: '58', set: { name: 'Base Set' } },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable onRerunLine={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: /matches/i })).toBeNull()
+  })
+
   it('opens a Filters + Sort sheet instead of an inline filter row', () => {
     useAppStore.setState({
       rows: [makeRow({ card: { id: 'a', name: 'Charizard', set: { name: 'Base Set' } } })],

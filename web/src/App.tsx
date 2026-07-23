@@ -323,6 +323,7 @@ function App() {
       appendRow({
         query: event.query,
         card: event.card,
+        candidates: event.candidates,
         pricing: event.pricing,
         tag: event.tag,
         matched: event.matched,

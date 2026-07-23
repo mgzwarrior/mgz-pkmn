@@ -18,6 +18,7 @@ import type { CardCondition, Row } from '../types'
 import type { ConditionPricing } from '../utils/conditionPricing'
 import { formatComp, formatMoney } from '../utils/format'
 import { AffiliateLinks } from './AffiliateLinks'
+import { CandidatePicker } from './ResultsTable'
 import { ConditionOverrideSelect } from './ConditionOverrideSelect'
 import { OwnershipBadge } from './OwnershipBadge'
 import { PricingOverrideCell } from './PricingOverrideCell'
@@ -196,6 +197,15 @@ export function ResultCard({
                     currency={p.currency}
                     label={`Price override for ${(card?.name as string | undefined) ?? row.query.raw}`}
                     onChange={onPricingOverrideChange}
+                  />
+                </div>
+              )}
+              {onRerunLine && row.candidates && row.candidates.length > 1 && (
+                <div className="mt-1">
+                  <CandidatePicker
+                    candidates={row.candidates}
+                    variantHint={row.query.variant_hint}
+                    onPick={onRerunLine}
                   />
                 </div>
               )}

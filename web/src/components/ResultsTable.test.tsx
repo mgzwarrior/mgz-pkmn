@@ -193,6 +193,56 @@ describe('ResultsTable', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('an ambiguous match shows a candidate picklist that reruns the line pinned to the chosen printing (#948)', () => {
+    const onRerunLine = vi.fn()
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          query: { raw: 'Charizard', name: 'Charizard' } as Row['query'],
+          card: { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          candidates: [
+            { id: 'base1-4', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+            {
+              id: 'swsh3-25',
+              name: 'Charizard',
+              number: '25',
+              set: { name: 'Darkness Ablaze' },
+            },
+          ],
+          pricing: { market: 250, currency: 'USD', variant: null, source: 'TCGPlayer', url: null },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable onRerunLine={onRerunLine} />)
+
+    // Radix DropdownMenu.Trigger opens on Enter/Space/ArrowDown; jsdom
+    // doesn't fire it via plain `fireEvent.click` (see openColumnsMenu above).
+    const trigger = screen.getByRole('button', { name: /2 matches/i })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Enter', code: 'Enter' })
+    fireEvent.click(screen.getByRole('menuitem', { name: /Darkness Ablaze/i }))
+
+    expect(onRerunLine).toHaveBeenCalledWith('Charizard | Darkness Ablaze | 25')
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('an unambiguous match does not show a candidate picklist', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'base1-58', name: 'Pikachu', number: '58', set: { name: 'Base Set' } },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable onRerunLine={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: /matches/i })).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+
   it('renders eBay + TCGPlayer affiliate Buy links on a matched row (#657)', () => {
     useAppStore.setState({
       rows: [

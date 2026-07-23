@@ -21,8 +21,8 @@ from mgz_pkmn.lookup import (
     find_top_cards,
 )
 from mgz_pkmn.parser import CardQuery
-from mgz_pkmn.sources.base import MatchResult
-from mgz_pkmn.sources.pokemontcg import API_BASE, TCGClient
+from mgz_pkmn.sources.base import MatchResult, rank_candidates
+from mgz_pkmn.sources.pokemontcg import API_BASE, TCGClient, search_pokemontcg
 
 
 class _StubTCGClient:
@@ -912,6 +912,121 @@ class FindCardCacheOnlyTests(unittest.TestCase):
         result = find_card(client, _NullTCGDexClient(), _ExplodingPC(), q, cache_only=True)
 
         self.assertIsNone(result.card)
+
+
+class SearchPokemontcgCandidatesTests(unittest.TestCase):
+    """An ambiguous name-only query should expose the full candidate pool
+    (#948) instead of silently committing to the highest-scoring printing."""
+
+    def test_multiple_name_matches_populate_candidates(self) -> None:
+        cards = [
+            _card("swsh3-25", "Charizard", 50.0),
+            _card("base1-4", "Charizard", 300.0),
+            _card("base1-4", "Charizard", 300.0),  # duplicate id — must dedupe
+        ]
+        client = _StubTCGClient({"name:Charizard": cards})
+        q = CardQuery(raw="Charizard", name="Charizard")
+        result = search_pokemontcg(client, q)
+
+        self.assertEqual(result.reason, "matched")
+        self.assertIsNotNone(result.candidates)
+        assert result.candidates is not None  # narrow for mypy/pyright
+        self.assertEqual(len(result.candidates), 2)
+        self.assertIs(result.card, result.candidates[0])
+
+    def test_unambiguous_match_leaves_candidates_none(self) -> None:
+        client = _StubTCGClient({"name:Pikachu": [_card("base1-58", "Pikachu", 5.0)]})
+        q = CardQuery(raw="Pikachu", name="Pikachu")
+        result = search_pokemontcg(client, q)
+
+        self.assertEqual(result.reason, "matched")
+        self.assertIsNone(result.candidates)
+
+    def test_set_hint_narrowed_ambiguity_still_populates_candidates(self) -> None:
+        # A set hint still leaves multiple candidates when two printings in
+        # the same set tie on name/set score (e.g. a duplicate listing) —
+        # the `in_set` branch must rank+expose those too, not just the
+        # unconstrained branch above.
+        cards = [
+            _card("base1-4", "Charizard", 300.0),
+            _card("base1-4h", "Charizard", 310.0),
+        ]
+        client = _StubTCGClient({'name:Charizard set.name:"Test Set"': cards})
+        q = CardQuery(raw="Charizard | Test Set", name="Charizard", set_hint="Test Set")
+        result = search_pokemontcg(client, q)
+
+        self.assertEqual(result.reason, "matched")
+        self.assertIsNotNone(result.candidates)
+        assert result.candidates is not None
+        self.assertEqual(len(result.candidates), 2)
+        self.assertIs(result.card, result.candidates[0])
+
+
+class RankCandidatesTests(unittest.TestCase):
+    """`rank_candidates` dedups by id and sorts by `score_card` (#948).
+
+    A card with no `id` (some sources omit it) can't be deduped by identity,
+    so it must pass through untouched rather than crashing or being dropped."""
+
+    def test_card_without_id_is_not_deduped_or_dropped(self) -> None:
+        cards = [
+            _card("base1-4", "Charizard", 300.0),
+            {  # no "id" key at all
+                "name": "Charizard",
+                "number": "1",
+                "set": {"name": "Test Set", "series": "Test Series"},
+            },
+        ]
+        q = CardQuery(raw="Charizard", name="Charizard")
+        ranked = rank_candidates(cards, q)
+        self.assertEqual(len(ranked), 2)
+
+
+class _StubTCGDexClient:
+    """Records the (name, lang) it was searched with; returns canned cards."""
+
+    def __init__(self, cards: list[dict]) -> None:
+        self.cards = cards
+        self.calls: list[tuple[str, str]] = []
+
+    def search(self, name: str, lang: str = "en", limit: int = 8) -> list[dict]:
+        self.calls.append((name, lang))
+        return list(self.cards)
+
+
+class FindCardCandidatesTests(unittest.TestCase):
+    """`find_card`'s TCGdex-fallback branch rebuilds its own `MatchResult`
+    (#948) — candidates from `search_tcgdex` must survive that
+    reconstruction rather than being silently dropped."""
+
+    def test_tcgdex_fallback_candidates_survive_find_card(self) -> None:
+        pkmn = _StubTCGClient()  # empty map → no pokemontcg.io hits, forces fallback
+        tcgdex = _StubTCGDexClient(
+            [
+                {
+                    "id": "swsh3-25",
+                    "name": "Charizard",
+                    "number": "25",
+                    "set": {"name": "Darkness Ablaze"},
+                },
+                {
+                    "id": "base1-4",
+                    "name": "Charizard",
+                    "number": "4",
+                    "set": {"name": "Base Set"},
+                },
+            ]
+        )
+        pc = _StubPCClient(MatchResult(None, "scrape_failed"))
+        q = CardQuery(raw="Charizard", name="Charizard")
+
+        result = find_card(pkmn, tcgdex, pc, q)
+
+        self.assertEqual(result.reason, "matched")
+        self.assertIsNotNone(result.candidates)
+        assert result.candidates is not None
+        self.assertEqual(len(result.candidates), 2)
+        self.assertIs(result.card, result.candidates[0])
 
 
 if __name__ == "__main__":
