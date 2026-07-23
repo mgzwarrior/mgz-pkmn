@@ -134,6 +134,7 @@ def _identities_section(db: Session, user_id: int) -> list[dict[str, Any]]:
         {
             "id": i.id,
             "provider": i.provider,
+            "provider_subject": i.provider_subject,
             "email": i.email,
             "linked_at": i.linked_at.isoformat(),
         }

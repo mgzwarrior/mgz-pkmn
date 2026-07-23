@@ -28,7 +28,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.db import session as session_mod
-from api.db.models import DEFAULT_USER_ID, Run, RunRow, User
+from api.db.models import DEFAULT_USER_ID, PROVIDER_GITHUB, Run, RunRow, User, UserIdentity
 
 CHARIZARD = {
     "id": "base1-4",
@@ -123,6 +123,15 @@ class MeExportSelfHostTests(_IsolatedDbMixin):
     def test_round_trips_every_kind_of_data_with_no_field_loss(self) -> None:
         with self._client() as c:
             run_id = self._seed_run()
+            with session_mod.get_session_factory()() as s:
+                identity = UserIdentity(
+                    user_id=DEFAULT_USER_ID,
+                    provider=PROVIDER_GITHUB,
+                    provider_subject="12345",
+                    email="default@x.com",
+                )
+                s.add(identity)
+                s.commit()
 
             cid = c.post("/api/v1/collections", json={"name": "Show Binder"}).json()["id"]
             item_id = c.post(f"/api/v1/collections/{cid}/items", json={"card": CHARIZARD}).json()[
@@ -139,6 +148,10 @@ class MeExportSelfHostTests(_IsolatedDbMixin):
             c.post("/api/v1/swipe/seen", json={"set_id": "base1", "number": "4", "dir": "save"})
 
             body = c.get("/api/v1/me/export").json()
+
+            self.assertEqual(len(body["identities"]), 1)
+            self.assertEqual(body["identities"][0]["provider"], PROVIDER_GITHUB)
+            self.assertEqual(body["identities"][0]["provider_subject"], "12345")
 
             run_ids = {r["id"] for r in body["runs"]}
             self.assertIn(run_id, run_ids)
