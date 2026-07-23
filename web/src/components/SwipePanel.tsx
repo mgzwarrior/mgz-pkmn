@@ -16,12 +16,15 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Book,
+  Footprints,
   Heart,
   ImageOff,
   Loader2,
   Sparkles,
   X,
 } from 'lucide-react'
+import { ownCard, wantCard } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useAppStore } from '../store'
 import type { RarityFloor, Row, SetCard } from '../types'
@@ -31,7 +34,9 @@ import { FavoriteSetsPanel } from './FavoriteSetsPanel'
 import { favoriteSpeciesBoost } from './favoriteSpeciesBoost'
 import { useFavoritePokemon } from './useFavoritePokemon'
 import { useFavoriteSets } from './useFavoriteSets'
-import { useCardOwnership } from './useCardOwnership'
+import { useCardOwnership, invalidateOwnership } from './useCardOwnership'
+import { refreshCollectionsCache } from './useCollections'
+import { refreshWishlistsCache } from './useWishlists'
 import { OwnershipBadge } from './OwnershipBadge'
 import { SaveCardActions } from './SaveCardActions'
 import { useSwipeProfile, type SwipeAction } from './useSwipeProfile'
@@ -58,6 +63,88 @@ const CLICK_SLOP = 6
  *  the multiplier cap, without zeroing out the rest of the catalog. */
 const FAVORITE_SET_BONUS = 12
 
+/**
+ * What a swipe *means* (#912) — the deck stays the same, but the same three
+ * gestures write to a different place:
+ *
+ *   - `taste` (default): the original behavior — pass/save/love bump the
+ *     local taste profile that weights future candidates.
+ *   - `ownership`: right files the card into the default collection
+ *     (owned), up adds it to the default wishlist (chasing), left is a
+ *     no-op beyond the no-repeat exclusion `recordSeen` already persists.
+ *
+ * Deliberately session-local (component state, not a persisted setting) —
+ * a fresh visit always lands back in taste mode rather than silently
+ * catalog-writing on a return trip the user only meant as a browse.
+ */
+export type SwipeMode = 'taste' | 'ownership'
+
+/** Per-mode copy + iconography for the gesture legend, hints, and action
+ *  row — same three gestures, different labels so the meaning is obvious
+ *  at a glance (#912). `taste` is verbatim what shipped before this mode
+ *  toggle existed. */
+const SWIPE_MODE_COPY: Record<
+  SwipeMode,
+  {
+    description: string
+    hintMobile: string
+    labels: Record<SwipeAction, string>
+    titles: Record<SwipeAction, string>
+    icons: { save: typeof Heart; love: typeof Sparkles }
+  }
+> = {
+  taste: {
+    description: 'One card at a time — right to save, left to pass, up for more like this.',
+    hintMobile: 'Right to save, left to pass, up for more like this.',
+    labels: { pass: 'Pass', save: 'Save', love: 'More like this' },
+    titles: { pass: 'Pass (←)', save: 'Save (→)', love: 'More like this (↑)' },
+    icons: { save: Heart, love: Sparkles },
+  },
+  ownership: {
+    description:
+      'One card at a time — right to mark owned, left for not interested, up to chase.',
+    hintMobile: 'Right to mark owned, left for not interested, up to chase.',
+    // "Owned" (not "Own") so this button's accessible name doesn't collide
+    // with the always-present QuickActions "Own" toggle rendered alongside
+    // it (#761) — the two are different actions (a gesture-triggered swipe
+    // decision vs. a one-tap library toggle) and need distinct names.
+    labels: { pass: 'Not interested', save: 'Owned', love: 'Chase' },
+    titles: {
+      pass: 'Not interested (←)',
+      save: 'Add to collection (→)',
+      love: 'Add to wishlist (↑)',
+    },
+    icons: { save: Book, love: Footprints },
+  },
+}
+
+/**
+ * Ownership-mode swipe effects (#912). Reuses the same one-tap
+ * default-collection / default-wishlist writes as {@link QuickActions}
+ * (#761, ADR-0027) — a right swipe is the gesture-shaped equivalent of
+ * tapping Own, up of tapping Want. Left ("not interested") writes nothing
+ * beyond the no-repeat exclusion every mode already records via
+ * `recordSeen`. Fire-and-forget with the same degrade-gracefully contract
+ * as the rest of swipe's persistence layer: a failed write just means the
+ * card isn't filed and the ownership badge won't reflect it.
+ */
+async function applyOwnershipAction(
+  action: SwipeAction,
+  card: Record<string, unknown>,
+): Promise<void> {
+  if (action === 'pass') return
+  try {
+    await (action === 'save' ? ownCard(card) : wantCard(card))
+    // Bust the shared ownership cache so every mounted surface (search,
+    // browse, the badge on this very card) re-reads the new state, and
+    // refresh the affected library list the same way QuickActions does.
+    invalidateOwnership()
+    await (action === 'save' ? refreshCollectionsCache() : refreshWishlistsCache())
+  } catch {
+    /* offline / signed-out edge — the deck keeps moving either way */
+  }
+}
+
 interface Drag {
   startX: number
   startY: number
@@ -78,6 +165,14 @@ export function SwipePanel({ active }: SwipePanelProps) {
   const { user } = useAuth()
   const isMobile = useIsMobileViewport()
   const showSavedActions = user !== null
+  // Taste vs ownership swipe mode (#912) — session-local (see the type
+  // doc), and ownership mode writes to the user's library, so it only takes
+  // effect when signed in. `swipeMode` is derived rather than the toggle's
+  // own choice stored directly: a sign-out mid-session snaps the *effective*
+  // mode back to taste without an effect, while the underlying choice
+  // survives in case they sign back in.
+  const [swipeModeChoice, setSwipeModeChoice] = useState<SwipeMode>('taste')
+  const swipeMode: SwipeMode = showSavedActions ? swipeModeChoice : 'taste'
   // Favorite sets feed the candidate weighting; gate the fetch on a signed-in
   // user (they're per-user) so a signed-out deck isn't biased by — and doesn't
   // hit the endpoint as — the default user.
@@ -166,10 +261,23 @@ export function SwipePanel({ active }: SwipePanelProps) {
       setOutgoing(action)
       // Let the exit animation play before swapping the card.
       window.setTimeout(() => {
-        act(current.card, current.setId, action)
+        if (swipeMode === 'ownership') {
+          // Ownership mode (#912): the gesture files the card instead of
+          // tuning taste — don't also bump the taste profile weights.
+          void applyOwnershipAction(
+            action,
+            browseCardToPayload(current.card, {
+              id: current.setId,
+              name: current.setName,
+            }),
+          )
+        } else {
+          act(current.card, current.setId, action)
+        }
         // Persist the card as seen so it never resurfaces in a future
         // session (#581). Local `seenSet` handles the in-session no-repeat;
-        // this is the durable layer.
+        // this is the durable layer. Mode-independent: "not interested" in
+        // ownership mode is the same exclusion as a taste-mode pass.
         recordSeen(current.setId, current.card.number, action)
         // Onboarding pass progress (#714) — a no-op unless a pass is running.
         onboarding.recordSwipe(current.setId, current.setName)
@@ -178,7 +286,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
         advance()
       }, 180)
     },
-    [current, act, recordSeen, advance, onboarding],
+    [current, act, recordSeen, advance, onboarding, swipeMode],
   )
 
   // Keyboard shortcuts — global while the panel is mounted + active.
@@ -286,6 +394,9 @@ export function SwipePanel({ active }: SwipePanelProps) {
         onExcludeChasingChange={(swipeExcludeChasing) =>
           updateSettings({ swipeExcludeChasing })
         }
+        mode={swipeMode}
+        onModeChange={setSwipeModeChoice}
+        canUseOwnershipMode={showSavedActions}
       />
 
       {/* Favorite sets + Your taste sit in a side column beside the deck on
@@ -349,6 +460,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
                       depth={0}
                       drag={drag}
                       outgoing={outgoing}
+                      mode={swipeMode}
                       interactive
                       onPointerDown={onPointerDown}
                       onPointerMove={onPointerMove}
@@ -370,6 +482,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
                       depth={depth}
                       drag={null}
                       outgoing={null}
+                      mode={swipeMode}
                       interactive={false}
                     />
                   ),
@@ -380,6 +493,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
 
           {current && (
             <ActionRow
+              mode={swipeMode}
               onPass={() => commit('pass')}
               onSave={() => commit('save')}
               onLove={() => commit('love')}
@@ -406,7 +520,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
             />
           )}
 
-          <SwipeHint />
+          <SwipeHint mode={swipeMode} />
 
           {isMobile && <TuningPanels showFavoriteSets={showSavedActions} />}
         </div>
@@ -465,6 +579,9 @@ function SwipeHeader({
   excludeChasing,
   onExcludeOwnedChange,
   onExcludeChasingChange,
+  mode,
+  onModeChange,
+  canUseOwnershipMode,
 }: {
   savedCount: number
   onReset: () => void
@@ -477,6 +594,11 @@ function SwipeHeader({
   excludeChasing: boolean
   onExcludeOwnedChange: (next: boolean) => void
   onExcludeChasingChange: (next: boolean) => void
+  mode: SwipeMode
+  onModeChange: (mode: SwipeMode) => void
+  /** Ownership mode writes to the user's library, same gate as the library
+   *  toggles above — hidden (and forced back to taste) when signed out. */
+  canUseOwnershipMode: boolean
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -509,11 +631,15 @@ function SwipeHeader({
           </button>
         </div>
       </div>
+      {/* Visible chrome, not a hidden setting (#912) — the toggle reframes
+          what a swipe means, so it sits right under the title where it's
+          obvious at a glance, not tucked into the tuning panels. */}
+      {canUseOwnershipMode && <SwipeModeToggle mode={mode} onChange={onModeChange} />}
       {/* Full-width so it doesn't squeeze beside the controls; on phones the
           gesture guidance moves below the deck (see SwipeHint) so the card
           lands in the first viewport (#845). */}
       <p className="hidden text-xs text-coconut-400 lg:block dark:text-sand-300">
-        One card at a time — right to save, left to pass, up for more like this.
+        {SWIPE_MODE_COPY[mode].description}
       </p>
       {showLibraryToggles && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-coconut-400 dark:text-sand-300">
@@ -562,6 +688,59 @@ function LibraryToggle({
 }
 
 /**
+ * Taste vs ownership toggle (#912) — a segmented pair rather than a
+ * checkbox, so both states read as equally first-class rather than one
+ * being the "on" deviation from a default.
+ */
+function SwipeModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: SwipeMode
+  onChange: (mode: SwipeMode) => void
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Swipe mode"
+      className="inline-flex w-fit overflow-hidden rounded-md border border-sand-300 dark:border-husk-50"
+    >
+      <ModeButton label="Taste" active={mode === 'taste'} onClick={() => onChange('taste')} />
+      <ModeButton
+        label="Ownership"
+        active={mode === 'ownership'}
+        onClick={() => onChange('ownership')}
+      />
+    </div>
+  )
+}
+
+function ModeButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? 'bg-palm-500 text-sand-50 dark:bg-sun-300 dark:text-husk-500'
+          : 'bg-sand-50 text-coconut-400 hover:bg-sand-100 dark:bg-husk-200 dark:text-sand-300 dark:hover:bg-husk-100'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
+
+/**
  * Per-depth positioning for the cards peeking beneath the top card.
  * Index = stack depth (0 is the top card, styled separately). Each peek
  * sits slightly lower and smaller, edges showing like a physical deck;
@@ -591,6 +770,7 @@ function SwipeCard({
   depth,
   drag,
   outgoing,
+  mode,
   interactive,
   onPointerDown,
   onPointerMove,
@@ -604,6 +784,7 @@ function SwipeCard({
   depth: number
   drag: Drag | null
   outgoing: SwipeAction | null
+  mode: SwipeMode
   interactive: boolean
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void
   onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void
@@ -630,7 +811,7 @@ function SwipeCard({
       >
         <CardArtwork card={card} />
         <CardMeta card={card} setName={setName} />
-        <DragHint drag={drag} outgoing={outgoing} />
+        <DragHint drag={drag} outgoing={outgoing} mode={mode} />
       </div>
     )
   }
@@ -696,14 +877,15 @@ function CardMeta({ card, setName }: { card: SetCard; setName: string }) {
 function DragHint({
   drag,
   outgoing,
+  mode,
 }: {
   drag: Drag | null
   outgoing: SwipeAction | null
+  mode: SwipeMode
 }) {
   const decision = outgoing ?? decisionFor(drag)
   if (!decision) return null
-  const label =
-    decision === 'pass' ? 'Pass' : decision === 'save' ? 'Save' : 'Love'
+  const label = SWIPE_MODE_COPY[mode].labels[decision]
   const tone =
     decision === 'pass'
       ? 'bg-ember-500/85 text-sand-50'
@@ -753,21 +935,26 @@ function cardTransformStyle(
 }
 
 function ActionRow({
+  mode,
   onPass,
   onSave,
   onLove,
   disabled,
 }: {
+  mode: SwipeMode
   onPass: () => void
   onSave: () => void
   onLove: () => void
   disabled: boolean
 }) {
+  const copy = SWIPE_MODE_COPY[mode]
+  const LoveIcon = copy.icons.love
+  const SaveIcon = copy.icons.save
   return (
     <div className="flex items-center gap-4" role="group" aria-label="Swipe actions">
       <ActionButton
-        label="Pass"
-        title="Pass (←)"
+        label={copy.labels.pass}
+        title={copy.titles.pass}
         onClick={onPass}
         disabled={disabled}
         tone="pass"
@@ -775,22 +962,22 @@ function ActionRow({
         <X size={22} aria-hidden />
       </ActionButton>
       <ActionButton
-        label="More like this"
-        title="More like this (↑)"
+        label={copy.labels.love}
+        title={copy.titles.love}
         onClick={onLove}
         disabled={disabled}
         tone="love"
       >
-        <Sparkles size={20} aria-hidden />
+        <LoveIcon size={20} aria-hidden />
       </ActionButton>
       <ActionButton
-        label="Save"
-        title="Save (→)"
+        label={copy.labels.save}
+        title={copy.titles.save}
         onClick={onSave}
         disabled={disabled}
         tone="save"
       >
-        <Heart size={22} aria-hidden />
+        <SaveIcon size={22} aria-hidden />
       </ActionButton>
     </div>
   )
@@ -835,25 +1022,26 @@ function ActionButton({
  * header hides it there to keep the card above the fold, #845); larger
  * screens get the arrow-key legend, since that's where keyboards live.
  */
-function SwipeHint() {
+function SwipeHint({ mode }: { mode: SwipeMode }) {
+  const copy = SWIPE_MODE_COPY[mode]
   return (
     <>
       <p className="text-xs text-coconut-400 lg:hidden dark:text-sand-400">
-        Right to save, left to pass, up for more like this.
+        {copy.hintMobile}
       </p>
       <p className="hidden flex-wrap items-center justify-center gap-1.5 text-[11px] text-coconut-400 lg:flex dark:text-sand-400">
         <KeyChip>
           <ArrowLeft size={11} />
         </KeyChip>
-        pass
+        {copy.labels.pass.toLowerCase()}
         <KeyChip>
           <ArrowUp size={11} />
         </KeyChip>
-        more like this
+        {copy.labels.love.toLowerCase()}
         <KeyChip>
           <ArrowRight size={11} />
         </KeyChip>
-        save
+        {copy.labels.save.toLowerCase()}
       </p>
     </>
   )
