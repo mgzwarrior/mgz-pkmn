@@ -516,13 +516,13 @@ def create_collection(req: CollectionCreate, db: DbSession, current_user: Curren
     db.add(collection)
     db.commit()
     db.refresh(collection)
-    return _serialize_collection(db, collection, current_user.id)
+    return serialize_collection(db, collection, current_user.id)
 
 
 @router.get("/collections/{collection_id}")
 def get_collection(collection_id: int, db: DbSession, current_user: CurrentUser) -> dict:
     collection = _load_collection(db, collection_id, current_user.id)
-    return _serialize_collection(db, collection, current_user.id)
+    return serialize_collection(db, collection, current_user.id)
 
 
 @router.patch("/collections/{collection_id}")
@@ -560,7 +560,7 @@ def patch_collection(
     _patch_binder_fields(collection, req)
     db.commit()
     db.refresh(collection)
-    return _serialize_collection(db, collection, current_user.id)
+    return serialize_collection(db, collection, current_user.id)
 
 
 @router.delete("/collections/{collection_id}", status_code=204)
@@ -1282,7 +1282,7 @@ def _resolve_chase_wishlist(db: Session, user_id: int, req: ChaseRequest) -> Wis
     return wishlist
 
 
-def _serialize_collection(db: Session, collection: Collection, user_id: int) -> dict:
+def serialize_collection(db: Session, collection: Collection, user_id: int) -> dict:
     # A dynamic collection owns no rows — resolve its membership live from
     # the rule. Manual/set collections render their stored items.
     if collection.kind == COLLECTION_KIND_DYNAMIC and collection.rule_json:
