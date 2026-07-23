@@ -159,7 +159,7 @@ interface SwipePanelProps {
 }
 
 export function SwipePanel({ active }: SwipePanelProps) {
-  const { profile, seenSet, act, reset, scoreCard } =
+  const { profile, seenSet, act, markSeen, reset, scoreCard } =
     useSwipeProfile()
   const { settings, updateSettings } = useAppStore()
   const { user } = useAuth()
@@ -271,6 +271,15 @@ export function SwipePanel({ active }: SwipePanelProps) {
               name: current.setName,
             }),
           )
+          // Still mark the card seen in the taste profile (without the
+          // weight bump `act` would apply) so `profile.seen` — and the
+          // `seenSet` derived from it — grows the same way it does in taste
+          // mode. `useSwipeCandidates` keys its dealt-queue reset off that
+          // set shrinking; skipping this left ownership-mode swipes living
+          // only in its internal `dealtRef`, so "Reset profile" cleared
+          // server memory but the session's dealt queue stayed stale until
+          // a reload.
+          markSeen(current.card.id)
         } else {
           act(current.card, current.setId, action)
         }
@@ -286,7 +295,7 @@ export function SwipePanel({ active }: SwipePanelProps) {
         advance()
       }, 180)
     },
-    [current, act, recordSeen, advance, onboarding, swipeMode],
+    [current, act, markSeen, recordSeen, advance, onboarding, swipeMode],
   )
 
   // Keyboard shortcuts — global while the panel is mounted + active.

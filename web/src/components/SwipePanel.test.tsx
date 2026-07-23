@@ -568,6 +568,53 @@ describe('SwipePanel', () => {
     expect(mockWantCard).not.toHaveBeenCalled()
   })
 
+  it('ownership mode swipes keep the taste profile\'s seen list resettable (#912 review)', async () => {
+    mockFetchMe.mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const toggle = await screen.findByRole('group', { name: 'Swipe mode' })
+    fireEvent.click(within(toggle).getByRole('button', { name: 'Ownership' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Owned' }))
+
+    // `act` (and the taste-weight bump it applies) is skipped in ownership
+    // mode — the gesture files the card instead of tuning taste — so this
+    // exercises the `markSeen` fallback (#912 review): without it,
+    // `profile.seen` (and the `useSwipeCandidates` shrink-detection reset
+    // signal derived from it) never grows from an ownership swipe, so
+    // "Reset profile" / "Reset and start over" clears server memory but
+    // leaves the session's internal dealt queue stale until a reload.
+    await waitFor(() => {
+      const raw = window.localStorage.getItem('mgz-pkmn:swipe-profile:v1')
+      const profile = raw ? (JSON.parse(raw) as { seen?: string[] }) : null
+      expect(profile?.seen).toContain('sv1-1')
+    }, POST_SWIPE_WAIT)
+
+    // Ownership mode never bumps the taste weights or the saved list —
+    // only `seen` is mirrored.
+    const beforeReset = JSON.parse(
+      window.localStorage.getItem('mgz-pkmn:swipe-profile:v1') as string,
+    ) as { rarity: Record<string, number>; set: Record<string, number>; saved: unknown[] }
+    expect(beforeReset.rarity).toEqual({})
+    expect(beforeReset.set).toEqual({})
+    expect(beforeReset.saved).toEqual([])
+
+    // "Reset profile" clears the mirrored seen entry the same way it
+    // clears a taste-mode one, so useSwipeCandidates' shrink-detection
+    // sees the same reset signal regardless of which mode dealt the card.
+    fireEvent.click(screen.getByRole('button', { name: 'Reset profile' }))
+    await waitFor(() => {
+      const raw = window.localStorage.getItem('mgz-pkmn:swipe-profile:v1')
+      const profile = raw ? (JSON.parse(raw) as { seen?: string[] }) : null
+      expect(profile?.seen).toEqual([])
+    })
+  })
+
   it('pressing Enter on the focused card opens the detail modal', async () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
