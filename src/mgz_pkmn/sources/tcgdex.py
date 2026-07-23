@@ -11,7 +11,7 @@ import requests
 
 from ..parser import CardQuery, strip_noise
 from ._common import USER_AGENT
-from .base import MatchResult, score_card, set_overlap
+from .base import MatchResult, rank_candidates, set_overlap
 
 TCGDEX_BASE = "https://api.tcgdex.net/v2"
 
@@ -136,5 +136,7 @@ def search_tcgdex(client: TCGDexClient, q: CardQuery, lang: str) -> MatchResult:
         in_set = [c for c in candidates if set_overlap(c, q.set_hint)]
         if not in_set:
             return MatchResult(None, "set_mismatch")
-        return MatchResult(max(in_set, key=lambda c: score_card(c, q)), "matched")
-    return MatchResult(max(candidates, key=lambda c: score_card(c, q)), "matched")
+        ranked = rank_candidates(in_set, q)
+        return MatchResult(ranked[0], "matched", candidates=ranked if len(ranked) > 1 else None)
+    ranked = rank_candidates(candidates, q)
+    return MatchResult(ranked[0], "matched", candidates=ranked if len(ranked) > 1 else None)

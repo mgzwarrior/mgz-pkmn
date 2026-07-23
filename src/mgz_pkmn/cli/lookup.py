@@ -69,6 +69,7 @@ def _build_row(
     images_dir: Path,
     no_images: bool,
     ebay: EbayClient | None = None,
+    candidates: list[dict] | None = None,
 ) -> Row:
     """Build a spreadsheet row for a single matched card, optionally
     downloading its image into `images_dir`."""
@@ -84,7 +85,14 @@ def _build_row(
             safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", f"{card.get('id')}")
             image_path = images_dir / f"{safe}{ext}"
             download_image(img_url, image_path, pkmn_client.session)
-    return Row(query=query, card=card, pricing=pricing, image_path=image_path, tag=tag)
+    return Row(
+        query=query,
+        card=card,
+        pricing=pricing,
+        image_path=image_path,
+        tag=tag,
+        candidates=candidates,
+    )
 
 
 def _print_missed_reason(q: CardQuery, result: MatchResult) -> None:
@@ -222,6 +230,12 @@ def _lookup_one_single(
     counters["matched"] += 1
     pricing = extract_pricing(card, q.variant_hint)
     _print_matched_line(card, pricing, time.monotonic() - t0)
+    if result.candidates:
+        click.secho(
+            f"      ⚑ {len(result.candidates)} cards matched {q.name!r}; picked the "
+            "highest-scoring printing — add a set/number to `input.txt` to pin a different one",
+            fg="yellow",
+        )
     return _build_row(
         card,
         q,
@@ -230,6 +244,7 @@ def _lookup_one_single(
         images_dir=images_dir,
         no_images=no_images,
         ebay=ebay,
+        candidates=result.candidates,
     )
 
 

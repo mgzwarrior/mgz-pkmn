@@ -285,7 +285,11 @@ def find_card(
             # when that lands.
             return _apply_price_bounds(
                 MatchResult(
-                    result.card, result.reason, url=result.url, cache_status=primary.cache_status
+                    result.card,
+                    result.reason,
+                    url=result.url,
+                    candidates=result.candidates,
+                    cache_status=primary.cache_status,
                 ),
                 q,
             )

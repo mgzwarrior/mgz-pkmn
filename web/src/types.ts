@@ -81,6 +81,14 @@ export type CardData = Record<string, unknown> & {
 export interface Row {
   query: CardQuery
   card: CardData | null
+  /**
+   * Other plausible matches when the name-only query was ambiguous (e.g.
+   * `Charizard` alone), ranked highest-scoring first — `card` is always
+   * `candidates[0]`. `null`/absent for an unambiguous match or an unmatched
+   * row. Lets the SPA offer a picklist instead of silently committing to
+   * whichever printing scored highest (#948).
+   */
+  candidates?: CardData[] | null
   pricing: Pricing
   tag: string
   matched: boolean

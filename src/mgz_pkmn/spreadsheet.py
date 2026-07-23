@@ -97,6 +97,10 @@ class Row:
     pricing: Pricing
     image_path: Path | None = None
     tag: str = ""  # input-file stem so rows stay grouped per source list
+    # Other plausible matches when the name-only lookup was ambiguous, ranked
+    # highest-scoring first (`card` is `candidates[0]`). See
+    # `MatchResult.candidates` (#948).
+    candidates: list[dict[str, Any]] | None = None
 
 
 # Rarity tiers the palette already defines (design/tokens/colors_and_type.css

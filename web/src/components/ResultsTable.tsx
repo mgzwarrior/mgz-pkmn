@@ -25,6 +25,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  ChevronDown,
   Columns3,
   ExternalLink,
   AlertCircle,
@@ -43,7 +44,7 @@ import {
 import { BulkActionBar } from './BulkActionBar'
 import { useAuth } from '../hooks/useAuth'
 import { DEFAULT_COMP_TIERS, useAppStore } from '../store'
-import type { CardCondition, CompTier, ResultsFilters, Row } from '../types'
+import type { CardCondition, CardData, CompTier, ResultsFilters, Row } from '../types'
 import { formatComp, formatMoney } from '../utils/format'
 import {
   conditionPricingForRow,
@@ -92,6 +93,18 @@ function rowIdentity(row: Row): { setId: string; number: string } | null {
   const number = row.card.number as string | undefined
   if (!setId || !number) return null
   return { setId, number }
+}
+
+/**
+ * Build a `name | set | number` rerun line from a candidate card so picking
+ * an alternate from an ambiguous match's picklist pins that exact printing
+ * (#948) — the same pipe-delimited form `parse_line` already accepts.
+ */
+function candidateRerunLine(card: CardData): string {
+  const name = (card.name as string | undefined) ?? ''
+  const setName = (card.set as { name?: string } | undefined)?.name ?? ''
+  const number = (card.number as string | undefined) ?? ''
+  return [name, setName, number].filter(Boolean).join(' | ')
 }
 
 /** Resolve a row's ownership through the shared lookup, or undefined. */
@@ -1342,6 +1355,61 @@ function SheetField({ label, children }: { label: string; children: React.ReactN
   )
 }
 
+/**
+ * Picklist for an ambiguous name-only match (#948) — shown under the Name
+ * cell when `row.candidates` has more than one entry. Picking an alternate
+ * reruns the line pinned to that printing's set + number rather than
+ * swapping the row's card client-side, since only the server knows how to
+ * price a card (`onRerunLine` already does this for the PriceCharting
+ * override flow above).
+ */
+export function CandidatePicker({
+  candidates,
+  onPick,
+}: {
+  candidates: CardData[]
+  onPick: (line: string) => void
+}) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className="mt-0.5 flex items-center gap-0.5 text-xs text-palm-500 hover:text-palm-400 dark:text-sun-300 dark:hover:text-sun-200 hover:underline"
+        >
+          {candidates.length} matches
+          <ChevronDown size={11} />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={4}
+          className="z-50 max-h-72 w-64 overflow-y-auto rounded-md border border-sand-300 bg-sand-50 p-1 shadow-xl shadow-coconut-700/15 dark:border-husk-50 dark:bg-husk-200"
+        >
+          {candidates.map((c, i) => {
+            const setName = (c.set as { name?: string } | undefined)?.name
+            return (
+              <DropdownMenu.Item
+                key={(c.id as string | undefined) ?? i}
+                onSelect={() => onPick(candidateRerunLine(c))}
+                className="flex cursor-pointer flex-col rounded px-2 py-1.5 text-xs outline-none hover:bg-sand-200 focus:bg-sand-200 dark:hover:bg-husk-100 dark:focus:bg-husk-100"
+              >
+                <span className="font-medium text-coconut-700 dark:text-sand-50">
+                  {c.name as string}
+                </span>
+                <span className="text-coconut-400 dark:text-sand-300">
+                  {setName ?? '—'} {c.number ? `#${c.number as string}` : ''}
+                </span>
+              </DropdownMenu.Item>
+            )
+          })}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
 function PriceStack({
   primary,
   secondary,
@@ -1532,6 +1600,9 @@ function ResultRow({
                   list (it's still in the editor), so compact reclaims the
                   line — the biggest single win toward its tighter rhythm. */}
               <div className="text-xs text-coconut-400 dark:text-sand-300 truncate compact:hidden">{row.query.raw}</div>
+              {onRerunLine && row.candidates && row.candidates.length > 1 && (
+                <CandidatePicker candidates={row.candidates} onPick={onRerunLine} />
+              )}
               <OwnershipBadge ownership={ownership} className="mt-0.5" />
             </div>
           ) : (

@@ -27,6 +27,13 @@ class MatchResult:
     # covers paths that bypass the disk-cache layer entirely (PriceCharting
     # scrape, TCGdex — neither has disk persistence today).
     cache_status: str = "MISS"
+    # Other plausible matches, ranked highest-scoring first (`card` is always
+    # `candidates[0]` when set). Populated only when the candidate pool that
+    # produced `card` had more than one entry after set/number filtering —
+    # an ambiguous name-only query like "Charizard" — so callers can offer a
+    # picklist instead of silently committing to one printing (#948). `None`
+    # for unambiguous matches and every non-"matched" reason.
+    candidates: list[dict[str, Any]] | None = None
 
 
 def worse_cache_status(*statuses: str) -> str:
@@ -61,6 +68,26 @@ def name_clause(name: str) -> str:
     if " " in cleaned:
         return f'name:"{cleaned}"'
     return f"name:{cleaned}"
+
+
+def rank_candidates(
+    cards: list[dict[str, Any]], q: CardQuery, *, cap: int = 10
+) -> list[dict[str, Any]]:
+    """Dedup `cards` by id and sort by `score_card` descending, capped at `cap`.
+
+    Used to build `MatchResult.candidates` — the winner is always
+    `rank_candidates(...)[0]`, matching the `max(..., key=score_card)` pick
+    each source already made before this helper existed."""
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for c in cards:
+        cid = c.get("id")
+        if cid is not None:
+            if cid in seen:
+                continue
+            seen.add(cid)
+        deduped.append(c)
+    return sorted(deduped, key=lambda c: score_card(c, q), reverse=True)[:cap]
 
 
 def score_card(card: dict[str, Any], q: CardQuery) -> float:
