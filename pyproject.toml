@@ -1,6 +1,6 @@
 [project]
 name = "mgz-pkmn"
-version = "1.8.0"
+version = "1.9.0"
 description = "CLI and web app to look up Pokemon cards across open data sources, fetch images and prices, and emit an .xlsx, PDF binder, set-completion checklist, and JSON report for card-show prep."
 readme = "README.md"
 license = "MIT"

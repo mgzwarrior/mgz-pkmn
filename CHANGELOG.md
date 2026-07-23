@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.9.0](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.8.0...v1.9.0) (2026-07-23)
+
+
+### Added
+
+* **api:** add native-app session handoff for iOS OAuth sign-in ([#926](https://github.com/mgzwarrior/mgz-pkmn/issues/926)) ([369f80d](https://github.com/mgzwarrior/mgz-pkmn/commit/369f80d12709f0c7133eddeeecf618db75c69437))
+* **api:** native-app handoff for magic-link account linking ([#937](https://github.com/mgzwarrior/mgz-pkmn/issues/937)) ([c4145b8](https://github.com/mgzwarrior/mgz-pkmn/commit/c4145b8302782cadcb1ddc8b8fb729e63cfa1d2a))
+* **cli:** entry-point plugin surface for commands, writers, and sources ([#842](https://github.com/mgzwarrior/mgz-pkmn/issues/842)) ([58129d6](https://github.com/mgzwarrior/mgz-pkmn/commit/58129d608d15f6c95fe9e811e99fd69ad09ed979))
+* dark-mode export variants + theme-matched gallery switching ([#900](https://github.com/mgzwarrior/mgz-pkmn/issues/900)) ([b299904](https://github.com/mgzwarrior/mgz-pkmn/commit/b29990479576a6dc5adb33480bcb3c0cf47b352c)), closes [#598](https://github.com/mgzwarrior/mgz-pkmn/issues/598)
+* **outputs:** tint the xlsx Rarity cell per rarity tier ([#917](https://github.com/mgzwarrior/mgz-pkmn/issues/917)) ([d3b980c](https://github.com/mgzwarrior/mgz-pkmn/commit/d3b980c7db019e8ca7b2be5d4031ecb8642625e2))
+* **web:** add a Cmd/Ctrl+K command palette for desktop power users ([#846](https://github.com/mgzwarrior/mgz-pkmn/issues/846)) ([9758f00](https://github.com/mgzwarrior/mgz-pkmn/commit/9758f002eacaa873592c272f187dae57d48999dd))
+* **web:** add binder detail spread ([#902](https://github.com/mgzwarrior/mgz-pkmn/issues/902)) ([59d4d20](https://github.com/mgzwarrior/mgz-pkmn/commit/59d4d20b100778983d7d12463b9014e9d147bcd7))
+* **web:** add condition-aware pricing ([#901](https://github.com/mgzwarrior/mgz-pkmn/issues/901)) ([d998a43](https://github.com/mgzwarrior/mgz-pkmn/commit/d998a430641611ba0a6854f32a60f0b135d7728a))
+* **web:** collapse the favorite-sets panel by default and cap suggestions to five ([#832](https://github.com/mgzwarrior/mgz-pkmn/issues/832)) ([b36985c](https://github.com/mgzwarrior/mgz-pkmn/commit/b36985c9418b9cf3daf97c972ab6962117971dae))
+* **web:** collection purpose — personal / trade / bulk ([#707](https://github.com/mgzwarrior/mgz-pkmn/issues/707)) ([#889](https://github.com/mgzwarrior/mgz-pkmn/issues/889)) ([bb0ff61](https://github.com/mgzwarrior/mgz-pkmn/commit/bb0ff618cf5886aace62c3b12b98ed232df7c15e))
+* **web:** configurable comp-tier columns on ResultsTable ([#943](https://github.com/mgzwarrior/mgz-pkmn/issues/943)) ([68ce0cf](https://github.com/mgzwarrior/mgz-pkmn/commit/68ce0cf3d65affb728fd35c739b13d6dc88de9bb))
+* **web:** deeplink to the collection a wishlist card was promoted into ([#831](https://github.com/mgzwarrior/mgz-pkmn/issues/831)) ([f150fd8](https://github.com/mgzwarrior/mgz-pkmn/commit/f150fd83366dc70234cab0ffa6369979206b4c76))
+* **web:** density toggle — comfortable / compact workspace rhythm ([#867](https://github.com/mgzwarrior/mgz-pkmn/issues/867)) ([39877fd](https://github.com/mgzwarrior/mgz-pkmn/commit/39877fdd88880c4d46e976a50d2f8f9720698c06))
+* **web:** editor auto-grow, post-lookup collapse, and a useful results empty state ([#839](https://github.com/mgzwarrior/mgz-pkmn/issues/839)) ([ec50c2f](https://github.com/mgzwarrior/mgz-pkmn/commit/ec50c2fb988b37124704c4544d56fb0da76b5d37))
+* **web:** lift the 1200px width cap for the results table ([#841](https://github.com/mgzwarrior/mgz-pkmn/issues/841)) ([4877c35](https://github.com/mgzwarrior/mgz-pkmn/commit/4877c3585c488cd36018d347c3a1784d53bc1dfa))
+* **web:** mobile bottom-tab navigation + collapsed utility sheet ([#834](https://github.com/mgzwarrior/mgz-pkmn/issues/834)) ([cc500ff](https://github.com/mgzwarrior/mgz-pkmn/commit/cc500ff55cd65ac835251f49a87d780485970703))
+* **web:** move Searches + Recent out of the Backpack into the Search context ([#869](https://github.com/mgzwarrior/mgz-pkmn/issues/869)) ([dbdd68a](https://github.com/mgzwarrior/mgz-pkmn/commit/dbdd68a689d09bc163fde73939a278e260a92293))
+* **web:** multi-select owned/chasing bulk actions in browse ([#934](https://github.com/mgzwarrior/mgz-pkmn/issues/934)) ([484efec](https://github.com/mgzwarrior/mgz-pkmn/commit/484efecfff9f7e4d40d97859869af27708b565ca))
+* **web:** pin the editor pane beside a long results scroll ([#856](https://github.com/mgzwarrior/mgz-pkmn/issues/856)) ([a5c63ad](https://github.com/mgzwarrior/mgz-pkmn/commit/a5c63ad38500ea472380555244fbb387c08ee743)), closes [#527](https://github.com/mgzwarrior/mgz-pkmn/issues/527)
+* **web:** promote result filters into a dedicated panel ([#927](https://github.com/mgzwarrior/mgz-pkmn/issues/927)) ([0542152](https://github.com/mgzwarrior/mgz-pkmn/commit/05421520b6e636a3187e8930312fe4fdfe20ef20))
+* **web:** quantity stepper on the card-detail location chips ([#938](https://github.com/mgzwarrior/mgz-pkmn/issues/938)) ([df73a3a](https://github.com/mgzwarrior/mgz-pkmn/commit/df73a3a1840c60badeebc098bda7674816fb486d))
+* **web:** rename a collection or wishlist from its detail view ([#830](https://github.com/mgzwarrior/mgz-pkmn/issues/830)) ([192596e](https://github.com/mgzwarrior/mgz-pkmn/commit/192596e67d0bb4846269c7f4f3a36969d44943ad))
+* **web:** rename want-list UI labels to Wishlist to match the data model ([#828](https://github.com/mgzwarrior/mgz-pkmn/issues/828)) ([03396ff](https://github.com/mgzwarrior/mgz-pkmn/commit/03396ff80b190dd30b6157e8d54895e0de41e8d2))
+* **web:** render mobile results as cards, not a table ([#840](https://github.com/mgzwarrior/mgz-pkmn/issues/840)) ([323faf0](https://github.com/mgzwarrior/mgz-pkmn/commit/323faf00ff90c4cad103b20f176398eb2285d70b))
+* **web:** show card images by default and add a hide-pricing setting ([#878](https://github.com/mgzwarrior/mgz-pkmn/issues/878)) ([be026e7](https://github.com/mgzwarrior/mgz-pkmn/commit/be026e7edc8b04d0a5783189cab1bdc1695d07e2))
+* **web:** side-by-side editor + results workspace on desktop ([#835](https://github.com/mgzwarrior/mgz-pkmn/issues/835)) ([d4eca38](https://github.com/mgzwarrior/mgz-pkmn/commit/d4eca38f3abfae60c942a22efcef32fb98a1b7ff))
+* **web:** touch-polish the Look up button and card list textarea ([#836](https://github.com/mgzwarrior/mgz-pkmn/issues/836)) ([8ac00c5](https://github.com/mgzwarrior/mgz-pkmn/commit/8ac00c5019747725f2d36b54f86aa5fb6aa62566))
+
+
+### Fixed
+
+* **web:** full-screen mobile Backpack/Account detail views instead of centered dialogs ([#858](https://github.com/mgzwarrior/mgz-pkmn/issues/858)) ([7a72add](https://github.com/mgzwarrior/mgz-pkmn/commit/7a72add911fb22267f2383c7ab9fc0d17758324f))
+* **web:** keep the Discover mode tabs on one row at every width ([#838](https://github.com/mgzwarrior/mgz-pkmn/issues/838)) ([517ed21](https://github.com/mgzwarrior/mgz-pkmn/commit/517ed21b922a24795701dff63ea643d1ab9cd4c1))
+* **web:** land the swipe card above the fold on mobile ([#855](https://github.com/mgzwarrior/mgz-pkmn/issues/855)) ([8008490](https://github.com/mgzwarrior/mgz-pkmn/commit/8008490605869e8eed6f0b798deccb5f48e3d251))
+* **web:** let Binders/wishlist rows wrap instead of overflowing on mobile ([#853](https://github.com/mgzwarrior/mgz-pkmn/issues/853)) ([76facb7](https://github.com/mgzwarrior/mgz-pkmn/commit/76facb7c1e1841d6d5e52ebd41c91741a713a112))
+* **web:** Search collapse jump, Swipe prep-list nudge, Swipe personalization layout ([#874](https://github.com/mgzwarrior/mgz-pkmn/issues/874)) ([f75a578](https://github.com/mgzwarrior/mgz-pkmn/commit/f75a57823331269116207b1a42a708227fd2111c))
+* **web:** stop the Browse set/Pokédex header from overlapping on mobile ([#847](https://github.com/mgzwarrior/mgz-pkmn/issues/847)) ([770f9fe](https://github.com/mgzwarrior/mgz-pkmn/commit/770f9fe6caad6801e73b39f98fb7597fc1110530))
+* **web:** surface the swipe card and its actions in the first mobile viewport ([#854](https://github.com/mgzwarrior/mgz-pkmn/issues/854)) ([517bfb4](https://github.com/mgzwarrior/mgz-pkmn/commit/517bfb4e0d216642997b40826a503894648b9fc1))
+
+
+### Changed
+
+* add ADR-0030 for preferred AI tool roles and caveman token efficiency ([#893](https://github.com/mgzwarrior/mgz-pkmn/issues/893)) ([e84f55f](https://github.com/mgzwarrior/mgz-pkmn/commit/e84f55fd0088669a56741d50ea73060f389b5f6d))
+* add TCG Codex competitive analysis ([#880](https://github.com/mgzwarrior/mgz-pkmn/issues/880)) ([9b5f394](https://github.com/mgzwarrior/mgz-pkmn/commit/9b5f3947e792e5118298e30f0b9cabcb2705acb5))
+* make current-milestone a hard filter for issue selection ([#918](https://github.com/mgzwarrior/mgz-pkmn/issues/918)) ([2fb1570](https://github.com/mgzwarrior/mgz-pkmn/commit/2fb1570ea766bafb5d02c7419388431710f143ca))
+* **site:** tighten onboarding email copy, design a release-digest track ([#940](https://github.com/mgzwarrior/mgz-pkmn/issues/940)) ([7d426e9](https://github.com/mgzwarrior/mgz-pkmn/commit/7d426e99d98aecb4367b3c6ef0ae41e6f984dd7f))
+* skill-stack precedence in ADR-0030 ([#895](https://github.com/mgzwarrior/mgz-pkmn/issues/895)) ([cb2e396](https://github.com/mgzwarrior/mgz-pkmn/commit/cb2e396a8347bb85da80dcf5d0b979f351bb76f2))
+* **web:** drop stale Swipe prep-list references ([#876](https://github.com/mgzwarrior/mgz-pkmn/issues/876)) ([02cadde](https://github.com/mgzwarrior/mgz-pkmn/commit/02caddef82bb124373fa662caa9d0c4b17516c1d))
+* work-issue skill + contributing section for delegating issues to Claude ([#899](https://github.com/mgzwarrior/mgz-pkmn/issues/899)) ([afcbc63](https://github.com/mgzwarrior/mgz-pkmn/commit/afcbc63289c5fa1e4d6b58da08e60e11d99a2a25))
+
 ## [1.8.0] - 2026-06-30
 
 The "make it honest" release: the app now leads with Swipe, the Tour and Help walk the surfaces that actually shipped, the end-user docs match the live SPA, and the welcome email moved to a reason-branched drip on Resend.
