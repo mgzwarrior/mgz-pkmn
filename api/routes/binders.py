@@ -181,7 +181,7 @@ def _wishlist_counts(db: Session, wishlist_ids: list[int]) -> dict[int, int]:
     return {wid: int(count) for wid, count in rows}
 
 
-def _serialize(db: Session, binder: Binder, *, include_contents: bool) -> dict[str, Any]:
+def serialize_binder(db: Session, binder: Binder, *, include_contents: bool) -> dict[str, Any]:
     collections = sorted(binder.collections, key=lambda c: c.created_at)
     wishlists = sorted(binder.wishlists, key=lambda w: w.created_at)
     base: dict[str, Any] = {
@@ -228,7 +228,7 @@ def list_binders(db: DbSession, current_user: CurrentUser) -> dict:
         .options(selectinload(Binder.collections), selectinload(Binder.wishlists))
         .order_by(Binder.created_at)
     ).all()
-    return {"binders": [_serialize(db, b, include_contents=False) for b in binders]}
+    return {"binders": [serialize_binder(db, b, include_contents=False) for b in binders]}
 
 
 @router.post("/binders", status_code=201)
@@ -245,13 +245,13 @@ def create_binder(req: BinderCreate, db: DbSession, current_user: CurrentUser) -
     db.add(binder)
     db.commit()
     db.refresh(binder)
-    return _serialize(db, binder, include_contents=True)
+    return serialize_binder(db, binder, include_contents=True)
 
 
 @router.get("/binders/{binder_id}")
 def get_binder(binder_id: int, db: DbSession, current_user: CurrentUser) -> dict:
     binder = _load_binder(db, binder_id, current_user.id)
-    return _serialize(db, binder, include_contents=True)
+    return serialize_binder(db, binder, include_contents=True)
 
 
 @router.patch("/binders/{binder_id}")
@@ -275,7 +275,7 @@ def patch_binder(
             setattr(binder, key, fields[key])
     db.commit()
     db.refresh(binder)
-    return _serialize(db, binder, include_contents=True)
+    return serialize_binder(db, binder, include_contents=True)
 
 
 @router.delete("/binders/{binder_id}", status_code=204)
