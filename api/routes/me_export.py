@@ -4,8 +4,8 @@ Part of the persistence-at-growth epic (#419): the GDPR-style "show me
 everything you have on me" surface that #450's "Your data" page will
 front-end. Bundles the signed-in user's profile, linked sign-in identities,
 lookup history (runs), collections, want-lists, binders, and personalization
-signals (favorite sets/species, swipe memory) into one downloadable JSON
-document.
+signals (favorite sets/species, swipe memory, swipe taste profile) into
+one downloadable JSON document.
 
 Reuses each resource router's own serializer (`serialize_collection`,
 `serialize_wishlist`, `serialize_binder`, the `runs.py` Pydantic shapes) so
@@ -48,6 +48,7 @@ from ..db.models import (
     FavoriteSet,
     FavoriteSpecies,
     Run,
+    SwipeProfileWeight,
     SwipeSeen,
     User,
     UserIdentity,
@@ -238,6 +239,20 @@ def _swipe_seen_section(db: Session, user_id: int) -> list[dict[str, Any]]:
     ]
 
 
+def _swipe_profile_section(db: Session, user_id: int) -> dict[str, dict[str, int]]:
+    rows = db.execute(
+        select(
+            SwipeProfileWeight.bucket,
+            SwipeProfileWeight.key,
+            SwipeProfileWeight.weight,
+        ).where(SwipeProfileWeight.user_id == user_id)
+    ).all()
+    profile: dict[str, dict[str, int]] = {"rarity": {}, "set": {}, "tag": {}}
+    for bucket, key, weight in rows:
+        profile[bucket][key] = weight
+    return profile
+
+
 def _build_export(db: Session, user: User) -> dict[str, Any]:
     """Gather every section eagerly, in one open session — see module
     docstring for why the generator that serializes this never touches
@@ -254,6 +269,7 @@ def _build_export(db: Session, user: User) -> dict[str, Any]:
         "favorite_sets": _favorite_sets_section(db, user.id),
         "favorite_species": _favorite_species_section(db, user.id),
         "swipe_seen": _swipe_seen_section(db, user.id),
+        "swipe_profile": _swipe_profile_section(db, user.id),
     }
 
 

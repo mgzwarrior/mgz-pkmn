@@ -12,7 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from ..db.models import (
     DEFAULT_USER_ID,
@@ -21,6 +21,7 @@ from ..db.models import (
     FavoriteSet,
     FavoriteSpecies,
     Run,
+    SwipeProfileWeight,
     SwipeSeen,
     User,
     UserIdentity,
@@ -182,10 +183,11 @@ def delete_me(
     **Irreversible — there is no admin override or recovery path.**
     Cascades every user-owned record: lookup runs (saved searches),
     collections, wishlists, binders, favorite sets/species, swipe
-    history, and linked sign-in identities. Clears the session cookie
-    on the way out, so the browser can't keep acting as this account,
-    and re-authenticating with a previously-linked provider mints a
-    fresh, empty account rather than resurrecting this one."""
+    history and taste profile, and linked sign-in identities. Clears
+    the session cookie on the way out, so the browser can't keep
+    acting as this account, and re-authenticating with a
+    previously-linked provider mints a fresh, empty account rather
+    than resurrecting this one."""
     user_id = user.id
 
     for run in db.scalars(select(Run).where(Run.user_id == user_id)).all():
@@ -204,6 +206,10 @@ def delete_me(
         select(FavoriteSpecies).where(FavoriteSpecies.user_id == user_id)
     ).all():
         db.delete(fav_species)
+    # Bulk delete rather than load-then-delete: a taste profile can be
+    # dozens of rows (one per rarity/set/tag key), and there's no ORM
+    # object identity worth preserving mid-transaction here.
+    db.execute(delete(SwipeProfileWeight).where(SwipeProfileWeight.user_id == user_id))
 
     # Cascades `identities` via the ORM relationship (User.identities,
     # cascade="all, delete-orphan").

@@ -119,6 +119,7 @@ class MeExportSelfHostTests(_IsolatedDbMixin):
                 "swipe_seen",
             ):
                 self.assertEqual(body[section], [])
+            self.assertEqual(body["swipe_profile"], {"rarity": {}, "set": {}, "tag": {}})
 
     def test_round_trips_every_kind_of_data_with_no_field_loss(self) -> None:
         with self._client() as c:
@@ -146,6 +147,10 @@ class MeExportSelfHostTests(_IsolatedDbMixin):
             c.post("/api/v1/favorite-sets", json={"set_id": "base1"})
             c.post("/api/v1/favorite-pokemon", json={"dex_number": 6})
             c.post("/api/v1/swipe/seen", json={"set_id": "base1", "number": "4", "dir": "save"})
+            c.put(
+                "/api/v1/swipe/profile",
+                json={"rarity": {"Rare Holo": 3}, "set": {"base1": -2}, "tag": {}},
+            )
 
             body = c.get("/api/v1/me/export").json()
 
@@ -185,6 +190,10 @@ class MeExportSelfHostTests(_IsolatedDbMixin):
             self.assertEqual(body["swipe_seen"][0]["set_id"], "base1")
             self.assertEqual(body["swipe_seen"][0]["number"], "4")
             self.assertEqual(body["swipe_seen"][0]["dir"], "save")
+            self.assertEqual(
+                body["swipe_profile"],
+                {"rarity": {"Rare Holo": 3}, "set": {"base1": -2}, "tag": {}},
+            )
 
 
 class MeExportAuthGateTests(_IsolatedDbMixin):
