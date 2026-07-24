@@ -77,6 +77,7 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | `GET`  | `/api/v1/runs/{id}` | Full run record including all `run_rows` |
 | `PATCH`| `/api/v1/runs/{id}` | Save / rename a run (sets `name` + ResultsTable view-state snapshot) |
 | `GET`  | `/api/v1/me/export` | Stream the signed-in user's full data export (runs, collections, wishlists, binders, favorites, swipe memory) as one JSON document |
+| `DELETE` | `/api/v1/me` | Permanently delete the signed-in user's account and every owned record — irreversible, no admin recovery path |
 | `GET`  | `/api/v1/swipe/excluded` | Identities the swipe deck should skip — persisted seen memory, plus owned/chasing cards if `?owned=true`/`?chasing=true` |
 | `POST` | `/api/v1/swipe/seen` | Record one shown card as seen (idempotent) |
 | `DELETE`| `/api/v1/swipe/seen` | Reset seen memory — everything, one set (`?set_id=`), or one card (`?set_id=&number=`); `number` alone is rejected with 422 |
@@ -198,6 +199,19 @@ sign-in on a hosted deploy (`401` when signed out and
 auth is off. Rate-limited to 5 requests per 5 minutes per user
 (in-process — see [`api/routes/me_export.py`](routes/me_export.py)) —
 past the cap the response is `429` with a `Retry-After` header.
+
+### DELETE `/api/v1/me`
+
+```bash
+curl -X DELETE http://localhost:8000/api/v1/me
+```
+
+Permanently deletes the signed-in user's account: lookup runs (saved
+searches), collections, wishlists, binders, favorite sets/species, swipe
+history, and every linked sign-in identity. Clears the session cookie on
+success. **Irreversible — no admin recovery path.** `401` when signed out,
+`404` when `MGZ_PKMN_AUTH_ENABLED` is off (self-host has no account to
+delete). See [docs/account.md](../docs/account.md).
 
 ## Architecture
 
