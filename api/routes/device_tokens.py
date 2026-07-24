@@ -1,8 +1,9 @@
 """`/api/v1/device-tokens` — push notification device registration (#974).
 
-First slice of the push notification epic (#946): registration and storage
-only. No preferences (#975) or delivery (#976) yet — a registered token
-currently goes nowhere.
+First slice of the push notification epic (#946): registration and storage.
+Registering a device also seeds default notification preference rows
+(#975, `api.routes.notification_preferences.ensure_default_preferences`).
+No delivery (#976) yet — a registered token currently goes nowhere.
 
 Endpoints:
 
@@ -25,6 +26,7 @@ from sqlalchemy.orm import Session
 from ..auth.session import current_user_or_default
 from ..db.models import DeviceToken, User
 from ..db.session import get_db
+from .notification_preferences import ensure_default_preferences
 
 router = APIRouter()
 
@@ -88,7 +90,11 @@ def register_device(
     existing token (same device, another sign-in) reassigns it to the
     current user and refreshes ``platform`` / ``last_seen_at`` rather than
     erroring or duplicating — a device belongs to one signed-in user at a
-    time, unlike the many-rows-per-user shape of :class:`FavoriteSet`."""
+    time, unlike the many-rows-per-user shape of :class:`FavoriteSet`.
+
+    Also seeds default (opt-in) notification preference rows for the user
+    (#975) — by the time a device registers, the user has already granted
+    OS-level push permission, so default-on is the expected starting point."""
     now = datetime.now(UTC)
     existing = db.scalar(select(DeviceToken).where(DeviceToken.device_token == req.device_token))
     if existing is not None:
@@ -96,6 +102,7 @@ def register_device(
         existing.platform = req.platform
         existing.last_seen_at = now
         db.commit()
+        ensure_default_preferences(db, current_user.id)
         return Response(status_code=204)
 
     db.add(
@@ -119,6 +126,7 @@ def register_device(
             .values(user_id=current_user.id, platform=req.platform, last_seen_at=now)
         )
         db.commit()
+    ensure_default_preferences(db, current_user.id)
     return Response(status_code=204)
 
 

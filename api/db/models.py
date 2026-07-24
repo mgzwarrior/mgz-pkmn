@@ -930,9 +930,10 @@ class DeviceToken(Base):
     """One registered push-notification device for a user (#974, epic #946).
 
     First slice of the push notification epic: registration only, no
-    delivery yet (#976) and no preferences yet (#975). ``platform`` is a
-    free-form tag (``"ios"`` today) rather than an enum tied to APNs, so
-    Android/FCM can register here later without a schema change.
+    delivery yet (#976). Registering a device seeds default rows in
+    :class:`NotificationPreference` (#975). ``platform`` is a free-form tag
+    (``"ios"`` today) rather than an enum tied to APNs, so Android/FCM can
+    register here later without a schema change.
 
     Multi-device is day one — unlike :class:`FavoriteSet`, the unique
     constraint is on ``device_token`` alone, not ``(user_id, device_token)``.
@@ -956,6 +957,46 @@ class DeviceToken(Base):
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
     last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
+class NotificationPreference(Base):
+    """One user's opt-in state for one notification type (#975, epic #946).
+
+    Normalized `(user_id, notification_type, enabled)` rather than a JSON
+    blob on :class:`User` — ``notification_type`` is a free-form string tag
+    (see ``api.routes.notification_preferences.KNOWN_NOTIFICATION_TYPES``),
+    not an enum tied to delivery logic, so a new type is a seeded default
+    row, not a migration. Rows are seeded opt-in the first time a device
+    registers for a user (``api.routes.device_tokens.register_device``);
+    the endpoint layer upserts on toggle, so a type introduced after a
+    user's last registration is created on first touch rather than 404ing.
+
+    Unique constraint on ``(user_id, notification_type)`` mirrors
+    :class:`FavoriteSet` — one row per user per type, upsert instead of
+    duplicate."""
+
+    __tablename__ = "notification_preferences"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "notification_type", name="uq_notification_preferences_user_type"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        default=DEFAULT_USER_ID,
+        nullable=False,
+        index=True,
+    )
+    notification_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
 

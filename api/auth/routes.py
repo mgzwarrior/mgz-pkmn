@@ -21,6 +21,7 @@ from ..db.models import (
     DeviceToken,
     FavoriteSet,
     FavoriteSpecies,
+    NotificationPreference,
     Run,
     SwipeProfileWeight,
     SwipeSeen,
@@ -184,9 +185,10 @@ def delete_me(
     **Irreversible — there is no admin override or recovery path.**
     Cascades every user-owned record: lookup runs (saved searches),
     collections, wishlists, binders, favorite sets/species, swipe
-    history and taste profile, registered push device tokens, and
-    linked sign-in identities. Clears the session cookie on the way
-    out, so the browser can't keep acting as this account, and
+    history and taste profile, registered push device tokens,
+    notification preferences, and linked sign-in identities. Clears
+    the session cookie on the way out, so the browser can't keep
+    acting as this account, and
     re-authenticating with a previously-linked provider mints a
     fresh, empty account rather than resurrecting this one."""
     user_id = user.id
@@ -211,6 +213,7 @@ def delete_me(
     # dozens of rows (one per rarity/set/tag key), and there's no ORM
     # object identity worth preserving mid-transaction here.
     db.execute(delete(SwipeProfileWeight).where(SwipeProfileWeight.user_id == user_id))
+    db.execute(delete(NotificationPreference).where(NotificationPreference.user_id == user_id))
     for device in db.scalars(select(DeviceToken).where(DeviceToken.user_id == user_id)).all():
         db.delete(device)
 

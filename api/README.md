@@ -85,8 +85,10 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | `PUT`  | `/api/v1/swipe/profile` | Replace the whole taste profile (full replace, not a merge); zero-weight entries are dropped |
 | `DELETE`| `/api/v1/swipe/profile` | Clear the persisted taste profile |
 | `GET`  | `/api/v1/device-tokens` | List the signed-in user's registered push devices |
-| `POST` | `/api/v1/device-tokens` | Register a push device (upserts by token) |
+| `POST` | `/api/v1/device-tokens` | Register a push device (upserts by token); also seeds default notification preferences |
 | `DELETE`| `/api/v1/device-tokens/{device_token}` | Deregister a push device |
+| `GET`  | `/api/v1/notification-preferences` | The signed-in user's per-type push notification opt-in state, one row per known type |
+| `PATCH`| `/api/v1/notification-preferences/{notification_type}` | Toggle one notification type on/off (upserts) |
 
 `/bulk` now writes a `runs` row + N `run_rows` to the persistence layer on
 successful stream completion (see [ADR-0013](../docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
