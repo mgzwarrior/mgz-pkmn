@@ -137,6 +137,17 @@ The Backpack library separates the collector workflow into wishlists
 spread using the saved 4-pocket, 9-pocket, or 12-pocket layout, with the
 same export menu available from collection and wishlist detail views.
 
+Swipe is a Tinder-style deck for browsing the catalog one card at a
+time — drag or use the arrow keys to pass, save, or say "more like
+this," which shapes the taste-weighted deck that follows. Signed-in
+users get a Taste/Ownership toggle above the deck: switching to
+Ownership mode changes what the same three gestures do — right adds
+the card to your default collection, up adds it to your default
+wishlist, and left is "not interested" (a no-op beyond the usual
+no-repeat exclusion) — so a swipe session can catalog what you own
+instead of tuning taste. The choice is session-local; a fresh visit
+always starts back in Taste mode.
+
 For deeper docs (endpoint reference, troubleshooting, architecture),
 see [api/README.md](api/README.md) and [web/README.md](web/README.md).
 
