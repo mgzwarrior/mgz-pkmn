@@ -178,6 +178,15 @@ class NotificationPreferencesCrudTests(_IsolatedDbMixin):
             resp = c.patch(f"/api/v1/notification-preferences/{target}", json={})
             self.assertEqual(resp.status_code, 422)
 
+    def test_toggle_rejects_type_longer_than_column_width(self) -> None:
+        with self._client() as c:
+            too_long = "x" * 65
+            resp = c.patch(
+                f"/api/v1/notification-preferences/{too_long}",
+                json={"enabled": False},
+            )
+            self.assertEqual(resp.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -128,7 +128,7 @@ def list_preferences(db: DbSession, current_user: CurrentUser) -> dict:
 
 @router.patch("/notification-preferences/{notification_type}")
 def update_preference(
-    notification_type: str,
+    notification_type: Annotated[str, Path(min_length=1, max_length=64)],
     req: NotificationPreferenceUpdate,
     db: DbSession,
     current_user: CurrentUser,
