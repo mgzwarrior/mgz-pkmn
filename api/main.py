@@ -64,6 +64,7 @@ from .routes import (
     sets,
     subscribe,
     swipe,
+    swipe_profile,
     wishlists,
 )
 from .routes import (
@@ -560,6 +561,7 @@ app.include_router(collections.router, prefix="/api/v1", tags=["collections"])
 app.include_router(binders.router, prefix="/api/v1", tags=["binders"])
 app.include_router(wishlists.router, prefix="/api/v1", tags=["wishlists"])
 app.include_router(swipe.router, prefix="/api/v1", tags=["swipe"])
+app.include_router(swipe_profile.router, prefix="/api/v1", tags=["swipe"])
 app.include_router(favorite_sets.router, prefix="/api/v1", tags=["favorite-sets"])
 app.include_router(favorite_pokemon.router, prefix="/api/v1", tags=["favorite-pokemon"])
 app.include_router(ownership.router, prefix="/api/v1", tags=["ownership"])

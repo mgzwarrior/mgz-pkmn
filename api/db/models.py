@@ -817,6 +817,54 @@ class SwipeSeen(Base):
     swipe_dir: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
 
+class SwipeProfileWeight(Base):
+    """One taste-weight entry from the swipe deck's personalization signal (#967).
+
+    Promotes the web SPA's ``useSwipeProfile.ts`` — three ``localStorage``-only
+    signed counters (``rarity`` / ``set`` / ``tag``) accumulated from swipe
+    actions — to durable per-user state, mirroring the counters verbatim so
+    the wire shape and the SPA's in-memory shape stay byte-for-byte
+    comparable. One row per ``(bucket, key)`` entry rather than one JSON blob
+    per user, following the granular per-row style of :class:`SwipeSeen` /
+    :class:`FavoriteSet` rather than introducing a new shape.
+
+    Distinct table from ``swipe_seen`` and ``favorite_sets``: taste
+    weighting, seen-exclusion, and favorite-pinning are different signals
+    that happen to share the per-user pattern, not the same concern.
+
+    Idempotent upsert via the unique constraint on
+    ``(user_id, bucket, key)``: a `PUT` replaces a user's whole profile by
+    deleting existing rows and re-inserting the non-zero entries, mirroring
+    the SPA's own behavior of dropping a bucket key once its weight lands
+    on 0."""
+
+    __tablename__ = "swipe_profile_weights"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "bucket",
+            "key",
+            name="uq_swipe_profile_weight_user_bucket_key",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        default=DEFAULT_USER_ID,
+        nullable=False,
+        index=True,
+    )
+    #: One of "rarity" / "set" / "tag" — the three `SwipeProfile` counters.
+    bucket: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: Rarity name, set id, or `super:`/`sub:` tag key within the bucket.
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+    weight: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+
 class FavoriteSet(Base):
     """One set a user has pinned as a favorite (#712).
 
