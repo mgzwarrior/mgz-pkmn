@@ -326,3 +326,29 @@ services:
         sync: false
       - key: MGZ_PKMN_EBAY_DELETION_ENDPOINT
         value: https://mgz-pkmn.onrender.com/api/v1/ebay/account-deletion
+      # APNs push delivery (#976, epic #946) — api/push/apns.py. Configure
+      # in the Apple Developer portal at
+      # https://developer.apple.com/account/resources/authkeys:
+      # (1) Team ID from the portal header — `MGZ_PKMN_APNS_TEAM_ID`.
+      # (2) An APNs Auth Key (a **separate** `.p8` from the Sign in with
+      # Apple key above — Keys > (+) > check "Apple Push Notifications
+      # service (APNs)") — `MGZ_PKMN_APNS_KEY_ID` is its 10-char Key ID,
+      # `MGZ_PKMN_APNS_PRIVATE_KEY` is the PEM contents (embedded newlines
+      # load-bearing, same caveat as `MGZ_PKMN_APPLE_PRIVATE_KEY`).
+      # (3) `MGZ_PKMN_APNS_BUNDLE_ID` — the iOS app's bundle identifier,
+      # sent as the `apns-topic` header. Any of the four missing means
+      # sends are skipped and logged, not a hard failure — push delivery
+      # has no user-facing endpoint of its own to 503 from.
+      - key: MGZ_PKMN_APNS_TEAM_ID
+        sync: false
+      - key: MGZ_PKMN_APNS_KEY_ID
+        sync: false
+      - key: MGZ_PKMN_APNS_PRIVATE_KEY
+        sync: false
+      - key: MGZ_PKMN_APNS_BUNDLE_ID
+        sync: false
+      # `production` serves TestFlight/App Store builds. Flip to `sandbox`
+      # on this deploy while validating against Xcode-run development
+      # builds, which carry sandbox-only device tokens.
+      - key: MGZ_PKMN_APNS_ENVIRONMENT
+        value: production

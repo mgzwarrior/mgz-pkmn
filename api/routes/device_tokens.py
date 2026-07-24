@@ -3,7 +3,7 @@
 First slice of the push notification epic (#946): registration and storage.
 Registering a device also seeds default notification preference rows
 (#975, `api.routes.notification_preferences.ensure_default_preferences`).
-No delivery (#976) yet — a registered token currently goes nowhere.
+Delivery (`api.push.send_notification`, #976) reads both tables.
 
 Endpoints:
 
