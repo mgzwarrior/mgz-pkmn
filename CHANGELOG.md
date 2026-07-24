@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.10.0](https://github.com/mgzwarrior/mgz-pkmn/compare/v1.9.0...v1.10.0) (2026-07-24)
+
+
+### Added
+
+* **api:** add device token registration for push notifications ([#979](https://github.com/mgzwarrior/mgz-pkmn/issues/979)) ([fd182b1](https://github.com/mgzwarrior/mgz-pkmn/commit/fd182b11f3617be088b986507b0c60f55f8abe84))
+* **api:** APNs push notification delivery ([#982](https://github.com/mgzwarrior/mgz-pkmn/issues/982)) ([8575af5](https://github.com/mgzwarrior/mgz-pkmn/commit/8575af5b3b63a43365548f84c27757473fdf173a))
+* **api:** per-card un-exclude on DELETE /swipe/seen ([#966](https://github.com/mgzwarrior/mgz-pkmn/issues/966)) ([e3fdcde](https://github.com/mgzwarrior/mgz-pkmn/commit/e3fdcde2904b8cbb0ecedadb1ee6f883c7700ef6))
+* **api:** per-user notification preference storage ([#980](https://github.com/mgzwarrior/mgz-pkmn/issues/980)) ([eab0f8a](https://github.com/mgzwarrior/mgz-pkmn/commit/eab0f8a5c46d1a7a34ce201e591c847114f7cc62))
+* **api:** server-side swipe taste-profile persistence ([#977](https://github.com/mgzwarrior/mgz-pkmn/issues/977)) ([8b78f79](https://github.com/mgzwarrior/mgz-pkmn/commit/8b78f7932cc14c88c66bdb6dd8438b63fa5d8dc2))
+
+
+### Changed
+
+* refresh roadmap for the renumbered v1.10-v1.17 run ([#952](https://github.com/mgzwarrior/mgz-pkmn/issues/952)) ([133402e](https://github.com/mgzwarrior/mgz-pkmn/commit/133402e7d031c7e3f5b20ae304a7bd42b0369ff7)), closes [#951](https://github.com/mgzwarrior/mgz-pkmn/issues/951)
+
 ## [1.9.0] - 2026-07-23
 
 The web workspace rethink: a real desktop split view, a mobile-first IA, and a library that finally tells saved searches, wishlists, and collections apart.
