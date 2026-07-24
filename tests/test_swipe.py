@@ -211,6 +211,24 @@ class SwipeEndpointTests(_IsolatedDbMixin):
             body = c.get("/api/v1/swipe/excluded").json()
             self.assertEqual(body["cards"], [{"set_id": "sv8", "number": "100"}])
 
+    def test_reset_scoped_to_one_card(self) -> None:
+        with self._client() as c:
+            c.post("/api/v1/swipe/seen", json={"set_id": "base1", "number": "4"})
+            c.post("/api/v1/swipe/seen", json={"set_id": "base1", "number": "58"})
+            c.post("/api/v1/swipe/seen", json={"set_id": "sv8", "number": "100"})
+
+            resp = c.delete("/api/v1/swipe/seen?set_id=base1&number=4")
+            self.assertEqual(resp.status_code, 204)
+
+            body = c.get("/api/v1/swipe/excluded").json()
+            pairs = {(card["set_id"], card["number"]) for card in body["cards"]}
+            self.assertEqual(pairs, {("base1", "58"), ("sv8", "100")})
+
+    def test_reset_by_number_alone_is_rejected(self) -> None:
+        with self._client() as c:
+            resp = c.delete("/api/v1/swipe/seen?number=4")
+            self.assertEqual(resp.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()
