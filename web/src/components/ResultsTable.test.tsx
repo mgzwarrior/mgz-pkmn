@@ -860,6 +860,57 @@ describe('ResultsTable: header sort cycle', () => {
     useAppStore.setState({ rows: [] })
   })
 
+  it('shows the price-trend sparkline next to the market price when history exists (#269)', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'x', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: {
+            market: 100,
+            currency: 'USD',
+            variant: null,
+            source: 'TCGPlayer',
+            url: null,
+            price_history: [
+              { ts: '2026-06-23', price: 80 },
+              { ts: '2026-07-22', price: 100 },
+            ],
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    expect(
+      screen.getByRole('img', { name: /30-day price trend/i }),
+    ).toBeInTheDocument()
+    useAppStore.setState({ rows: [] })
+  })
+
+  it('hides the price-trend sparkline when history is empty (#269)', () => {
+    useAppStore.setState({
+      rows: [
+        makeRow({
+          card: { id: 'x', name: 'Charizard', number: '4', set: { name: 'Base Set' } },
+          pricing: {
+            market: 100,
+            currency: 'USD',
+            variant: null,
+            source: 'TCGPlayer',
+            url: null,
+            price_history: null,
+          },
+        }),
+      ],
+      isRunning: false,
+      progress: null,
+    })
+    render(<ResultsTable />)
+    expect(screen.queryByRole('img', { name: /30-day price trend/i })).toBeNull()
+    useAppStore.setState({ rows: [] })
+  })
+
   it('hides the eBay column when the setting is off', () => {
     useAppStore.getState().updateSettings({ showEbay: false })
     useAppStore.setState({
