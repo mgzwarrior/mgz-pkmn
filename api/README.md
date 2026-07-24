@@ -77,6 +77,9 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | `GET`  | `/api/v1/runs/{id}` | Full run record including all `run_rows` |
 | `PATCH`| `/api/v1/runs/{id}` | Save / rename a run (sets `name` + ResultsTable view-state snapshot) |
 | `GET`  | `/api/v1/me/export` | Stream the signed-in user's full data export (runs, collections, wishlists, binders, favorites, swipe memory) as one JSON document |
+| `GET`  | `/api/v1/swipe/excluded` | Identities the swipe deck should skip — persisted seen memory, plus owned/chasing cards if `?owned=true`/`?chasing=true` |
+| `POST` | `/api/v1/swipe/seen` | Record one shown card as seen (idempotent) |
+| `DELETE`| `/api/v1/swipe/seen` | Reset seen memory — everything, one set (`?set_id=`), or one card (`?set_id=&number=`); `number` alone is rejected with 422 |
 
 `/bulk` now writes a `runs` row + N `run_rows` to the persistence layer on
 successful stream completion (see [ADR-0013](../docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
