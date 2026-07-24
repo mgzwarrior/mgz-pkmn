@@ -10,6 +10,8 @@ import {
   fetchSwipeExcluded,
   recordSwipeSeen,
   resetSwipeSeen,
+  wantCard,
+  ownCard,
 } from '../api/client'
 import { _resetSwipeProfileForTests } from './useSwipeProfile'
 import { _resetWishlistsCacheForTests } from './useWishlists'
@@ -46,6 +48,13 @@ vi.mock('../api/client', () => ({
   fetchFavoritePokemon: vi.fn(async () => []),
   pinFavoritePokemon: vi.fn(),
   unpinFavoritePokemon: vi.fn(),
+  // One-tap want / own quick actions (#761) — ownership swipe mode (#912)
+  // reuses these to file the swiped card into the default wishlist /
+  // collection.
+  wantCard: vi.fn(async () => ({})),
+  unwantCard: vi.fn(async () => ({})),
+  ownCard: vi.fn(async () => ({})),
+  unownCard: vi.fn(async () => ({})),
 }))
 
 const mockFetchSets = vi.mocked(fetchSets)
@@ -56,6 +65,8 @@ const mockFetchCollections = vi.mocked(fetchCollections)
 const mockFetchSwipeExcluded = vi.mocked(fetchSwipeExcluded)
 const mockRecordSwipeSeen = vi.mocked(recordSwipeSeen)
 const mockResetSwipeSeen = vi.mocked(resetSwipeSeen)
+const mockWantCard = vi.mocked(wantCard)
+const mockOwnCard = vi.mocked(ownCard)
 
 function card(overrides: Partial<SetCard> = {}): SetCard {
   return {
@@ -136,6 +147,10 @@ describe('SwipePanel', () => {
     mockRecordSwipeSeen.mockResolvedValue(undefined)
     mockResetSwipeSeen.mockReset()
     mockResetSwipeSeen.mockResolvedValue(undefined)
+    mockWantCard.mockReset()
+    mockWantCard.mockResolvedValue({} as never)
+    mockOwnCard.mockReset()
+    mockOwnCard.mockResolvedValue({} as never)
     // Pin the rarity-weighted sampler so candidate order is deterministic.
     // `Math.random() === 0` picks the first available set and the first
     // unseen card; after a swipe, the same source picks the remaining card.
@@ -452,6 +467,152 @@ describe('SwipePanel', () => {
         chasing: false,
       }),
     )
+  })
+
+  it('hides the taste/ownership mode toggle when signed out (#912)', async () => {
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+    expect(screen.queryByRole('group', { name: 'Swipe mode' })).not.toBeInTheDocument()
+  })
+
+  it('switching to ownership mode relabels the gesture legend and action buttons (#912)', async () => {
+    mockFetchMe.mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const toggle = await screen.findByRole('group', { name: 'Swipe mode' })
+    // Taste mode is the default — the original labels are still live.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+
+    fireEvent.click(within(toggle).getByRole('button', { name: 'Ownership' }))
+
+    expect(screen.getByRole('button', { name: 'Owned' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Chase' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Not interested' })).toBeInTheDocument()
+  })
+
+  it('ownership mode: a right swipe files the card into the default collection instead of the taste profile (#912)', async () => {
+    mockFetchMe.mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const toggle = await screen.findByRole('group', { name: 'Swipe mode' })
+    fireEvent.click(within(toggle).getByRole('button', { name: 'Ownership' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Owned' }))
+
+    await waitFor(
+      () => expect(mockOwnCard).toHaveBeenCalledTimes(1),
+      POST_SWIPE_WAIT,
+    )
+    expect(mockWantCard).not.toHaveBeenCalled()
+    // Still recorded as seen (#581) — the no-repeat memory is mode-independent.
+    await waitFor(() =>
+      expect(mockRecordSwipeSeen).toHaveBeenCalledWith(expect.any(String), '1', 'save'),
+    )
+  })
+
+  it('ownership mode: an up swipe (Chase) adds the card to the default wishlist (#912)', async () => {
+    mockFetchMe.mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const toggle = await screen.findByRole('group', { name: 'Swipe mode' })
+    fireEvent.click(within(toggle).getByRole('button', { name: 'Ownership' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chase' }))
+
+    await waitFor(
+      () => expect(mockWantCard).toHaveBeenCalledTimes(1),
+      POST_SWIPE_WAIT,
+    )
+    expect(mockOwnCard).not.toHaveBeenCalled()
+  })
+
+  it('ownership mode: a "Not interested" swipe leaves the library alone, recording only the no-repeat exclusion (#912)', async () => {
+    mockFetchMe.mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const toggle = await screen.findByRole('group', { name: 'Swipe mode' })
+    fireEvent.click(within(toggle).getByRole('button', { name: 'Ownership' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Not interested' }))
+
+    await waitFor(
+      () =>
+        expect(mockRecordSwipeSeen).toHaveBeenCalledWith(
+          expect.any(String),
+          '1',
+          'pass',
+        ),
+      POST_SWIPE_WAIT,
+    )
+    expect(mockOwnCard).not.toHaveBeenCalled()
+    expect(mockWantCard).not.toHaveBeenCalled()
+  })
+
+  it('ownership mode swipes keep the taste profile\'s seen list resettable (#912 review)', async () => {
+    mockFetchMe.mockResolvedValue({
+      user: { id: 1, email: 'u@e.com', display_name: 'U' },
+      authEnabled: true,
+    })
+
+    render(<SwipePanel active />)
+    await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
+
+    const toggle = await screen.findByRole('group', { name: 'Swipe mode' })
+    fireEvent.click(within(toggle).getByRole('button', { name: 'Ownership' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Owned' }))
+
+    // `act` (and the taste-weight bump it applies) is skipped in ownership
+    // mode — the gesture files the card instead of tuning taste — so this
+    // exercises the `markSeen` fallback (#912 review): without it,
+    // `profile.seen` (and the `useSwipeCandidates` shrink-detection reset
+    // signal derived from it) never grows from an ownership swipe, so
+    // "Reset profile" / "Reset and start over" clears server memory but
+    // leaves the session's internal dealt queue stale until a reload.
+    await waitFor(() => {
+      const raw = window.localStorage.getItem('mgz-pkmn:swipe-profile:v1')
+      const profile = raw ? (JSON.parse(raw) as { seen?: string[] }) : null
+      expect(profile?.seen).toContain('sv1-1')
+    }, POST_SWIPE_WAIT)
+
+    // Ownership mode never bumps the taste weights or the saved list —
+    // only `seen` is mirrored.
+    const beforeReset = JSON.parse(
+      window.localStorage.getItem('mgz-pkmn:swipe-profile:v1') as string,
+    ) as { rarity: Record<string, number>; set: Record<string, number>; saved: unknown[] }
+    expect(beforeReset.rarity).toEqual({})
+    expect(beforeReset.set).toEqual({})
+    expect(beforeReset.saved).toEqual([])
+
+    // "Reset profile" clears the mirrored seen entry the same way it
+    // clears a taste-mode one, so useSwipeCandidates' shrink-detection
+    // sees the same reset signal regardless of which mode dealt the card.
+    fireEvent.click(screen.getByRole('button', { name: 'Reset profile' }))
+    await waitFor(() => {
+      const raw = window.localStorage.getItem('mgz-pkmn:swipe-profile:v1')
+      const profile = raw ? (JSON.parse(raw) as { seen?: string[] }) : null
+      expect(profile?.seen).toEqual([])
+    })
   })
 
   it('pressing Enter on the focused card opens the detail modal', async () => {
