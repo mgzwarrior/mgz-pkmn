@@ -71,7 +71,7 @@ class DeviceTokensMigrationTests(_IsolatedDbMixin):
         from alembic.config import Config
 
         cfg = Config(str(Path(__file__).resolve().parents[1] / "api" / "alembic.ini"))
-        downgrade(cfg, "4d3b4ffb3653")
+        downgrade(cfg, "b2c6e4f9a1d3")
         self.assertNotIn("device_tokens", inspect(session_mod.get_engine()).get_table_names())
 
 

@@ -10,7 +10,7 @@ alone, not ``(user_id, device_token)`` — a token belongs to exactly one
 device, and a device belongs to exactly one signed-in user at a time.
 
 Revision ID: f6133f7427d5
-Revises: 4d3b4ffb3653
+Revises: b2c6e4f9a1d3
 Create Date: 2026-07-23
 """
 
@@ -22,7 +22,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "f6133f7427d5"
-down_revision: str | Sequence[str] | None = "4d3b4ffb3653"
+down_revision: str | Sequence[str] | None = "b2c6e4f9a1d3"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
