@@ -76,11 +76,14 @@ without CORS gymnastics. CORS is also pre-allowed for `localhost:5173` and
 | `GET`  | `/api/v1/runs` | Paginated list of **saved** runs (summary only, filtered to `name IS NOT NULL`) |
 | `GET`  | `/api/v1/runs/{id}` | Full run record including all `run_rows` |
 | `PATCH`| `/api/v1/runs/{id}` | Save / rename a run (sets `name` + ResultsTable view-state snapshot) |
-| `GET`  | `/api/v1/me/export` | Stream the signed-in user's full data export (runs, collections, wishlists, binders, favorites, swipe memory) as one JSON document |
+| `GET`  | `/api/v1/me/export` | Stream the signed-in user's full data export (runs, collections, wishlists, binders, favorites, swipe memory, swipe taste profile) as one JSON document |
 | `DELETE` | `/api/v1/me` | Permanently delete the signed-in user's account and every owned record — irreversible, no admin recovery path |
 | `GET`  | `/api/v1/swipe/excluded` | Identities the swipe deck should skip — persisted seen memory, plus owned/chasing cards if `?owned=true`/`?chasing=true` |
 | `POST` | `/api/v1/swipe/seen` | Record one shown card as seen (idempotent) |
 | `DELETE`| `/api/v1/swipe/seen` | Reset seen memory — everything, one set (`?set_id=`), or one card (`?set_id=&number=`); `number` alone is rejected with 422 |
+| `GET`  | `/api/v1/swipe/profile` | The signed-in user's persisted swipe taste weights (`rarity`/`set`/`tag`), mirroring the SPA's `localStorage` counters |
+| `PUT`  | `/api/v1/swipe/profile` | Replace the whole taste profile (full replace, not a merge); zero-weight entries are dropped |
+| `DELETE`| `/api/v1/swipe/profile` | Clear the persisted taste profile |
 
 `/bulk` now writes a `runs` row + N `run_rows` to the persistence layer on
 successful stream completion (see [ADR-0013](../docs/adr/0013-sqlite-persistence-for-runs-collections-wishlists.md)).
@@ -193,7 +196,8 @@ curl -o export.json http://localhost:8000/api/v1/me/export
 
 Streams a JSON document with `exported_at`, `schema_version`, and one key
 per resource: `user`, `identities`, `runs`, `collections`, `wishlists`,
-`binders`, `favorite_sets`, `favorite_species`, `swipe_seen`. Requires
+`binders`, `favorite_sets`, `favorite_species`, `swipe_seen`,
+`swipe_profile`. Requires
 sign-in on a hosted deploy (`401` when signed out and
 `MGZ_PKMN_AUTH_ENABLED=1`); resolves to the self-host sentinel user when
 auth is off. Rate-limited to 5 requests per 5 minutes per user
