@@ -59,6 +59,18 @@ class SeedCardShowProviderTests(unittest.TestCase):
         results = provider.shows_near("60601", radius_mi=0)
         self.assertEqual([s.name for s in results], ["Windy City Card Con"])
 
+    def test_excludes_shows_that_have_already_happened(self) -> None:
+        # Windy City Card Con is seeded for 2026-10-03 — "today" past that
+        # date must drop it instead of surfacing a stale event as upcoming.
+        provider = SeedCardShowProvider(today=date(2026, 10, 4))
+        results = provider.shows_near("60601", radius_mi=10)
+        self.assertEqual(results, [])
+
+    def test_includes_show_happening_today(self) -> None:
+        provider = SeedCardShowProvider(today=date(2026, 10, 3))
+        results = provider.shows_near("60601", radius_mi=10)
+        self.assertEqual([s.name for s in results], ["Windy City Card Con"])
+
 
 if __name__ == "__main__":
     unittest.main()

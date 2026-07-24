@@ -90,10 +90,18 @@ def _haversine_mi(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 class SeedCardShowProvider(CardShowProvider):
     """Manually curated show list. Interim data source until a vendor-backed
-    provider (Treasure or otherwise, see #972) replaces it."""
+    provider (Treasure or otherwise, see #972) replaces it.
 
-    def __init__(self, shows: tuple[CardShow, ...] = SEED_SHOWS) -> None:
+    `today` is injectable (defaults to `date.today()`) so past shows can be
+    excluded deterministically in tests instead of depending on wall-clock
+    time.
+    """
+
+    def __init__(
+        self, shows: tuple[CardShow, ...] = SEED_SHOWS, *, today: date | None = None
+    ) -> None:
         self._shows = shows
+        self._today = today if today is not None else date.today()
 
     def shows_near(self, zip_code: str, radius_mi: int) -> list[CardShow]:
         origin = _ZIP_CENTROIDS.get(zip_code)
@@ -102,7 +110,8 @@ class SeedCardShowProvider(CardShowProvider):
         matches = [
             show
             for show in self._shows
-            if (centroid := _ZIP_CENTROIDS.get(show.zip_code)) is not None
+            if show.date >= self._today
+            and (centroid := _ZIP_CENTROIDS.get(show.zip_code)) is not None
             and _haversine_mi(origin, centroid) <= radius_mi
         ]
         return sorted(matches, key=lambda s: s.date)
