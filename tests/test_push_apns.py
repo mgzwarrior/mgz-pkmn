@@ -8,10 +8,11 @@ Covers:
   ``api/auth/apple.py``).
 - The provider-token cache returns the same token for repeat calls
   inside the TTL window.
-- ``ApnsSender.send`` — happy path (200), invalid-token responses
-  (410 and a 400 ``BadDeviceToken`` reason both flag
-  ``invalid_token``), a generic rejection that flags neither, and the
-  unconfigured-env skip.
+- ``ApnsSender.send`` — happy path (200); only the unambiguous
+  410/``Unregistered`` response flags ``invalid_token``.
+  ``BadDeviceToken`` and ``DeviceTokenNotForTopic`` (both of which can
+  also mean a deploy misconfiguration, not a dead device) and any other
+  rejection flag neither, plus the unconfigured-env skip.
 - ``MGZ_PKMN_APNS_ENVIRONMENT=sandbox`` targets the sandbox host.
 
 Mirrors the httpx single-seam patch pattern from
@@ -176,12 +177,32 @@ class ApnsSenderSendTests(_EnvMixin):
         self.assertTrue(result.invalid_token)
         self.assertEqual(result.reason, "Unregistered")
 
-    def test_send_flags_invalid_token_on_bad_device_token_reason(self) -> None:
+    def test_send_does_not_flag_invalid_token_on_bad_device_token_reason(self) -> None:
+        """``BadDeviceToken`` can mean a genuinely malformed token, but it can
+        also mean a deploy misconfiguration (wrong topic/environment) — since
+        that would be true for every token, not just this one, it must not
+        trigger pruning (only unambiguous 410/``Unregistered`` does)."""
         fake = _FakeClient(_FakeResponse(400, {"reason": "BadDeviceToken"}))
         with patch.object(apns_mod.httpx, "AsyncClient", return_value=fake):
             result = _run(ApnsSender().send("tok-1", {}))
         self.assertFalse(result.delivered)
-        self.assertTrue(result.invalid_token)
+        self.assertFalse(result.invalid_token)
+
+    def test_send_does_not_flag_invalid_token_on_wrong_topic_reason(self) -> None:
+        fake = _FakeClient(_FakeResponse(400, {"reason": "DeviceTokenNotForTopic"}))
+        with patch.object(apns_mod.httpx, "AsyncClient", return_value=fake):
+            result = _run(ApnsSender().send("tok-1", {}))
+        self.assertFalse(result.delivered)
+        self.assertFalse(result.invalid_token)
+
+    def test_send_does_not_flag_invalid_token_on_410_without_unregistered_reason(self) -> None:
+        """A 410 with some other reason shouldn't happen per Apple's docs,
+        but the check is intentionally conjunctive (status *and* reason) —
+        confirms it doesn't fall back to matching on status code alone."""
+        fake = _FakeClient(_FakeResponse(410, {"reason": "Something else"}))
+        with patch.object(apns_mod.httpx, "AsyncClient", return_value=fake):
+            result = _run(ApnsSender().send("tok-1", {}))
+        self.assertFalse(result.invalid_token)
 
     def test_send_does_not_flag_invalid_token_on_other_rejection(self) -> None:
         fake = _FakeClient(_FakeResponse(400, {"reason": "PayloadTooLarge"}))

@@ -64,10 +64,15 @@ APNS_SANDBOX_URL = "https://api.sandbox.push.apple.com"
 #: both sides.
 PROVIDER_TOKEN_TTL_SECONDS = 45 * 60
 
-#: ``reason`` values (and the one status code, 410) APNs uses to report
-#: a device token that will never succeed again — the device row should
-#: be removed rather than retried.
-_INVALID_TOKEN_REASONS = frozenset({"BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic"})
+#: The one unambiguous "this token is dead, prune it" signal: HTTP 410
+#: with ``reason: Unregistered``. ``BadDeviceToken`` and
+#: ``DeviceTokenNotForTopic`` are deliberately *not* treated as prunable
+#: here — both can also be raised by a deploy misconfiguration (wrong
+#: ``apns-topic``, or sandbox tokens hitting the production host), and
+#: pruning on those would wipe out valid registrations on the first send
+#: after a bad config push. They fall through to the logged-rejection
+#: path instead, where a human can tell "bad deploy" from "bad token".
+_INVALID_TOKEN_STATUS = 410
 
 
 def _read_apns_env() -> tuple[str, str, str, str, str] | None:
@@ -155,7 +160,7 @@ class ApnsSender:
         reason: str | None = None
         with contextlib.suppress(ValueError):
             reason = resp.json().get("reason")
-        invalid = resp.status_code == 410 or reason in _INVALID_TOKEN_REASONS
+        invalid = resp.status_code == _INVALID_TOKEN_STATUS and reason == "Unregistered"
         if not invalid:
             _log.warning("apns send rejected: status=%s reason=%s", resp.status_code, reason)
         return PushResult(delivered=False, invalid_token=invalid, reason=reason)

@@ -16,10 +16,11 @@ class PushResult:
     """Outcome of one ``PushSender.send`` call.
 
     ``invalid_token`` is the signal ``service.send_notification`` uses
-    to prune a device row (APNs' ``BadDeviceToken`` / ``Unregistered``
-    responses, or an HTTP 410) — distinct from a transient failure
-    (network error, APNs outage), which is logged and left alone rather
-    than retried forever."""
+    to prune a device row — reserved for the unambiguous "this token is
+    dead" response (APNs' HTTP 410 / ``Unregistered``), not a config
+    error (bad topic, wrong environment) or a transient failure, both
+    of which are logged and left alone rather than retried forever or
+    mistaken for a dead device."""
 
     delivered: bool
     invalid_token: bool
