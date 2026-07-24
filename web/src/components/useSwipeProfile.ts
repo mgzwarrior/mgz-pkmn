@@ -188,6 +188,20 @@ export function useSwipeProfile() {
     [],
   )
 
+  // Record a card as seen without touching the taste weights or saved list
+  // (#912 review). Ownership-mode swipes skip `act` entirely — they file the
+  // card instead of tuning taste — but `useSwipeCandidates` still needs a
+  // resettable seen signal to detect "Reset profile" / "Reset and start
+  // over" (it watches `seen` shrinking to know when to clear its internal
+  // dealt queue). Piggybacking on the same `profile.seen` list `reset()`
+  // already clears is the lighter-touch fix: no parallel seen-state to keep
+  // in sync, and taste mode's existing `act` already threads through here
+  // via `record`'s own `seen` bookkeeping.
+  const markSeen = useCallback((cardId: string) => {
+    if (state.seen.includes(cardId)) return
+    publish({ ...state, seen: [...state.seen, cardId] })
+  }, [])
+
   const clearSaved = useCallback(() => {
     publish({ ...state, saved: [] })
   }, [])
@@ -229,6 +243,7 @@ export function useSwipeProfile() {
     profile: snapshot,
     seenSet,
     act,
+    markSeen,
     clearSaved,
     reset,
     scoreCard,

@@ -234,6 +234,173 @@ class BulkPersistenceTests(_IsolatedDbMixin):
 
 
 # ---------------------------------------------------------------------------
+# GET /runs/{id} rehydrates `price_history` as a live overlay (#957 review)
+# ---------------------------------------------------------------------------
+
+
+_RUN_HISTORY_CHARIZARD = {
+    "id": "base1-4",
+    "name": "Charizard",
+    "number": "4",
+    "set": {"id": "base1", "name": "Base Set"},
+}
+
+
+class RunPriceHistoryRehydrationTests(_IsolatedDbMixin):
+    """`price_history` isn't persisted in `pricing_json` — it's recomputed
+    from `price_snapshots` on every `GET /runs/{id}`, scoped to the row's
+    own currency, so a reopened saved run shows the current 30-day trend
+    (or correctly omits history mixed across currencies) rather than a
+    stale or corrupted one."""
+
+    def _seed_run_row(self, *, currency: str = "USD") -> int:
+        from api.db.models import Run, RunRow
+
+        with session_mod.get_session_factory()() as s:
+            run = Run(
+                user_id=DEFAULT_USER_ID,
+                input_text="Charizard",
+                summary_json={"total_rows": 1, "matched": 1},
+                rows=[
+                    RunRow(
+                        position=0,
+                        tag="",
+                        market_price=100.0,
+                        currency=currency,
+                        query_json={"raw": "Charizard", "name": "Charizard"},
+                        card_json=_RUN_HISTORY_CHARIZARD,
+                        pricing_json={
+                            "market": 100.0,
+                            "source": "tcgplayer",
+                            "currency": currency,
+                        },
+                    )
+                ],
+            )
+            s.add(run)
+            s.commit()
+            return run.id
+
+    def test_get_run_rehydrates_price_history_from_snapshots(self) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        from api.db.migrate import upgrade_head
+        from api.db.models import PriceSnapshot
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run_row()
+            engine = session_mod.get_engine()
+            upgrade_head(engine)
+            now = datetime.now(UTC)
+            with session_mod.get_session_factory()() as s:
+                s.add_all(
+                    [
+                        PriceSnapshot(
+                            card_set_id="base1",
+                            card_number="4",
+                            source="tcgplayer",
+                            price=90.0,
+                            currency="USD",
+                            captured_at=now - timedelta(days=5),
+                        ),
+                        PriceSnapshot(
+                            card_set_id="base1",
+                            card_number="4",
+                            source="tcgplayer",
+                            price=100.0,
+                            currency="USD",
+                            captured_at=now,
+                        ),
+                    ]
+                )
+                s.commit()
+
+            detail = c.get(f"/api/v1/runs/{run_id}").json()
+            history = detail["rows"][0]["pricing"]["price_history"]
+            self.assertIsNotNone(history)
+            self.assertEqual(len(history), 2)
+            self.assertEqual(history[0]["price"], 90.0)
+            self.assertEqual(history[-1]["price"], 100.0)
+
+    def test_get_run_omits_price_history_when_only_one_snapshot_exists(self) -> None:
+        from api.db.migrate import upgrade_head
+        from api.db.models import PriceSnapshot
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run_row()
+            engine = session_mod.get_engine()
+            upgrade_head(engine)
+            with session_mod.get_session_factory()() as s:
+                s.add(
+                    PriceSnapshot(
+                        card_set_id="base1",
+                        card_number="4",
+                        source="tcgplayer",
+                        price=100.0,
+                        currency="USD",
+                    )
+                )
+                s.commit()
+
+            detail = c.get(f"/api/v1/runs/{run_id}").json()
+            self.assertIsNone(detail["rows"][0]["pricing"]["price_history"])
+
+    def test_get_run_scopes_price_history_to_the_row_currency(self) -> None:
+        """A USD row must not pick up EUR snapshots for the same card (and
+        vice versa) — mixing currencies in one series would make the
+        sparkline's min/max/delta meaningless."""
+        from datetime import UTC, datetime, timedelta
+
+        from api.db.migrate import upgrade_head
+        from api.db.models import PriceSnapshot
+        from api.main import app
+
+        with TestClient(app) as c:
+            run_id = self._seed_run_row(currency="USD")
+            engine = session_mod.get_engine()
+            upgrade_head(engine)
+            now = datetime.now(UTC)
+            with session_mod.get_session_factory()() as s:
+                s.add_all(
+                    [
+                        # Two EUR days — would be a trend on its own, but
+                        # must not surface on the USD row.
+                        PriceSnapshot(
+                            card_set_id="base1",
+                            card_number="4",
+                            source="cardmarket",
+                            price=40.0,
+                            currency="EUR",
+                            captured_at=now - timedelta(days=5),
+                        ),
+                        PriceSnapshot(
+                            card_set_id="base1",
+                            card_number="4",
+                            source="cardmarket",
+                            price=45.0,
+                            currency="EUR",
+                            captured_at=now,
+                        ),
+                        # Only one USD day — not a trend yet either.
+                        PriceSnapshot(
+                            card_set_id="base1",
+                            card_number="4",
+                            source="tcgplayer",
+                            price=100.0,
+                            currency="USD",
+                            captured_at=now,
+                        ),
+                    ]
+                )
+                s.commit()
+
+            detail = c.get(f"/api/v1/runs/{run_id}").json()
+            self.assertIsNone(detail["rows"][0]["pricing"]["price_history"])
+
+
+# ---------------------------------------------------------------------------
 # Saved searches: PATCH /runs/{id} + saved-only listing
 # ---------------------------------------------------------------------------
 

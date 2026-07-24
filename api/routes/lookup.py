@@ -3,7 +3,13 @@
 `/bulk` also persists a `Run` row + N `RunRow`s when the stream completes
 successfully (see ADR-0013 and `api.db`). Client disconnects mid-stream
 do not write — the persistence call is the last thing in the generator,
-so an early close stops the iteration before commit."""
+so an early close stops the iteration before commit.
+
+Both routes also write + read the 30-day price-trend sparkline history for
+every matched, priced row (`_attach_price_history`, #269) — unlike the run
+persistence above, this happens per-row rather than only on stream
+completion, since a client that disconnects partway through a `/bulk` run
+still saw the earlier rows' prices."""
 
 from __future__ import annotations
 
@@ -31,7 +37,9 @@ from mgz_pkmn.spreadsheet import Row
 
 from ..auth.session import CurrentUserOptional, auth_enabled
 from ..cache_mode import cache_only_enabled
+from ..db.card_payload import extract_card_identity
 from ..db.models import DEFAULT_USER_ID, Run, User
+from ..db.price_history import fetch_price_history, record_price_snapshot
 from ..db.serialize import build_run_summary, row_to_run_row
 from ..db.session import get_session_factory
 from .cards import rewrite_card_image_urls
@@ -141,6 +149,7 @@ def _pricing_to_dict(p: Pricing) -> dict[str, Any]:
         "ebay_sold_median": p.ebay_sold_median,
         "ebay_active_floor": p.ebay_active_floor,
         "pricing_override": p.pricing_override,
+        "price_history": p.price_history,
     }
 
 
@@ -299,6 +308,55 @@ def _do_lookup(
     return out, status_acc[0]
 
 
+def _attach_price_history(pairs: list[tuple[Row, str]]) -> None:
+    """Best-effort: write a price snapshot per matched, priced row, then
+    read back up to 30 days of history onto `row.pricing.price_history`
+    (#269).
+
+    Runs synchronously on the lookup worker thread, right after
+    `_do_lookup` — mutates `pairs` in place rather than returning a value.
+    A snapshot/history failure never fails the lookup itself, mirroring
+    `_persist_run`'s best-effort contract; it's the same reasoning eBay
+    comps and cache-status already use for degrade-gracefully behavior."""
+    matched = [row for row, _reason in pairs if row.card is not None]
+    if not matched:
+        return
+    try:
+        session = get_session_factory()()
+    except Exception:
+        logger.exception("Failed to open a DB session for price history")
+        return
+    try:
+        identities: list[tuple[Row, str, str]] = []
+        for row in matched:
+            identity = extract_card_identity(row.card)
+            set_id, number = identity["card_set_id"], identity["card_number"]
+            if not set_id or not number:
+                continue
+            identities.append((row, set_id, number))
+            record_price_snapshot(
+                session,
+                card_set_id=set_id,
+                card_number=number,
+                source=row.pricing.source,
+                price=row.pricing.market,
+                currency=row.pricing.currency,
+            )
+        session.commit()
+        for row, set_id, number in identities:
+            row.pricing.price_history = fetch_price_history(
+                session,
+                card_set_id=set_id,
+                card_number=number,
+                currency=row.pricing.currency or "USD",
+            )
+    except Exception:
+        session.rollback()
+        logger.exception("Failed to persist/read price history")
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -360,6 +418,7 @@ async def lookup(req: LookupRequest, current_user: CurrentUserOptional) -> JSONR
         cache_only=_cache_only_for_user(current_user),
         ebay=ebay,
     )
+    await run_in_threadpool(_attach_price_history, pairs)
     return JSONResponse(
         content={"rows": [_row_to_dict(r, reason) for r, reason in pairs]},
         headers={"X-Cache": cache_status},
@@ -487,6 +546,7 @@ async def bulk(req: BulkRequest, current_user: CurrentUserOptional) -> Streaming
                     ebay=ebay,
                 )
                 cache_statuses.append(line_status)
+                await run_in_threadpool(_attach_price_history, pairs)
                 resolved_by_idx[stream_idx] = [row for row, _reason in pairs]
                 for row, reason in pairs:
                     await frames.put(

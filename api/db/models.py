@@ -11,6 +11,10 @@ Three tables in this slice:
   (the existing `--max-price` flag, future above-cap highlighting) are
   real SQL queries; the rest of the pricing/card/query payloads stay in
   JSON columns so source-side drift doesn't force schema changes.
+
+Also defines `PriceSnapshot` (`price_snapshots`, #269) — a not-user-scoped
+time series of priced lookups per card, feeding the 30-day price-trend
+sparkline. See `db.price_history` for the write/read helpers.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -899,3 +904,49 @@ class RunRow(Base):
     pricing_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     run: Mapped[Run] = relationship(back_populates="rows")
+
+
+class PriceSnapshot(Base):
+    """One priced-lookup observation for a card, at a point in time (#269).
+
+    Not user-scoped — market price is a property of the card, not of who
+    looked it up — so every matched, priced lookup across every user writes
+    a row here (see ``api.routes.lookup._attach_price_history``). That is
+    deliberately simple rather than deduplicated: reads downsample to one
+    point per calendar day (:func:`api.db.price_history.fetch_price_history`),
+    so repeat lookups of a hot card in the same day don't change the shape
+    of the 30-day trend, and row growth is bounded by lookup volume rather
+    than by an explicit retention job. A future cleanup pass (or moving to
+    a nightly job per the issue's alternative) is a follow-up, not required
+    for the sparkline to work.
+
+    ``card_set_id`` / ``card_number`` mirror the promoted card-identity
+    columns on :class:`CollectionItem` / :class:`WishlistItem` /
+    :class:`SwipeSeen` — the same pair, so a future cross-table join needs
+    no translation."""
+
+    __tablename__ = "price_snapshots"
+    __table_args__ = (
+        # The read path always filters by (card_set_id, card_number) and
+        # orders by captured_at — a composite index keeps that off a table
+        # scan as the table grows.
+        Index(
+            "ix_price_snapshots_card_captured",
+            "card_set_id",
+            "card_number",
+            "captured_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    card_set_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    card_number: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: One of `mgz_pkmn.pricing.PRICE_SOURCES`, or null if the source was
+    #: unknown at write time. Not currently read back — carried for future
+    #: per-source trend splitting.
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    price: Mapped[float] = mapped_column(Numeric(12, 2, asdecimal=False), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="USD")
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )

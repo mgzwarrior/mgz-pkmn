@@ -41,6 +41,7 @@ import {
 } from './cardCategories'
 import { EbaySparkline } from './EbaySparkline'
 import { hasEbayData, soldPriceSeries } from './ebayComps'
+import { PriceTrendSparkline } from './PriceTrendSparkline'
 import { AddToListPicker } from './AddToListPicker'
 import { ConditionOverrideSelect } from './ConditionOverrideSelect'
 import { OwnershipBadge } from './OwnershipBadge'
@@ -423,6 +424,7 @@ function CardDetailBody({
               )}
             </div>
 
+            {!hidePricing && <PriceTrendBlock pricing={pricing} />}
             {!hidePricing && <EbayCompsBlock pricing={pricing} />}
 
             <CardMetadataBlock card={card} />
@@ -694,6 +696,36 @@ function BuyBlock({ card }: { card: CardData | null }) {
         Buy
       </h3>
       {links}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// PriceTrendBlock — the enlarged 30-day price-trend sparkline (#269).
+// Mirrors EbayCompsBlock's shape: omitted entirely when the API hasn't
+// returned at least two distinct days of history yet.
+// ---------------------------------------------------------------------------
+
+function PriceTrendBlock({ pricing }: { pricing: Pricing }) {
+  const points = pricing.price_history
+  if (!points || points.length < 2) return null
+  const delta = points[points.length - 1].price - points[0].price
+  const trendLabel = delta > 0 ? 'Up' : delta < 0 ? 'Down' : 'Flat'
+  const deltaValue = `${delta >= 0 ? '+' : '−'}${formatMoney(Math.abs(delta), pricing.currency)}`
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300 mb-2">
+        30-day price trend
+      </h3>
+      <div className="rounded-md border border-sand-300 dark:border-husk-50 bg-sand-50 dark:bg-husk-400 p-3 flex items-center justify-between gap-3">
+        <PriceLine label={trendLabel} value={deltaValue} />
+        <PriceTrendSparkline
+          points={points}
+          currency={pricing.currency}
+          className="h-10 w-32 flex-shrink-0"
+        />
+      </div>
     </div>
   )
 }

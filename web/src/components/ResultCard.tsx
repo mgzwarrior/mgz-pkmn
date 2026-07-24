@@ -21,6 +21,7 @@ import { AffiliateLinks } from './AffiliateLinks'
 import { CandidatePicker } from './ResultsTable'
 import { ConditionOverrideSelect } from './ConditionOverrideSelect'
 import { OwnershipBadge } from './OwnershipBadge'
+import { PriceTrendSparkline } from './PriceTrendSparkline'
 import { PricingOverrideCell } from './PricingOverrideCell'
 import { SaveCardActions } from './SaveCardActions'
 
@@ -165,6 +166,17 @@ export function ResultCard({
                   </span>
                 )}
               </div>
+              {showMarket && (
+                <div className="flex justify-end">
+                  {/* 30-day price-trend sparkline (#269) — renders nothing
+                      until at least two distinct days of history exist. */}
+                  <PriceTrendSparkline
+                    points={p.price_history}
+                    currency={p.currency}
+                    className="h-4 w-16"
+                  />
+                </div>
+              )}
               <div className="truncate text-xs text-coconut-400 dark:text-sand-300">
                 {setName ?? '—'}
                 {card?.number ? ` · #${card.number as string}` : ''}

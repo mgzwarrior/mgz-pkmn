@@ -597,6 +597,26 @@ describe('CardDetailModal', () => {
     expect(screen.queryByText('eBay comps')).toBeNull()
   })
 
+  it('shows the enlarged 30-day price trend when history exists (#269)', () => {
+    const row = buildRow({
+      pricing: {
+        price_history: [
+          { ts: '2026-06-23', price: 80 },
+          { ts: '2026-07-22', price: 100 },
+        ],
+      },
+    })
+    render(<CardDetailModal rows={[row]} index={0} onChangeIndex={() => {}} />)
+    expect(screen.getByText('30-day price trend')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /30-day price trend/i })).toBeInTheDocument()
+    expect(screen.getByText('+$20.00')).toBeInTheDocument()
+  })
+
+  it('omits the price trend section when history is empty (#269)', () => {
+    render(<CardDetailModal rows={[buildRow()]} index={0} onChangeIndex={() => {}} />)
+    expect(screen.queryByText('30-day price trend')).toBeNull()
+  })
+
   it('renders Buy links out to eBay and TCGPlayer with the affiliate rel', () => {
     render(<CardDetailModal rows={[buildRow()]} index={0} onChangeIndex={() => {}} />)
     expect(screen.getByText('Buy')).toBeInTheDocument()

@@ -26,6 +26,13 @@ export interface EbaySoldComp {
   url: string | null
 }
 
+/** One day's price observation in a card's 30-day trend history (#269). */
+export interface PricePoint {
+  /** Calendar date (YYYY-MM-DD), UTC. */
+  ts: string
+  price: number
+}
+
 export interface Pricing {
   market: number | null
   variant: string | null
@@ -51,6 +58,12 @@ export interface Pricing {
    * `adjusted_market` and `market` everywhere a basis price is read.
    */
   pricing_override?: number | null
+  /**
+   * 30-day price-trend history (#269), downsampled to one point per
+   * calendar day. Absent/null until at least two distinct days of pricing
+   * exist for the card.
+   */
+  price_history?: PricePoint[] | null
 }
 
 export interface CardSet {
