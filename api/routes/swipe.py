@@ -18,7 +18,7 @@ Endpoints:
 
 - ``GET    /swipe/excluded``  identities to skip (seen + owned? + chasing?)
 - ``POST   /swipe/seen``      record one shown card (idempotent)
-- ``DELETE /swipe/seen``      reset the deck (all, or one set)
+- ``DELETE /swipe/seen``      reset the deck (all, one set, or one card, #945)
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
@@ -159,14 +159,23 @@ def reset_seen(
     db: DbSession,
     current_user: CurrentUser,
     set_id: Annotated[str | None, Query()] = None,
+    number: Annotated[str | None, Query()] = None,
 ) -> Response:
-    """Clear the user's seen memory — the whole deck, or one set.
+    """Clear the user's seen memory — the whole deck, one set, or one card.
 
     Scoping to a set (``?set_id=sv8``) is the future-proofing nicety from
-    #581: "reset Crown Zenith" without nuking the rest of the history."""
+    #581: "reset Crown Zenith" without nuking the rest of the history.
+    Scoping further to a single card (``?set_id=sv8&number=100``) is #945:
+    "stop hiding just this one card I skipped by accident" without
+    resetting the whole set. ``number`` alone is rejected — it isn't a
+    unique identity without ``set_id``."""
+    if number is not None and set_id is None:
+        raise HTTPException(status_code=422, detail="number requires set_id")
     stmt = delete(SwipeSeen).where(SwipeSeen.user_id == current_user.id)
     if set_id is not None:
         stmt = stmt.where(SwipeSeen.card_set_id == set_id)
+    if number is not None:
+        stmt = stmt.where(SwipeSeen.card_number == number)
     db.execute(stmt)
     db.commit()
     return Response(status_code=204)
