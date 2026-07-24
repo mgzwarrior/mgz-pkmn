@@ -926,6 +926,40 @@ class FavoriteSpecies(Base):
     )
 
 
+class DeviceToken(Base):
+    """One registered push-notification device for a user (#974, epic #946).
+
+    First slice of the push notification epic: registration only, no
+    delivery yet (#976) and no preferences yet (#975). ``platform`` is a
+    free-form tag (``"ios"`` today) rather than an enum tied to APNs, so
+    Android/FCM can register here later without a schema change.
+
+    Multi-device is day one — unlike :class:`FavoriteSet`, the unique
+    constraint is on ``device_token`` alone, not ``(user_id, device_token)``.
+    A token belongs to exactly one device, and a device belongs to exactly
+    one signed-in user at a time: re-registering an existing token reassigns
+    it (covers app reinstall / re-login under a different account) rather
+    than erroring or creating a duplicate."""
+
+    __tablename__ = "device_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        default=DEFAULT_USER_ID,
+        nullable=False,
+        index=True,
+    )
+    device_token: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
 class RunRow(Base):
     __tablename__ = "run_rows"
 

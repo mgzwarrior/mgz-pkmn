@@ -49,6 +49,7 @@ from .routes import (
     changelog,
     classes,
     collections,
+    device_tokens,
     ebay,
     export,
     favorite_pokemon,
@@ -564,6 +565,7 @@ app.include_router(swipe.router, prefix="/api/v1", tags=["swipe"])
 app.include_router(swipe_profile.router, prefix="/api/v1", tags=["swipe"])
 app.include_router(favorite_sets.router, prefix="/api/v1", tags=["favorite-sets"])
 app.include_router(favorite_pokemon.router, prefix="/api/v1", tags=["favorite-pokemon"])
+app.include_router(device_tokens.router, prefix="/api/v1", tags=["device-tokens"])
 app.include_router(ownership.router, prefix="/api/v1", tags=["ownership"])
 app.include_router(cache_route.router, prefix="/api/v1", tags=["cache"])
 app.include_router(ebay.router, prefix="/api/v1", tags=["ebay"])

@@ -6,7 +6,7 @@ Covers:
 - 404 when auth is off (self-host has no account to delete).
 - Cascade: every user-owned record (runs, collections + items, wishlists
   + items, binders, favorite sets/species, swipe history + taste
-  profile, linked identities) is gone after the call.
+  profile, device tokens, linked identities) is gone after the call.
 - Cross-account isolation: deleting user A never touches user B's rows.
 - Post-delete signed-out state: the session cookie no longer resolves to
   a user, and re-authenticating via a previously-linked provider mints a
@@ -37,6 +37,7 @@ from api.db.models import (
     PROVIDER_GITHUB,
     Binder,
     Collection,
+    DeviceToken,
     FavoriteSet,
     FavoriteSpecies,
     Run,
@@ -164,6 +165,7 @@ class DeleteMeCascadeTests(_IsolatedDbMixin):
             "/api/v1/swipe/profile",
             json={"rarity": {"Rare Holo": 3}, "set": {}, "tag": {}},
         )
+        client.post("/api/v1/device-tokens", json={"device_token": "tok-1", "platform": "ios"})
 
     def test_delete_cascades_every_owned_record_and_clears_session(self) -> None:
         with self._client() as c:
@@ -228,6 +230,14 @@ class DeleteMeCascadeTests(_IsolatedDbMixin):
                     select(func.count())
                     .select_from(SwipeProfileWeight)
                     .where(SwipeProfileWeight.user_id == user_id)
+                ),
+                0,
+            )
+            self.assertEqual(
+                s.scalar(
+                    select(func.count())
+                    .select_from(DeviceToken)
+                    .where(DeviceToken.user_id == user_id)
                 ),
                 0,
             )

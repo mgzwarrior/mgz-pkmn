@@ -117,6 +117,7 @@ class MeExportSelfHostTests(_IsolatedDbMixin):
                 "favorite_sets",
                 "favorite_species",
                 "swipe_seen",
+                "device_tokens",
             ):
                 self.assertEqual(body[section], [])
             self.assertEqual(body["swipe_profile"], {"rarity": {}, "set": {}, "tag": {}})
@@ -151,6 +152,7 @@ class MeExportSelfHostTests(_IsolatedDbMixin):
                 "/api/v1/swipe/profile",
                 json={"rarity": {"Rare Holo": 3}, "set": {"base1": -2}, "tag": {}},
             )
+            c.post("/api/v1/device-tokens", json={"device_token": "tok-1", "platform": "ios"})
 
             body = c.get("/api/v1/me/export").json()
 
@@ -194,6 +196,10 @@ class MeExportSelfHostTests(_IsolatedDbMixin):
                 body["swipe_profile"],
                 {"rarity": {"Rare Holo": 3}, "set": {"base1": -2}, "tag": {}},
             )
+
+            self.assertEqual(len(body["device_tokens"]), 1)
+            self.assertEqual(body["device_tokens"][0]["device_token"], "tok-1")
+            self.assertEqual(body["device_tokens"][0]["platform"], "ios")
 
 
 class MeExportAuthGateTests(_IsolatedDbMixin):

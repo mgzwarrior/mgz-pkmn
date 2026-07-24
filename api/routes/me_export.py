@@ -3,9 +3,9 @@
 Part of the persistence-at-growth epic (#419): the GDPR-style "show me
 everything you have on me" surface that #450's "Your data" page will
 front-end. Bundles the signed-in user's profile, linked sign-in identities,
-lookup history (runs), collections, want-lists, binders, and personalization
-signals (favorite sets/species, swipe memory, swipe taste profile) into
-one downloadable JSON document.
+lookup history (runs), collections, want-lists, binders, personalization
+signals (favorite sets/species, swipe memory, swipe taste profile), and
+registered push device tokens (#974) into one downloadable JSON document.
 
 Reuses each resource router's own serializer (`serialize_collection`,
 `serialize_wishlist`, `serialize_binder`, the `runs.py` Pydantic shapes) so
@@ -45,6 +45,7 @@ from ..auth.session import current_user_or_default
 from ..db.models import (
     Binder,
     Collection,
+    DeviceToken,
     FavoriteSet,
     FavoriteSpecies,
     Run,
@@ -253,6 +254,21 @@ def _swipe_profile_section(db: Session, user_id: int) -> dict[str, dict[str, int
     return profile
 
 
+def _device_tokens_section(db: Session, user_id: int) -> list[dict[str, Any]]:
+    rows = db.scalars(
+        select(DeviceToken).where(DeviceToken.user_id == user_id).order_by(DeviceToken.created_at)
+    ).all()
+    return [
+        {
+            "device_token": r.device_token,
+            "platform": r.platform,
+            "created_at": r.created_at.isoformat(),
+            "last_seen_at": r.last_seen_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
 def _build_export(db: Session, user: User) -> dict[str, Any]:
     """Gather every section eagerly, in one open session — see module
     docstring for why the generator that serializes this never touches
@@ -270,6 +286,7 @@ def _build_export(db: Session, user: User) -> dict[str, Any]:
         "favorite_species": _favorite_species_section(db, user.id),
         "swipe_seen": _swipe_seen_section(db, user.id),
         "swipe_profile": _swipe_profile_section(db, user.id),
+        "device_tokens": _device_tokens_section(db, user.id),
     }
 
 
