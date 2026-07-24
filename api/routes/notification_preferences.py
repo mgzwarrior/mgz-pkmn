@@ -1,7 +1,8 @@
 """`/api/v1/notification-preferences` — per-user, per-type push opt-in (#975).
 
-Second slice of the push notification epic (#946). Storage and CRUD only —
-delivery (#976) is a follow-up and doesn't read this table yet.
+Second slice of the push notification epic (#946). Storage and CRUD
+only — delivery (`api.push.send_notification`, #976) reads this table
+before sending.
 
 ``notification_type`` is a free-form string key, not an enum tied to
 delivery logic (see :data:`KNOWN_NOTIFICATION_TYPES`), so a new type is a

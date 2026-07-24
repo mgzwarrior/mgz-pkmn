@@ -929,11 +929,11 @@ class FavoriteSpecies(Base):
 class DeviceToken(Base):
     """One registered push-notification device for a user (#974, epic #946).
 
-    First slice of the push notification epic: registration only, no
-    delivery yet (#976). Registering a device seeds default rows in
-    :class:`NotificationPreference` (#975). ``platform`` is a free-form tag
-    (``"ios"`` today) rather than an enum tied to APNs, so Android/FCM can
-    register here later without a schema change.
+    First slice of the push notification epic: registration and storage.
+    Registering a device seeds default rows in :class:`NotificationPreference`
+    (#975); ``api.push.send_notification`` (#976) reads both before sending.
+    ``platform`` is a free-form tag (``"ios"`` today) rather than an enum tied
+    to APNs, so Android/FCM can register here later without a schema change.
 
     Multi-device is day one — unlike :class:`FavoriteSet`, the unique
     constraint is on ``device_token`` alone, not ``(user_id, device_token)``.
