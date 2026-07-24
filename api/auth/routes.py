@@ -14,7 +14,18 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from ..db.models import DEFAULT_USER_ID, User, UserIdentity
+from ..db.models import (
+    DEFAULT_USER_ID,
+    Binder,
+    Collection,
+    FavoriteSet,
+    FavoriteSpecies,
+    Run,
+    SwipeSeen,
+    User,
+    UserIdentity,
+    Wishlist,
+)
 from .session import (
     CurrentUserRequired,
     DbSession,
@@ -155,6 +166,49 @@ def complete_onboarding(db: DbSession, user: CurrentUserOrDefault) -> Response:
 def logout(request: Request) -> Response:
     """Clear the session cookie. Idempotent — calling on an already-anon
     session is a no-op 204."""
+    request.session.clear()
+    return Response(status_code=204)
+
+
+@router.delete("/me", status_code=204)
+def delete_me(
+    request: Request,
+    db: DbSession,
+    _: AuthGate,
+    user: CurrentUserRequired,
+) -> Response:
+    """Permanently delete the signed-in user's account.
+
+    **Irreversible — there is no admin override or recovery path.**
+    Cascades every user-owned record: lookup runs (saved searches),
+    collections, wishlists, binders, favorite sets/species, swipe
+    history, and linked sign-in identities. Clears the session cookie
+    on the way out, so the browser can't keep acting as this account,
+    and re-authenticating with a previously-linked provider mints a
+    fresh, empty account rather than resurrecting this one."""
+    user_id = user.id
+
+    for run in db.scalars(select(Run).where(Run.user_id == user_id)).all():
+        db.delete(run)
+    for collection in db.scalars(select(Collection).where(Collection.user_id == user_id)).all():
+        db.delete(collection)
+    for wishlist in db.scalars(select(Wishlist).where(Wishlist.user_id == user_id)).all():
+        db.delete(wishlist)
+    for binder in db.scalars(select(Binder).where(Binder.user_id == user_id)).all():
+        db.delete(binder)
+    for seen in db.scalars(select(SwipeSeen).where(SwipeSeen.user_id == user_id)).all():
+        db.delete(seen)
+    for fav_set in db.scalars(select(FavoriteSet).where(FavoriteSet.user_id == user_id)).all():
+        db.delete(fav_set)
+    for fav_species in db.scalars(
+        select(FavoriteSpecies).where(FavoriteSpecies.user_id == user_id)
+    ).all():
+        db.delete(fav_species)
+
+    # Cascades `identities` via the ORM relationship (User.identities,
+    # cascade="all, delete-orphan").
+    db.delete(user)
+    db.flush()
     request.session.clear()
     return Response(status_code=204)
 
