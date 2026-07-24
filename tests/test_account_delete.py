@@ -5,8 +5,8 @@ Covers:
 - 401 for a signed-out caller.
 - 404 when auth is off (self-host has no account to delete).
 - Cascade: every user-owned record (runs, collections + items, wishlists
-  + items, binders, favorite sets/species, swipe history, linked
-  identities) is gone after the call.
+  + items, binders, favorite sets/species, swipe history + taste
+  profile, linked identities) is gone after the call.
 - Cross-account isolation: deleting user A never touches user B's rows.
 - Post-delete signed-out state: the session cookie no longer resolves to
   a user, and re-authenticating via a previously-linked provider mints a
@@ -41,6 +41,7 @@ from api.db.models import (
     FavoriteSpecies,
     Run,
     RunRow,
+    SwipeProfileWeight,
     SwipeSeen,
     User,
     UserIdentity,
@@ -159,6 +160,10 @@ class DeleteMeCascadeTests(_IsolatedDbMixin):
         client.post("/api/v1/favorite-sets", json={"set_id": "base1"})
         client.post("/api/v1/favorite-pokemon", json={"dex_number": 6})
         client.post("/api/v1/swipe/seen", json={"set_id": "base1", "number": "4", "dir": "save"})
+        client.put(
+            "/api/v1/swipe/profile",
+            json={"rarity": {"Rare Holo": 3}, "set": {}, "tag": {}},
+        )
 
     def test_delete_cascades_every_owned_record_and_clears_session(self) -> None:
         with self._client() as c:
@@ -215,6 +220,14 @@ class DeleteMeCascadeTests(_IsolatedDbMixin):
             self.assertEqual(
                 s.scalar(
                     select(func.count()).select_from(SwipeSeen).where(SwipeSeen.user_id == user_id)
+                ),
+                0,
+            )
+            self.assertEqual(
+                s.scalar(
+                    select(func.count())
+                    .select_from(SwipeProfileWeight)
+                    .where(SwipeProfileWeight.user_id == user_id)
                 ),
                 0,
             )
