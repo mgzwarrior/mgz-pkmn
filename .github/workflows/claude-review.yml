@@ -75,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: anthropics/claude-code-action@v1.0.181
+      - uses: anthropics/claude-code-action@v1.0.183
         with:
           # Pass the job's GITHUB_TOKEN explicitly. Without this input,
           # anthropics/claude-code-action falls back to its default
