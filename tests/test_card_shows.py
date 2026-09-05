@@ -50,7 +50,7 @@ class SeedCardShowProviderTests(unittest.TestCase):
                 zip_code="10001",
             ),
         )
-        provider = SeedCardShowProvider(shows=shows)
+        provider = SeedCardShowProvider(shows=shows, today=date(2026, 1, 1))
         results = provider.shows_near("10001", radius_mi=10)
         self.assertEqual([s.name for s in results], ["Sooner Show", "Later Show"])
 
