@@ -1,7 +1,7 @@
 # Deployment
 
 The web UI (FastAPI backend + React frontend) can be self-hosted
-anywhere that runs Python 3.11+ and Node.js 20+. Below is a minimal
+anywhere that runs Python 3.11+ and Node.js 22.22+. Below is a minimal
 production recipe.
 
 ## 1 — Build the frontend
