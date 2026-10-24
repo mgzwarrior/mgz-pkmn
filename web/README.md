@@ -5,7 +5,7 @@ the FastAPI backend in [`../api/`](../api/).
 
 ## Prerequisites
 
-- **Node.js 22.22+** (Vite 8 / Vitest 5 / React Router 8 — older Node will fail on
+- **Node.js 22.22.2+ or 24.15+** (Vite 8 / Vitest 5 / React Router 8 / jsdom 30 — older Node will fail on
   `npm install` or build).
 - The API server running at `http://localhost:8000`. Start it first:
 
@@ -116,7 +116,7 @@ gateway/CDN routes `/api/*` to the FastAPI server.
 | Symptom | Likely cause / fix |
 |---|---|
 | All requests return 404 / network errors | API isn't running. Start it (`uv run uvicorn api.main:app --reload`) before `npm run dev`. |
-| `npm install` fails on dependency resolution | Node version too old. Vite 8, Vitest 5, and React Router 8 need Node 22.22+ (or 24+). `node -v` to check. |
+| `npm install` fails on dependency resolution | Node version too old. Vite 8, Vitest 5, React Router 8, and jsdom 30 need Node 22.22.2+ (or 24.15+). `node -v` to check. |
 | Port 5173 already taken | Another Vite instance is running, or set the port: `npm run dev -- --port 5174`. (You'll also need to add that origin to the CORS allowlist in [../api/main.py](../api/main.py).) |
 | CORS error when hitting the API directly | Don't fetch `http://localhost:8000` from the browser — go through the Vite proxy at `/api/...`. The proxy strips origin issues. |
 | Settings drawer is empty after clearing site data | Expected — Zustand `persist` lost its key. Re-enter your settings; they'll re-persist. |
