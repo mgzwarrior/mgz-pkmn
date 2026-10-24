@@ -9,12 +9,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from mgz_pkmn.sources.card_shows import CardShow, SeedCardShowProvider
 
+# Before every seeded show, so these tests don't rot once the real calendar passes them.
+BEFORE_SEED = date(2026, 8, 1)
+
 
 class SeedCardShowProviderTests(unittest.TestCase):
     def test_filters_by_radius(self) -> None:
         # 10001 (NYC) and 90001 (LA) are ~2,400mi apart — a 50mi radius from
         # NYC must exclude the LA show.
-        provider = SeedCardShowProvider()
+        provider = SeedCardShowProvider(today=BEFORE_SEED)
         results = provider.shows_near("10001", radius_mi=50)
         self.assertTrue(all(show.zip_code == "10001" for show in results))
         self.assertTrue(any(show.name == "Empire State Card Show" for show in results))
@@ -23,12 +26,12 @@ class SeedCardShowProviderTests(unittest.TestCase):
     def test_includes_nearby_zip_within_radius(self) -> None:
         # 07030 (Hoboken) has no show of its own but sits ~5mi from 10001 —
         # a wide-enough radius from Hoboken should still surface the NYC show.
-        provider = SeedCardShowProvider()
+        provider = SeedCardShowProvider(today=BEFORE_SEED)
         results = provider.shows_near("07030", radius_mi=25)
         self.assertTrue(any(show.name == "Empire State Card Show" for show in results))
 
     def test_unknown_zip_returns_empty(self) -> None:
-        provider = SeedCardShowProvider()
+        provider = SeedCardShowProvider(today=BEFORE_SEED)
         self.assertEqual(provider.shows_near("00000", radius_mi=100), [])
 
     def test_results_sorted_soonest_first(self) -> None:
@@ -50,12 +53,12 @@ class SeedCardShowProviderTests(unittest.TestCase):
                 zip_code="10001",
             ),
         )
-        provider = SeedCardShowProvider(shows=shows)
+        provider = SeedCardShowProvider(shows=shows, today=BEFORE_SEED)
         results = provider.shows_near("10001", radius_mi=10)
         self.assertEqual([s.name for s in results], ["Sooner Show", "Later Show"])
 
     def test_radius_zero_excludes_farther_shows_at_same_zip_only_matches_exact(self) -> None:
-        provider = SeedCardShowProvider()
+        provider = SeedCardShowProvider(today=BEFORE_SEED)
         results = provider.shows_near("60601", radius_mi=0)
         self.assertEqual([s.name for s in results], ["Windy City Card Con"])
 
