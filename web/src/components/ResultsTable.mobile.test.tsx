@@ -318,7 +318,7 @@ describe('ResultsTable — mobile card list (#521)', () => {
     })
     render(<ResultsTable />)
 
-    fireEvent.click(screen.getByLabelText(/price override for charizard/i))
+    fireEvent.click(screen.getByRole('button', { name: /price override for charizard/i }))
     fireEvent.change(screen.getByLabelText(/price override for charizard/i), {
       target: { value: '12' },
     })

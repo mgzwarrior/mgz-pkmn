@@ -72,7 +72,7 @@ describe('SaveSearchButton', () => {
     })
 
     render(<SaveSearchButton auth={signedInAuth} />)
-    fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Save search$/i }))
 
     const dialog = await screen.findByRole('dialog', { name: /Name this saved search/i })
     const input = within(dialog).getByLabelText(/Search name/i)
@@ -92,7 +92,7 @@ describe('SaveSearchButton', () => {
     const saveSpy = vi.spyOn(client, 'saveRun').mockResolvedValue(makeRun(42, ''))
 
     render(<SaveSearchButton auth={signedInAuth} />)
-    fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Save search$/i }))
 
     const dialog = await screen.findByRole('dialog', { name: /Name this saved search/i })
     fireEvent.change(within(dialog).getByLabelText(/Search name/i), { target: { value: '   ' } })
@@ -107,7 +107,7 @@ describe('SaveSearchButton', () => {
     const saveSpy = vi.spyOn(client, 'saveRun')
 
     render(<SaveSearchButton auth={signedInAuth} />)
-    fireEvent.click(screen.getByRole('button', { name: /Save this search/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Save search$/i }))
 
     const dialog = await screen.findByRole('dialog', { name: /Name this saved search/i })
     fireEvent.click(within(dialog).getByRole('button', { name: /^Cancel$/ }))
@@ -122,9 +122,9 @@ describe('SaveSearchButton', () => {
       runs: [makeRun(42, 'Show prep')],
     })
     render(<SaveSearchButton auth={signedInAuth} />)
-    expect(screen.getByRole('button', { name: /Rename this saved search/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Rename$/i })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Rename this saved search/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Rename$/i }))
     const dialog = await screen.findByRole('dialog', { name: /Rename this saved search/i })
     // Pre-filled with the existing name so the visitor can edit instead
     // of retyping from scratch.
@@ -136,7 +136,7 @@ describe('SaveSearchButton', () => {
     const saveSpy = vi.spyOn(client, 'saveRun').mockResolvedValue(makeRun(42, 'Show prep'))
 
     render(<SaveSearchButton auth={anonymousAuth} />)
-    fireEvent.click(screen.getByRole('button', { name: /Sign in to save this search/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Sign in to save$/i }))
 
     // Auth modal opens immediately — no name dialog appears first.
     expect(await screen.findByRole('dialog', { name: /Sign in to save this search/i })).toBeInTheDocument()

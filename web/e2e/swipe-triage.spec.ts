@@ -39,7 +39,7 @@ test('swipe triages cards into owned and chasing', async ({ page }) => {
   const swipe = swipeRegion(page)
   await expect(swipe).toBeVisible()
   await expect(card(swipe)).toBeVisible({ timeout: 30_000 })
-  const firstCard = await card(swipe).getAttribute('aria-label')
+  const firstCard = await card(swipe).getAttribute('data-card-id')
 
   // Own the top card via its quick action — the same write path as Browse,
   // through the Swipe UI. The button enables once the batched ownership lookup
@@ -51,7 +51,7 @@ test('swipe triages cards into owned and chasing', async ({ page }) => {
   // memory keeps the dealt card from immediately resurfacing.
   await page.keyboard.press('ArrowRight')
   await expect
-    .poll(async () => card(swipe).getAttribute('aria-label'))
+    .poll(async () => card(swipe).getAttribute('data-card-id'))
     .not.toBe(firstCard)
 
   // Want the next card — the chasing half of the pair.

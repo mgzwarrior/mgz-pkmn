@@ -1136,7 +1136,7 @@ describe('ResultsTable: manual price override (#266)', () => {
     expect(screen.getByText('$100.00')).toBeInTheDocument()
     expect(screen.getByText('$80.00')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText(/price override for charizard/i))
+    fireEvent.click(screen.getByRole('button', { name: /price override for charizard/i }))
     fireEvent.change(screen.getByLabelText(/price override for charizard/i), {
       target: { value: '12' },
     })
@@ -1183,7 +1183,7 @@ describe('ResultsTable: manual price override (#266)', () => {
     })
     render(<ResultsTable />)
 
-    fireEvent.click(screen.getByLabelText(/price override for charizard/i))
+    fireEvent.click(screen.getByRole('button', { name: /price override for charizard/i }))
     fireEvent.change(screen.getByLabelText(/price override for charizard/i), {
       target: { value: '12' },
     })
@@ -1206,7 +1206,7 @@ describe('ResultsTable: manual price override (#266)', () => {
     })
     render(<ResultsTable />)
 
-    fireEvent.click(screen.getByLabelText(/price override for charizard/i))
+    fireEvent.click(screen.getByRole('button', { name: /price override for charizard/i }))
     fireEvent.change(screen.getByLabelText(/price override for charizard/i), {
       target: { value: '12' },
     })

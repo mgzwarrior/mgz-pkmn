@@ -69,10 +69,14 @@ export function PricingOverrideCell({ value, currency, label, onChange, classNam
           e.stopPropagation()
           startEdit()
         }}
-        aria-label={label}
         title={value != null ? 'User-set price override' : 'Set a manual price override'}
         className="flex items-center gap-1 text-xs text-coconut-400 hover:text-coconut-600 dark:text-sand-300 dark:hover:text-sand-200"
       >
+        {/* Accessible name comes from this visible text (the row context
+            prefix plus the price/placeholder) rather than an overriding
+            aria-label, so it can't drift out of sync with what's on screen
+            (label-content-name-mismatch). */}
+        <span className="sr-only">{label}</span>
         {value != null && (
           <Pin className="h-3 w-3 text-palm-500 dark:text-sun-300" aria-hidden="true" />
         )}

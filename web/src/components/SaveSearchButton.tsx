@@ -88,11 +88,6 @@ export function SaveSearchButton({ auth }: Props) {
 
   if (currentRunId == null) return null
 
-  const ariaLabel = needsSignIn
-    ? 'Sign in to save this search'
-    : existing
-      ? 'Rename this saved search'
-      : 'Save this search'
   const label = saving ? 'Saving...' : needsSignIn ? 'Sign in to save' : existing ? 'Rename' : 'Save search'
 
   return (
@@ -102,11 +97,13 @@ export function SaveSearchButton({ auth }: Props) {
           {error}
         </p>
       )}
+      {/* Accessible name comes from the visible label (below) rather than
+          an overriding aria-label, so it can't drift out of sync with
+          what's on screen (label-content-name-mismatch). */}
       <button
         type="button"
         onClick={handleSave}
         disabled={saving || auth.loading}
-        aria-label={ariaLabel}
         className="flex items-center gap-1 rounded-md border border-sand-300 dark:border-husk-50 bg-sand-100 dark:bg-husk-200 px-2 py-1 text-xs text-coconut-700 dark:text-sand-200 hover:bg-sand-200 dark:hover:bg-husk-100 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
       >
         <Bookmark size={12} aria-hidden />

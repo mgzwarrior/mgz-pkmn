@@ -139,7 +139,12 @@ describe('HelpModal', () => {
     useAppStore.setState({ lastSeenChangelogVersion: '1.1.0' })
     render(<HelpModal onStartTour={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: /help \(new release available\)/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /what's new \(new version available\)/i }))
+    // The unseen note is conveyed via sr-only content now (not an overriding
+    // aria-label — see PricingOverrideCell-style fix for label-content-name-
+    // mismatch), and jsdom's accessible-name computation doesn't join
+    // sibling text with the spacing real browsers do, so match loosely here;
+    // the dedicated dot/label tests above cover the unseen affordance itself.
+    fireEvent.click(await screen.findByRole('button', { name: /what's new/i }))
     await waitFor(() =>
       expect(useAppStore.getState().lastSeenChangelogVersion).toBe('1.1.1'),
     )

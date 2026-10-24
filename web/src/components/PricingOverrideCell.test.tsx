@@ -24,7 +24,7 @@ describe('PricingOverrideCell (#266)', () => {
     render(
       <PricingOverrideCell value={null} currency="USD" label="Price override" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('Price override'))
+    fireEvent.click(screen.getByRole('button', { name: /Price override/ }))
     const input = screen.getByLabelText('Price override')
     fireEvent.change(input, { target: { value: '7.5' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -36,7 +36,7 @@ describe('PricingOverrideCell (#266)', () => {
     render(
       <PricingOverrideCell value={null} currency="USD" label="Price override" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('Price override'))
+    fireEvent.click(screen.getByRole('button', { name: /Price override/ }))
     const input = screen.getByLabelText('Price override')
     fireEvent.change(input, { target: { value: '20' } })
     fireEvent.blur(input)
@@ -48,7 +48,7 @@ describe('PricingOverrideCell (#266)', () => {
     render(
       <PricingOverrideCell value={12} currency="USD" label="Price override" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('Price override'))
+    fireEvent.click(screen.getByRole('button', { name: /Price override/ }))
     const input = screen.getByLabelText('Price override')
     fireEvent.change(input, { target: { value: '999' } })
     fireEvent.keyDown(input, { key: 'Escape' })
@@ -61,7 +61,7 @@ describe('PricingOverrideCell (#266)', () => {
     render(
       <PricingOverrideCell value={12} currency="USD" label="Price override" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('Price override'))
+    fireEvent.click(screen.getByRole('button', { name: /Price override/ }))
     const input = screen.getByLabelText('Price override')
     fireEvent.change(input, { target: { value: '' } })
     fireEvent.blur(input)
@@ -73,7 +73,7 @@ describe('PricingOverrideCell (#266)', () => {
     render(
       <PricingOverrideCell value={null} currency="USD" label="Price override" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('Price override'))
+    fireEvent.click(screen.getByRole('button', { name: /Price override/ }))
     fireEvent.blur(screen.getByLabelText('Price override'))
     expect(onChange).not.toHaveBeenCalled()
   })
@@ -83,7 +83,7 @@ describe('PricingOverrideCell (#266)', () => {
     render(
       <PricingOverrideCell value={12} currency="USD" label="Price override" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('Price override'))
+    fireEvent.click(screen.getByRole('button', { name: /Price override/ }))
     const input = screen.getByLabelText('Price override')
     fireEvent.change(input, { target: { value: '12' } })
     fireEvent.blur(input)
@@ -95,7 +95,7 @@ describe('PricingOverrideCell (#266)', () => {
     render(
       <PricingOverrideCell value={null} currency="USD" label="Price override" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('Price override'))
+    fireEvent.click(screen.getByRole('button', { name: /Price override/ }))
     const input = screen.getByLabelText('Price override')
     fireEvent.change(input, { target: { value: '-5' } })
     fireEvent.blur(input)
@@ -109,7 +109,7 @@ describe('PricingOverrideCell (#266)', () => {
         <PricingOverrideCell value={null} currency="USD" label="Price override" onChange={vi.fn()} />
       </div>,
     )
-    fireEvent.click(screen.getByLabelText('Price override'))
+    fireEvent.click(screen.getByRole('button', { name: /Price override/ }))
     rowClick.mockClear()
     fireEvent.click(screen.getByLabelText('Price override'))
     expect(rowClick).not.toHaveBeenCalled()

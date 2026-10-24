@@ -806,9 +806,9 @@ function SwipeCard({
     return (
       <div
         data-testid="swipe-card"
+        data-card-id={card.id}
         role="button"
         tabIndex={0}
-        aria-label={`View details for ${card.name}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -818,6 +818,10 @@ function SwipeCard({
         style={cardTransformStyle(drag, outgoing)}
         className={`relative z-20 cursor-pointer touch-none select-none ${CARD_BASE}`}
       >
+        {/* Accessible name comes from the card's own visible text (name,
+            price, set info below) rather than an overriding aria-label, so
+            the two never drift out of sync (label-content-name-mismatch). */}
+        <span className="sr-only">View details for</span>
         <CardArtwork card={card} />
         <CardMeta card={card} setName={setName} />
         <DragHint drag={drag} outgoing={outgoing} mode={mode} />
@@ -844,7 +848,10 @@ function CardArtwork({ card }: { card: SetCard }) {
       {card.thumb && !thumbFailed ? (
         <img
           src={card.thumb}
-          alt={card.name}
+          // Decorative: the card's name is already visible text (CardMeta)
+          // and part of the card's accessible name, so a repeated alt would
+          // just double it up for screen reader users.
+          alt=""
           className="h-full w-full object-contain"
           draggable={false}
           onError={() => setThumbFailed(true)}

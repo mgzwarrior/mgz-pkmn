@@ -708,13 +708,14 @@ describe('SwipePanel', () => {
     render(<SwipePanel active />)
     await waitFor(() => expect(screen.getByText('Pikachu')).toBeInTheDocument())
 
-    const img = screen.getByAltText('Pikachu') as HTMLImageElement
+    // The art is decorative (alt="") — the name is already visible text —
+    // so it's queried by its position in the card rather than by alt text.
+    const cardEl = screen.getByTestId('swipe-card')
+    const img = cardEl.querySelector('img') as HTMLImageElement
     fireEvent.error(img)
 
     // The broken image is swapped for the ImageOff placeholder.
-    await waitFor(() =>
-      expect(screen.queryByAltText('Pikachu')).not.toBeInTheDocument(),
-    )
+    await waitFor(() => expect(cardEl.querySelector('img')).not.toBeInTheDocument())
   })
 
   it('offers the onboarding pass on a cold profile and counts swipes once started (#714)', async () => {

@@ -214,12 +214,16 @@ export function HelpModal({ onStartTour, open: openProp, onOpenChange: onOpenCha
               onClick={handleToggleWhatsNew}
               aria-expanded={whatsNewOpen}
               aria-controls={whatsNewOpen ? 'whats-new-panel' : undefined}
-              aria-label={hasUnseen ? "What's new (new version available)" : "What's new"}
               className="flex w-full items-center gap-2 px-5 py-3 text-left hover:bg-sand-100 dark:hover:bg-husk-100 transition-colors"
             >
+              {/* Accessible name comes from this visible text (plus the
+                  sr-only unseen-release note below) rather than an
+                  overriding aria-label, so it can never drift out of sync
+                  with what's on screen (label-content-name-mismatch). */}
               <span className="text-xs font-semibold uppercase tracking-wider text-coconut-400 dark:text-sand-300">
                 What's new
               </span>
+              {hasUnseen && <span className="sr-only">(new version available)</span>}
               {latest && (
                 <span className="font-mono text-xs text-coconut-400 dark:text-sand-400">
                   v{latest}
