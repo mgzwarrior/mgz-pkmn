@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-10-24
+
+The phone parity release: push notifications land end to end, and swipe's taste profile moves off the browser.
+
+### Added
+
+- API: **Push notifications land on iOS** ([#979](https://github.com/mgzwarrior/mgz-pkmn/issues/979), [#980](https://github.com/mgzwarrior/mgz-pkmn/issues/980), [#982](https://github.com/mgzwarrior/mgz-pkmn/issues/982)). Device registration, per-type opt-in preferences, and direct APNs delivery complete the push notification pipeline — registering a device seeds default preferences, and delivery prunes dead tokens automatically.
+- API: **Swipe's taste profile now persists across devices** ([#977](https://github.com/mgzwarrior/mgz-pkmn/issues/977)). The rarity/set/tag weighting the web app builds from your swipes moves from browser-local storage to durable per-user server state, so iOS and web can eventually share it.
+- API: **Un-hide a single card from swipe without resetting a whole set** ([#966](https://github.com/mgzwarrior/mgz-pkmn/issues/966)). `DELETE /swipe/seen` now takes an optional card number alongside the set, clearing just that one card's seen status.
+
 ## [1.9.0] - 2026-07-23
 
 The web workspace rethink: a real desktop split view, a mobile-first IA, and a library that finally tells saved searches, wishlists, and collections apart.
@@ -276,6 +286,7 @@ Foundation release. Establishes the full CLI pipeline, a FastAPI / React web UI,
 - Parser ReDoS vulnerabilities were eliminated across multiple regex passes.
 - URL substring sanitization and workflow permissions were hardened in response to CodeQL alerts.
 
+[1.10.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/mgzwarrior/mgz-pkmn/compare/v1.6.1...v1.7.0

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [[package]]
@@ -742,7 +742,7 @@ wheels = [
 
 [[package]]
 name = "mgz-pkmn"
-version = "1.9.0"
+version = "1.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
